@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PipelineBuildEvent xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <SourceFile>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Sounds/MonsterKilled.wav</SourceFile>
+  <SourceTime>2026-08-14T22:08:01.273242+02:00</SourceTime>
+  <DestFile>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/bin/DesktopGL/AgeOfEmpiresClone/Sounds/MonsterKilled.xnb</DestFile>
+  <DestTime>2026-08-14T22:18:59.2486709+02:00</DestTime>
+  <Importer>WavImporter</Importer>
+  <ImporterTime>2026-07-15T18:21:24+02:00</ImporterTime>
+  <Processor>SoundEffectProcessor</Processor>
+  <ProcessorTime>2026-07-15T18:21:24+02:00</ProcessorTime>
+  <Parameters>
+    <Key>Quality</Key>
+    <Value>Best</Value>
+  </Parameters>
+  <Dependencies />
+  <BuildAsset />
+  <BuildOutput />
+</PipelineBuildEvent>

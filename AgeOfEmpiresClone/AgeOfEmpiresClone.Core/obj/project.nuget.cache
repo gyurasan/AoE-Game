@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "Of0LmlZEWn0=",
+  "success": true,
+  "projectFilePath": "D:\\Apps\\AgeOfEmpire\\AgeOfEmpiresClone\\AgeOfEmpiresClone.Core\\AgeOfEmpiresClone.Core.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\gyura\\.nuget\\packages\\monogame.framework.native\\3.8.5.1\\monogame.framework.native.3.8.5.1.nupkg.sha512"
+  ],
+  "logs": []
+}

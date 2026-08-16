@@ -1,0 +1,4 @@
+D:\Apps\AgeOfEmpire\src\AoE.Core\bin\publish\win\AoE.Core.dll
+D:\Apps\AgeOfEmpire\src\AoE.Core\bin\publish\win\AoE.Core.deps.json
+D:\Apps\AgeOfEmpire\src\AoE.Core\bin\publish\win\AoE.Core.pdb
+D:\Apps\AgeOfEmpire\src\AoE.Core\bin\publish\win\SixLabors.ImageSharp.dll

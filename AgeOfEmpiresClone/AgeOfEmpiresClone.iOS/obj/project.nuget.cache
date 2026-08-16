@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "dgSpecHash": "d4rxmEbSSa4=",
+  "success": true,
+  "projectFilePath": "D:\\Apps\\AgeOfEmpire\\AgeOfEmpiresClone\\AgeOfEmpiresClone.iOS\\AgeOfEmpiresClone.iOS.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\gyura\\.nuget\\packages\\microsoft.net.illink.tasks\\9.0.19\\microsoft.net.illink.tasks.9.0.19.nupkg.sha512",
+    "C:\\Users\\gyura\\.nuget\\packages\\monogame.content.builder.task\\3.8.5\\monogame.content.builder.task.3.8.5.nupkg.sha512",
+    "C:\\Users\\gyura\\.nuget\\packages\\monogame.framework.ios\\3.8.5\\monogame.framework.ios.3.8.5.nupkg.sha512",
+    "C:\\Users\\gyura\\.nuget\\packages\\monogame.library.openal\\1.24.3.2\\monogame.library.openal.1.24.3.2.nupkg.sha512",
+    "C:\\Users\\gyura\\.nuget\\packages\\microsoft.ios.runtime.iossimulator-x64.net9.0_26.5\\26.5.9004\\microsoft.ios.runtime.iossimulator-x64.net9.0_26.5.26.5.9004.nupkg.sha512",
+    "C:\\Users\\gyura\\.nuget\\packages\\microsoft.ios.ref.net9.0_26.5\\26.5.9004\\microsoft.ios.ref.net9.0_26.5.26.5.9004.nupkg.sha512"
+  ],
+  "logs": []
+}

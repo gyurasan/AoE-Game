@@ -1,0 +1,49 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v9.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v9.0": {
+      "AgeOfEmpiresClone.Core/1.0.0": {
+        "dependencies": {
+          "MonoGame.Framework.Native": "3.8.5.1"
+        },
+        "runtime": {
+          "AgeOfEmpiresClone.Core.dll": {}
+        },
+        "resources": {
+          "es-ES/AgeOfEmpiresClone.Core.resources.dll": {
+            "locale": "es-ES"
+          },
+          "fr-FR/AgeOfEmpiresClone.Core.resources.dll": {
+            "locale": "fr-FR"
+          }
+        }
+      },
+      "MonoGame.Framework.Native/3.8.5.1": {
+        "runtime": {
+          "lib/netstandard2.1/MonoGame.Framework.dll": {
+            "assemblyVersion": "3.8.5.1",
+            "fileVersion": "3.8.5.1"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "AgeOfEmpiresClone.Core/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "MonoGame.Framework.Native/3.8.5.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-vg3F0e5BUcLYkSHEELU/yFGurSMI48ok4UDqrrStw+p4TOuNwk5ZbgojQ61/dl7mGgfcOwTfti3+m431Kz+0Ag==",
+      "path": "monogame.framework.native/3.8.5.1",
+      "hashPath": "monogame.framework.native.3.8.5.1.nupkg.sha512"
+    }
+  }
+}

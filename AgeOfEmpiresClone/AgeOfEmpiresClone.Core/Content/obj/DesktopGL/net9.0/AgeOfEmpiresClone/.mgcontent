@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<SourceFileCollection xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <Profile>Reach</Profile>
+  <Platform>DesktopGL</Platform>
+  <Config />
+  <SourceFiles>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Backgrounds/menu.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Backgrounds/Layer0_0.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Backgrounds/Layer0_1.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Backgrounds/Layer0_2.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Backgrounds/Layer1_0.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Backgrounds/Layer1_1.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Backgrounds/Layer1_2.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Backgrounds/Layer2_0.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Backgrounds/Layer2_1.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Backgrounds/Layer2_2.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Fonts/Hud.spritefont</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Overlays/you_died.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Overlays/you_lose.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Overlays/you_win.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Sounds/PlayerExitReached.wav</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Sounds/PlayerGemCollected.wav</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Sounds/MonsterKilled.wav</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Sounds/Music.mp3</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Sounds/PlayerFall.wav</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Sounds/PlayerJump.wav</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Sounds/PlayerKilled.wav</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Sounds/PlayerPowerUp.wav</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Sprites/Gem.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Sprites/MonsterA/Die.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Sprites/MonsterA/Idle.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Sprites/MonsterA/Run.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Sprites/MonsterB/Die.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Sprites/MonsterB/Idle.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Sprites/MonsterB/Run.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Sprites/MonsterC/Die.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Sprites/MonsterC/Idle.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Sprites/MonsterC/Run.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Sprites/MonsterD/Die.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Sprites/MonsterD/Idle.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Sprites/MonsterD/Run.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Sprites/Player/Celebrate.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Sprites/Player/Die.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Sprites/Player/Idle.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Sprites/Player/Jump.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Sprites/Player/Run.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Sprites/VirtualControlArrow.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Sprites/blank.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Sprites/gradient.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Sprites/backpack.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Tiles/BlockA0.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Tiles/BlockA1.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Tiles/BlockA2.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Tiles/BlockA3.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Tiles/BlockA4.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Tiles/BlockA5.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Tiles/BlockA6.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Tiles/BlockB0.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Tiles/BlockB1.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Tiles/Exit.png</File>
+    <File>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Tiles/Platform.png</File>
+  </SourceFiles>
+  <DestFiles>
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+    <File xsi:nil="true" />
+  </DestFiles>
+</SourceFileCollection>
