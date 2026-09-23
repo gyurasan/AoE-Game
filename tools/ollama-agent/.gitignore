@@ -1,0 +1,5 @@
+# Laufzeit-Artefakte des Harness
+.snapshots/
+.rejected/
+logs/
+__pycache__/

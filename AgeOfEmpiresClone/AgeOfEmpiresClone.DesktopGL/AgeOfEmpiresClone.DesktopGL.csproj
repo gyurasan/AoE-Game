@@ -1,13 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <PublishReadyToRun>false</PublishReadyToRun>
     <TieredCompilation>false</TieredCompilation>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>../AgeOfEmpiresClone.Core/Content/Icon.ico</ApplicationIcon>
     <AssemblyName>AgeOfEmpiresClone</AssemblyName>
     <AssemblyTitle>AgeOfEmpiresClone</AssemblyTitle>
+    <RuntimeIdentifiers>win-x64;osx-x64;osx-arm64;linux-x64</RuntimeIdentifiers>
   </PropertyGroup>
   <ItemGroup>
     <MonoGameContentReference Include="..\AgeOfEmpiresClone.Core\Content\AgeOfEmpiresClone.mgcb">

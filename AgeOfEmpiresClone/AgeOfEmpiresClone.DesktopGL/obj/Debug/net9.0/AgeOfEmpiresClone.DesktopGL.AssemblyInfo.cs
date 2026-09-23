@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("AgeOfEmpiresClone")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+5109c77a0c1f3185ad31381e72291709cfff2b40")]
 [assembly: System.Reflection.AssemblyProductAttribute("AgeOfEmpiresClone")]
 [assembly: System.Reflection.AssemblyTitleAttribute("AgeOfEmpiresClone")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

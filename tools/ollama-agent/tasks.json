@@ -1,0 +1,217 @@
+{
+  "_hinweis": "IDs entsprechen TODO.md. 'auto': true = laeuft bei 'py run_tasks.py --auto' mit. Nur Punkte aufnehmen, deren Ergebnis durch 'verify' wirklich abnehmbar ist.",
+  "_verify_bausteine": {
+    "build": "dotnet build AgeOfEmpiresClone/AgeOfEmpiresClone.DesktopGL/AgeOfEmpiresClone.DesktopGL.csproj -v q --nologo",
+    "test": "dotnet test tests/AoE.Tests/AoE.Tests.csproj --nologo -v q"
+  },
+  "tasks": [
+    {
+      "id": "H3",
+      "title": "Doppelten ProjectReference auf AoE.Core entfernen",
+      "auto": true,
+      "max_turns": 10,
+      "prompt": "In AgeOfEmpiresClone/AgeOfEmpiresClone.Core/AgeOfEmpiresClone.Core.csproj wird das Projekt AoE.Core ZWEIMAL referenziert: einmal in einer ItemGroup mit Schraegstrichen ('../../src/AoE.Core/AoE.Core.csproj') und einmal in einer zweiten ItemGroup mit Backslashes ('..\\..\\src\\AoE.Core\\AoE.Core.csproj'). Beide meinen dasselbe Projekt. Entferne genau eine der beiden ItemGroups, sodass der Verweis nur noch einmal vorkommt. Behalte die Variante mit Backslashes, das ist die uebliche Schreibweise in .NET-Projektdateien. Aendere sonst nichts an der Datei - Frameworkversion, Platforms und die MonoGame-PackageReference bleiben unveraendert.",
+      "context_files": [
+        "AgeOfEmpiresClone/AgeOfEmpiresClone.Core/AgeOfEmpiresClone.Core.csproj"
+      ],
+      "allow_write": [
+        "AgeOfEmpiresClone/AgeOfEmpiresClone.Core/*.csproj"
+      ],
+      "verify": [
+        "dotnet build AgeOfEmpiresClone/AgeOfEmpiresClone.DesktopGL/AgeOfEmpiresClone.DesktopGL.csproj -v q --nologo",
+        "py -c \"import pathlib,sys; t=pathlib.Path('AgeOfEmpiresClone/AgeOfEmpiresClone.Core/AgeOfEmpiresClone.Core.csproj').read_text(encoding='utf-8-sig'); n=t.count('AoE.Core.csproj'); print('ProjectReference-Treffer:',n); sys.exit(0 if n==1 else 1)\""
+      ]
+    },
+    {
+      "id": "H1",
+      "title": ".gitignore fuer .NET + MonoGame + Visual Studio anlegen",
+      "auto": true,
+      "max_turns": 8,
+      "prompt": "Das Repository hat keine .gitignore, deshalb sind Build-Artefakte eingecheckt. Lege im Wurzelverzeichnis eine .gitignore an, die fuer ein .NET-/MonoGame-Projekt unter Visual Studio das Uebliche ausschliesst. Sie muss mindestens abdecken: bin/ und obj/ auf jeder Ebene, das Visual-Studio-Verzeichnis .vs/, die MonoGame-Content-Zwischenstaende (Content/bin/ und Content/obj/), Benutzerdateien (*.user, *.suo), Test- und Coverage-Ergebnisse sowie NuGet-Pakete (packages/, *.nupkg). Gruppiere die Eintraege mit kurzen Kommentar-Ueberschriften. Wichtig: die Quellverzeichnisse src/, tests/, demo/, docs/ und tools/ duerfen NICHT ausgeschlossen werden.",
+      "context_files": [],
+      "allow_write": [
+        ".gitignore"
+      ],
+      "_warnung": "--no-index ist zwingend: ohne das ueberspringt git check-ignore alle GETRACKTEN Dateien und meldet 'nicht ignoriert', obwohl die Regel greift. Genau hier sind bin/ und obj/ getrackt.",
+      "verify": [
+        "git check-ignore --no-index -q AgeOfEmpiresClone/AgeOfEmpiresClone.Core/obj/project.assets.json",
+        "git check-ignore --no-index -q AgeOfEmpiresClone/AgeOfEmpiresClone.Core/bin/Debug/beliebig/irgendwas.dll",
+        "git check-ignore --no-index -q AgeOfEmpiresClone/.vs/AgeOfEmpiresClone/v17/.suo",
+        "py -c \"import subprocess,sys; bad=[p for p in ['src/AoE.Core/AoE.Core.csproj','tests/AoE.Tests/UnitTests.cs','docs/AgeOfEmpires.md','TODO.md','tools/ollama-agent/run_tasks.py'] if subprocess.run(['git','check-ignore','--no-index','-q',p]).returncode==0]; print('faelschlich ignoriert:',bad); sys.exit(1 if bad else 0)\""
+      ]
+    },
+    {
+      "id": "C3",
+      "title": "Endliche Ressourcenvorkommen statt Regeneration",
+      "auto": false,
+      "max_turns": 20,
+      "prompt": "In AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Screens/RTSGameplayScreen.cs sind Ressourcen derzeit unendlich. Zwei Aenderungen, beide in dieser Datei:\n\n1. In UpdateGatheringUnit wird beim Sammeln zwar unit.CarryingAmount hochgezaehlt, aber der Vorrat des Tiles nie verringert. Sorge dafuer, dass jeder gesammelte Punkt tile.ResourceAmount um 1 reduziert. Das Tile holst du wie im else-Zweig ueber tileMap.WorldToGrid(unit.Position) und tileMap.GetTile(...). Wenn das Tile null ist, keinen Vorrat hat oder ResourceAmount bereits 0 ist, darf nicht weiter gesammelt werden - die Einheit soll dann abliefern, was sie traegt.\n\n2. Faellt tile.ResourceAmount auf 0 oder darunter, ist die Quelle erschoepft: setze tile.ResourceAmount auf 0 und tile.ResourceType auf null, damit daraus normales Gelaende wird.\n\n3. Die Methode UpdateResources laesst jedes Tile unter 100 nachwachsen ('Natural resource regeneration'). Das widerspricht endlichen Vorkommen und ist ausserdem wirkungslos, weil (int)(dt * 0.1f) bei diesen dt-Werten immer 0 ergibt - die Schleife laeuft nur sinnlos ueber alle Tiles. Entferne die Regeneration vollstaendig. Wenn die Methode danach keinen Inhalt mehr hat, lass sie als leere Methode mit einem kurzen Kommentar stehen, damit die Aufrufstelle unveraendert bleibt.\n\nBenutze replace_in_file, nicht write_file - die Datei hat ueber 1200 Zeilen. Aendere nichts anderes.",
+      "context_files": [
+        "AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Data/Tile.cs"
+      ],
+      "allow_write": [
+        "AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Screens/RTSGameplayScreen.cs"
+      ],
+      "verify": [
+        "dotnet build AgeOfEmpiresClone/AgeOfEmpiresClone.DesktopGL/AgeOfEmpiresClone.DesktopGL.csproj -v q --nologo",
+        "dotnet test tests/AoE.Tests/AoE.Tests.csproj --nologo -v q",
+        "py -c \"import pathlib,re,sys; t=pathlib.Path('AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Screens/RTSGameplayScreen.cs').read_text(encoding='utf-8-sig'); regen = re.search(r'ResourceAmount\\s*(\\+\\+|\\+=)', t); abbau = re.search(r'ResourceAmount\\s*(--|-=)', t); erschoepft = re.search(r'ResourceType\\s*=\\s*null', t); print('Regeneration weg:', not regen, '| Abbau da:', bool(abbau), '| Erschoepfung da:', bool(erschoepft)); sys.exit(0 if (not regen and abbau and erschoepft) else 1)\""
+      ]
+    },
+    {
+      "id": "D2",
+      "title": "README.md im Wurzelverzeichnis anlegen",
+      "auto": true,
+      "max_turns": 10,
+      "prompt": "Das Repository hat keine README.md. Lege eine an. Inhalt, auf Deutsch, sachlich und ohne Marketing-Ton:\n\n- Was das Projekt ist: ein Age-of-Empires-I-artiges Echtzeitstrategiespiel, C# auf MonoGame, .NET 10.\n- Aufbau: src/AoE.Core ist die MonoGame-unabhaengige Spiellogik (Kampf, Wirtschaft, Karte, Wegfindung), AgeOfEmpiresClone/ ist das MonoGame-Spiel mit den Plattformprojekten DesktopGL, WindowsDX, Android und iOS, tests/AoE.Tests sind die Unit-Tests, demo/ eine kleine Konsolen-Testapp, docs/ die Dokumentation, tools/ die Hilfswerkzeuge.\n- Bauen und Starten, als Codeblock: 'dotnet build AgeOfEmpiresClone/AgeOfEmpiresClone.DesktopGL/AgeOfEmpiresClone.DesktopGL.csproj' und 'dotnet run --project AgeOfEmpiresClone/AgeOfEmpiresClone.DesktopGL'.\n- Tests, als Codeblock: 'dotnet test tests/AoE.Tests/AoE.Tests.csproj'.\n- Verweise auf docs/AgeOfEmpires.md (die Spielspezifikation), docs/PROJEKT_STRUKTUR.md und TODO.md.\n\nBehaupte keinen Funktionsumfang, der nicht in dieser Beschreibung steht. Kein Lizenz-Abschnitt, es ist keine Lizenz festgelegt.",
+      "context_files": [],
+      "allow_write": [
+        "README.md"
+      ],
+      "verify": [
+        "py -c \"import pathlib,sys; p=pathlib.Path('README.md'); t=p.read_text(encoding='utf-8-sig'); ok = p.stat().st_size>400 and 'dotnet' in t and 'AoE.Core' in t; print('README plausibel:', ok, p.stat().st_size,'Bytes'); sys.exit(0 if ok else 1)\""
+      ]
+    },
+    {
+      "id": "D3",
+      "title": "copilot-instructions.md durch projektbezogene Hinweise ersetzen",
+      "auto": true,
+      "max_turns": 8,
+      "prompt": "Die Datei AgeOfEmpiresClone/.github/copilot-instructions.md enthaelt nur generisches Azure-Boilerplate ('@azure Rule - Use Azure Tools' usw.), das mit diesem Projekt nichts zu tun hat - hier laeuft kein Azure. Ersetze den Inhalt vollstaendig durch kurze, projektbezogene Hinweise fuer Coding-Assistenten:\n\n- Projekt: Age-of-Empires-I-artiges RTS, C#, MonoGame, .NET 10.\n- src/AoE.Core enthaelt die Spiellogik und darf KEINE MonoGame-Abhaengigkeit bekommen - das ist die Bedingung dafuer, dass sie testbar bleibt.\n- Die Spielspezifikation mit den verbindlichen Regeln (vier Ressourcen, Schadensformel mit Angriffs- und Ruestungsklassen, Zeitalter, Fog of War) steht in docs/AgeOfEmpires.md.\n- Vor dem Abschluss einer Aenderung bauen und testen: dotnet build auf AgeOfEmpiresClone/AgeOfEmpiresClone.DesktopGL und dotnet test auf tests/AoE.Tests.\n- Offene Punkte stehen in TODO.md.\n\nHalte es kurz, als Stichpunktliste. Kein Azure.",
+      "context_files": [
+        "AgeOfEmpiresClone/.github/copilot-instructions.md"
+      ],
+      "allow_write": [
+        "AgeOfEmpiresClone/.github/copilot-instructions.md"
+      ],
+      "verify": [
+        "py -c \"import pathlib,sys; t=pathlib.Path('AgeOfEmpiresClone/.github/copilot-instructions.md').read_text(encoding='utf-8-sig'); ok = 'azure' not in t.lower() and 'AoE.Core' in t and len(t)>150; print('projektbezogen und azure-frei:', ok); sys.exit(0 if ok else 1)\""
+      ]
+    },
+    {
+      "id": "H2",
+      "title": "csproj-Dateinamen auf kanonische Schreibweise bringen",
+      "auto": false,
+      "max_turns": 8,
+      "prompt": "Die Projektdatei heisst auf der Platte 'AgeofempiresClone.Core.csproj' (kleines o, kleines e). Git und alle vier Plattformprojekte sowie die .sln verweisen dagegen auf die kanonische Schreibweise 'AgeOfEmpiresClone.Core.csproj'. Unter Windows faellt das nicht auf, weil das Dateisystem Gross- und Kleinschreibung ignoriert - auf Linux und macOS bricht der Build.\n\nBenenne die Datei mit rename_file um:\n  von: AgeOfEmpiresClone/AgeOfEmpiresClone.Core/AgeofempiresClone.Core.csproj\n  nach: AgeOfEmpiresClone/AgeOfEmpiresClone.Core/AgeOfEmpiresClone.Core.csproj\n\nDer Inhalt der Datei bleibt unveraendert. Aendere sonst nichts.",
+      "context_files": [],
+      "allow_write": [
+        "AgeOfEmpiresClone/AgeOfEmpiresClone.Core/*.csproj"
+      ],
+      "verify": [
+        "dotnet build AgeOfEmpiresClone/AgeOfEmpiresClone.DesktopGL/AgeOfEmpiresClone.DesktopGL.csproj -v q --nologo",
+        "py -c \"import pathlib,sys; d=pathlib.Path('AgeOfEmpiresClone/AgeOfEmpiresClone.Core'); names=[p.name for p in d.iterdir() if p.suffix=='.csproj']; ok = names==['AgeOfEmpiresClone.Core.csproj']; print('csproj-Dateien:', names); sys.exit(0 if ok else 1)\""
+      ]
+    },
+    {
+      "id": "H6",
+      "title": "Android- und iOS-Projekt auf net10 ziehen",
+      "auto": false,
+      "max_turns": 10,
+      "prompt": "Android und iOS sind die letzten beiden Projekte, die noch auf .NET 9 stehen; alles andere im Repository laeuft auf .NET 10. Die passenden Workloads sind installiert.\n\nAendere das TargetFramework:\n  AgeOfEmpiresClone/AgeOfEmpiresClone.Android/AgeOfEmpiresClone.Android.csproj: net9.0-android -> net10.0-android\n  AgeOfEmpiresClone/AgeOfEmpiresClone.iOS/AgeOfEmpiresClone.iOS.csproj: net9.0-ios -> net10.0-ios\n\nBenutze replace_in_file. Aendere ausschliesslich die TargetFramework-Zeile - SupportedOSPlatformVersion, Paketverweise und alles andere bleiben unveraendert.",
+      "context_files": [
+        "AgeOfEmpiresClone/AgeOfEmpiresClone.Android/AgeOfEmpiresClone.Android.csproj",
+        "AgeOfEmpiresClone/AgeOfEmpiresClone.iOS/AgeOfEmpiresClone.iOS.csproj"
+      ],
+      "allow_write": [
+        "AgeOfEmpiresClone/AgeOfEmpiresClone.Android/*.csproj",
+        "AgeOfEmpiresClone/AgeOfEmpiresClone.iOS/*.csproj"
+      ],
+      "verify": [
+        "py -c \"import pathlib,sys; a=pathlib.Path('AgeOfEmpiresClone/AgeOfEmpiresClone.Android/AgeOfEmpiresClone.Android.csproj').read_text(encoding='utf-8-sig'); i=pathlib.Path('AgeOfEmpiresClone/AgeOfEmpiresClone.iOS/AgeOfEmpiresClone.iOS.csproj').read_text(encoding='utf-8-sig'); ok='net10.0-android' in a and 'net9.0' not in a and 'net10.0-ios' in i and 'net9.0' not in i; print('beide auf net10:', ok); sys.exit(0 if ok else 1)\"",
+        "dotnet restore AgeOfEmpiresClone/AgeOfEmpiresClone.Android/AgeOfEmpiresClone.Android.csproj",
+        "dotnet build AgeOfEmpiresClone/AgeOfEmpiresClone.DesktopGL/AgeOfEmpiresClone.DesktopGL.csproj -v q --nologo"
+      ],
+      "_ueberholt": "Erledigt und danach gegenstandslos: die Android- und iOS-Projekte wurden am 2026-09-23 geloescht, weil das Spiel nur PC und Mac unterstuetzen soll."
+    },
+    {
+      "id": "H5",
+      "title": "Platformer-Reste des MonoGame-Beispiels entfernen",
+      "auto": false,
+      "max_turns": 26,
+      "prompt": "Das Projekt basierte urspruenglich auf dem MonoGame-Beispiel 'Platformer 2D'. Dessen Code liegt noch im Repository, ist aber vom Menue nicht mehr erreichbar - MainMenuScreen fuehrt zu RTSGameplayScreen. Geprueft: keiner der folgenden Typen wird von RTS-Code verwendet.\n\nLoesche mit delete_file:\n  AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Game/Level.cs\n  AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Game/Player.cs\n  AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Game/Gem.cs\n  AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Game/GemState.cs\n  AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Game/Enemy.cs\n  AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Screens/GameplayScreen.cs\nsowie alle Dateien in AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Levels/ (vorher mit list_dir ansehen).\n\nDanach die Content-Pipeline bereinigen: In AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/AgeOfEmpiresClone.mgcb gibt es ab etwa Zeile 143 Eintraege der Form '#begin Levels/00.txt' gefolgt von '/copy:Levels/00.txt'. Entferne alle Eintraege, die sich auf Levels/ beziehen, mit replace_in_file. Andere Eintraege (Tiles, Sprites, Sounds, Fonts, Backgrounds, Overlays) bleiben unangetastet.\n\nWICHTIG - nicht loeschen, das sind andere Typen mit aehnlichem Namen:\n  Data/Player.cs (Namespace AgeOfEmpiresClone.Core.Data, gehoert zum RTS)\n  Data/Tile.cs (RTS-Kachel; Game/Tile.cs ist die Platformer-Kachel)\nFass ausserhalb der genannten Dateien nichts an.",
+      "context_files": [],
+      "allow_write": [
+        "AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Game/Level.cs",
+        "AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Game/Player.cs",
+        "AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Game/Gem.cs",
+        "AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Game/GemState.cs",
+        "AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Game/Enemy.cs",
+        "AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Screens/GameplayScreen.cs",
+        "AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Levels/*",
+        "AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/AgeOfEmpiresClone.mgcb"
+      ],
+      "verify": [
+        "dotnet build AgeOfEmpiresClone/AgeOfEmpiresClone.DesktopGL/AgeOfEmpiresClone.DesktopGL.csproj -v q --nologo",
+        "dotnet test tests/AoE.Tests/AoE.Tests.csproj --nologo -v q",
+        "py -c \"import pathlib,sys; weg=['Game/Level.cs','Game/Player.cs','Game/Gem.cs','Game/GemState.cs','Game/Enemy.cs','Screens/GameplayScreen.cs']; base=pathlib.Path('AgeOfEmpiresClone/AgeOfEmpiresClone.Core'); rest=[f for f in weg if (base/f).exists()]; lv=list((base/'Content/Levels').glob('*')) if (base/'Content/Levels').is_dir() else []; mg='Levels/' in (base/'Content/AgeOfEmpiresClone.mgcb').read_text(encoding='utf-8-sig'); bleibt=(base/'Data/Player.cs').exists() and (base/'Data/Tile.cs').exists(); print('noch da:',rest,'| Levels:',len(lv),'| mgcb-Eintraege:',mg,'| RTS-Dateien heil:',bleibt); sys.exit(0 if (not rest and not lv and not mg and bleibt) else 1)\""
+      ]
+    },
+    {
+      "id": "H4",
+      "title": "Root-Solution im slnx-Format mit allen Projekten",
+      "auto": false,
+      "max_turns": 12,
+      "prompt": "Es gibt keine Solution, die alle Projekte umfasst. Ausserdem zeigt die bestehende AgeOfEmpire.slnx noch auf die Android- und iOS-Projekte, die es nicht mehr gibt - das Spiel unterstuetzt nur PC und Mac.\n\nSchreibe AgeOfEmpire.slnx im Wurzelverzeichnis neu. Das ist das XML-Solution-Format von .NET 10 - keine GUIDs noetig. Aufbau:\n\n<Solution>\n  <Folder Name=\"/Core/\">\n    <Project Path=\"src/AoE.Core/AoE.Core.csproj\" />\n  </Folder>\n</Solution>\n\nGenau diese sechs Projekte, sinnvoll in Ordner gruppiert:\n  src/AoE.Core/AoE.Core.csproj\n  tests/AoE.Tests/AoE.Tests.csproj\n  demo/DemoApp.csproj\n  AgeOfEmpiresClone/AgeOfEmpiresClone.Core/AgeOfEmpiresClone.Core.csproj\n  AgeOfEmpiresClone/AgeOfEmpiresClone.DesktopGL/AgeOfEmpiresClone.DesktopGL.csproj\n  AgeOfEmpiresClone/AgeOfEmpiresClone.WindowsDX/AgeOfEmpiresClone.WindowsDX.csproj\n\nNimm KEINE Android- oder iOS-Projekte auf, die Ordner existieren nicht mehr. Pfade mit Schraegstrich und genau wie oben uebernehmen.",
+      "context_files": [],
+      "allow_write": [
+        "AgeOfEmpire.slnx"
+      ],
+      "verify": [
+        "dotnet sln AgeOfEmpire.slnx list",
+        "py -c \"import subprocess,sys; out=subprocess.run(['dotnet','sln','AgeOfEmpire.slnx','list'],capture_output=True,text=True).stdout; noetig=['AoE.Core.csproj','AoE.Tests.csproj','DemoApp.csproj','AgeOfEmpiresClone.Core.csproj','AgeOfEmpiresClone.DesktopGL.csproj','AgeOfEmpiresClone.WindowsDX.csproj']; fehlt=[n for n in noetig if n not in out]; mobil=[n for n in ['Android','iOS'] if n in out]; print('fehlend:',fehlt,'| faelschlich mobil:',mobil); sys.exit(1 if (fehlt or mobil) else 0)\"",
+        "dotnet restore AgeOfEmpire.slnx"
+      ]
+    },
+    {
+      "id": "H7",
+      "title": "DesktopGL fuer PC und Mac veroeffentlichbar machen",
+      "auto": false,
+      "max_turns": 10,
+      "prompt": "Das Spiel soll auf PC und Mac laufen. DesktopGL ist dafuer der richtige Pfad, weil MonoGame.Framework.DesktopGL Windows, macOS und Linux abdeckt. Es fehlt aber die Angabe, fuer welche Laufzeitumgebungen veroeffentlicht werden kann - ohne sie schlaegt 'dotnet publish -r osx-arm64' fehl.\n\nErgaenze in AgeOfEmpiresClone/AgeOfEmpiresClone.DesktopGL/AgeOfEmpiresClone.DesktopGL.csproj in der bestehenden PropertyGroup die Zeile:\n\n    <RuntimeIdentifiers>win-x64;osx-x64;osx-arm64;linux-x64</RuntimeIdentifiers>\n\nosx-arm64 ist zwingend - aktuelle Macs haben Apple-Silicon-Prozessoren, und ohne diesen Eintrag laeuft das Spiel dort nur langsam unter Emulation oder gar nicht.\n\nBenutze replace_in_file. Aendere sonst nichts: OutputType, TargetFramework, ApplicationManifest, ApplicationIcon und alle Verweise bleiben unveraendert.",
+      "context_files": [
+        "AgeOfEmpiresClone/AgeOfEmpiresClone.DesktopGL/AgeOfEmpiresClone.DesktopGL.csproj"
+      ],
+      "allow_write": [
+        "AgeOfEmpiresClone/AgeOfEmpiresClone.DesktopGL/*.csproj"
+      ],
+      "verify": [
+        "py -c \"import pathlib,sys; t=pathlib.Path('AgeOfEmpiresClone/AgeOfEmpiresClone.DesktopGL/AgeOfEmpiresClone.DesktopGL.csproj').read_text(encoding='utf-8-sig'); noetig=['win-x64','osx-x64','osx-arm64','linux-x64']; fehlt=[r for r in noetig if r not in t]; print('fehlende RIDs:', fehlt); sys.exit(1 if fehlt else 0)\"",
+        "dotnet build AgeOfEmpiresClone/AgeOfEmpiresClone.DesktopGL/AgeOfEmpiresClone.DesktopGL.csproj -v q --nologo",
+        "dotnet restore AgeOfEmpiresClone/AgeOfEmpiresClone.DesktopGL/AgeOfEmpiresClone.DesktopGL.csproj -r osx-arm64"
+      ]
+    },
+    {
+      "id": "D4",
+      "title": "Zielplattformen in README und game_plan festhalten",
+      "auto": false,
+      "max_turns": 16,
+      "prompt": "Die Zielplattformen stehen fest: **PC und Mac** (Windows, macOS, Linux ueber DesktopGL). Mobile ist ausdruecklich kein Ziel - die Android- und iOS-Projekte wurden am 2026-09-23 geloescht. Diese Entscheidung muss in zwei Dateien nachgezogen werden.\n\n1. README.md im Wurzelverzeichnis: Der Abschnitt 'Projektstruktur' nennt noch 'Plattformprojekten DesktopGL, WindowsDX, Android und iOS'. Korrigiere das auf DesktopGL und WindowsDX. Ergaenze ausserdem einen kurzen Abschnitt 'Zielplattformen', der festhaelt: DesktopGL ist der plattformuebergreifende Pfad fuer Windows, macOS und Linux; WindowsDX ist eine zusaetzliche reine Windows-Variante; Android und iOS werden nicht unterstuetzt.\n\n2. AgeOfEmpiresClone/game_plan.md: Dort steht bereits ganz oben 'Windows, macOS, Linux only - no mobile'. Das stimmt jetzt tatsaechlich. Ergaenze an dieser Stelle einen kurzen Hinweis, dass die Android- und iOS-Projekte der MonoGame-Vorlage am 2026-09-23 entfernt wurden und DesktopGL der Pfad fuer alle drei Desktop-Systeme ist.\n\nBenutze replace_in_file. Aendere nur diese beiden Dateien und darin nur das Noetige - keine Umformulierungen an anderen Stellen.",
+      "context_files": [
+        "README.md",
+        "AgeOfEmpiresClone/game_plan.md"
+      ],
+      "allow_write": [
+        "README.md",
+        "AgeOfEmpiresClone/game_plan.md"
+      ],
+      "verify": [
+        "py -c \"import pathlib,sys; r=pathlib.Path('README.md').read_text(encoding='utf-8-sig'); g=pathlib.Path('AgeOfEmpiresClone/game_plan.md').read_text(encoding='utf-8-sig'); rl=r.lower(); ok_r = 'android' not in rl.split('zielplattform')[0] or 'nicht unterst' in rl; ok_mac = 'macos' in rl; ok_g = '2026-09-23' in g or 'entfernt' in g.lower(); print('README erwaehnt macOS:',ok_mac,'| Mobile klargestellt:',ok_r,'| game_plan ergaenzt:',ok_g); sys.exit(0 if (ok_mac and ok_r and ok_g) else 1)\""
+      ]
+    },
+    {
+      "id": "D1",
+      "title": "docs/PROJEKT_STRUKTUR.md neu schreiben",
+      "auto": false,
+      "max_turns": 10,
+      "prompt": "docs/PROJEKT_STRUKTUR.md ist ab dem Abschnitt 'Wichtige Dateien' unbrauchbar - dort stehen Pfade, die es nie gab (etwa 'src/AfempireCore/core.Pathfinding.cs' oder 'AgeofempiresClone.Core.Screens/TSGameplaScreen.ccsproj'), das Mermaid-Diagramm hat kaputte Syntax und die Build-Tabelle eine zerbrochene Zeile. Ausserdem ist der Stand ueberholt.\n\nSchreibe die Datei mit write_file komplett neu. Verwende AUSSCHLIESSLICH die folgenden, geprueften Angaben und erfinde nichts dazu:\n\nKOPF: Stand 2026-09-23. Ziel: Retro-Echtzeitstrategie im Stil von Age of Empires I. C# auf MonoGame, .NET 10. Zielplattformen PC und Mac (Windows, macOS, Linux ueber DesktopGL); Android und iOS werden nicht unterstuetzt und wurden am 2026-09-23 entfernt.\n\nORDNERSTRUKTUR (als Codeblock, so und nicht anders):\n  AgeOfEmpire.slnx - Root-Solution mit allen sechs Projekten\n  README.md, TODO.md, .gitignore\n  src/AoE.Core/ - net10.0, MonoGame-unabhaengige Spiellogik:\n      Combat/DamageCalculator.cs (233 Zeilen)\n      Economy/VillagerLogic.cs (331) - enthaelt ResourcePool\n      Entities/Buildings.cs (419), UnitEntity.cs (227), UnitTypes.cs (378), UnitClass.cs (57), Resource.cs (32)\n      Map/VisibilitySystem.cs (376) - enthaelt AUCH die Klasse MapGrid ab Zeile 241; es gibt keine eigene MapGrid.cs\n      Pathfinding/Pathfinding.cs (316) - A-Stern und Formationsbewegung\n  AgeOfEmpiresClone/ - das MonoGame-Spiel:\n      AgeOfEmpiresClone.Core/ (net10.0) mit Data/, Screens/, Effects/, Inputs/, ScreenManagers/, Localization/, Settings/, Content/\n      AgeOfEmpiresClone.DesktopGL/ (net10.0) - Windows, macOS, Linux; RuntimeIdentifiers win-x64, osx-x64, osx-arm64, linux-x64\n      AgeOfEmpiresClone.WindowsDX/ (net10.0-windows) - nur Windows\n  tests/AoE.Tests/ - net10.0, xUnit, 15 Tests, alle gruen\n  demo/DemoApp.csproj - net10.0, kleine Konsolen-Testapp\n  tools/ollama-agent/ - Harness, der TODO-Punkte an ein lokales Ollama-Modell verteilt\n\nWICHTIGE DATEIEN als Tabelle mit Spalten Datei, Pfad, Beschreibung. Nimm nur Pfade aus der Liste oben. Dazu aus dem Spielprojekt: Data/TileMap.cs (461 Zeilen, Kartengenerierung mit Seen, Ressourcenklumpen, PvP-Startpositionen) und Screens/RTSGameplayScreen.cs (1233 Zeilen, prozedurale Texturen und Spielschleife).\n\nBUILD-STATUS als Tabelle: AoE.Core net10.0 baut fehlerfrei; AoE.Tests net10.0 15/15 gruen; DemoApp net10.0 in Ordnung; AgeOfEmpiresClone.Core net10.0 fehlerfrei; DesktopGL net10.0 fehlerfrei, keine Warnungen; WindowsDX net10.0-windows.\n\nBEKANNTER ENGPASS: Das Spielprojekt enthaelt kein einziges 'using AoE.Core'. Die getestete Logik in src/AoE.Core wird im Spiel nicht verwendet; es existieren zwei parallele Implementierungen (UnitEntity gegen Unit, ResourcePool gegen Resource-struct, MapGrid gegen TileMap, VisibilitySystem gegen FogOfWar, A-Stern gegen Luftlinie). Das aufzuloesen ist Block B in TODO.md.\n\nKein Mermaid-Diagramm - reiner Text und Markdown-Tabellen. Am Ende ein Verweis auf TODO.md fuer die offenen Punkte und auf docs/AgeOfEmpires.md fuer die Spielspezifikation.",
+      "context_files": [],
+      "allow_write": [
+        "docs/PROJEKT_STRUKTUR.md"
+      ],
+      "verify": [
+        "py -c \"import pathlib,sys; t=pathlib.Path('docs/PROJEKT_STRUKTUR.md').read_text(encoding='utf-8-sig'); erfunden=['AfempireCore','TSGameplaScreen','VisibilitySystem.Vsible','AoE1-Readme','Map/MapGrid.cs']; drin=[e for e in erfunden if e in t]; mobil=[m for m in ['Android','iOS'] if m in t and 'nicht unterst' not in t]; gut = 'net10' in t and 'AoE.Core' in t and len(t)>1200 and 'mermaid' not in t.lower(); print('erfundene Pfade:',drin,'| Mobile-Rest:',mobil,'| Grundangaben ok:',gut); sys.exit(0 if (not drin and not mobil and gut) else 1)\""
+      ]
+    }
+  ]
+}

@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PipelineBuildEvent xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
-  <SourceFile>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/Backgrounds/Layer1_0.png</SourceFile>
+  <SourceFile>D:/Apps/AgeOfEmpire/AgeOfempiresClone/AgeOfEmpiresClone.Core/Content/Backgrounds/Layer1_0.png</SourceFile>
   <SourceTime>2026-08-14T22:08:01.1949034+02:00</SourceTime>
-  <DestFile>D:/Apps/AgeOfEmpire/AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Content/bin/DesktopGL/AgeOfEmpiresClone/Backgrounds/Layer1_0.xnb</DestFile>
-  <DestTime>2026-08-14T22:18:57.5994878+02:00</DestTime>
+  <DestFile>D:/Apps/AgeOfEmpire/AgeOfempiresClone/AgeOfEmpiresClone.Core/Content/bin/DesktopGL/AgeOfEmpiresClone/Backgrounds/Layer1_0.xnb</DestFile>
+  <DestTime>2026-09-23T21:42:36.3807479+02:00</DestTime>
   <Importer>TextureImporter</Importer>
   <ImporterTime>2026-07-15T18:21:24+02:00</ImporterTime>
   <Processor>TextureProcessor</Processor>

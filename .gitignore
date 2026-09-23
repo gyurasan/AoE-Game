@@ -1,0 +1,20 @@
+# Visual Studio
+.vs/
+*.user
+
+# Build-Artefakte
+bin/
+obj/
+
+# MonoGame Content Pipeline
+Content/bin/
+Content/obj/
+
+# NuGet
+packages/
+*.nupkg
+
+# Test & Coverage
+TestResults/
+coverage.*.xml
+*.coverage

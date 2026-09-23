@@ -223,5 +223,16 @@ public enum UnitState
     Training,
     Healing,
     Converting,
-    Guarding
+    Guarding,
+
+    /// <summary>
+    /// Auf dem Rückweg zur Abgabestelle (Dorfbewohner mit Traglast)
+    /// </summary>
+    Returning,
+
+    /// <summary>
+    /// Gefallen. <see cref="UnitEntity.IsAlive"/> bleibt die maßgebliche
+    /// Prüfung; dieser Zustand macht den Übergang für die Darstellung sichtbar.
+    /// </summary>
+    Dead
 }

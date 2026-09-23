@@ -26,6 +26,10 @@ namespace AgeOfEmpiresClone.Core
         // Resources for drawing.
         private GraphicsDeviceManager graphicsDeviceManager;
 
+        // ApplyChanges() loest selbst wieder ClientSizeChanged aus — ohne
+        // diese Sperre ruft sich die Behandlung endlos auf.
+        private bool handlingResize;
+
         // Manages the game's screen transitions and screens.
         private ScreenManager screenManager;
 
@@ -75,8 +79,16 @@ namespace AgeOfEmpiresClone.Core
             {
                 storage = new DesktopSettingsStorage();
                 graphicsDeviceManager.IsFullScreen = false;
-                graphicsDeviceManager.PreferredBackBufferWidth = 1280;
-                graphicsDeviceManager.PreferredBackBufferHeight = 768;
+                // Fenstergröße am Bildschirm ausrichten. Fest verdrahtete
+                // 1280×768 waren auf hochauflösenden Anzeigen winzig.
+                var display = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode;
+                graphicsDeviceManager.PreferredBackBufferWidth =
+                    Math.Max(1280, (int)(display.Width * 0.8f));
+                graphicsDeviceManager.PreferredBackBufferHeight =
+                    Math.Max(768, (int)(display.Height * 0.8f));
+
+                Window.AllowUserResizing = true;
+                Window.ClientSizeChanged += OnClientSizeChanged;
                 IsMouseVisible = true;
             }
             else
@@ -99,6 +111,33 @@ namespace AgeOfEmpiresClone.Core
             // Initialize the screen manager.
             screenManager = new ScreenManager(this);
             Components.Add(screenManager);
+        }
+
+        /// <summary>
+        /// Übernimmt eine vom Benutzer geänderte Fenstergröße in den
+        /// Bildpuffer. Ohne das bliebe der Puffer auf der Startgröße und das
+        /// Bild würde verzerrt skaliert.
+        /// </summary>
+        private void OnClientSizeChanged(object sender, EventArgs e)
+        {
+            if (handlingResize)
+                return;
+
+            var bounds = Window.ClientBounds;
+            if (bounds.Width <= 0 || bounds.Height <= 0)
+                return;
+
+            handlingResize = true;
+            try
+            {
+                graphicsDeviceManager.PreferredBackBufferWidth = bounds.Width;
+                graphicsDeviceManager.PreferredBackBufferHeight = bounds.Height;
+                graphicsDeviceManager.ApplyChanges();
+            }
+            finally
+            {
+                handlingResize = false;
+            }
         }
 
         /// <summary>

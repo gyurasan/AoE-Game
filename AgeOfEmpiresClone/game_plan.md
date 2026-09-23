@@ -2,7 +2,7 @@
 
 ## Core Architecture
 
-The game will be built using MonoGame for cross-platform support (Windows, macOS, Linux only - no mobile).
+The game will be built using MonoGame for cross-platform support (Windows, macOS, Linux only - no mobile). Die Android- und iOS-Projekte der MonoGame-Vorlage wurden am 2026-09-23 entfernt. DesktopGL ist der plattformübergreifende Pfad für alle drei Desktop-Systeme.
 
 ### Game Loop
 - Update loop for game state changes

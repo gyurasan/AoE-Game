@@ -1,72 +1,37 @@
-# Age of Empires II - C#/.NET 10 Implementation
+# Age of Empires Klon
 
-Cross-platform Implementation des AoE2-Spiels in C# (.NET 10), lauffähig auf Windows 11, Ubuntu Linux und macOS.
+Ein Age-of-Empires-I-artiges Echtzeitstrategiespiel, implementiert in C# mit MonoGame unter .NET 10.
 
 ## Projektstruktur
 
-```
-AgeOfEmpire/
-├── src/
-│   └── AoE.Core/
-│       ├──AoE.Core.csproj
-│       ├── Entities/          # Einheiten, Gebäude, Ressourcen
-│       ├── Combat/            # Schadensberechnung, Konter-System
-│       ├── Economy/           # Dorfbewohner-Logik, Ressourcen
-│       ├── Map/               # Karte, Sichtbarkeit
-│       └── Pathfinding/       # Wegfindung (A*)
-├── tests/
-│   └── AoE.Tests/           # Unit-Tests (15 Tests, alle erfolgreich)
-└── README.md
-```
+- **src/AoE.Core**: MonoGame-unabhängige Spiellogik (Kampf, Wirtschaft, Karte, Wegfindung)
+- **AgeOfEmpiresClone/**: MonoGame-Spiel mit den Plattformprojekten DesktopGL und WindowsDX
+- **tests/AoE.Tests**: Unit-Tests
+- **demo/**: Kleine Konsolen-Testapp
+- **docs/**: Dokumentation
+- **tools/**: Hilfswerkzeuge
 
-## Features (Core-Library)
+## Zielplattformen
 
-- **Einheiten**: Villager, Scout, Militia, Spearman, Archer, Knight, Ram, Trebuchet
-- **Konter-System**: Speer vs Kavallerie, Ritter vs Bogenschützen, Belagerung vs Gebäude
-- **Ressourcen**: Food, Wood, Gold, Stone mit ResourcePool
-- **Gebäude**: Town Center, Barracks, Stable, Castles mit Technologie-Forschung
-- **Kampf**: Schadensberechnung mit Rüstung und Bonus-System
-- **Sichtbarkeit**: Nebel des Krieges mit TileVisibility
-- **Wegfindung**: A*-Algorithmus für Einheitenbewegung
+- **DesktopGL**: Plattformübergreifender Pfad für Windows, macOS und Linux
+- **WindowsDX**: Zusätzliche reine Windows-Variante
+- Android und iOS werden nicht unterstützt (die entsprechenden Projekte der MonoGame-Vorlage wurden am 2026-09-23 entfernt)
 
-## Build
-
-### Voraussetzungen
-- .NET 10 SDK installiert
-
-### Build-Befehle
+## Bauen und Starten
 
 ```bash
-# Core-Library bauen
-cd src/AoE.Core
-dotnet build
-
-# Tests ausführen (15 Tests)
-cd tests/AoE.Tests
-dotnet test
-
-# Cross-Platform Publish
-dotnet publish -c Release -r win10-x64 --self-contained false -o bin/publish/win
-dotnet publish -c Release -r linux-x64 --self-contained false -o bin/publish/linux
-dotnet publish -c Release -r osx-x64 --self-contained false -o bin/publish/osx
+dotnet build AgeOfEmpiresClone/AgeOfEmpiresClone.DesktopGL/AgeOfEmpiresClone.DesktopGL.csproj
+dotnet run --project AgeOfEmpiresClone/AgeOfEmpiresClone.DesktopGL
 ```
 
-## Entwurf
+## Tests
 
-### Plattformunabhängigkeit
-- Keine platform-spezifischen APIs (DirectX, etc.)
-- Verwendung von Standard-.NET 10 Klassen
-- XAmit für UI (Avalonia UI, MAUI oder andere Cross-Platform UI-Frameworks können integriert werden)
+```bash
+dotnet test tests/AoE.Tests/AoE.Tests.csproj
+```
 
-### Erweiterung
-Für eine vollständige Game-Engine empfehle ich die Integration einer UI-Engine:
-- **Avalonia UI** für Desktop-UI
-- **MAUI** für mobile Plattformen
-- **MonoGame** für Native-Game-Development (falls gewünscht)
+## Dokumentation
 
-## TODO (Future)
-- UI-Integration (Avalonia/MAUI/MonoGame)
-- Multiplayer-System
-- .xws Scripting-System für KI
-- .slp/.tcx Dateiformate implementieren
-- KI-Hierarchie (Rekrutierung, Strategie)
+- [Spielspezifikation](docs/AgeOfEmpires.md)
+- [Projektstruktur](docs/PROJEKT_STRUKTUR.md)
+- [TODO](TODO.md)

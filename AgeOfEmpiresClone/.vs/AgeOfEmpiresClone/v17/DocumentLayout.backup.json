@@ -1,7 +1,12 @@
 {
   "Version": 1,
   "WorkspaceRootPath": "D:\\Apps\\AgeOfEmpire\\AgeOfEmpiresClone\\",
-  "Documents": [],
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{85B968E5-2E46-45A3-AD10-1F3F1FB6F9B6}|AgeOfEmpiresClone.DesktopGL\\AgeOfEmpiresClone.DesktopGL.csproj|d:\\apps\\ageofempire\\ageofempiresclone\\ageofempiresclone.desktopgl\\ageofempiresclone.desktopgl.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|",
+      "RelativeMoniker": "D:0:0:{85B968E5-2E46-45A3-AD10-1F3F1FB6F9B6}|AgeOfEmpiresClone.DesktopGL\\AgeOfEmpiresClone.DesktopGL.csproj|solutionrelative:ageofempiresclone.desktopgl\\ageofempiresclone.desktopgl.csproj||{FA3CD31E-987B-443A-9B81-186104E8DAC1}|"
+    }
+  ],
   "DocumentGroupContainers": [
     {
       "Orientation": 0,
@@ -9,7 +14,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": -1,
+          "SelectedChildIndex": 15,
           "Children": [
             {
               "$type": "Bookmark",
@@ -70,6 +75,19 @@
             {
               "$type": "Bookmark",
               "Name": "ST:0:0:{1c4feeaa-4718-4aa9-859d-94ce25d182ba}"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "AgeOfEmpiresClone.DesktopGL",
+              "DocumentMoniker": "D:\\Apps\\AgeOfEmpire\\AgeOfEmpiresClone\\AgeOfEmpiresClone.DesktopGL\\AgeOfEmpiresClone.DesktopGL.csproj",
+              "RelativeDocumentMoniker": "AgeOfEmpiresClone.DesktopGL\\AgeOfEmpiresClone.DesktopGL.csproj",
+              "ToolTip": "D:\\Apps\\AgeOfEmpire\\AgeOfEmpiresClone\\AgeOfEmpiresClone.DesktopGL\\AgeOfEmpiresClone.DesktopGL.csproj",
+              "RelativeToolTip": "AgeOfEmpiresClone.DesktopGL\\AgeOfEmpiresClone.DesktopGL.csproj",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000758|",
+              "WhenOpened": "2026-09-23T19:53:28.114Z",
+              "EditorCaption": ""
             }
           ]
         }

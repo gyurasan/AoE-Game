@@ -182,10 +182,13 @@ public sealed class VisibilitySystem
             }
         }
         
+        // Die vorherige Sichtmenge festhalten, bevor sie ersetzt wird: daraus
+        // ergibt sich, welche Kacheln gerade aus dem Blickfeld geraten sind.
+        _visibleTiles.TryGetValue(playerId, out var zuvorSichtbar);
         _visibleTiles[playerId] = visible;
         
         // Sichtbarkeitszustände updaten
-        UpdateTileVisibility(playerId, visible);
+        UpdateTileVisibility(playerId, visible, zuvorSichtbar);
     }
     
     /// <summary>
@@ -213,8 +216,32 @@ public sealed class VisibilitySystem
     /// <summary>
     /// Aktualisiert die Tile-Sichtbarkeiten
     /// </summary>
-    private void UpdateTileVisibility(int playerId, HashSet<Position> visible)
+    private void UpdateTileVisibility(
+        int playerId,
+        HashSet<Position> visible,
+        HashSet<Position>? zuvorSichtbar)
     {
+        // Kacheln, die zuletzt sichtbar waren und es jetzt nicht mehr sind,
+        // fallen auf "erforscht" zurück. Sie zeigen weiterhin den letzten
+        // bekannten Stand, werden aber abgedunkelt dargestellt. Fehlt dieser
+        // Schritt, bleibt einmal Gesehenes für immer hell und der Nebel des
+        // Krieges kennt effektiv nur zwei statt drei Zustände.
+        if (zuvorSichtbar != null)
+        {
+            foreach (var position in zuvorSichtbar)
+            {
+                if (visible.Contains(position))
+                    continue;
+
+                var verlassen = _map.GetTile(position);
+                if (verlassen != null
+                    && verlassen.GetVisibility(playerId) == TileVisibility.Visible)
+                {
+                    verlassen.SetVisibility(playerId, TileVisibility.Explored);
+                }
+            }
+        }
+
         foreach (var position in visible)
         {
             var tile = _map.GetTile(position);

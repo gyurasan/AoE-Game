@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
+using Resource = AoE.Core.Entities.Resource;
+using AoE.Core.Economy;
 
 namespace AgeOfEmpiresClone.Core.Data;
 
@@ -13,9 +15,9 @@ public class Player
     public string Name { get; set; }
     public string Civilization { get; set; }
     
-    // Resources
-    public Dictionary<Resource.Type, int> Resources { get; set; }
-        = new Dictionary<Resource.Type, int>();
+    // Ressourcen: eine ResourcePool aus AoE.Core statt eines eigenen Dictionary.
+    // Startkapital und Verrechnung kommen damit aus der getesteten Kernbibliothek.
+    public ResourcePool Resources { get; } = new ResourcePool();
     
     // Population
     public int Population { get; set; }
@@ -44,11 +46,9 @@ public class Player
         Name = name;
         Civilization = civilization;
         
-        // Initialize resources
-        Resources.Add(Resource.Type.Food, 200);
-        Resources.Add(Resource.Type.Wood, 200);
-        Resources.Add(Resource.Type.Gold, 100);
-        Resources.Add(Resource.Type.Stone, 100);
+        // Startkapital setzt die ResourcePool selbst: 200 Nahrung, 200 Holz,
+        // 100 Gold, 200 Stein. Hier nichts nachlegen - ResourcePool.Add addiert
+        // und ueberschreibt nicht, sonst stuende das Startkapital doppelt.
         
         // Setup civilization
         SetupCivilization();
@@ -60,7 +60,7 @@ public class Player
         {
             case "briten":
                 CivilizationBonus = "Langbogen 25% schneller";
-                Resources[Resource.Type.Wood] += 50;
+                Resources.Add(Resource.Wood, 50);
                 break;
             case "franken":
                 CivilizationBonus = "Kavallerie 15% schneller";
@@ -78,23 +78,15 @@ public class Player
     }
     
     // Resource management
-    public bool HasResources(Dictionary<Resource.Type, int> costs)
-    {
-        foreach (var kvp in costs)
-        {
-            if (!Resources.ContainsKey(kvp.Key) || Resources[kvp.Key] < kvp.Value)
-                return false;
-        }
-        return true;
-    }
+    public bool HasResources(Dictionary<Resource, int> costs)
+        => Resources.HasEnough(costs);
     
-    public void PayResources(Dictionary<Resource.Type, int> costs)
-    {
-        foreach (var kvp in costs)
-        {
-            Resources[kvp.Key] -= kvp.Value;
-        }
-    }
+    /// <summary>
+    /// Bucht die Kosten ab. Gibt false zurueck, wenn das Guthaben nicht reicht -
+    /// anders als zuvor kann der Kontostand damit nicht mehr negativ werden.
+    /// </summary>
+    public bool PayResources(Dictionary<Resource, int> costs)
+        => Resources.PayCost(costs);
     
     // Population management
     public bool CanSpawnUnit()
@@ -115,28 +107,28 @@ public class Player
     }
     
     // Age progression
-    public Dictionary<Resource.Type, int> GetAgeUpCost(string fromAge, string toAge)
+    public Dictionary<Resource, int> GetAgeUpCost(string fromAge, string toAge)
     {
         return toAge.ToLower() switch
         {
-            "feudalzeit" => new Dictionary<Resource.Type, int>
+            "feudalzeit" => new Dictionary<Resource, int>
             {
-                { Resource.Type.Food, 500 },
-                { Resource.Type.Wood, 200 }
+                { Resource.Food, 500 },
+                { Resource.Wood, 200 }
             },
-            "ritterzeit" => new Dictionary<Resource.Type, int>
+            "ritterzeit" => new Dictionary<Resource, int>
             {
-                { Resource.Type.Food, 800 },
-                { Resource.Type.Wood, 600 },
-                { Resource.Type.Stone, 200 }
+                { Resource.Food, 800 },
+                { Resource.Wood, 600 },
+                { Resource.Stone, 200 }
             },
-            "imperialzeit" => new Dictionary<Resource.Type, int>
+            "imperialzeit" => new Dictionary<Resource, int>
             {
-                { Resource.Type.Food, 1000 },
-                { Resource.Type.Wood, 800 },
-                { Resource.Type.Gold, 400 }
+                { Resource.Food, 1000 },
+                { Resource.Wood, 800 },
+                { Resource.Gold, 400 }
             },
-            _ => new Dictionary<Resource.Type, int>()
+            _ => new Dictionary<Resource, int>()
         };
     }
     

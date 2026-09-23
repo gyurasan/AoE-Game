@@ -1,5 +1,0 @@
-drawable\icon;drawable\icon
-drawable\splash;drawable\splash
-values\ic_launcher_background;values\ic_launcher_background
-values\strings;values\strings
-values\styles;values\Styles

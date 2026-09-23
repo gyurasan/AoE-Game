@@ -18,3 +18,5 @@ D:\Apps\AgeOfEmpire\AgeOfEmpiresClone\AgeOfEmpiresClone.Core\obj\Debug\net9.0\Ag
 D:\Apps\AgeOfEmpire\AgeOfEmpiresClone\AgeOfEmpiresClone.Core\obj\Debug\net9.0\refint\AgeOfEmpiresClone.Core.dll
 D:\Apps\AgeOfEmpire\AgeOfEmpiresClone\AgeOfEmpiresClone.Core\obj\Debug\net9.0\AgeOfEmpiresClone.Core.pdb
 D:\Apps\AgeOfEmpire\AgeOfEmpiresClone\AgeOfEmpiresClone.Core\obj\Debug\net9.0\ref\AgeOfEmpiresClone.Core.dll
+D:\Apps\AgeOfEmpire\AgeOfEmpiresClone\AgeOfEmpiresClone.Core\obj\Debug\net9.0\es-ES\AgeOfEmpiresClone.Core.resources.cs
+D:\Apps\AgeOfEmpire\AgeOfEmpiresClone\AgeOfEmpiresClone.Core\obj\Debug\net9.0\fr-FR\AgeOfEmpiresClone.Core.resources.cs

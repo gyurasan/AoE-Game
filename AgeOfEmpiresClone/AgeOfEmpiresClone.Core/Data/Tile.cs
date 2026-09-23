@@ -1,4 +1,5 @@
 using Microsoft.Xna.Framework;
+using Resource = AoE.Core.Entities.Resource;
 
 namespace AgeOfEmpiresClone.Core.Data;
 
@@ -32,7 +33,7 @@ public class Tile
     public bool Buildable { get; set; }
     
     // Resource information (if tile contains resources)
-    public Resource.Type? ResourceType { get; set; }
+    public Resource? ResourceType { get; set; }
     public int ResourceAmount { get; set; }
     
     // Building on this tile
@@ -67,15 +68,15 @@ public class Tile
         switch (Type)
         {
             case TileType.Forest:
-                ResourceType = Resource.Type.Wood;
+                ResourceType = Resource.Wood;
                 ResourceAmount = 100; // 100 trees per forest
                 break;
             case TileType.Mountain:
-                ResourceType = Resource.Type.Stone;
+                ResourceType = Resource.Stone;
                 ResourceAmount = 80;
                 break;
             case TileType.GoldMine:
-                ResourceType = Resource.Type.Gold;
+                ResourceType = Resource.Gold;
                 ResourceAmount = 60;
                 break;
         }
@@ -93,13 +94,13 @@ public static class TileMapHelper
     public const int TileSize = 32; // pixels per tile
     
     // Get tile type from resource type
-    public static TileType GetTileTypeFromResource(Resource.Type resource)
+    public static TileType GetTileTypeFromResource(Resource resource)
     {
         return resource switch
         {
-            Resource.Type.Wood => TileType.Forest,
-            Resource.Type.Stone => TileType.Mountain,
-            Resource.Type.Gold => TileType.GoldMine,
+            Resource.Wood => TileType.Forest,
+            Resource.Stone => TileType.Mountain,
+            Resource.Gold => TileType.GoldMine,
             _ => TileType.Grassland
         };
     }
