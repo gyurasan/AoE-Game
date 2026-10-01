@@ -65,6 +65,49 @@ public class FogOfWarTests
     }
 
     [Fact]
+    public void EigenesGebaeude_SpendetSicht()
+    {
+        var map = Karte();
+        var sicht = new VisibilitySystem(map);
+
+        // Stadtzentrum: Sichtweite 5 Kacheln
+        map.AddBuilding(BuildingEntity.CreateTownCenter(0, new Position(10, 10)));
+        sicht.UpdateVisibility(playerId: 0);
+
+        Assert.Equal(TileVisibility.Visible, map.GetTile(10, 10)!.GetVisibility(0));
+        Assert.Equal(TileVisibility.Visible, map.GetTile(15, 10)!.GetVisibility(0));
+        Assert.Equal(TileVisibility.Unexplored, map.GetTile(16, 10)!.GetVisibility(0));
+    }
+
+    [Fact]
+    public void FremdesGebaeude_SpendetKeineSicht()
+    {
+        var map = Karte();
+        var sicht = new VisibilitySystem(map);
+
+        map.AddBuilding(BuildingEntity.CreateTownCenter(1, new Position(10, 10)));
+        sicht.UpdateVisibility(playerId: 0);
+
+        Assert.Equal(TileVisibility.Unexplored, map.GetTile(10, 10)!.GetVisibility(0));
+    }
+
+    [Fact]
+    public void ZerstoertesGebaeude_SpendetKeineSichtMehr()
+    {
+        var map = Karte();
+        var sicht = new VisibilitySystem(map);
+        var zentrum = BuildingEntity.CreateTownCenter(0, new Position(10, 10));
+        map.AddBuilding(zentrum);
+        sicht.UpdateVisibility(playerId: 0);
+
+        zentrum.CurrentHp = 0;
+        sicht.UpdateVisibility(playerId: 0);
+
+        // Einmal gesehen bleibt erforscht, aber nicht mehr sichtbar
+        Assert.Equal(TileVisibility.Explored, map.GetTile(10, 10)!.GetVisibility(0));
+    }
+
+    [Fact]
     public void SichtIstProSpielerGetrennt()
     {
         var map = Karte();

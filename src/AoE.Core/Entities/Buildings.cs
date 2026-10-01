@@ -201,6 +201,34 @@ public sealed class BuildingEntity : UnitEntity
         return new BuildingEntity(BuildingType.Mill, ownerId, position, stats);
     }
     
+    public static BuildingEntity CreateLumberCamp(int ownerId, Position position)
+    {
+        var stats = new UnitStats
+        {
+            HitPoints = 400,
+            BaseAttack = 0,
+            BaseArmor = 1,
+            Range = 0,
+            Speed = 0,
+            VisionRange = 3
+        };
+        return new BuildingEntity(BuildingType.LumberCamp, ownerId, position, stats);
+    }
+
+    public static BuildingEntity CreateMiningCamp(int ownerId, Position position)
+    {
+        var stats = new UnitStats
+        {
+            HitPoints = 400,
+            BaseAttack = 0,
+            BaseArmor = 1,
+            Range = 0,
+            Speed = 0,
+            VisionRange = 3
+        };
+        return new BuildingEntity(BuildingType.MiningCamp, ownerId, position, stats);
+    }
+
     public static BuildingEntity CreateBarracks(int ownerId, Position position)
     {
         var stats = new UnitStats

@@ -9,6 +9,14 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Resource = AoE.Core.Entities.Resource;
 using UnitState = AoE.Core.Entities.UnitState;
+using CorePosition = AoE.Core.Entities.Position;
+using CoreVillager = AoE.Core.Entities.Villager;
+using GatherJob = AoE.Core.Economy.GatherJob;
+using GatherPhase = AoE.Core.Economy.GatherPhase;
+using BuildingType = AoE.Core.Entities.BuildingType;
+using Population = AoE.Core.Economy.Population;
+using BuildingRules = AoE.Core.Economy.BuildingRules;
+using Construction = AoE.Core.Economy.Construction;
 
 namespace AgeOfEmpiresClone.Core.Screens;
 
@@ -33,6 +41,11 @@ public class RTSGameplayScreen : GameScreen
     // es nah an MIN_ZOOM viel grober als nah an MAX_ZOOM.
     private const float ZOOM_STEP = 1.12f;
 
+    // Kamera-Schwenken: Geschwindigkeit in Bildschirmpixeln pro Sekunde und
+    // der Randstreifen am Fensterrand, der das Kantenscrollen auslöst.
+    private const float CAMERA_PAN_SPEED = 800f;   // Bildschirmpixel pro Sekunde
+    private const int EDGE_SCROLL_MARGIN = 8;       // Pixel am Fensterrand
+
     // ScrollWheelValue zählt seit Programmstart hoch. Ohne diesen Startwert
     // ergäbe der erste Frame eine riesige Differenz und würde sofort auf
     // Maximalzoom springen.
@@ -50,19 +63,76 @@ public class RTSGameplayScreen : GameScreen
     private List<Unit> selectedUnits = new List<Unit>();
     private Vector2? selectionStart = null;
     private Rectangle selectionRectangle = Rectangle.Empty;
+
+    // Linke Maustaste: gedrückt halten und ziehen verschiebt die Karte; erst
+    // ab DRAG_THRESHOLD Pixeln gilt es als Ziehen, darunter als Klick.
+    private Vector2? dragStart;
+    private Vector2 dragCameraStart;
+    private bool isDragging;
+    private const float DRAG_THRESHOLD = 6f;
     
     // Rendering (prozedural generierte AoE1-artige Texturen)
     private Texture2D px;                     // 1x1-Pixel für FillRect/DrawLine
     private Dictionary<TileType, Texture2D> tileTex = new();
     private Dictionary<UnitType, Texture2D> unitTex = new();
-    private Texture2D[] waterFrames = Array.Empty<Texture2D>();
+    // Wasser: mehrere Varianten zu je WATER_FRAMES Animationsbildern [Variante, Frame]
+    private const int WATER_VARIANTS = 3;
+    private const int WATER_FRAMES = 4;
+    private Texture2D[,] waterTex = new Texture2D[0, 0];
+    private const int CROWN_VARIANTS = 3;
+    private const int CROWN_SIZE = 24;   // Durchmesser einer Krone in Welteinheiten
+    private Texture2D[] crownTex = Array.Empty<Texture2D>();
+
+    // Lage der drei Kronen je Waldkachel in Welteinheiten (Kachel = 32)
+    private static readonly (int X, int Y)[] CrownSpots = { (9, 9), (23, 12), (14, 24) };
     private int waterAnimationFrameCounter;
     private float waterAnimTimer;
     private List<Unit> drawList = new();
     
-    // Resource gathering
-    private float gatherTimer = 0f;
-    private const float GATHER_INTERVAL = 2f; // seconds
+    // Sammeln: die Karte aus Sicht der Sammelaufträge (GatherJob, AoE.Core)
+    private TileMapGatherWorld gatherWorld;
+
+    // Maus im vorigen Frame. Ein Rechtsklick ist ein Befehl pro Klick, nicht
+    // einer pro Frame, in dem die Taste unten ist.
+    private MouseState previousMouse;
+    private KeyboardState previousKeyboard;
+    private int idleCycleIndex;
+
+    // Nebel des Krieges: die Sicht wird nicht jeden Frame neu gerechnet –
+    // Einheiten bewegen sich langsam, viermal pro Sekunde genügt
+    private float fogTimer;
+    private const float FOG_INTERVAL = 0.25f;
+
+    // Höhe der oberen und unteren Leiste aus DrawUI — Klicks dort gelten
+    // nicht der Karte
+    private const int HUD_TOP_HEIGHT = 34;
+    private const int HUD_BOTTOM_HEIGHT = 50;
+
+    // Ausbildung im Stadtzentrum, Werte laut Spezifikation (Kapitel
+    // „Der Dorfbewohner-Loop"): 25 Nahrung, rund 25 Sekunden
+    private static readonly Dictionary<Resource, int> VillagerCost = new() { [Resource.Food] = 25 };
+    private const float VILLAGER_TRAIN_SECONDS = 25f;
+
+    // Kurzer Hinweis oben in der Mitte, etwa „Nicht genug Nahrung"
+    private string hudMessage;
+    private float hudMessageTimer;
+    private const float HUD_MESSAGE_SECONDS = 2.5f;
+
+    // Rot für die Bevölkerung am Limit und den Hinweis dazu
+    private static readonly Color LimitColor = new Color(235, 80, 60);
+
+    // Bauen (C5): Dorfbewohner wählen, Taste drücken, Bauplatz anklicken.
+    // Kosten, Bauzeit und Größe kommen aus AoE.Core (BuildingRules); der Name
+    // ist zugleich der Gebäudetyp der Karte (TileMap.AddBuilding).
+    private static readonly (Keys Key, BuildingType Type, string Name)[] BuildMenu =
+    {
+        (Keys.H, BuildingType.House, "Haus"),
+        (Keys.M, BuildingType.Mill, "Mühle"),
+        (Keys.F, BuildingType.LumberCamp, "Holzfällerlager"),
+        (Keys.B, BuildingType.MiningCamp, "Bergbaulager"),
+    };
+    private BuildingType? placing;   // was gerade gesetzt wird, oder null
+    private Vector2 mouseGridCell;
     
     public RTSGameplayScreen()
     {
@@ -84,6 +154,7 @@ public class RTSGameplayScreen : GameScreen
 
         // Initialize game
         tileMap = new TileMap(64, 64, 32);
+        gatherWorld = new TileMapGatherWorld(tileMap);
         player1 = new Data.Player(0, "Player 1", "Briten");
         player2 = new Data.Player(1, "Player 2", "Azteken");
 
@@ -97,6 +168,9 @@ public class RTSGameplayScreen : GameScreen
             else player2.AddUnit(unit);
         }
 
+        // Bevölkerungsgrenze gleich aus den Startgebäuden rechnen
+        UpdatePopulationLimits();
+
         // Create placeholder textures
         tileTexture = CreateTexture(graphicsDevice, 32, 32, Color.Green);
         BuildAoETextures();
@@ -106,6 +180,9 @@ public class RTSGameplayScreen : GameScreen
         cameraPosition = new Vector2(-start.X + screenBounds.Width / 2f,
                                      -start.Y + screenBounds.Height / 2f);
         ClampCamera();
+
+        // Sicht gleich zu Beginn rechnen, sonst wäre der erste Frame schwarz
+        tileMap.UpdateFogOfWarForPlayer(0, units);
     }
 
     public override void UnloadContent()
@@ -115,8 +192,10 @@ public class RTSGameplayScreen : GameScreen
         px?.Dispose(); px = null;
         foreach (var t in tileTex.Values) t?.Dispose();
         tileTex.Clear();
-        foreach (var t in waterFrames) t?.Dispose();
-        waterFrames = Array.Empty<Texture2D>();
+        foreach (var t in waterTex) t?.Dispose();
+        waterTex = new Texture2D[0, 0];
+        foreach (var t in crownTex) t?.Dispose();
+        crownTex = Array.Empty<Texture2D>();
         foreach (var t in unitTex.Values) t?.Dispose();
         unitTex.Clear();
     }
@@ -148,14 +227,29 @@ public class RTSGameplayScreen : GameScreen
 
         HandleRtsInput(gameTime);
         UpdateUnits(gameTime);
+        UpdatePopulationLimits();
+        UpdateTraining((float)gameTime.ElapsedGameTime.TotalSeconds);
+        UpdateConstruction((float)gameTime.ElapsedGameTime.TotalSeconds);
+
+        if (hudMessageTimer > 0f)
+            hudMessageTimer -= (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+        // Nebel des Krieges: Sicht von Spieler 0 im Takt FOG_INTERVAL neu rechnen
+        fogTimer -= (float)gameTime.ElapsedGameTime.TotalSeconds;
+        if (fogTimer <= 0f)
+        {
+            fogTimer = FOG_INTERVAL;
+            tileMap.UpdateFogOfWarForPlayer(0, units);
+        }
+
         UpdateResources(gameTime);
         
         // Wasser-Animation: alle ~400 ms ein Frame weiter (2,5 fps-Loop)
         waterAnimTimer += (float)gameTime.ElapsedGameTime.TotalMilliseconds;
-        if (waterFrames.Length > 0 && waterAnimTimer > 400f)
+        if (waterTex.Length > 0 && waterAnimTimer > 400f)
         {
             waterAnimTimer = 0f;
-            waterAnimationFrameCounter = (waterAnimationFrameCounter + 1) % waterFrames.Length;
+            waterAnimationFrameCounter = (waterAnimationFrameCounter + 1) % WATER_FRAMES;
         }
     }
 
@@ -228,20 +322,22 @@ public class RTSGameplayScreen : GameScreen
         tileTex[TileType.Grassland] = BuildGrassTexture(gd);
         tileTex[TileType.Sand] = BuildSandTexture(gd);
         tileTex[TileType.Rock] = BuildRockTexture(gd);
-        tileTex[TileType.Forest] = BuildForestTexture(gd);
+        // Wald: dunkler Boden als Kachel, die Baumkronen zeichnet DrawCrowns als
+        // eigene Figuren darüber – nur so dürfen sie über Kachelgrenzen ragen
+        tileTex[TileType.Forest] = BuildForestFloorTexture(gd);
+        crownTex = new Texture2D[CROWN_VARIANTS];
+        for (int v = 0; v < CROWN_VARIANTS; v++)
+            crownTex[v] = BuildCrownTexture(gd, v);
         tileTex[TileType.Mountain] = BuildMountainTexture(gd);
         tileTex[TileType.GoldMine] = BuildGoldTexture(gd);
         tileTex[TileType.Snow] = BuildSandTexture(gd); // Snow ≈ Sand-Optik
         
-        // Wasser als 4 Frames (für die Animation)
-        waterFrames = new[]
-        {
-            BuildWaterTexture(gd, 0),
-            BuildWaterTexture(gd, 1),
-            BuildWaterTexture(gd, 2),
-            BuildWaterTexture(gd, 3)
-        };
-        tileTex[TileType.Water] = waterFrames[0];
+        // Wasser in mehreren Varianten zu je vier Frames (Animation)
+        waterTex = new Texture2D[WATER_VARIANTS, WATER_FRAMES];
+        for (int v = 0; v < WATER_VARIANTS; v++)
+            for (int f = 0; f < WATER_FRAMES; f++)
+                waterTex[v, f] = BuildWaterTexture(gd, f, v);
+        tileTex[TileType.Water] = waterTex[0, 0];
         tileTex[TileType.Base] = BuildGrassTexture(gd); // Startzone = Gras
         tileTex[TileType.Wall] = BuildRockTexture(gd);
         
@@ -304,78 +400,70 @@ public class RTSGameplayScreen : GameScreen
         return b.Build(gd);
     }
     
-    private Texture2D BuildWaterTexture(GraphicsDevice gd, int frame)
+    /// <summary>
+    /// Wasser mit sanftem Kräuseln aus zwei überlagerten Wellen und kurzen
+    /// Glanzlichtern, die je Variante woanders liegen. Der Grund ist in allen
+    /// Frames gleich, damit nichts flimmert; beide Wellen schließen an allen
+    /// Kachelrändern nahtlos an und laufen je Frame eine Viertelperiode weiter.
+    /// </summary>
+    private Texture2D BuildWaterTexture(GraphicsDevice gd, int frame, int variant)
     {
         var b = new TextureBuilder(32, 32);
-        b.FillRect(0, 0, 32, 32, new Color(64, 128, 190));
-        b.Noise(new Color(64, 128, 190), 6, _texRng, 0.5f);
-        
-        // Wellen: helle Streifen, die je Frame verschoben sind
-        Color light = new Color(120, 180, 230);
-        Color darker = new Color(40, 100, 160);
-        
-        for (int row = 0; row < 4; row++)
+        var deep = new Color(46, 96, 158);
+        b.FillRect(0, 0, 32, 32, deep);
+        b.Noise(deep, 4, new Random(99), 0.5f);
+
+        var band = new Color(56, 110, 172);
+        for (int y = 0; y < 32; y++)
         {
-            int yBase = row * 8 + frame;
-            for (int y = 0; y < 8; y++)
+            for (int x = 0; x < 32; x++)
             {
-                int yy = (yBase + y) % 32;
-                // Sägezahn-Muster wie kleine Wellen
-                for (int x = 0; x < 32; x++)
-                {
-                    int phase = (x + frame * 4 + row) % 8;
-                    if (phase < 2) b.Set(x, yy, light);
-                    else if (phase >= 6) b.Set(x, yy, darker);
-                }
+                double a = 2 * Math.PI * (x + 2 * y) / 32.0 + frame * Math.PI / 2;
+                double c = 2 * Math.PI * (3 * x - y) / 32.0 - frame * Math.PI / 2;
+                if (Math.Sin(a) + 0.7 * Math.Sin(c) > 1.1)
+                    b.Set(x, y, band);
             }
         }
+
+        var glint = new Color(150, 195, 235);
+        var rng = new Random(7 + variant * 13);
+        for (int i = 0; i < 4; i++)
+        {
+            int gx = (rng.Next(32) + frame * 2) % 32, gy = rng.Next(32);
+            b.FillRect(gx, gy, 2 + rng.Next(2), 1, glint);
+        }
         return b.Build(gd);
     }
     
-    private Texture2D BuildForestTexture(GraphicsDevice gd)
+    /// <summary>
+    /// Waldboden: dunkel und leicht verrauscht. Die Bäume stehen nicht in der
+    /// Kacheltextur – eine Textur kann nicht über ihren Rand hinaus zeichnen,
+    /// und abgeschnittene Kronen zeigten das Kachelraster.
+    /// </summary>
+    private Texture2D BuildForestFloorTexture(GraphicsDevice gd)
     {
         var b = new TextureBuilder(32, 32);
-        // Hintergrund = Gras
-        b.FillRect(0, 0, 32, 32, new Color(76, 141, 48));
-        b.Noise(new Color(76, 141, 48), 8, _texRng, 0.4f);
-        
-        // 1–3 Bäume (Pixel-Art: Stamm + konische Blattschichten), zufällige Position
-        int trees = _texRng.Next(1, 4);
-        var spots = new[] { 6, 16, 26 };
-        // Einfacher Shuffle (Fisher-Yates)
-        for (int i = spots.Length - 1; i > 0; i--)
-        {
-            int j = _texRng.Next(i + 1);
-            (spots[i], spots[j]) = (spots[j], spots[i]);
-        }
-        
-        for (int t = 0; t < Math.Min(trees, 3); t++)
-        {
-            int tx = spots[t];
-            DrawTree(b, tx, 10, 14);
-        }
+        b.FillRect(0, 0, 32, 32, new Color(38, 72, 30));
+        b.Noise(new Color(38, 72, 30), 8, new Random(4711), 0.7f);
         return b.Build(gd);
     }
-    
-    private void DrawTree(TextureBuilder b, int cx, int topY, int size)
+
+    /// <summary>
+    /// Eine Baumkrone mit durchsichtigem Grund: Schatten nach rechts unten,
+    /// Blattbüschel am Rand und Licht von links oben.
+    /// </summary>
+    private Texture2D BuildCrownTexture(GraphicsDevice gd, int variant)
     {
-        // Stamm
-        for (int y = topY + size / 2; y < topY + size; y++)
-        {
-            b.Set(cx - 1, y, new Color(90, 60, 30));
-            b.Set(cx, y, new Color(100, 68, 35));
-        }
-        // Blätter: drei konische Schichten
-        for (int y = 0; y < size / 2; y++)
-        {
-            int radius = Math.Max(1, (size / 2 - y) / 2 + 1);
-            int yy = topY + y;
-            Color c = new Color(30 + y * 4, 90 + y * 6, 30);
-            for (int x = -radius; x <= radius; x++)
-                b.Set(cx + x, yy, c);
-        }
-        // Spitze
-        b.Set(cx, topY - 1, new Color(20, 80, 25));
+        var rng = new Random(815 + variant * 31);
+        var b = new TextureBuilder(CROWN_SIZE, CROWN_SIZE);
+        int m = CROWN_SIZE / 2;
+        b.FillCircle(m + 2, m + 3, 10, new Color(24, 56, 22));
+        b.FillCircle(m, m, 10, new Color(40, 98, 34));
+        for (int i = 0; i < 6; i++)
+            b.FillCircle(m + rng.Next(-7, 8), m + rng.Next(-7, 8), rng.Next(3, 5), new Color(50, 114, 40));
+        b.FillCircle(m - 3, m - 4, 4, new Color(78, 140, 52));
+        b.Set(m - 5, m - 6, new Color(110, 170, 70));
+        return b.Build(gd);
     }
     
     private Texture2D BuildMountainTexture(GraphicsDevice gd)
@@ -479,7 +567,33 @@ public class RTSGameplayScreen : GameScreen
             b.Set(x, sy + 8, new Color(56, 106, 38, 120));
         return b.Build(gd);
     }
-    
+
+    private Texture2D BuildFishTexture(GraphicsDevice gd)
+    {
+        // Durchsichtiger Grund: der Schwarm liegt über dem animierten Wasser.
+        // Nur deckende Farben – halbdurchsichtige hellen bei vormultipliziertem
+        // Alpha auf.
+        var b = new TextureBuilder(32, 32);
+        var body = new Color(175, 195, 205);
+        var back = new Color(85, 105, 125);
+        var eye = new Color(20, 20, 30);
+
+        // Drei kleine Fische, schräg versetzt
+        foreach (var (fx, fy) in new[] { (6, 9), (17, 15), (8, 21) })
+        {
+            b.FillRect(fx, fy, 7, 3, body);       // Körper
+            b.FillRect(fx + 1, fy, 5, 1, back);   // Rücken
+            b.Set(fx + 5, fy + 1, eye);           // Auge
+            b.Set(fx - 1, fy, body);              // Schwanzflosse oben
+            b.Set(fx - 1, fy + 2, body);          // Schwanzflosse unten
+        }
+
+        // Kringel an der Oberfläche über dem Schwarm
+        for (int x = 20; x < 27; x++)
+            b.Set(x, 6, new Color(200, 225, 240));
+        return b.Build(gd);
+    }
+
     /// <summary>
     /// Screen-Eingaben: ESC öffnet das Pausenmenü.
     /// </summary>
@@ -580,20 +694,57 @@ public class RTSGameplayScreen : GameScreen
     }
 
     
+    /// <summary>
+    /// Schwenkt die Kamera per Pfeiltasten und Kantenscrollen (Mauszeiger am
+    /// Fensterrand). Die Richtung wird in Bildschirmkoordinaten bestimmt und
+    /// bildratenunabhängig über dt umgesetzt; die Division durch cameraZoom
+    /// hält die Schwenkgeschwindigkeit auf dem Bildschirm zoomunabhängig.
+    /// </summary>
+    private void PanCamera(KeyboardState keyboard, MouseState mouse, float dt)
+    {
+        var dir = Vector2.Zero;
+
+        // Pfeiltasten: Richtung, in die der Ausschnitt wandern soll
+        if (keyboard.IsKeyDown(Keys.Left))
+            dir.X -= 1;
+        if (keyboard.IsKeyDown(Keys.Right))
+            dir.X += 1;
+        if (keyboard.IsKeyDown(Keys.Up))
+            dir.Y -= 1;
+        if (keyboard.IsKeyDown(Keys.Down))
+            dir.Y += 1;
+
+        // Kantenscrollen: nur wenn der Zeiger im Fenster liegt und keine
+        // Auswahl aufgezogen wird oder die Karte gezogen
+        bool mouseInWindow = mouse.X >= 0 && mouse.X < screenBounds.Width
+                          && mouse.Y >= 0 && mouse.Y < screenBounds.Height;
+        if (mouseInWindow && !selectionStart.HasValue && !dragStart.HasValue)
+        {
+            if (mouse.X < EDGE_SCROLL_MARGIN)
+                dir.X -= 1;
+            if (mouse.X >= screenBounds.Width - EDGE_SCROLL_MARGIN)
+                dir.X += 1;
+            if (mouse.Y < EDGE_SCROLL_MARGIN)
+                dir.Y -= 1;
+            if (mouse.Y >= screenBounds.Height - EDGE_SCROLL_MARGIN)
+                dir.Y += 1;
+        }
+
+        if (dir != Vector2.Zero)
+        {
+            dir.Normalize(); // diagonal nicht schneller
+            cameraPosition -= dir * CAMERA_PAN_SPEED * dt / cameraZoom;
+        }
+    }
+
     private void HandleRtsInput(GameTime gameTime)
     {
         var keyboard = Keyboard.GetState();
         var mouse = Mouse.GetState();
         
-        // Camera controls
-        if (keyboard.IsKeyDown(Keys.Left))
-            cameraPosition.X -= 10;
-        if (keyboard.IsKeyDown(Keys.Right))
-            cameraPosition.X += 10;
-        if (keyboard.IsKeyDown(Keys.Up))
-            cameraPosition.Y -= 10;
-        if (keyboard.IsKeyDown(Keys.Down))
-            cameraPosition.Y += 10;
+        // Kamera schwenken: Pfeiltasten und Bildrand
+        var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+        PanCamera(keyboard, mouse, dt);
         
         // Zoom
         if (keyboard.IsKeyDown(Keys.OemPlus))
@@ -636,64 +787,155 @@ public class RTSGameplayScreen : GameScreen
         // danach darf der Ausschnitt nicht über den Kartenrand hinausragen.
         ClampCamera();
         
-        // Mouse selection
-        // BUGFIX: vorher rohe Bildschirmkoordinaten an WorldToGrid → Auswahl/Movement
-        // haben die Kamera ignoriert und trafen von Anfang an die falsche Kachel.
-        // ScreenToWorld (Inverse von WorldToScreen: pos/zoom - cameraPos) korrekt anwenden.
-        var mouseGridPos = WorldToGrid(ScreenToWorld(new Vector2(mouse.X, mouse.Y)));
-        
-        if (mouse.LeftButton == ButtonState.Pressed)
+        if (keyboard.IsKeyDown(Keys.OemPeriod) && previousKeyboard.IsKeyUp(Keys.OemPeriod))
         {
-            if (!selectionStart.HasValue)
+            var idle = IdleVillagers();
+            if (idle.Count > 0)
             {
-                selectionStart = new Vector2(mouse.X, mouse.Y);
+                idleCycleIndex %= idle.Count;
+                var villager = idle[idleCycleIndex];
+                idleCycleIndex++;
+                foreach (var selected in selectedUnits)
+                    selected.IsSelected = false;
+                selectedUnits.Clear();
+                villager.IsSelected = true;
+                selectedUnits.Add(villager);
+                // WorldToScreen = (welt + cameraPosition) * cameraZoom: so landet er in der Bildmitte
+                cameraPosition = new Vector2(screenBounds.Width / (2f * cameraZoom),
+                                             screenBounds.Height / (2f * cameraZoom)) - villager.Position;
+                ClampCamera();
             }
-            
-            var currentPos = new Vector2(mouse.X, mouse.Y);
-            var minX = Math.Min(selectionStart.Value.X, currentPos.X);
-            var minY = Math.Min(selectionStart.Value.Y, currentPos.Y);
-            var width = Math.Abs(currentPos.X - selectionStart.Value.X);
-            var height = Math.Abs(currentPos.Y - selectionStart.Value.Y);
-            
-            selectionRectangle = new Rectangle((int)minX, (int)minY, (int)width, (int)height);
         }
-        else if (mouse.LeftButton == ButtonState.Released && selectionStart.HasValue)
+
+        // Q: Dorfbewohner im Stadtzentrum ausbilden, einmal je Tastendruck
+        if (keyboard.IsKeyDown(Keys.Q) && previousKeyboard.IsKeyUp(Keys.Q))
+            TrainVillager();
+
+        // Baumenü: H Haus, M Mühle, F Holzfällerlager, B Bergbaulager. Dieselbe
+        // Taste noch einmal schaltet den Setzmodus aus. Bauen können nur Dorfbewohner
+        foreach (var entry in BuildMenu)
         {
-            // Finish selection
+            if (!keyboard.IsKeyDown(entry.Key) || !previousKeyboard.IsKeyUp(entry.Key))
+                continue;
+            if (placing == entry.Type)
+                placing = null;
+            else if (selectedUnits.Any(u => u.Core is CoreVillager))
+                placing = entry.Type;
+            else
+                ShowHudMessage("Erst einen Dorfbewohner auswählen");
+        }
+
+        // Maus: rechts markieren (Klick oder Rahmen), links gedrückt halten und
+        // ziehen verschiebt die Karte, ein kurzer Linksklick ist ein Befehl.
+        // ScreenToWorld ist die Umkehrung von WorldToScreen (pos / zoom - kamera).
+        var mousePos = new Vector2(mouse.X, mouse.Y);
+        var mouseGridPos = WorldToGrid(ScreenToWorld(mousePos));
+        mouseGridCell = mouseGridPos;
+
+        // Beim Setzen eines Gebäudes bricht ein Rechtsklick ab, statt zu markieren
+        if (placing != null && mouse.RightButton == ButtonState.Pressed
+            && previousMouse.RightButton == ButtonState.Released)
+        {
+            placing = null;
+            previousMouse = mouse;
+            previousKeyboard = keyboard;
+            return;
+        }
+
+        // Rechts: markieren
+        if (mouse.RightButton == ButtonState.Pressed)
+        {
+            if (!selectionStart.HasValue && previousMouse.RightButton == ButtonState.Released
+                && !IsOverHud(mouse.Position))
+            {
+                selectionStart = mousePos;
+            }
+
+            if (selectionStart.HasValue)
+            {
+                var minX = Math.Min(selectionStart.Value.X, mousePos.X);
+                var minY = Math.Min(selectionStart.Value.Y, mousePos.Y);
+                var width = Math.Abs(mousePos.X - selectionStart.Value.X);
+                var height = Math.Abs(mousePos.Y - selectionStart.Value.Y);
+                selectionRectangle = new Rectangle((int)minX, (int)minY, (int)width, (int)height);
+            }
+        }
+        else if (selectionStart.HasValue)
+        {
             if (selectionRectangle.Width > 5 && selectionRectangle.Height > 5)
             {
-                // Select units in rectangle
+                // Rahmen: alle eigenen Einheiten darin
                 var worldSelection = new Rectangle(
                     (int)(selectionRectangle.X / cameraZoom - cameraPosition.X),
                     (int)(selectionRectangle.Y / cameraZoom - cameraPosition.Y),
                     (int)(selectionRectangle.Width / cameraZoom),
                     (int)(selectionRectangle.Height / cameraZoom));
-                
                 SelectUnitsInRectangle(worldSelection);
             }
             else
             {
-                // Single unit click
-                SelectSingleUnit(mouseGridPos);
+                // Einzelklick: die Einheit darunter – oder niemand
+                SelectSingleUnit(ScreenToWorld(mousePos));
             }
-            
+
             selectionStart = null;
             selectionRectangle = Rectangle.Empty;
         }
-        
-        // Right click to move
-        if (mouse.RightButton == ButtonState.Pressed)
+
+        // Links: gedrückt halten und ziehen verschiebt die Karte
+        if (mouse.LeftButton == ButtonState.Pressed)
         {
-            MoveSelectedUnitsTo(mouseGridPos);
+            if (!dragStart.HasValue && previousMouse.LeftButton == ButtonState.Released
+                && !IsOverHud(mouse.Position))
+            {
+                dragStart = mousePos;
+                dragCameraStart = cameraPosition;
+                isDragging = false;
+            }
+
+            if (dragStart.HasValue)
+            {
+                var offset = mousePos - dragStart.Value;
+                if (!isDragging && offset.Length() > DRAG_THRESHOLD)
+                    isDragging = true;
+
+                if (isDragging)
+                {
+                    // Die Karte folgt dem Zeiger: WorldToScreen = (welt + kamera) * zoom
+                    cameraPosition = dragCameraStart + offset / cameraZoom;
+                    ClampCamera();
+                }
+            }
         }
+        else if (dragStart.HasValue)
+        {
+            // Losgelassen ohne zu ziehen: ein Klick - was er bedeutet, entscheidet LeftClick
+            if (!isDragging)
+                LeftClick(mousePos);
+
+            dragStart = null;
+            isDragging = false;
+        }
+        previousMouse = mouse;
+        previousKeyboard = keyboard;
     }
+
+    private bool IsOverHud(Point p)
+        => p.Y < HUD_TOP_HEIGHT || p.Y >= screenBounds.Height - HUD_BOTTOM_HEIGHT;
     
+    /// <summary>
+    /// Die Fläche, die eine Einheit in der Welt einnimmt: die Figur steht mit den
+    /// Füßen auf ihrer Position und ist 24 Einheiten breit und hoch – so, wie
+    /// DrawUnits sie zeichnet. Auswahl per Klick und per Rahmen prüfen dagegen.
+    /// </summary>
+    private static Rectangle UnitWorldRect(Unit unit)
+        => new Rectangle((int)(unit.Position.X - 12), (int)(unit.Position.Y - 24), 24, 24);
+
     private void SelectUnitsInRectangle(Rectangle selectionRect)
     {
         foreach (var u in units.Where(u => u.OwnerId == 0))
         {
-            var unitRect = new Rectangle(
-                (int)(u.Position.X - 8), (int)(u.Position.Y - 8), 16, 16);
+            var unitRect = UnitWorldRect(u);
             
             if (selectionRect.Intersects(unitRect))
             {
@@ -713,146 +955,596 @@ public class RTSGameplayScreen : GameScreen
         selectedUnits.RemoveAll(u => !u.IsSelected);
     }
     
-    private void SelectSingleUnit(Vector2 gridPos)
+    private void SelectSingleUnit(Vector2 worldPos)
     {
         // Clear previous selection
         foreach (var unit in selectedUnits)
             unit.IsSelected = false;
         selectedUnits.Clear();
-        
-        // Find unit under cursor
-        var worldPos = GridToWorld(gridPos);
-        var selectRect = new Rectangle(
-            (int)(worldPos.X - 16), (int)(worldPos.Y - 16), 32, 32);
-        
-        var u = units.FirstOrDefault(u => u.OwnerId == 0 && 
-            selectRect.Intersects(new Rectangle((int)(u.Position.X - 8), (int)(u.Position.Y - 8), 16, 16)));
-        
+
+        var u = OwnUnitAt(worldPos);
         if (u != null)
         {
             selectedUnits.Add(u);
             u.IsSelected = true;
         }
     }
-    
-    private void MoveSelectedUnitsTo(Vector2 gridPos)
+
+    /// <summary>
+    /// Die eigene Einheit, deren Figur unter <paramref name="worldPos"/> liegt,
+    /// oder null. Überlappen sich zwei, gewinnt die zuletzt gezeichnete, also
+    /// die vorderste.
+    /// </summary>
+    private Unit OwnUnitAt(Vector2 worldPos)
     {
-        var targetPos = GridToWorld(gridPos);
-        
-        foreach (var unit in selectedUnits)
-        {
-            unit.TargetPosition = targetPos;
-            unit.Path = tileMap.FindPath(unit.Position, targetPos);
-            unit.State = UnitState.Moving;
-        }
+        var point = new Point((int)worldPos.X, (int)worldPos.Y);
+        return units.LastOrDefault(u => u.OwnerId == 0 && UnitWorldRect(u).Contains(point));
+    }
+
+    /// <summary>
+    /// Ein kurzer Linksklick an <paramref name="screenPos"/>. Beim Setzen eines
+    /// Gebäudes legt er die Baustelle an. Auf einer eigenen Einheit wählt er sie
+    /// aus, statt sie wegzuschicken - vorher zog ein Klick zum Auswählen einen
+    /// Bauarbeiter vom Bau ab. Sonst ist er ein Befehl an die Auswahl.
+    /// </summary>
+    private void LeftClick(Vector2 screenPos)
+    {
+        var worldPos = ScreenToWorld(screenPos);
+        var gridPos = WorldToGrid(worldPos);
+        if (placing != null)
+            PlaceBuilding(placing.Value, gridPos);
+        else if (OwnUnitAt(worldPos) != null)
+            SelectSingleUnit(worldPos);
+        else
+            IssueCommand(gridPos);
     }
     
+    /// <summary>
+    /// Alle untätigen Dorfbewohner von Spieler 0: kein Sammelauftrag und
+    /// Zustand Idle, in der Reihenfolge der Liste units.
+    /// </summary>
+    private List<Unit> IdleVillagers()
+    {
+        return units.Where(u => u.OwnerId == 0
+                               && u.Core is CoreVillager
+                               && u.State == UnitState.Idle
+                               && u.Job == null).ToList();
+    }
+
+    /// <summary>
+    /// Befehl an die Auswahl (kurzer Linksklick). Dorfbewohner auf eine eigene
+    /// Baustelle helfen bauen, auf eine Ressource bekommen sie einen
+    /// Sammelauftrag; alles andere ist ein Laufbefehl. Jeder Befehl beendet,
+    /// was die Einheit vorher tat.
+    /// </summary>
+    private void IssueCommand(Vector2 gridPos)
+    {
+        var tile = tileMap.GetTile((int)gridPos.X, (int)gridPos.Y);
+        // Nur Erforschtes lässt sich gezielt ernten; ein Klick in den Nebel ist ein Laufbefehl
+        bool isSource = tile != null && tile.ResourceType.HasValue && tile.ResourceAmount > 0
+                        && string.IsNullOrEmpty(tile.Building)
+                        && tileMap.IsTileExplored((int)gridPos.X, (int)gridPos.Y, 0);
+        // Eine eigene, noch unfertige Baustelle unter dem Klick
+        var site = BuildingAt(gridPos);
+        if (site != null && (site.OwnerId != 0 || site.IsComplete))
+            site = null;
+
+        foreach (var unit in selectedUnits)
+        {
+            unit.BuildSite = null;
+            if (site != null && unit.Core is CoreVillager)
+            {
+                AssignBuilder(unit, site);
+            }
+            else if (isSource && unit.Core is CoreVillager)
+            {
+                // Gleiche Ressource: die Traglast kommt mit, wie in AoE
+                int carrying = unit.Job != null && unit.Job.Resource == tile.ResourceType.Value
+                    ? unit.Job.Carrying : 0;
+                unit.Job = new GatherJob(unit.OwnerId, tile.ResourceType.Value,
+                                         new CorePosition((int)gridPos.X, (int)gridPos.Y), carrying);
+                FollowJob(unit);
+            }
+            else
+            {
+                unit.Job = null;
+                unit.TargetPosition = GridToWorld(gridPos);
+                unit.Path = tileMap.FindPath(unit.Position, unit.TargetPosition);
+                unit.State = UnitState.Moving;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Setzt um, was der Sammelauftrag als Nächstes verlangt: zum Ziel
+    /// laufen, sammeln oder — ist er erledigt — untätig werden.
+    /// </summary>
+    private void FollowJob(Unit unit)
+    {
+        var job = unit.Job;
+        switch (job.Phase)
+        {
+            case GatherPhase.Gathering:
+                unit.State = UnitState.Gathering;
+                break;
+
+            case GatherPhase.ToSource:
+            case GatherPhase.ToDropOff:
+                var stand = StandCell(job.Destination.Value, unit.Position);
+                if (stand == null)
+                {
+                    job.Unreachable();
+                    FollowJob(unit);
+                    break;
+                }
+
+                var cellVector = stand.Value;
+                unit.TargetPosition = GridToWorld(cellVector);
+                unit.Path = tileMap.FindPath(unit.Position, unit.TargetPosition);
+
+                if (unit.Path.Count > 0)
+                {
+                    unit.State = job.Phase == GatherPhase.ToDropOff ? UnitState.Returning : UnitState.Moving;
+                }
+                else if (WorldToGrid(unit.Position) == cellVector)
+                {
+                    // Kein Weg nötig, die Einheit steht schon auf dem Ziel.
+                    ArriveWithJob(unit);
+                }
+                else
+                {
+                    job.Unreachable();
+                    FollowJob(unit);
+                }
+                break;
+
+            default:
+                unit.Job = null;
+                unit.State = UnitState.Idle;
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Die Kachel, auf die sich eine Einheit stellt, um an <paramref name="cell"/>
+    /// zu arbeiten: die Kachel selbst, wenn sie begehbar ist, sonst die
+    /// begehbare Nachbarkachel, die <paramref name="from"/> am nächsten liegt –
+    /// so wird Fisch vom Ufer aus gefangen. Null, wenn ringsum nichts begehbar ist.
+    /// </summary>
+    private Vector2? StandCell(CorePosition cell, Vector2 from)
+    {
+        if (tileMap.IsWalkable(cell.X, cell.Y))
+            return new Vector2(cell.X, cell.Y);
+
+        Vector2? best = null;
+        float bestDistance = float.MaxValue;
+        for (int dx = -1; dx <= 1; dx++)
+        {
+            for (int dy = -1; dy <= 1; dy++)
+            {
+                var neighbour = new Vector2(cell.X + dx, cell.Y + dy);
+                if ((dx == 0 && dy == 0) || !tileMap.IsWalkable((int)neighbour.X, (int)neighbour.Y))
+                    continue;
+
+                float distance = Vector2.DistanceSquared(GridToWorld(neighbour), from);
+                if (distance < bestDistance)
+                {
+                    best = neighbour;
+                    bestDistance = distance;
+                }
+            }
+        }
+        return best;
+    }
+
+    /// <summary>
+    /// Die Einheit hat das Ziel ihres Sammelauftrags erreicht. An der
+    /// Abgabestelle wird die volle Traglast gutgeschrieben — die frühere
+    /// Kürzung auf 70 % kennt AoE nicht.
+    /// </summary>
+    private void ArriveWithJob(Unit unit)
+    {
+        int delivered = unit.Job.Arrive(gatherWorld);
+        if (delivered > 0)
+            PlayerOf(unit).Resources.Add(unit.Job.Resource, delivered);
+        FollowJob(unit);
+    }
+
+    private Data.Player PlayerOf(Unit unit) => unit.OwnerId == 0 ? player1 : player2;
+
+    /// <summary>Das Stadtzentrum eines Spielers, oder null.</summary>
+    private Building TownCenterOf(int ownerId)
+        => tileMap.Buildings.FirstOrDefault(b => b.OwnerId == ownerId
+                                               && b.Core.BuildingType == BuildingType.TownCenter);
+
+    /// <summary>
+    /// Bevölkerungsgrenze beider Spieler aus ihren fertigen Gebäuden:
+    /// Stadtzentrum und Haus geben je 5 Plätze, höchstens 200 (AoE.Core,
+    /// Population.Capacity). Eine Baustelle zählt noch nicht.
+    /// </summary>
+    private void UpdatePopulationLimits()
+    {
+        foreach (var player in new[] { player1, player2 })
+        {
+            player.PopulationLimit = Population.Capacity(
+                tileMap.Buildings.Where(b => b.OwnerId == player.Id && b.IsComplete)
+                                 .Select(b => b.Core.BuildingType));
+        }
+    }
+
+    /// <summary>
+    /// Reiht im Stadtzentrum von Spieler 0 einen Dorfbewohner ein. Bezahlt
+    /// wird sofort; ist die Warteschlange voll oder reicht die Nahrung nicht,
+    /// erscheint ein kurzer Hinweis.
+    /// </summary>
+    private void TrainVillager()
+    {
+        var townCenter = TownCenterOf(0);
+        if (townCenter == null)
+            return;
+
+        if (townCenter.Training.Count >= AoE.Core.Economy.TrainingQueue<UnitType>.MAX_LENGTH)
+            ShowHudMessage("Warteschlange voll");
+        else if (!townCenter.Training.Enqueue(UnitType.Villager, VillagerCost, VILLAGER_TRAIN_SECONDS, player1.Resources))
+            ShowHudMessage($"Nicht genug Nahrung ({VillagerCost[Resource.Food]})");
+    }
+
+    private void ShowHudMessage(string text)
+    {
+        hudMessage = text;
+        hudMessageTimer = HUD_MESSAGE_SECONDS;
+    }
+
+    /// <summary>
+    /// Bildet in allen Gebäuden aus. Ist die Bevölkerungsgrenze erreicht,
+    /// steht die Ausbildung still (TrainingQueue.IsBlocked). Ein fertiger
+    /// Dorfbewohner erscheint auf der nächsten freien Kachel am Gebäude.
+    /// </summary>
+    private void UpdateTraining(float dt)
+    {
+        foreach (var building in tileMap.Buildings)
+        {
+            var player = building.OwnerId == 0 ? player1 : player2;
+            if (!building.Training.Update(dt, player.PopulationCount, player.PopulationLimit, out _))
+                continue;
+
+            // Bisher bildet nur das Stadtzentrum aus, und zwar Dorfbewohner
+            var cell = SpawnCell(building);
+            if (cell == null)
+                continue;   // rundum zugestellt - kommt praktisch nicht vor
+            var villager = tileMap.AddVillager((int)cell.Value.X, (int)cell.Value.Y, building.OwnerId);
+            player.AddUnit(villager);
+        }
+    }
+
+    /// <summary>
+    /// Nächste freie Kachel rund um ein Gebäude: Ring um Ring nach außen,
+    /// höchstens 8 Kacheln weit, jeweils zeilenweise von oben links. Frei
+    /// heißt begehbar und ohne Einheit darauf. null, wenn keine frei ist.
+    /// </summary>
+    private Vector2? SpawnCell(Building building)
+    {
+        for (int r = 1; r <= 8; r++)
+        {
+            int left = building.X - r, right = building.X + building.Width - 1 + r;
+            int top = building.Y - r, bottom = building.Y + building.Height - 1 + r;
+            for (int y = top; y <= bottom; y++)
+            {
+                for (int x = left; x <= right; x++)
+                {
+                    // Nur der Rand des Rings, das Innere ist schon geprüft
+                    if (x != left && x != right && y != top && y != bottom)
+                        continue;
+                    var cell = new Vector2(x, y);
+                    if (tileMap.IsWalkable(x, y) && !units.Any(u => WorldToGrid(u.Position) == cell))
+                        return cell;
+                }
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Ob ein Gebäude dieses Typs mit der linken oberen Ecke auf
+    /// <paramref name="cell"/> Platz hat: freie, bebaubare Fläche
+    /// (TileMap.CanPlaceBuilding), schon einmal gesehen und ohne Einheit darauf.
+    /// </summary>
+    private bool CanPlace(BuildingType type, Vector2 cell)
+    {
+        int x = (int)cell.X, y = (int)cell.Y, size = BuildingRules.SizeOf(type);
+        if (!tileMap.CanPlaceBuilding(x, y, size))
+            return false;
+        for (int bx = x; bx < x + size; bx++)
+            for (int by = y; by < y + size; by++)
+                if (!tileMap.IsTileExplored(bx, by, 0))
+                    return false;
+        return !units.Any(u =>
+        {
+            var c = WorldToGrid(u.Position);
+            return c.X >= x && c.X < x + size && c.Y >= y && c.Y < y + size;
+        });
+    }
+
+    /// <summary>
+    /// Legt für Spieler 0 eine Baustelle mit der linken oberen Ecke auf
+    /// <paramref name="cell"/> an und bezahlt sie; die ausgewählten
+    /// Dorfbewohner gehen bauen. Passt das Gebäude nicht hin oder reichen die
+    /// Rohstoffe nicht, bleibt der Setzmodus an und ein Hinweis erscheint.
+    /// </summary>
+    private void PlaceBuilding(BuildingType type, Vector2 cell)
+    {
+        if (!CanPlace(type, cell))
+        {
+            ShowHudMessage("Hier kann nicht gebaut werden");
+            return;
+        }
+        var cost = BuildingRules.CostOf(type);
+        if (!player1.Resources.PayCost(cost))
+        {
+            ShowHudMessage($"Nicht genug Rohstoffe ({CostText(cost)})");
+            return;
+        }
+        var site = tileMap.AddBuilding((int)cell.X, (int)cell.Y, BuildingName(type), 0, BuildingRules.SizeOf(type));
+        site.Construction = new Construction(BuildingRules.BuildSecondsOf(type));
+        placing = null;
+
+        foreach (var unit in selectedUnits.Where(u => u.Core is CoreVillager))
+            AssignBuilder(unit, site);
+    }
+
+    /// <summary>Name eines Gebäudetyps aus dem Baumenü, etwa „Mühle".</summary>
+    private static string BuildingName(BuildingType type) => BuildMenu.First(e => e.Type == type).Name;
+
+    /// <summary>Kosten als Text, etwa „275 Holz, 100 Stein".</summary>
+    private static string CostText(Dictionary<Resource, int> cost)
+        => string.Join(", ", cost.Select(c => $"{c.Value} {ResourceName(c.Key)}"));
+
+    /// <summary>Das Gebäude, das die Kachel bedeckt, oder null.</summary>
+    private Building BuildingAt(Vector2 cell)
+        => tileMap.Buildings.FirstOrDefault(b => cell.X >= b.X && cell.X < b.X + b.Width
+                                               && cell.Y >= b.Y && cell.Y < b.Y + b.Height);
+
+    /// <summary>
+    /// Schickt einen Dorfbewohner an eine Baustelle: ein laufender
+    /// Sammelauftrag endet, er läuft auf eine Kachel am Rand und baut dort
+    /// (UpdateConstruction). Ist kein Rand erreichbar, wird er untätig.
+    /// </summary>
+    private void AssignBuilder(Unit unit, Building site)
+    {
+        unit.Job = null;
+        unit.BuildSite = site;
+        var stand = SiteStandCell(site, unit);
+        if (stand != null)
+        {
+            unit.TargetPosition = GridToWorld(stand.Value);
+            unit.Path = tileMap.FindPath(unit.Position, unit.TargetPosition);
+            if (unit.Path.Count > 0)
+            {
+                unit.State = UnitState.Moving;
+                return;
+            }
+            if (WorldToGrid(unit.Position) == stand.Value)
+            {
+                unit.State = UnitState.Building;   // steht schon dort
+                return;
+            }
+        }
+        unit.BuildSite = null;
+        unit.State = UnitState.Idle;
+    }
+
+    /// <summary>
+    /// Begehbare Kachel direkt am Rand einer Baustelle, die dem Dorfbewohner
+    /// am nächsten liegt. Kacheln, auf die schon ein anderer Bauarbeiter
+    /// derselben Baustelle zuläuft, kommen nur dran, wenn keine andere frei
+    /// ist - so verteilen sich mehrere um das Gebäude. null, wenn keine
+    /// Randkachel begehbar ist.
+    /// </summary>
+    private Vector2? SiteStandCell(Building site, Unit unit)
+    {
+        Vector2? best = null, bestFree = null;
+        float bestDistance = float.MaxValue, bestFreeDistance = float.MaxValue;
+        for (int x = site.X - 1; x <= site.X + site.Width; x++)
+        {
+            for (int y = site.Y - 1; y <= site.Y + site.Height; y++)
+            {
+                bool onRing = x == site.X - 1 || x == site.X + site.Width
+                           || y == site.Y - 1 || y == site.Y + site.Height;
+                if (!onRing || !tileMap.IsWalkable(x, y))
+                    continue;
+
+                var cell = new Vector2(x, y);
+                float distance = Vector2.DistanceSquared(GridToWorld(cell), unit.Position);
+                if (distance < bestDistance)
+                {
+                    best = cell;
+                    bestDistance = distance;
+                }
+                bool taken = units.Any(u => u != unit && u.BuildSite == site
+                                            && WorldToGrid(u.TargetPosition) == cell);
+                if (!taken && distance < bestFreeDistance)
+                {
+                    bestFree = cell;
+                    bestFreeDistance = distance;
+                }
+            }
+        }
+        return bestFree ?? best;
+    }
+
+    /// <summary>
+    /// Baut an allen Baustellen. Es zählen nur Dorfbewohner, die dort schon
+    /// arbeiten (Zustand Building) - wer noch hinläuft, baut noch nicht. Ist
+    /// ein Gebäude fertig, verliert es seine Baustelle, und
+    /// FinishConstruction schickt die Erbauer weiter.
+    /// </summary>
+    private void UpdateConstruction(float dt)
+    {
+        foreach (var site in tileMap.Buildings.Where(b => !b.IsComplete).ToList())
+        {
+            int builders = units.Count(u => u.BuildSite == site && u.State == UnitState.Building);
+            if (site.Construction.Update(dt, builders))
+            {
+                site.Construction = null;
+                FinishConstruction(site);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Ein Gebäude ist fertig: seine Erbauer hören auf, auch die, die noch
+    /// hinlaufen. Wer ein Lager gebaut hat, sammelt gleich die passende
+    /// Ressource in der Nähe - Holzfällerlager Holz, Bergbaulager das nähere
+    /// von Gold und Stein, Mühle Nahrung. Wer nichts zu sammeln hat, baut an der
+    /// nächsten unfertigen eigenen Baustelle weiter (NearestUnfinishedSite) - so
+    /// werden liegengebliebene Baustellen nebenbei fertig. Sonst werden die
+    /// Erbauer untätig.
+    /// </summary>
+    private void FinishConstruction(Building site)
+    {
+        var center = new CorePosition(site.X + site.Width / 2, site.Y + site.Height / 2);
+        CorePosition? source = null;
+        var resource = Resource.Food;
+        foreach (var candidate in ResourcesFor(site.Core.BuildingType))
+        {
+            var found = gatherWorld.FindNearestSource(center, candidate, GatherJob.SEARCH_RADIUS);
+            if (found != null && (source == null
+                                  || found.Value.DistanceSquared(center) < source.Value.DistanceSquared(center)))
+            {
+                source = found;
+                resource = candidate;
+            }
+        }
+
+        var nextSite = source == null ? NearestUnfinishedSite(site) : null;
+        foreach (var unit in units.Where(u => u.BuildSite == site).ToList())
+        {
+            unit.BuildSite = null;
+            unit.Path.Clear();
+            if (source != null)
+            {
+                unit.Job = new GatherJob(unit.OwnerId, resource, source.Value);
+                FollowJob(unit);
+            }
+            else if (nextSite != null)
+            {
+                AssignBuilder(unit, nextSite);
+            }
+            else
+            {
+                unit.State = UnitState.Idle;
+            }
+        }
+    }
+
+    /// <summary>
+    /// So weit (in Kacheln, Mitte zu Mitte) suchen Erbauer nach der nächsten
+    /// unfertigen Baustelle - derselbe Umkreis wie beim Sammeln.
+    /// </summary>
+    private const int SITE_SEARCH_RADIUS = GatherJob.SEARCH_RADIUS;
+
+    /// <summary>
+    /// Die unfertige Baustelle desselben Spielers, deren Mitte der Mitte von
+    /// <paramref name="from"/> am nächsten liegt, höchstens SITE_SEARCH_RADIUS
+    /// Kacheln entfernt, oder null.
+    /// </summary>
+    private Building NearestUnfinishedSite(Building from)
+    {
+        var center = new Vector2(from.X + from.Width / 2f, from.Y + from.Height / 2f);
+        Building best = null;
+        float bestDistance = SITE_SEARCH_RADIUS;
+        foreach (var b in tileMap.Buildings)
+        {
+            if (b == from || b.OwnerId != from.OwnerId || b.IsComplete)
+                continue;
+            float distance = Vector2.Distance(center, new Vector2(b.X + b.Width / 2f, b.Y + b.Height / 2f));
+            if (distance <= bestDistance)
+            {
+                best = b;
+                bestDistance = distance;
+            }
+        }
+        return best;
+    }
+
+    /// <summary>Was die Erbauer eines Lagers danach sammeln; leer bei anderen Gebäuden.</summary>
+    private static Resource[] ResourcesFor(BuildingType type) => type switch
+    {
+        BuildingType.LumberCamp => new[] { Resource.Wood },
+        BuildingType.MiningCamp => new[] { Resource.Gold, Resource.Stone },
+        BuildingType.Mill => new[] { Resource.Food },
+        _ => Array.Empty<Resource>()
+    };
+
     private void UpdateUnits(GameTime gameTime)
     {
         var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
-        
+
         foreach (var unit in units.Where(u => u.OwnerId == 0))
         {
             switch (unit.State)
             {
                 case UnitState.Moving:
-                    UpdateMovingUnit(unit, dt);
+                case UnitState.Returning:
+                    if (StepAlongPath(unit, dt))
+                    {
+                        if (unit.Job != null)
+                            ArriveWithJob(unit);
+                        else if (unit.BuildSite != null && !unit.BuildSite.IsComplete)
+                            unit.State = UnitState.Building;   // am Bauplatz angekommen
+                        else
+                        {
+                            unit.BuildSite = null;
+                            unit.State = UnitState.Idle;
+                        }
+                    }
                     break;
+
+                case UnitState.Building:
+                    // Gebaut wird je Baustelle in UpdateConstruction; hier nur aufräumen
+                    if (unit.BuildSite == null || unit.BuildSite.IsComplete)
+                    {
+                        unit.BuildSite = null;
+                        unit.State = UnitState.Idle;
+                    }
+                    break;
+
                 case UnitState.Gathering:
-                    UpdateGatheringUnit(unit, dt);
+                    if (unit.Job == null)
+                    {
+                        unit.State = UnitState.Idle;
+                        break;
+                    }
+                    unit.Job.Update(dt, gatherWorld);
+                    if (unit.Job.Phase != GatherPhase.Gathering)
+                        FollowJob(unit);
                     break;
             }
         }
     }
-    
-    private void UpdateMovingUnit(Unit unit, float dt)
+
+    /// <summary>
+    /// Bewegt die Einheit ein Stück auf ihrem Weg. Gibt true zurück, sobald
+    /// der Weg abgelaufen ist.
+    /// </summary>
+    private bool StepAlongPath(Unit unit, float dt)
     {
         if (unit.Path.Count == 0)
-        {
-            unit.State = UnitState.Idle;
-            return;
-        }
-        
+            return true;
+
         var nextPosition = unit.Path[0];
         var direction = nextPosition - unit.Position;
         var distance = direction.Length();
-        
+
         if (distance < 2)
         {
             unit.Path.RemoveAt(0);
-            return;
+            return false;
         }
-        
+
         direction.Normalize();
         unit.Position += direction * unit.MovementSpeed * 40 * dt;
-    }
-    
-    private void UpdateGatheringUnit(Unit unit, float dt)
-    {
-        gatherTimer += dt;
-        
-        if (gatherTimer >= GATHER_INTERVAL)
-        {
-            gatherTimer = 0f;
-            
-            if (unit.CarryingResource.HasValue && unit.CarryingAmount < 10)
-            {
-                // Check if the source tile still has resources
-                var gridPos = tileMap.WorldToGrid(unit.Position);
-                var tile = tileMap.GetTile((int)gridPos.X, (int)gridPos.Y);
-                
-                if (tile == null || !tile.ResourceType.HasValue || tile.ResourceAmount <= 0)
-                {
-                    // No more resources — deliver what the unit is carrying
-                    DeliverResource(unit);
-                    unit.CarryingAmount = 0;
-                    unit.CarryingResource = null;
-                    return;
-                }
-                
-                // Still gathering — reduce tile resource amount
-                unit.CarryingAmount++;
-                tile.ResourceAmount--;
-                
-                // If the source is depleted, clear it
-                if (tile.ResourceAmount <= 0)
-                {
-                    tile.ResourceAmount = 0;
-                    tile.ResourceType = null;
-                }
-            }
-            else if (unit.CarryingAmount > 0)
-            {
-                // Deliver to town center
-                DeliverResource(unit);
-                unit.CarryingAmount = 0;
-                unit.CarryingResource = null;
-            }
-            else
-            {
-                // Find a resource to gather
-                var gridPos = tileMap.WorldToGrid(unit.Position);
-                var tile = tileMap.GetTile((int)gridPos.X, (int)gridPos.Y);
-                
-                if (tile != null && tile.ResourceType.HasValue)
-                {
-                    unit.CarryingResource = tile.ResourceType.Value;
-                    unit.CarryingAmount = 1;
-                    unit.State = UnitState.Returning;
-                }
-            }
-        }
-    }
-    
-    private void DeliverResource(Unit unit)
-    {
-        if (!unit.CarryingResource.HasValue)
-            return;
-        
-        // Add to player resources (70% efficiency like AoE)
-        var amount = unit.CarryingAmount;
-        var resourceType = unit.CarryingResource.Value;
-        player1.Resources.Add(resourceType, (int)(amount * 0.7f));
+        return false;
     }
     
     private void UpdateResources(GameTime gameTime)
@@ -877,6 +1569,18 @@ public class RTSGameplayScreen : GameScreen
 
         // Draw units
         DrawUnits(spriteBatch);
+
+        // Nebel über Karte und Einheiten, unter Auswahlrahmen und Leisten
+        DrawFog(spriteBatch);
+
+        // Beim Setzen eines Gebäudes: Grundfläche unter dem Mauszeiger, grün wenn frei
+        if (placing != null)
+        {
+            int size = BuildingRules.SizeOf(placing.Value);
+            var ghost = TileScreenRect((int)mouseGridCell.X, (int)mouseGridCell.Y, size, size);
+            var ghostColor = CanPlace(placing.Value, mouseGridCell) ? new Color(60, 200, 60) : new Color(220, 50, 40);
+            spriteBatch.Draw(px, ghost, ghostColor * 0.4f);
+        }
 
         // Draw selection rectangle
         if (selectionRectangle.Width > 0 && selectionRectangle.Height > 0)
@@ -904,20 +1608,19 @@ public class RTSGameplayScreen : GameScreen
                 var tile = tileMap.GetTile(x, y);
                 if (tile == null) continue;
                 
-                var worldPos = tileMap.GridToWorld(new Vector2(x, y));
-                var screenPos = WorldToScreen(worldPos);
-                int sx = (int)screenPos.X, sy = (int)screenPos.Y;
-                
-                if (sx >= -32 && sx <= screenBounds.Width && sy >= -32 && sy <= screenBounds.Height)
+                var rect = TileScreenRect(x, y);
+                if (rect.Intersects(screenBounds))
                 {
                     var tex = GetTileTexture(tile);
                     if (tex != null)
-                        spriteBatch.Draw(tex, new Rectangle(sx, sy, 32, 32), Color.White);
+                        spriteBatch.Draw(tex, rect, Color.White);
+                    if (tile.Type == TileType.Water)
+                        DrawShore(spriteBatch, x, y, rect);
                 }
             }
         }
         
-        // Nahrungskacheln (Schafe/Beeren) als Objekte auf Gras-Grund
+        // Nahrungskacheln (Schafe, Beeren, Fische) als Objekte
         for (int x = 0; x < tileMap.Width; x++)
         {
             for (int y = 0; y < tileMap.Height; y++)
@@ -926,34 +1629,74 @@ public class RTSGameplayScreen : GameScreen
                 if (tile == null || !tile.ResourceType.HasValue) continue;
                 if (tile.ResourceType != Resource.Food) continue;
                 
-                var worldPos = tileMap.GridToWorld(new Vector2(x, y));
-                var screenPos = WorldToScreen(worldPos);
-                int sx = (int)screenPos.X + 16, sy = (int)screenPos.Y + 16;
-                
-                if (sx < -32 || sx > screenBounds.Width + 32 || sy < -32 || sy > screenBounds.Height + 32)
-                    continue;
-                
-                // Gras-Grund unter dem Tier
-                if (tileTex.TryGetValue(TileType.Grassland, out var grass))
-                    spriteBatch.Draw(grass, new Rectangle(sx - 16, sy - 16, 32, 32), Color.White);
-                
-                bool isSheep = tile.ResourceAmount >= 1 && tile.ResourceAmount <= 2;
-                var objTex = isSheep ? BuildSheepTextureCached() : BuildBerryTextureCached();
+                var rect = TileScreenRect(x, y);
+                if (!rect.Intersects(screenBounds)) continue;
+
+                // Fische schwimmen im Wasser, das der erste Durchlauf schon
+                // gezeichnet hat – Gras-Grund nur unter Schaf und Beerenbusch
+                bool isFish = tile.Food == FoodSource.Fish;
+                if (!isFish && tileTex.TryGetValue(TileType.Grassland, out var grass))
+                    spriteBatch.Draw(grass, rect, Color.White);
+
+                bool isSheep = tile.Food == FoodSource.Sheep;
+                var objTex = isFish ? BuildFishTextureCached()
+                           : isSheep ? BuildSheepTextureCached()
+                           : BuildBerryTextureCached();
                 if (objTex != null)
-                    spriteBatch.Draw(objTex, new Rectangle(sx - 16, sy - 16, 32, 32), Color.White);
+                    spriteBatch.Draw(objTex, rect, Color.White);
             }
         }
         
+        // Baumkronen als eigene Figuren, zeilenweise von oben: tiefere Kronen
+        // überdecken höhere, auch über Kachelgrenzen hinweg
+        for (int y = 0; y < tileMap.Height; y++)
+        {
+            for (int x = 0; x < tileMap.Width; x++)
+            {
+                var tile = tileMap.GetTile(x, y);
+                if (tile != null && tile.Type == TileType.Forest)
+                    DrawCrowns(spriteBatch, x, y);
+            }
+        }
+
         // Gebäude (Stadtzentrum = 4×4 Kacheln)
         foreach (var b in tileMap.Buildings)
         {
             DrawBuilding(spriteBatch, b);
         }
     }
+
+    /// <summary>
+    /// Drei Baumkronen je Waldkachel. Lage und Variante kommen fest aus dem
+    /// Ortshash der Kachel – sonst zappelten die Bäume von Frame zu Frame.
+    /// </summary>
+    private void DrawCrowns(SpriteBatch spriteBatch, int x, int y)
+    {
+        int crownSize = (int)(CROWN_SIZE * cameraZoom);
+        var tileRect = TileScreenRect(x, y);
+        // Kronen ragen bis zu einer halben Krone über die Kachel hinaus
+        var reach = new Rectangle(tileRect.X - crownSize, tileRect.Y - crownSize,
+                                  tileRect.Width + 2 * crownSize, tileRect.Height + 2 * crownSize);
+        if (!reach.Intersects(screenBounds))
+            return;
+
+        int hash = unchecked(x * 73856093 ^ y * 19349663) & 0x7FFFFFFF;
+        for (int k = 0; k < CrownSpots.Length; k++)
+        {
+            int jx = (hash >> (k * 4)) % 7 - 3;
+            int jy = (hash >> (k * 4 + 2)) % 7 - 3;
+            var tex = crownTex[(hash >> k) % crownTex.Length];
+            var center = WorldToScreen(new Vector2(x * tileMap.TileSize + CrownSpots[k].X + jx,
+                                                   y * tileMap.TileSize + CrownSpots[k].Y + jy));
+            spriteBatch.Draw(tex, new Rectangle((int)center.X - crownSize / 2, (int)center.Y - crownSize / 2,
+                                                crownSize, crownSize), Color.White);
+        }
+    }
     
     // Gedächtnis-Texturen für wiederkehrende Nahrungsobjekte
     private Texture2D _sheepTex;
     private Texture2D _berryTex;
+    private Texture2D _fishTex;
     
     private Texture2D BuildSheepTextureCached()
     {
@@ -965,88 +1708,334 @@ public class RTSGameplayScreen : GameScreen
         if (_berryTex == null) _berryTex = BuildBerryTexture(graphicsDevice);
         return _berryTex;
     }
+    private Texture2D BuildFishTextureCached()
+    {
+        if (_fishTex == null) _fishTex = BuildFishTexture(graphicsDevice);
+        return _fishTex;
+    }
     
     private Texture2D GetTileTexture(Data.Tile tile)
     {
         // Wasser nutzt den animierten Frame
-        if (tile.Type == TileType.Water && waterFrames.Length > 0)
-            return waterFrames[waterAnimationFrameCounter];
-        
+        if (tile.Type == TileType.Water && waterTex.Length > 0)
+        {
+            // Variante fest nach Lage, damit sich die Glanzlichter nicht Kachel
+            // für Kachel an derselben Stelle wiederholen
+            int variant = (unchecked(tile.X * 73856093 ^ tile.Y * 19349663) & 0x7FFFFFFF) % WATER_VARIANTS;
+            return waterTex[variant, waterAnimationFrameCounter];
+        }
+
         if (tileTex.TryGetValue(tile.Type, out var tex))
             return tex;
         
         return tileTex.Values.FirstOrDefault();
     }
-    
+
+    /// <summary>
+    /// Ufer: an jeder Kante, hinter der Land liegt, eine hellere
+    /// Flachwasserkante mit Schaumlinie. So sieht man, wo das Wasser aufhört,
+    /// ohne eigene Uferkacheln.
+    /// </summary>
+    private void DrawShore(SpriteBatch spriteBatch, int x, int y, Rectangle rect)
+    {
+        int shallow = Math.Max(2, rect.Width / 6);
+        int foam = Math.Max(1, rect.Width / 32);
+        var shallowColor = new Color(80, 145, 200);
+        var foamColor = new Color(205, 228, 240);
+
+        if (IsLand(x, y - 1))   // oben
+        {
+            spriteBatch.Draw(px, new Rectangle(rect.X, rect.Y, rect.Width, shallow), shallowColor);
+            spriteBatch.Draw(px, new Rectangle(rect.X, rect.Y, rect.Width, foam), foamColor);
+        }
+        if (IsLand(x, y + 1))   // unten
+        {
+            spriteBatch.Draw(px, new Rectangle(rect.X, rect.Bottom - shallow, rect.Width, shallow), shallowColor);
+            spriteBatch.Draw(px, new Rectangle(rect.X, rect.Bottom - foam, rect.Width, foam), foamColor);
+        }
+        if (IsLand(x - 1, y))   // links
+        {
+            spriteBatch.Draw(px, new Rectangle(rect.X, rect.Y, shallow, rect.Height), shallowColor);
+            spriteBatch.Draw(px, new Rectangle(rect.X, rect.Y, foam, rect.Height), foamColor);
+        }
+        if (IsLand(x + 1, y))   // rechts
+        {
+            spriteBatch.Draw(px, new Rectangle(rect.Right - shallow, rect.Y, shallow, rect.Height), shallowColor);
+            spriteBatch.Draw(px, new Rectangle(rect.Right - foam, rect.Y, foam, rect.Height), foamColor);
+        }
+    }
+
+    private bool IsLand(int x, int y)
+    {
+        var tile = tileMap.GetTile(x, y);
+        return tile != null && tile.Type != TileType.Water;
+    }
+
     private void DrawBuilding(SpriteBatch spriteBatch, Data.Building b)
     {
         // Nur Gebäude mit bekanntem Typ zeichnen (erstmal: Stadtzentrum)
-        var topWorld = GridToWorld(new Vector2(b.X, b.Y));
-        var bottomWorld = GridToWorld(new Vector2(b.X + b.Width, b.Y + b.Height));
-        
-        Rectangle rect = new Rectangle(
-            (int)WorldToScreen(topWorld).X, (int)WorldToScreen(topWorld).Y,
-            (int)WorldToScreen(bottomWorld).X - (int)WorldToScreen(topWorld).X,
-            (int)WorldToScreen(bottomWorld).Y - (int)WorldToScreen(topWorld).Y);
+        Rectangle rect = TileScreenRect(b.X, b.Y, b.Width, b.Height);
         
         if (rect.Intersects(screenBounds) == false && 
             new Rectangle(rect.X - 32, rect.Y - 32, rect.Width + 64, rect.Height + 64).Intersects(screenBounds) == false)
             return;
         
         bool isPlayer1 = b.OwnerId == 0;
+
+        // Baustellen zeigen den Fortschritt, fertige Gebäude ihre eigene Grafik;
+        // was hier fehlt, sieht aus wie das Stadtzentrum
+        if (!b.IsComplete)
+        {
+            DrawConstructionSite(spriteBatch, rect, b.Construction.Progress);
+            return;
+        }
+        switch (b.Core.BuildingType)
+        {
+            case BuildingType.House:
+                DrawHouse(spriteBatch, rect, isPlayer1);
+                return;
+            case BuildingType.Mill:
+                DrawMill(spriteBatch, rect, isPlayer1);
+                return;
+            case BuildingType.LumberCamp:
+                DrawLumberCamp(spriteBatch, rect, isPlayer1);
+                return;
+            case BuildingType.MiningCamp:
+                DrawMiningCamp(spriteBatch, rect, isPlayer1);
+                return;
+        }
         
         // Fundament (grün/braun)
         Color foundation = isPlayer1 ? new Color(120, 100, 70) : new Color(140, 90, 70);
         Color roof = isPlayer1 ? new Color(170, 160, 140) : new Color(180, 140, 120);
         Color wood = isPlayer1 ? new Color(100, 80, 55) : new Color(110, 75, 55);
         
-        // 4×4 Kacheln = 128×128 Pixel bei Zoom 1
-        int w = rect.Width, h = rect.Height;
-        
+        // Entworfen für 4 × 4 Kacheln = 128 × 128 Pixel bei Zoom 1. BuildingPart
+        // rechnet jede Entwurfsangabe auf die tatsächliche Größe um – vorher
+        // wuchs nur die Grundplatte mit, und bei Zoom 2 blieb das Haus ein
+        // kleiner Fleck im großen Erdplatz.
+
         // Grundplatte
         spriteDraw(spriteBatch, px, rect, foundation);
         // Innenfläche (hellere Erde)
-        var inner = new Rectangle(rect.X + 6, rect.Y + 6, w - 12, h - 12);
-        spriteDraw(spriteBatch, px, inner, new Color(140, 125, 90));
-        
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 6, 6, 116, 116), new Color(140, 125, 90));
+
         // Hauptgebäude (Mittelslot): 80×80
-        var house = new Rectangle(rect.X + (w - 80) / 2, rect.Y + (h - 80) / 2, 80, 80);
-        spriteDraw(spriteBatch, px, house, wood);
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 24, 24, 80, 80), wood);
         // Dach (heller, nach oben schmaler)
-        var roofTop = new Rectangle(house.X + 6, house.Y + 6, 68, 40);
-        spriteDraw(spriteBatch, px, roofTop, roof);
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 30, 30, 68, 40), roof);
         // Dachschrägen
         for (int i = 0; i < 40; i++)
-            spriteDraw(spriteBatch, px, new Rectangle(house.X + 6 + i / 2, house.Y + 46 + i, 68 - i, 2), 
+            spriteDraw(spriteBatch, px, BuildingPart(rect, 30 + i / 2, 70 + i, 68 - i, 2),
                        i % 8 < 4 ? new Color(190, 180, 150) : new Color(160, 150, 130));
         // Tür
-        spriteDraw(spriteBatch, px, new Rectangle(house.X + 34, house.Y + 56, 12, 24), new Color(60, 45, 30));
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 58, 80, 12, 24), new Color(60, 45, 30));
         // Fenster
-        spriteDraw(spriteBatch, px, new Rectangle(house.X + 14, house.Y + 58, 10, 10), new Color(200, 200, 220));
-        spriteDraw(spriteBatch, px, new Rectangle(house.X + 56, house.Y + 58, 10, 10), new Color(200, 200, 220));
-        
-        // Ecktürme (kleine Türme in den 4 Ecken)
-        int size = 20;
-        var corners = new[]
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 38, 82, 10, 10), new Color(200, 200, 220));
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 80, 82, 10, 10), new Color(200, 200, 220));
+
+        // Ecktürme (kleine Türme in den 4 Ecken), 20 × 20 im Entwurf
+        foreach (var (cx, cy) in new[] { (0, 0), (108, 0), (0, 108), (108, 108) })
         {
-            new Rectangle(rect.X, rect.Y, size, size),
-            new Rectangle(rect.Right - size, rect.Y, size, size),
-            new Rectangle(rect.X, rect.Bottom - size, size, size),
-            new Rectangle(rect.Right - size, rect.Bottom - size, size, size)
-        };
-        foreach (var c in corners)
-        {
-            spriteDraw(spriteBatch, px, c, wood);
+            spriteDraw(spriteBatch, px, BuildingPart(rect, cx, cy, 20, 20), wood);
             // Kuppel (halbrund, durch Stapeln)
             for (int i = 0; i < 8; i++)
-                spriteDraw(spriteBatch, px, new Rectangle(c.X + i, c.Y - i, size - i * 2, 2), roof);
+                spriteDraw(spriteBatch, px, BuildingPart(rect, cx + i, cy - i, 20 - i * 2, 2), roof);
         }
-        
-        // Aue/Hof vor dem Hauptgebäude (heller Pfad)
-        var path = new Rectangle(house.Center.X - 16, house.Bottom, 32, h - house.Bottom + house.Y + 60 - h);
-        // Vereinfacht: Pfad von der Tür nach unten
-        if (path.Height > 0)
-            spriteDraw(spriteBatch, px, new Rectangle(house.Center.X - 8, house.Y + 80, 16, 12), new Color(160, 145, 100));
+
+        // Pfad von der Tür nach unten. Die frühere Fassung rechnete hier eine
+        // negative Höhe aus und zeichnete ihn nie.
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 56, 104, 16, 12), new Color(160, 145, 100));
+    }
+
+    /// <summary>
+    /// Haus, 2 × 2 Kacheln: Fachwerk unter einem Satteldach, am First ein
+    /// Wimpel in Spielerfarbe. Entworfen im selben 128er-Raster wie das
+    /// Stadtzentrum, BuildingPart rechnet es auf die Größe um.
+    /// </summary>
+    private void DrawHouse(SpriteBatch spriteBatch, Rectangle rect, bool isPlayer1)
+    {
+        Color wood = isPlayer1 ? new Color(100, 80, 55) : new Color(110, 75, 55);
+        Color plaster = new Color(200, 185, 150);
+        Color flag = isPlayer1 ? new Color(70, 110, 210) : new Color(200, 60, 50);
+
+        // Grund
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 10, 100, 108, 20), new Color(140, 125, 90));
+        // Wände mit Fachwerk
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 18, 58, 92, 56), plaster);
+        foreach (int bx in new[] { 18, 62, 106 })
+            spriteDraw(spriteBatch, px, BuildingPart(rect, bx, 58, 4, 56), wood);
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 18, 84, 92, 3), wood);
+        // Satteldach in Streifen, nach unten breiter
+        for (int i = 0; i < 48; i += 2)
+        {
+            int half = 6 + (int)(i * 1.2f);
+            spriteDraw(spriteBatch, px, BuildingPart(rect, 64 - half, 14 + i, 2 * half, 2),
+                       i % 16 < 8 ? new Color(150, 70, 50) : new Color(130, 60, 45));
+        }
+        // Tür und Fenster
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 56, 86, 16, 28), new Color(60, 45, 30));
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 28, 72, 14, 12), new Color(200, 200, 220));
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 86, 72, 14, 12), new Color(200, 200, 220));
+        // Wimpel in Spielerfarbe am First
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 63, 2, 3, 14), wood);
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 66, 2, 12, 7), flag);
+    }
+
+    /// <summary>
+    /// Baustelle: ein abgesteckter Bauplatz, auf dem die Mauern mit dem
+    /// Fortschritt wachsen, davor ein Gerüst, darüber ein Fortschrittsbalken.
+    /// Gilt für jede Größe, BuildingPart rechnet um.
+    /// </summary>
+    private void DrawConstructionSite(SpriteBatch spriteBatch, Rectangle rect, float progress)
+    {
+        // Bauplatz mit Rand
+        var plot = new Color(165, 145, 105);
+        var edge = new Color(135, 115, 80);
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 4, 36, 120, 88), plot);
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 4, 36, 120, 3), edge);
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 4, 121, 120, 3), edge);
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 4, 36, 3, 88), edge);
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 121, 36, 3, 88), edge);
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 6, 96, 116, 26), new Color(150, 130, 95));
+        // Mauern wachsen mit dem Fortschritt
+        int wall = (int)(56 * progress);
+        if (wall > 0)
+            spriteDraw(spriteBatch, px, BuildingPart(rect, 18, 114 - wall, 92, wall), new Color(185, 160, 115));
+        // Gerüst
+        var pole = new Color(115, 90, 55);
+        foreach (int bx in new[] { 12, 62, 112 })
+            spriteDraw(spriteBatch, px, BuildingPart(rect, bx, 44, 4, 72), pole);
+        foreach (int by in new[] { 64, 88 })
+            spriteDraw(spriteBatch, px, BuildingPart(rect, 10, by, 108, 3), pole);
+        // Fortschrittsbalken
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 14, 4, 100, 8), new Color(30, 30, 30));
+        int done = (int)(100 * progress);
+        if (done > 0)
+            spriteDraw(spriteBatch, px, BuildingPart(rect, 14, 4, done, 8), new Color(230, 200, 70));
+    }
+
+    /// <summary>
+    /// Mühle, 2 × 2 Kacheln: Mauer unter einem Strohdach, davor das
+    /// Flügelkreuz, daneben ein Wimpel in Spielerfarbe.
+    /// </summary>
+    private void DrawMill(SpriteBatch spriteBatch, Rectangle rect, bool isPlayer1)
+    {
+        Color wood = isPlayer1 ? new Color(100, 80, 55) : new Color(110, 75, 55);
+        Color flag = isPlayer1 ? new Color(70, 110, 210) : new Color(200, 60, 50);
+
+        // Grund und Mauer
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 10, 100, 108, 20), new Color(140, 125, 90));
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 30, 58, 68, 56), new Color(195, 180, 145));
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 30, 58, 4, 56), wood);
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 94, 58, 4, 56), wood);
+        // Strohdach in Streifen, nach unten breiter
+        for (int i = 0; i < 26; i += 2)
+        {
+            int half = 10 + i;
+            spriteDraw(spriteBatch, px, BuildingPart(rect, 64 - half, 34 + i, 2 * half, 2),
+                       i % 8 < 4 ? new Color(170, 130, 65) : new Color(150, 112, 55));
+        }
+        // Tür und Fenster
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 56, 88, 16, 26), new Color(60, 45, 30));
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 40, 72, 10, 10), new Color(200, 200, 220));
+        // Flügelkreuz um die Nabe, mit Lattenwerk
+        var canvas = new Color(230, 220, 190);
+        var lattice = new Color(150, 120, 80);
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 60, 2, 8, 56), canvas);
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 34, 26, 60, 8), canvas);
+        for (int k = 0; k < 56; k += 8)
+            spriteDraw(spriteBatch, px, BuildingPart(rect, 60, 4 + k, 8, 2), lattice);
+        for (int k = 0; k < 60; k += 8)
+            spriteDraw(spriteBatch, px, BuildingPart(rect, 36 + k, 26, 2, 8), lattice);
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 59, 25, 10, 10), new Color(90, 65, 40));
+        // Wimpel in Spielerfarbe
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 104, 40, 3, 18), wood);
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 107, 40, 12, 7), flag);
+    }
+
+    /// <summary>
+    /// Offener Unterstand der beiden Lager: Grund, Rückwand, Pultdach, zwei
+    /// Pfosten und ein Wimpel in Spielerfarbe. Davor legen DrawLumberCamp und
+    /// DrawMiningCamp ihren Vorrat.
+    /// </summary>
+    private void DrawShed(SpriteBatch spriteBatch, Rectangle rect, bool isPlayer1,
+                          Color wall, Color roof, Color roofTop)
+    {
+        Color wood = isPlayer1 ? new Color(100, 80, 55) : new Color(110, 75, 55);
+        Color flag = isPlayer1 ? new Color(70, 110, 210) : new Color(200, 60, 50);
+
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 6, 100, 116, 22), new Color(140, 125, 90));
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 14, 52, 100, 50), wall);
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 6, 38, 116, 16), roof);
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 6, 38, 116, 3), roofTop);
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 14, 54, 6, 50), wood);
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 108, 54, 6, 50), wood);
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 110, 20, 3, 18), wood);
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 113, 20, 12, 7), flag);
+    }
+
+    /// <summary>Holzfällerlager: Unterstand mit Holzstapel, daneben Hackklotz und Axt.</summary>
+    private void DrawLumberCamp(SpriteBatch spriteBatch, Rectangle rect, bool isPlayer1)
+    {
+        DrawShed(spriteBatch, rect, isPlayer1,
+                 new Color(110, 85, 55), new Color(95, 70, 45), new Color(130, 100, 65));
+        // Holzstapel von vorn: Stirnseiten als Pyramide, 4-3-2-1
+        int[] perRow = { 4, 3, 2, 1 };
+        for (int row = 0; row < perRow.Length; row++)
+        {
+            for (int k = 0; k < perRow[row]; k++)
+            {
+                int lx = 24 + row * 7 + k * 14, ly = 90 - row * 11;
+                spriteDraw(spriteBatch, px, BuildingPart(rect, lx, ly, 13, 12), new Color(125, 82, 45));
+                spriteDraw(spriteBatch, px, BuildingPart(rect, lx + 2, ly + 2, 9, 8), new Color(215, 180, 125));
+                spriteDraw(spriteBatch, px, BuildingPart(rect, lx + 5, ly + 5, 3, 3), new Color(160, 120, 75));
+            }
+        }
+        // Hackklotz mit Axt
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 92, 92, 14, 12), new Color(125, 90, 55));
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 92, 90, 14, 3), new Color(190, 150, 100));
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 98, 76, 2, 15), new Color(150, 110, 60));
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 99, 76, 7, 5), new Color(175, 175, 185));
+    }
+
+    /// <summary>
+    /// Bergbaulager: Unterstand mit einer Halde Gold und einer Halde Stein,
+    /// dazwischen eine Spitzhacke.
+    /// </summary>
+    private void DrawMiningCamp(SpriteBatch spriteBatch, Rectangle rect, bool isPlayer1)
+    {
+        DrawShed(spriteBatch, rect, isPlayer1,
+                 new Color(105, 92, 75), new Color(90, 85, 85), new Color(130, 125, 125));
+        // Zwei Halden, je drei Stufen mit Glanzpunkten: links Gold, rechts Stein
+        foreach (var (x0, color, shine) in new[]
+                 {
+                     (24, new Color(215, 180, 60), new Color(240, 215, 110)),
+                     (66, new Color(160, 160, 165), new Color(200, 200, 205)),
+                 })
+        {
+            spriteDraw(spriteBatch, px, BuildingPart(rect, x0, 96, 36, 8), color);
+            spriteDraw(spriteBatch, px, BuildingPart(rect, x0 + 4, 90, 28, 6), color);
+            spriteDraw(spriteBatch, px, BuildingPart(rect, x0 + 9, 85, 18, 5), color);
+            spriteDraw(spriteBatch, px, BuildingPart(rect, x0 + 12, 86, 4, 3), shine);
+            spriteDraw(spriteBatch, px, BuildingPart(rect, x0 + 6, 97, 4, 3), shine);
+            spriteDraw(spriteBatch, px, BuildingPart(rect, x0 + 22, 92, 4, 3), shine);
+        }
+        // Spitzhacke
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 61, 66, 2, 30), new Color(150, 110, 60));
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 54, 64, 16, 3), new Color(175, 175, 185));
+    }
+
+    /// <summary>
+    /// Rechnet ein Rechteck aus dem 128 × 128-Entwurf eines Gebäudes auf dessen
+    /// tatsächliche Bildschirmgröße um. Mindestens 1 Pixel, damit schmale
+    /// Streifen beim Herauszoomen nicht verschwinden.
+    /// </summary>
+    private static Rectangle BuildingPart(Rectangle rect, int x, int y, int width, int height)
+    {
+        float sx = rect.Width / 128f, sy = rect.Height / 128f;
+        return new Rectangle(rect.X + (int)(x * sx), rect.Y + (int)(y * sy),
+                             Math.Max(1, (int)(width * sx)), Math.Max(1, (int)(height * sy)));
     }
     
     private void spriteDraw(SpriteBatch sb, Texture2D tex, Rectangle r, Color c)
@@ -1065,6 +2054,14 @@ public class RTSGameplayScreen : GameScreen
 
         foreach (var unit in units)
         {
+            // Fremde Einheiten nur dort, wo Spieler 0 gerade hinsieht
+            if (unit.OwnerId != 0)
+            {
+                var cell = tileMap.WorldToGrid(unit.Position);
+                if (!tileMap.IsTileVisible((int)cell.X, (int)cell.Y, 0))
+                    continue;
+            }
+
             var screenPos = WorldToScreen(unit.Position);
             var size = (int)(24 * cameraZoom);
 
@@ -1086,28 +2083,51 @@ public class RTSGameplayScreen : GameScreen
                 spriteBatch.Draw(px, screenPos - new Vector2(6, 6), null, tint, 0f, Vector2.Zero, 12 * cameraZoom, SpriteEffects.None, 0f);
             }
 
-            // Auswahlring
+            // Auswahlrahmen um die ganze Figur: sie steht mit den Füßen auf
+            // screenPos und reicht size Pixel nach oben
             if (unit.IsSelected)
             {
-                var ringRect = new Rectangle((int)(screenPos.X - size / 2), (int)(screenPos.Y - size / 2), size, size);
-                spriteBatch.Draw(px, new Rectangle(ringRect.X, ringRect.Y, size, 1), null, new Color(80, 255, 80)); // oben
-                spriteBatch.Draw(px, new Rectangle(ringRect.X, ringRect.Y + size - 1, size, 1), null, new Color(80, 255, 80)); // unten
-                spriteBatch.Draw(px, new Rectangle(ringRect.X, ringRect.Y, 1, size), null, new Color(80, 255, 80)); // links
-                spriteBatch.Draw(px, new Rectangle(ringRect.X + size - 1, ringRect.Y, 1, size), null, new Color(80, 255, 80)); // rechts
+                var ringRect = new Rectangle((int)(screenPos.X - size / 2), (int)(screenPos.Y - size), size, size);
+                int line = Math.Max(1, (int)cameraZoom);
+                var ringColor = new Color(80, 255, 80);
+                spriteBatch.Draw(px, new Rectangle(ringRect.X, ringRect.Y, size, line), null, ringColor); // oben
+                spriteBatch.Draw(px, new Rectangle(ringRect.X, ringRect.Bottom - line, size, line), null, ringColor); // unten
+                spriteBatch.Draw(px, new Rectangle(ringRect.X, ringRect.Y, line, size), null, ringColor); // links
+                spriteBatch.Draw(px, new Rectangle(ringRect.Right - line, ringRect.Y, line, size), null, ringColor); // rechts
             }
 
-            // Lebensbalken
+            // Lebensbalken über dem Kopf, mit dem Zoom skaliert
             if (unit.Health < unit.MaxHealth || unit.IsSelected)
             {
-                var barX = screenPos.X - 10;
-                var barY = screenPos.Y - size / 2 - 4;
+                int barHeight = Math.Max(3, (int)(3 * cameraZoom));
+                var barRect = new Rectangle((int)(screenPos.X - size / 2), (int)(screenPos.Y - size) - barHeight - 2,
+                                            size, barHeight);
+                spriteBatch.Draw(px, barRect, null, new Color(20, 20, 20));
+                var healthWidth = (int)(barRect.Width * ((float)unit.Health / unit.MaxHealth));
+                spriteBatch.Draw(px, new Rectangle(barRect.X, barRect.Y, healthWidth, barHeight), null, Color.Green);
+            }
+        }
+    }
 
-                // Hintergrund
-                spriteBatch.Draw(px, new Rectangle((int)barX, (int)barY, 20, 3), null, new Color(20, 20, 20));
+    /// <summary>
+    /// Nebel des Krieges für Spieler 0: nie Gesehenes schwarz, einmal Gesehenes
+    /// abgedunkelt – dort zeigt die Karte den letzten bekannten Stand.
+    /// </summary>
+    private void DrawFog(SpriteBatch spriteBatch)
+    {
+        var dimmed = new Color(0, 0, 0, 110);
+        for (int x = 0; x < tileMap.Width; x++)
+        {
+            for (int y = 0; y < tileMap.Height; y++)
+            {
+                var rect = TileScreenRect(x, y);
+                if (!rect.Intersects(screenBounds))
+                    continue;
 
-                // Gesundheit
-                var healthWidth = (int)(20 * ((float)unit.Health / unit.MaxHealth));
-                spriteBatch.Draw(px, new Rectangle((int)barX, (int)barY, healthWidth, 3), null, Color.Green);
+                if (!tileMap.IsTileExplored(x, y, 0))
+                    spriteBatch.Draw(px, rect, Color.Black);
+                else if (!tileMap.IsTileVisible(x, y, 0))
+                    spriteBatch.Draw(px, rect, dimmed);
             }
         }
     }
@@ -1157,8 +2177,40 @@ public class RTSGameplayScreen : GameScreen
         var popSize = ScreenManager.Font.MeasureString(popText);
         var ageSize = ScreenManager.Font.MeasureString(ageText);
         var textX = screenBounds.Width - 10 - popSize.X - ageSize.X - 10;
-        spriteBatch.DrawString(ScreenManager.Font, popText, new Vector2(textX, 6), Color.White);
+        // Rot, sobald das Limit erreicht ist - dann steht die Produktion
+        var popColor = player1.PopulationCount >= player1.PopulationLimit ? LimitColor : Color.White;
+        spriteBatch.DrawString(ScreenManager.Font, popText, new Vector2(textX, 6), popColor);
         spriteBatch.DrawString(ScreenManager.Font, ageText, new Vector2(textX + popSize.X + 10, 6), Color.White);
+
+        // Mitte der oberen Leiste: Hinweis oder Ausbildung im Stadtzentrum
+        string centerText = null;
+        var centerColor = Color.White;
+        var townCenter = TownCenterOf(0);
+        if (hudMessageTimer > 0f)
+        {
+            centerText = hudMessage;
+            centerColor = Color.Orange;
+        }
+        else if (townCenter != null && townCenter.Training.Count > 0)
+        {
+            if (townCenter.Training.IsBlocked)
+            {
+                centerText = "Bevölkerungslimit erreicht - Haus bauen mit H";
+                centerColor = LimitColor;
+            }
+            else
+            {
+                centerText = $"Dorfbewohner {(int)(townCenter.Training.Progress * 100)} %";
+                if (townCenter.Training.Count > 1)
+                    centerText += $"  (+{townCenter.Training.Count - 1})";
+            }
+        }
+        if (centerText != null)
+        {
+            var centerSize = ScreenManager.Font.MeasureString(centerText);
+            spriteBatch.DrawString(ScreenManager.Font, centerText,
+                new Vector2((screenBounds.Width - centerSize.X) / 2f, 6), centerColor);
+        }
 
         // Untere Leiste
         var bottomBarRect = new Rectangle(0, screenBounds.Height - 48, screenBounds.Width, 48);
@@ -1169,16 +2221,55 @@ public class RTSGameplayScreen : GameScreen
         string commandText;
         if (selectedUnits.Count > 0)
         {
-            commandText = selectedUnits.Count == 1 ? "1 Einheit ausgewählt" : $"{selectedUnits.Count} Einheiten ausgewählt";
+            if (selectedUnits.Count == 1)
+            {
+                var u = selectedUnits[0];
+                commandText = $"{u.Name}  {u.Health}/{u.MaxHealth} LP";
+                if (u.Job != null)
+                    commandText += $"  Traglast {u.CarryingAmount}/{GatherJob.CARRY_CAPACITY} {ResourceName(u.Job.Resource)}";
+                if (u.BuildSite is { IsComplete: false } site)
+                    commandText += $"  baut {site.Type} {(int)(site.Construction.Progress * 100)} %";
+            }
+            else
+            {
+                commandText = $"{selectedUnits.Count} Einheiten ausgewählt";
+            }
         }
         else
         {
-            commandText = "Links: auswählen   Rechts: bewegen   Pfeiltasten: Kamera   Mausrad/+-: Zoom   ESC: Menü";
+            commandText = "Rechts: auswählen (auch Klick auf Einheit)   Links ziehen: Karte   Links klicken: bewegen/sammeln/bauen   Q: Dorfbewohner   Pfeiltasten/Bildrand: Kamera   Mausrad/+-: Zoom   ESC: Menü";
+        }
+        if (placing != null)
+        {
+            var entry = BuildMenu.First(e => e.Type == placing.Value);
+            commandText = $"{entry.Name} setzen: Linksklick ({CostText(BuildingRules.CostOf(entry.Type))})"
+                        + $"   Abbrechen: Rechtsklick oder {entry.Key}";
+        }
+        else if (selectedUnits.Any(u => u.Core is CoreVillager))
+        {
+            commandText += "   Bauen: " + string.Join("  ", BuildMenu.Select(e => $"{e.Key} {e.Name}"));
         }
         var textPos = new Vector2(10, screenBounds.Height - 38);
 
         spriteBatch.DrawString(ScreenManager.Font, commandText, textPos, Color.White);
+
+        // Untätige Dorfbewohner: rechtsbündig in der unteren Leiste
+        int idleCount = IdleVillagers().Count;
+        var idleText = $"Untätig: {idleCount}  (Taste .)";
+        var idleSize = ScreenManager.Font.MeasureString(idleText);
+        spriteBatch.DrawString(ScreenManager.Font, idleText,
+            new Vector2(screenBounds.Width - 10 - idleSize.X, textPos.Y),
+            idleCount > 0 ? Color.Orange : Color.White);
     }
+
+    private static string ResourceName(Resource resource) => resource switch
+    {
+        Resource.Food => "Nahrung",
+        Resource.Wood => "Holz",
+        Resource.Gold => "Gold",
+        Resource.Stone => "Stein",
+        _ => resource.ToString()
+    };
 
     private Texture2D BuildArcherTexture(GraphicsDevice gd, Color playerColor)
     {
@@ -1244,7 +2335,22 @@ public class RTSGameplayScreen : GameScreen
             (worldPos.X + cameraPosition.X) * cameraZoom,
             (worldPos.Y + cameraPosition.Y) * cameraZoom);
     }
-    
+
+    /// <summary>
+    /// Bildschirmrechteck eines Kachelbereichs, aus den Weltecken berechnet – so schließen benachbarte Kacheln bei jedem Zoom lückenlos aneinander und liegen genau dort, wo Maus und Einheiten sie erwarten.
+    /// </summary>
+    private Rectangle TileScreenRect(int x, int y, int width = 1, int height = 1)
+    {
+        var topLeft = WorldToScreen(new Vector2(x * tileMap.TileSize, y * tileMap.TileSize));
+        var bottomRight = WorldToScreen(new Vector2((x + width) * tileMap.TileSize,
+                                                    (y + height) * tileMap.TileSize));
+        int left = (int)MathF.Floor(topLeft.X);
+        int top = (int)MathF.Floor(topLeft.Y);
+        return new Rectangle(left, top,
+                             (int)MathF.Floor(bottomRight.X) - left,
+                             (int)MathF.Floor(bottomRight.Y) - top);
+    }
+
     /// <summary>
     /// Hält den sichtbaren Ausschnitt innerhalb der Karte.
     ///
@@ -1302,25 +2408,5 @@ public class RTSGameplayScreen : GameScreen
             TileType.Base => Color.Peru,
             _ => new Color(22, 79, 45) // Grass
         };
-    }
-    
-    public void HandleMouseClick(Vector2 position)
-    {
-        // Handle mouse clicks for building placement, unit commands, etc.
-        var gridPos = WorldToGrid(position);
-        
-        // Check if clicking on a resource
-        var tile = tileMap.GetTile((int)gridPos.X, (int)gridPos.Y);
-        if (tile != null && tile.ResourceType.HasValue)
-        {
-            // Assign villager to gather this resource
-            var villager = units.FirstOrDefault(v => v.Type == UnitType.Villager && v.State == UnitState.Idle && v.OwnerId == 0);
-            if (villager != null)
-            {
-                villager.TargetPosition = GridToWorld(gridPos);
-                villager.CarryingResource = tile.ResourceType.Value;
-                villager.State = UnitState.Gathering;
-            }
-        }
     }
 }

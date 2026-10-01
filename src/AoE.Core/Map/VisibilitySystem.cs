@@ -159,27 +159,20 @@ public sealed class VisibilitySystem
     public void UpdateVisibility(int playerId)
     {
         var visible = new HashSet<Position>();
-        
+
         // Finde alle sichtbaren Einheiten des Spielers
         foreach (var unit in _map.GetUnitsByOwner(playerId))
         {
-            if (!unit.IsAlive)
-                continue;
-            
-            // Alle Tiles in Sichtweite markieren
-            int range = unit.Stats.VisionRange;
-            for (int x = -range; x <= range; x++)
-            {
-                for (int y = -range; y <= range; y++)
-                {
-                    var pos = new Position(unit.Position.X + x, unit.Position.Y + y);
-                    
-                    if (IsWithinMap(pos) && pos.DistanceSquared(unit.Position) <= range * range)
-                    {
-                        visible.Add(pos);
-                    }
-                }
-            }
+            if (unit.IsAlive)
+                MarkVisible(visible, unit.Position, unit.Stats.VisionRange);
+        }
+
+        // Gebäude sehen ihre Umgebung wie Einheiten. Ohne das läge das eigene
+        // Stadtzentrum im Nebel, sobald kein Dorfbewohner daneben steht.
+        foreach (var building in _map.GetBuildings())
+        {
+            if (building.OwnerId == playerId && building.IsAlive)
+                MarkVisible(visible, building.Position, building.Stats.VisionRange);
         }
         
         // Die vorherige Sichtmenge festhalten, bevor sie ersetzt wird: daraus
@@ -191,6 +184,22 @@ public sealed class VisibilitySystem
         UpdateTileVisibility(playerId, visible, zuvorSichtbar);
     }
     
+    /// <summary>
+    /// Markiert alle Kacheln im Kreis um <paramref name="center"/> als sichtbar.
+    /// </summary>
+    private void MarkVisible(HashSet<Position> visible, Position center, int range)
+    {
+        for (int x = -range; x <= range; x++)
+        {
+            for (int y = -range; y <= range; y++)
+            {
+                var pos = new Position(center.X + x, center.Y + y);
+                if (IsWithinMap(pos) && pos.DistanceSquared(center) <= range * range)
+                    visible.Add(pos);
+            }
+        }
+    }
+
     /// <summary>
     /// Prüft, ob ein Spieler eine Einheit sehen kann
     /// </summary>

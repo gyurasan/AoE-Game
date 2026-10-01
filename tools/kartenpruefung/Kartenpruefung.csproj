@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Prüft Regeln des Kartengenerators über viele erzeugte Karten.
+    Unit-Tests sehen das Spielprojekt nicht; so blieb Stein monatelang
+    unabbaubar, ohne dass ein Test es bemerkte. Aufruf siehe Program.cs.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\AgeOfEmpiresClone\AgeOfEmpiresClone.Core\AgeOfEmpiresClone.Core.csproj" />
+    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.*" />
+  </ItemGroup>
+
+</Project>

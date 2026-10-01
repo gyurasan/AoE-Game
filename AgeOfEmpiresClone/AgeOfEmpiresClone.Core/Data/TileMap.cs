@@ -9,6 +9,7 @@ using CorePathfinding = AoE.Core.Pathfinding.Pathfinding;
 using CoreVisibility = AoE.Core.Map.VisibilitySystem;
 using TileVisibility = AoE.Core.Map.TileVisibility;
 using UnitEntity = AoE.Core.Entities.UnitEntity;
+using BuildingEntity = AoE.Core.Entities.BuildingEntity;
 
 namespace AgeOfEmpiresClone.Core.Data;
 
@@ -66,8 +67,9 @@ public class TileMap
     
     private TileType GetRandomTileType(int x, int y)
     {
-        // Nahezu reine Graskarte: nur kleine natürliche Wald-/Felsvorkommen,
+        // Nahezu reine Graskarte: nur einzelne Bäume,
         // keine Rohstoff-Kacheln (die kommen als Klumpen in AddResourcePatches).
+        // Graue Deko-Felsen gibt es nicht mehr – sie sahen aus wie Stein, trugen aber nie eine Ressource.
         // Ortsfester Hash, damit dieselbe Karte reproduzierbar bleibt.
         //
         // unchecked + Vorzeichenbit ausmaskieren ist hier zwingend: die
@@ -79,7 +81,6 @@ public class TileMap
         int rand = (hash & 0x7FFFFFFF) % 100;
         
         if (rand < 4) return TileType.Forest;
-        if (rand < 7) return TileType.Rock;
         return TileType.Grassland;
     }
     
@@ -194,8 +195,16 @@ public class TileMap
                 var t = tiles[x, y];
                 if (t.Type == TileType.Water || t.Building != null) continue;
                 t.Type = type;
+                // Die Ressource kommt vom Klumpen, nicht aus dem Konstruktor der
+                // Kachel – sonst war Stein nie abbaubar und trug Holz, wo vorher
+                // ein Einzelbaum stand. Überlappen sich zwei gleiche Klumpen,
+                // bleibt die Menge des ersten.
                 if (t.ResourceType != resource)
+                {
+                    t.ResourceType = resource;
                     t.ResourceAmount = baseAmount + _random.Next(0, baseAmount / 2);
+                }
+                t.Food = FoodSource.None;
             }
         }
     }
@@ -220,6 +229,9 @@ public class TileMap
         // Natürliche Gewässer zuerst, dann Strände.
         AddLakes();
         AddBeaches();
+
+        // Fische an der Küste – nach den Stränden, damit feststeht, wo Land ist
+        PlaceFish();
         
         // Wälder (Holz): 5–7 Klumpen, jeweils mit einer kleinen Lichtung
         // für Nahrungsklumpen.
@@ -247,11 +259,82 @@ public class TileMap
         foreach (var (cx, cy) in goldCenters)
             StampResource(cx, cy, _random.Next(1, 2), TileType.GoldMine, Resource.Gold, 60);
         
+        // Startrohstoffe in Laufweite beider Stadtzentren
+        PlaceStartResources(3, 3, 1, 1);
+        PlaceStartResources(Width - 4, Height - 4, -1, -1);
+
         // Nahrung: Schafherden auf der Wiese + Beerenbüsche in Lichtungen
         PlaceSheep(woodCenters);
         PlaceBerryBushes(woodCenters);
     }
+
+    /// <summary>
+    /// Fischschwärme an der Küste: auf Wasserkacheln mit Land daneben. Von dort
+    /// aus fängt ein Dorfbewohner – laut Spezifikation rund 200 Nahrung je Schwarm.
+    /// </summary>
+    private void PlaceFish()
+    {
+        for (int x = 0; x < Width; x++)
+        {
+            for (int y = 0; y < Height; y++)
+            {
+                var t = tiles[x, y];
+                if (t.Type != TileType.Water || !IsCoast(x, y)) continue;
+                if (_random.NextDouble() > 0.15) continue;
+                t.ResourceType = Resource.Food;
+                t.ResourceAmount = 200;
+                t.Food = FoodSource.Fish;
+            }
+        }
+    }
+
+    /// <summary>Wasserkachel mit mindestens einer Landkachel unter den acht Nachbarn.</summary>
+    private bool IsCoast(int x, int y)
+    {
+        for (int dx = -1; dx <= 1; dx++)
+        {
+            for (int dy = -1; dy <= 1; dy++)
+            {
+                if (dx == 0 && dy == 0) continue;
+                var n = GetTile(x + dx, y + dy);
+                if (n != null && n.Type != TileType.Water) return true;
+            }
+        }
+        return false;
+    }
     
+    // --- Startrohstoffe ---------------------------------------------------
+
+    /// <summary>
+    /// Startrohstoffe wie in AoE: jeder Spieler bekommt einen Steinbruch und
+    /// eine Goldmine in Laufweite seines Stadtzentrums, zur Kartenmitte hin.
+    /// Die zufälligen Klumpen halten Abstand zu den Startplätzen – ohne das lag
+    /// der nächste Stein im Schnitt 33 Kacheln entfernt, Gold bis zu 98.
+    /// </summary>
+    private void PlaceStartResources(int tcX, int tcY, int dirX, int dirY)
+    {
+        int mx = tcX + 2, my = tcY + 2;   // Mitte des 4 × 4-Stadtzentrums
+        PlaceStartCluster(mx + dirX * 8, my + dirY * 2, TileType.Mountain, Resource.Stone, 80);
+        PlaceStartCluster(mx + dirX * 2, my + dirY * 8, TileType.GoldMine, Resource.Gold, 60);
+    }
+
+    /// <summary>
+    /// Ein Klumpen mit Radius 2. Liegt auf der Mittelkachel Wasser, wird sie
+    /// vorher zu Wiese – StampResource überspringt Wasser, und ohne Mittelkachel
+    /// könnte der Klumpen ganz ausfallen.
+    /// </summary>
+    private void PlaceStartCluster(int cx, int cy, TileType type, Resource resource, int baseAmount)
+    {
+        var center = GetTile(cx, cy);
+        if (center == null) return;
+        if (center.Type == TileType.Water)
+        {
+            center.Type = TileType.Grassland;
+            center.Walkable = true;
+        }
+        StampResource(cx, cy, 2, type, resource, baseAmount);
+    }
+
     // Schafherden: 4–5 Stellen mal 2–4 Schafe, nur auf Gras in der Nähe
     // bestehender Grasflächen (Wiese, nicht mitten im Wald).
     private void PlaceSheep(List<(int x, int y)> woodCenters)
@@ -267,7 +350,8 @@ public class TileMap
                 var t = GetTile(sx, sy);
                 if (t == null || t.Type != TileType.Grassland) continue;
                 t.ResourceType = Resource.Food;
-                t.ResourceAmount = 1; // ein Schaf
+                t.ResourceAmount = 100; // ein Schaf, ~100 Nahrung laut Spezifikation
+                t.Food = FoodSource.Sheep;
             }
         }
     }
@@ -285,7 +369,8 @@ public class TileMap
                 var t = GetTile(bx, by);
                 if (t == null || t.Type != TileType.Grassland) continue;
                 t.ResourceType = Resource.Food;
-                t.ResourceAmount = 8;
+                t.ResourceAmount = 125;
+                t.Food = FoodSource.Berries;
             }
         }
     }
@@ -296,18 +381,20 @@ public class TileMap
         // Player 1 (top left)
         int p1x = 3;
         int p1y = 3;
+        ClearStartArea(p1x, p1y);
         AddBuilding(p1x, p1y, "Stadtzentrum", 0);
         
         // Player 2 (bottom right)
         int p2x = Width - 4;
         int p2y = Height - 4;
+        ClearStartArea(p2x, p2y);
         AddBuilding(p2x, p2y, "Stadtzentrum", 1);
         
         // Initial villagers
-        AddVillager(p1x + 1, p1y, 0);
-        AddVillager(p1x + 2, p1y, 0);
-        AddVillager(p1x, p1y + 1, 0);
-        AddVillager(p1x + 1, p1y + 1, 0);
+        AddVillager(p1x + 4, p1y + 3, 0);
+        AddVillager(p1x + 5, p1y + 3, 0);
+        AddVillager(p1x + 3, p1y + 4, 0);
+        AddVillager(p1x + 4, p1y + 4, 0);
         
         AddVillager(p2x - 1, p2y, 1);
         AddVillager(p2x - 2, p2y, 1);
@@ -315,28 +402,65 @@ public class TileMap
         AddVillager(p2x - 1, p2y - 1, 1);
     }
     
-    private void AddVillager(int x, int y, int ownerId)
+    /// <summary>
+    /// Räumt die Startzone eines Spielers frei: jede Kachel von (x - 2, y - 2)
+    /// bis einschließlich (x + 5, y + 5) wird zu begehbarer, bebaubarer Wiese
+    /// ohne Ressourcen — Stadtzentrum plus zwei Kacheln Rand. Kacheln
+    /// außerhalb der Karte werden übersprungen (GetTile liefert dort null).
+    /// </summary>
+    private void ClearStartArea(int x, int y)
+    {
+        for (int tx = x - 2; tx <= x + 5; tx++)
+        {
+            for (int ty = y - 2; ty <= y + 5; ty++)
+            {
+                var tile = GetTile(tx, ty);
+                if (tile == null) continue;
+                tile.Type = TileType.Grassland;
+                tile.ResourceType = null;
+                tile.ResourceAmount = 0;
+                tile.Food = FoodSource.None;
+                tile.Walkable = true;
+                tile.Buildable = true;
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Setzt einen Dorfbewohner auf die Mitte der Kachel (x, y), nimmt ihn in
+    /// <see cref="Units"/> auf und gibt ihn zurück.
+    /// </summary>
+    public Unit AddVillager(int x, int y, int ownerId)
     {
         var villager = new Unit(UnitType.Villager, ownerId)
         {
             Position = new Vector2(x * TileSize + TileSize / 2, y * TileSize + TileSize / 2)
         };
         Units.Add(villager);
+        return villager;
     }
     
-    public void AddBuilding(int x, int y, string buildingType, int ownerId)
+    /// <summary>
+    /// Setzt ein quadratisches Gebäude mit der linken oberen Ecke auf (x, y)
+    /// und gibt es zurück: <paramref name="size"/> Kacheln je Seite, das
+    /// Stadtzentrum 4, ein Haus 2. Fertig ist es sofort - wer eine Baustelle
+    /// will, setzt danach <see cref="Building.Construction"/>.
+    /// </summary>
+    public Building AddBuilding(int x, int y, string buildingType, int ownerId, int size = 4)
     {
-        var building = new Building
+        // Die Sicht rechnet von der Mitte der Grundfläche aus
+        var center = new CorePosition(x + size / 2, y + size / 2);
+        var building = new Building(CoreBuildings.Create(buildingType, ownerId, center))
         {
             X = x,
             Y = y,
             Type = buildingType,
             OwnerId = ownerId,
-            Width = 4,
-            Height = 4
+            Width = size,
+            Height = size
         };
         Buildings.Add(building);
-        
+
         // Mark tiles as occupied
         for (int bx = x; bx < x + building.Width && bx < Width; bx++)
         {
@@ -347,13 +471,55 @@ public class TileMap
                 tiles[bx, by].Buildable = false;
             }
         }
+
+        // Am Gitter der Kernbibliothek anmelden — dort spendet das Gebäude Sicht
+        NavGrid.AddBuilding(building.Core);
+        return building;
     }
     
+    /// <summary>
+    /// Ob ein quadratisches Gebäude mit der linken oberen Ecke auf (x, y) Platz
+    /// hat: jede Kachel der Grundfläche liegt auf der Karte, ist Wiese oder
+    /// Sand, begehbar und bebaubar und trägt weder Gebäude noch Ressource.
+    /// Einheiten und Nebel prüft der Aufrufer.
+    /// </summary>
+    public bool CanPlaceBuilding(int x, int y, int size)
+    {
+        for (int bx = x; bx < x + size; bx++)
+        {
+            for (int by = y; by < y + size; by++)
+            {
+                var tile = GetTile(bx, by);
+                if (tile == null || !tile.Walkable || !tile.Buildable
+                    || !TileMapHelper.CanBuildOn(tile.Type)
+                    || !string.IsNullOrEmpty(tile.Building) || tile.ResourceType.HasValue)
+                    return false;
+            }
+        }
+        return true;
+    }
+
     public Tile GetTile(int x, int y)
     {
         if (x >= 0 && x < Width && y >= 0 && y < Height)
             return tiles[x, y];
         return null;
+    }
+
+    /// <summary>
+    /// Macht aus einer erschöpften Quelle normales Gelände: gefällter Wald,
+    /// leerer Steinbruch und leere Goldmine werden zu Wiese und bebaubar.
+    /// Vorher blieb die Kachel als Wald ohne Holz stehen. Die Begehbarkeit
+    /// ändert sich nicht — auch Wald und Minen sind begehbar.
+    /// </summary>
+    public void ClearResource(Tile tile)
+    {
+        tile.ResourceType = null;
+        tile.ResourceAmount = 0;
+        tile.Food = FoodSource.None;
+        if (tile.Type is TileType.Forest or TileType.Mountain or TileType.GoldMine)
+            tile.Type = TileType.Grassland;
+        tile.Buildable = string.IsNullOrEmpty(tile.Building) && TileMapHelper.CanBuildOn(tile.Type);
     }
     
     public bool IsWalkable(int x, int y)
@@ -525,30 +691,39 @@ public class Building
     public int Width { get; set; }
     public int Height { get; set; }
     public int OwnerId { get; set; }
-    public int Health { get; set; }
-    public int MaxHealth { get; set; }
-    
-    // Production queue
-    public Queue<UnitType> ProductionQueue { get; set; } = new Queue<UnitType>();
-    public float ProductionTimer { get; set; }
-    
-    // Constructor
-    public Building()
-    {
-        MaxHealth = 1000;
-        Health = MaxHealth;
-    }
-}
 
-/// <summary>
-/// Represents a construction site
-/// </summary>
-public class ConstructionSite
-{
-    public int X { get; set; }
-    public int Y { get; set; }
-    public string BuildingType { get; set; }
-    public int OwnerId { get; set; }
-    public float Progress { get; set; }
-    public int WorkersAssigned { get; set; }
+    /// <summary>
+    /// Das zugehörige Gebäude aus AoE.Core, wie <see cref="Unit.Core"/> bei
+    /// Einheiten. Lebenspunkte, Sichtweite und Abgabestelle kommen von dort —
+    /// vorher führte das Spiel eigene Werte (pauschal 1000 Lebenspunkte).
+    /// </summary>
+    public BuildingEntity Core { get; }
+
+    public int Health
+    {
+        get => Core.CurrentHp;
+        set => Core.CurrentHp = value;
+    }
+    public int MaxHealth => Core.Stats.HitPoints;
+
+    /// <summary>
+    /// Ausbildungs-Warteschlange aus AoE.Core. Bisher bildet nur das
+    /// Stadtzentrum aus, und zwar Dorfbewohner (Taste Q).
+    /// </summary>
+    public AoE.Core.Economy.TrainingQueue<UnitType> Training { get; } = new();
+
+    /// <summary>
+    /// Die Baustelle, solange das Gebäude nicht fertig ist; null bei fertigen
+    /// Gebäuden. Eine Baustelle sperrt ihre Kacheln schon, zählt aber weder
+    /// als Wohnraum noch als Abgabestelle.
+    /// </summary>
+    public AoE.Core.Economy.Construction Construction { get; set; }
+
+    /// <summary>Fertig gebaut: keine Baustelle mehr oder die Baustelle ist abgeschlossen.</summary>
+    public bool IsComplete => Construction == null || Construction.IsComplete;
+
+    public Building(BuildingEntity core)
+    {
+        Core = core;
+    }
 }

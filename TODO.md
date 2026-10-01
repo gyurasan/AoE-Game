@@ -1,49 +1,125 @@
 # AoE-Clone — TODO / Meilensteine
 
-**Stand:** 2026-09-23 · verifiziert durch Build + Testlauf, nicht aus Doku übernommen.
+**Stand:** 2026-10-01 · verifiziert durch Build + Testlauf, nicht aus Doku übernommen.
 
 ## Wiederaufnahme — hier weitermachen
 
 Alles baut und läuft: `dotnet build AgeOfEmpire.slnx` (0 Fehler, 0 Warnungen),
-`dotnet test tests/AoE.Tests` → **26/26 grün**.
+`dotnet test tests/AoE.Tests` → **108/108 grün**.
 
-**Nichts ist committet.** Der gesamte Stand liegt im Arbeitsbaum; Commits macht
-der Nutzer selbst.
+Der Stand vom 2026-09-23 ist mit `4cb57d4` committet; alles vom 2026-09-30 und
+2026-10-01 liegt noch unversioniert im Arbeitsbaum. Commits macht der Nutzer selbst.
 
 Zuletzt fertiggestellt:
 
-- **Block A** (Hygiene) bis auf den `git rm -r --cached`-Schritt, siehe H1
-- **Block B** vollständig — das Spiel nutzt jetzt durchgehend `AoE.Core`
-- **C3** endliche Ressourcen, **C10** Mausrad-Zoom und Kameraklemmung
-- **Block E** — vier Fehler, die erst beim Ausprobieren sichtbar wurden
+- **C5d, C8b** nach dem Screenshot vom 2026-10-01: Wer ein Gebäude fertig hat und nichts
+  zu sammeln bekommt, baut an der nächsten unfertigen eigenen Baustelle im Umkreis von
+  8 Kacheln weiter; ein Linksklick auf eine eigene Einheit wählt sie aus, statt sie
+  wegzuschicken. Neues Werkzeug `tools/spielablauf` prüft solche Abläufe ohne Grafik
+- **C5 Bauen** — Dorfbewohner wählen, Taste H (Haus), M (Mühle), F (Holzfällerlager)
+  oder B (Bergbaulager), dann den Bauplatz anklicken: die Baustelle wird bezahlt, die
+  gewählten Dorfbewohner gehen hin und bauen. Bauzeiten aus AoE II (Haus 25 s, Mühle und
+  Lager 35 s); mehrere Arbeiter mit abnehmendem Ertrag — jeder weitere baut ein Drittel
+  so schnell wie der erste, vier brauchen die halbe Zeit. Baustellen zählen weder als
+  Wohnraum noch als Abgabestelle; wer ein Lager gebaut hat, sammelt gleich daneben.
+  Logik als `BuildingRules` und `Construction` in AoE.Core (`Economy/Construction.cs`,
+  36 Tests)
+- **C2 Bevölkerungslimit** — die Grenze ergibt sich aus den Gebäuden (Stadtzentrum und
+  Haus je 5, höchstens 200). Taste Q bildet im Stadtzentrum einen Dorfbewohner aus
+  (25 Nahrung, 25 s); bei erreichter Grenze steht die Ausbildung still, „Bev." wird rot
+  und die obere Leiste sagt es. Logik als `Population` und `TrainingQueue` in AoE.Core
+  (`Economy/Training.cs`, 22 Tests)
+- **Häuser** — mit gewähltem Dorfbewohner Taste H, dann Linksklick: 2×2 Kacheln für
+  25 Holz; eine grüne oder rote Fläche zeigt, ob das Haus passt. Seit C5 eine Baustelle
+  mit 25 s Bauzeit
+- **C1t** ein beladener Dorfbewohner behält seine Traglast, wenn man ihn an eine andere
+  Quelle derselben Ressource schickt
+- **E10** Stein und Gold waren nie abbaubar: `StampResource` setzte nie die Ressource.
+  Ein Prüfprogramm über 20 Karten fand Stein 0 von 557 Kacheln abbaubar, Gold 0 von 235;
+  die grauen Deko-Felsen ohne Ressource sind weg
+- **C1r** Startrohstoffe: Steinbruch und Goldmine liegen 7–10 Kacheln vom Stadtzentrum
+  statt im Schnitt 33
+- **C1f** Fischen: Schwärme an der Küste mit 200 Nahrung, gefangen vom Ufer aus
+- **G1–G4** Wald als Blätterdach mit überlappenden Kronen, ruhigeres Wasser mit Uferlinie
+- **E8, E9** nach dem Screenshot vom 2026-09-30: Auswahl, Auswahlrahmen und
+  Lebensbalken beziehen sich auf die ganze Figur; das Stadtzentrum wächst beim
+  Zoomen im Ganzen mit
+- **Nebel des Krieges (C7n)** — nie Gesehenes schwarz, einmal Gesehenes abgedunkelt,
+  fremde Einheiten nur in Sicht; die Sicht wird viermal pro Sekunde gerechnet
+- **Maussteuerung (C8a)** — rechts markieren (Klick oder Rahmen), links gedrückt
+  halten und ziehen verschiebt die Karte, ein kurzer Linksklick ist der Befehl
+- **B6 Gebäude** — `Building.Core` hält eine `BuildingEntity`; Gebäude spenden Sicht,
+  das Stadtzentrum 5 Kacheln weit
+- **C1 Dorfbewohner-Loop** — Linksklick auf eine Ressource schickt Dorfbewohner
+  sammeln: Traglast 10, Abgabe am Stadtzentrum, selbstständig zurück, bei
+  erschöpfter Quelle zur nächsten gleichen. Logik als `GatherJob` in AoE.Core
+  (15 Tests), im Spiel über `TileMapGatherWorld`
+- **Leerlauf** — Zähler „Untätig" in der unteren Leiste, Taste „." springt zum
+  nächsten untätigen Dorfbewohner; eine einzeln gewählte Einheit zeigt LP und Traglast
+- **C10** Kantenscrollen; die Pfeiltasten schwenken jetzt in Pfeilrichtung (E6)
+- **E5** Startplatz: die Dorfbewohner von Spieler 1 standen im Stadtzentrum
+- **E7** die Karte lag eine halbe Kachel neben Maus und Einheiten und wuchs beim Zoomen nicht mit
+- Nahrung laut Spezifikation: Schaf 100, Beerenbusch 125
 
 Die Screenshots in `docs/Screenshot 2026-09-23 *.png` zeigen den Stand davor
 und haben drei der vier Fehler aufgedeckt. Sie sind als Referenz nützlich.
 
+`docs/Screenshot 2026-09-30 224900.png` bestätigt Nebel, Sammelkreislauf (Nahrung 220,
+Holz 300), Startplatz und Kachelraster — und hat E8 und E9 aufgedeckt.
+`docs/Screenshot 2026-09-30 230012.png` zeigt den Auswahlrahmen um die ganze Figur (E8).
+`docs/Screenshot 2026-10-01 225150.png` bestätigt im Spiel: Stein wird abgebaut
+(Stein 210, E10), Steinbruch und Goldmine liegen nah am Stadtzentrum (C1r), Baumkronen
+ragen über die Kachelgrenzen (G1, G3), „Bev. 4/5" kommt aus den Gebäuden (C2b), das
+Baumenü steht in der unteren Leiste (C5b), und Auswahl und Sammelbefehl wirken
+(Untätig: 0). Gebaut und ausgebildet wurde darauf noch nichts.
+`docs/Screenshot 2026-10-01 225659.png` bestätigt Ausbildung und Limit („Bev. 5/5" rot,
+Hinweis oben), ein fertiges Holzfällerlager mit Sammeln danach und die Baustellen-Grafik.
+Zwei Baustellen standen bei rund 5 %: ihre Bauarbeiter waren abgezogen worden — per
+Linksklick, der hier ein Befehl ist, oder per neuem Bauauftrag. Die Nachstellung in
+`tools/spielablauf` hat das bestätigt; daraus wurden C5d und C8b.
+
 Nächste sinnvolle Schritte, in dieser Reihenfolge:
 
-1. **C1 Dorfbewohner-Loop** — der Punkt mit der größten Wirkung aufs Spielgefühl.
-   Vorarbeit liegt: C3 erschöpft Quellen bereits, aber der Dorfbewohner bleibt
-   dann auf der leeren Kachel stehen, statt sich die nächste zu suchen.
-2. **Kampfschleife** — `Unit.Attack()` existiert seit B2 und wird nirgends
-   aufgerufen. Ohne Aufrufer bleibt die Schadensformel ungenutzt.
-3. **Nebel zeichnen (C7)** — die Sichtlogik läuft seit B5, die Darstellung fehlt.
-4. **B6 Gebäude** auf `AoE.Core.Entities.Buildings` umstellen.
+1. **Sichtprüfung im Spiel** — offen: Weiterbauen an liegengebliebenen Baustellen (C5d),
+   Linksklick-Auswahl (C8b), Bauen von Mühle und Bergbaulager, dazu Wasser, Fischen und
+   Kantenscrollen. C5d und C8b prüft `tools/spielablauf` bereits ohne Grafik. Bestätigt
+   sind Wald, Stein, Gold, die Maussteuerung, Ausbildung mit Q, die rote
+   Bevölkerungsanzeige, das Holzfällerlager und die Baustellen-Grafik (Screenshots vom
+   2026-10-01).
+2. **Farmen** — die Mühle steht jetzt; eine Farm kostet 60 Holz und gibt 175 Nahrung
+   (offener Punkt in C5). Danach **C4 Zeitalter** als Gate für weitere Gebäude.
+3. **Kampfschleife** — `Unit.Attack()` existiert seit B2 und wird nirgends aufgerufen.
+   Auf Wunsch des Nutzers zurückgestellt (2026-09-30).
 
 Werkzeuge: `tools/ollama-agent/` verteilt `[L]`- und `[R]`-Punkte an ein lokales
-Ollama-Modell und nimmt sie per Build + Test ab (`py run_tasks.py --list`).
-`[X]`-Punkte gehören nicht dorthin.
+Ollama-Modell (`qwen3.8:27b`, 256K Kontext) und nimmt sie per Build, Test und
+Prüfskript aus `tools/ollama-agent/checks/` ab (`py run_tasks.py --list`).
+`[X]`-Punkte gehören nicht dorthin — bei C1, C2 und C5 kamen Entwurf und Tests von
+Claude, die Implementierung von `GatherJob`, `Population`, `TrainingQueue` und
+`Construction` vom lokalen Modell.
+Die 256K stehen seit 2026-10-01 als `num_ctx` im Modell selbst; das unveränderte
+Original liegt als `qwen3.8:27b-orig` daneben.
+
+Kartenfehler sehen die Unit-Tests nicht – sie kennen das Spielprojekt nicht. Dafür gibt
+es `tools/kartenpruefung`: `dotnet run --project tools/kartenpruefung -- rohstoffe start fisch`
+erzeugt 50 Karten und prüft Regeln des Kartengenerators; bei einem Verstoß endet es mit
+Fehlercode und taugt so als Abnahme.
+
+Ähnlich für den Spielbildschirm: `dotnet run --project tools/spielablauf -- bauen weiterbauen linksklick`
+lässt die Spielschleife ohne Grafik auf echten Karten laufen und prüft, wer baut, wer
+stehen bleibt und was ein Klick bewirkt. Den Bildschirm erreicht es per Reflection —
+benennt jemand eine Methode um, meldet es das, statt still falsch zu prüfen.
 
 ## Verifizierter Ist-Zustand
 
 | Projekt | Framework | Build | Bemerkung |
 |---|---|---|---|
 | `src/AoE.Core` | net10.0 | OK, 0 Fehler | Reine Logik, keine MonoGame-Abhängigkeit |
-| `tests/AoE.Tests` | net10.0 | **15/15 grün** | Villager, Scout, Konter-Boni, Schadensformel, Ressourcen |
+| `tests/AoE.Tests` | net10.0 | **108/108 grün** | Einheiten und Ressourcen (15), Sammelauftrag (21), Ausbildung und Bevölkerung (22), Bauen (36), Konter-Dreieck (5), Wegfindung (3), Nebel (6) |
 | `demo/DemoApp` | net10.0 | OK | referenziert AoE.Core |
 | `AgeOfEmpiresClone.Core` | net10.0 | OK, 0 Fehler | Dateiname seit H2 kanonisch |
 | `AgeOfEmpiresClone.DesktopGL` | net10.0 | OK, 0 Fehler / 0 Warnungen | startbar |
-| `AgeOfEmpiresClone.WindowsDX` | net10.0-windows | — | nur Windows |
+| `AgeOfEmpiresClone.WindowsDX` | net10.0-windows | OK, 0 Fehler | nur Windows |
 
 **Die .NET-10-Migration und der Build sind erledigt.** Der eigentliche Engpass ist ein
 anderer, siehe Block B.
@@ -56,7 +132,7 @@ deklariert `win-x64;osx-x64;osx-arm64;linux-x64` — `osx-arm64` ist für Apple 
 
 **Mobile ist kein Ziel.** Die Android- und iOS-Projekte der MonoGame-Vorlage wurden am
 2026-09-23 gelöscht; das deckt sich mit `game_plan.md` („Windows, macOS, Linux only — no
-mobile"). Die 84 Dateien sind im Arbeitsbaum entfernt, aber noch nicht aus dem Git-Index.
+mobile"). Die 84 Dateien sind entfernt, die Löschung ist mit `4cb57d4` committet.
 
 ## Eignung für Delegation
 
@@ -79,14 +155,20 @@ beide fehlerfrei.
 
 ### H1 · `.gitignore` anlegen, Build-Artefakte aus dem Index nehmen [L]
 
-Es gibt **keine `.gitignore`**. `bin/`, `obj/`, `.vs/` und `Content/obj/` sind eingecheckt —
-daher rund 200 Zeilen Rauschen in `git status` (`.suo`, `.vsidx`, `.dll`, `.pdb`, `.dtbcache`).
+Die `.gitignore` existiert, wirkt aber nicht auf Dateien, die bereits getrackt sind:
+485 Dateien unter `bin/` und `obj/` sowie 16 unter `.vs/` liegen weiterhin im Index.
+Deshalb meldet `git status` nach jedem Build geänderte `.dll`-, `.pdb`- und
+`.cache`-Dateien (am 2026-09-30: 32 Stück).
 
 - [x] `.gitignore` für .NET + MonoGame + Visual Studio anlegen *(Agent H1)*
 - [ ] `git rm -r --cached` für `bin/`, `obj/`, `.vs/`, `Content/obj/`, `Content/bin/`
-      — **bewusst nicht automatisiert.** Das stellt mehrere tausend Löschungen in den
-      Index; dieser Schritt gehört dir, nicht einem Agent:
-      `git rm -r --cached AgeOfEmpiresClone/*/bin AgeOfEmpiresClone/*/obj AgeOfEmpiresClone/.vs`
+      — **bewusst nicht automatisiert.** Das stellt 501 Löschungen in den Index;
+      dieser Schritt gehört dir, nicht einem Agent. Per Trockenlauf geprüft, erfasst
+      genau diese 501 Dateien und keine Quelldatei, in PowerShell wie in der Git-Bash:
+      `git rm -r --cached -- ':(glob)**/bin/**' ':(glob)**/obj/**' ':(glob)**/.vs/**'`
+      Der früher hier notierte Befehl mit `AgeOfEmpiresClone/*/bin` erfasste `src/`,
+      `tests/`, `demo/` und `Content/` nicht und bricht in der Git-Bash mit
+      „pathspec did not match" ganz ab.
 - [ ] Abnahme: `git status --short` zeigt nur noch echte Quelldateien
 
 ### H2 · csproj-Dateinamen begradigen [L]
@@ -111,6 +193,7 @@ lagen in gar keiner Solution.
 
 - [x] Root-Solution `AgeOfEmpire.slnx` mit allen sechs Projekten *(Agent H4)* — XML-Format
       von .NET 10, keine GUIDs; `dotnet restore AgeOfEmpire.slnx` läuft durch
+- [ ] Offen: die alte `AgeOfEmpiresClone/AgeOfEmpiresClone.sln` liegt noch neben der `AgeOfEmpire.slnx` und kennt nur Core und DesktopGL — löschen oder bewusst behalten
 
 ### H5 · Platformer-Reste entfernen [R]
 
@@ -137,8 +220,9 @@ Aus dem MonoGame-Beispiel übrig, vom Menü nicht mehr erreichbar
 
 # Block E — Fehler aus dem Spielbetrieb
 
-Gefunden am 2026-09-23 beim Ausprobieren des laufenden Spiels, nicht durch Tests.
-Alle vier behoben.
+E1–E4 gefunden am 2026-09-23 beim Ausprobieren des laufenden Spiels, E5 bis E7 am
+2026-09-30 bei der Code-Durchsicht, E8 und E9 am selben Tag im Screenshot, E10 durch
+ein Kartenprüfprogramm — keiner davon durch Tests. Alle behoben.
 
 ### E1 · ESC führte in ein schwarzes Nichts [L] — behoben
 
@@ -185,6 +269,67 @@ Auf einer hochauflösenden Anzeige winzig.
 - [x] `Window.AllowUserResizing = true` plus `ClientSizeChanged`-Behandlung, die
       den Bildpuffer nachzieht (mit Wiedereintrittsschutz — `ApplyChanges()` löst
       das Ereignis selbst wieder aus)
+
+### E5 · Dorfbewohner im Stadtzentrum, Startplatz im See [L] — behoben
+
+Die vier Dorfbewohner von Spieler 1 entstanden *innerhalb* des Stadtzentrums
+(4 × 4 Kacheln, nicht begehbar). Der auf der inneren Kachel hatte nur gesperrte
+Nachbarn — die Wegsuche kennt vier Richtungen — und kam nie heraus. Außerdem
+konnten Seen und verstreute Wald- oder Felskacheln auf dem Startplatz landen.
+
+- [x] Dorfbewohner von Spieler 1 rechts unterhalb des Stadtzentrums, spiegelbildlich
+      zu Spieler 2 *(Agent E5)*
+- [x] `ClearStartArea` räumt Stadtzentrum plus zwei Kacheln Rand zu Wiese frei *(Agent E5)*
+
+### E6 · Pfeiltasten verkehrt herum [L] — behoben
+
+Links schob den Ausschnitt nach rechts, und die Geschwindigkeit hing an der Bildrate
+(feste 10 Einheiten pro Frame).
+
+- [x] Richtung korrigiert, 800 Bildschirmpixel pro Sekunde unabhängig von Bildrate
+      und Zoom — zusammen mit dem Kantenscrollen *(Agent C10)*
+
+### E7 · Karte um eine halbe Kachel versetzt, ohne Zoom gezeichnet [R] — behoben
+
+`DrawTileMap` setzte die linke obere Ecke jeder Kachel auf ihren *Mittelpunkt*
+(`GridToWorld`) und zeichnete sie fest 32 × 32 Pixel groß. Die Karte lag damit
+eine halbe Kachel rechts unterhalb der Welt, in der Maus und Einheiten rechnen —
+ein Klick auf die rechte untere Hälfte einer Goldmine traf die Nachbarkachel.
+Bei Zoom 2 klafften Lücken zwischen den Kacheln, bei 0,5 überlappten sie.
+
+- [x] `TileScreenRect` rechnet das Bildschirmrechteck aus den Weltecken; Kacheln,
+      Nahrungsobjekte und die Grundfläche der Gebäude nutzen es *(Agent E7)*
+
+### E8 · Auswahl traf nur die Füße [R] — behoben
+
+Trefferfläche und Auswahlrahmen waren ein Kästchen um die *Füße* einer Einheit, die
+Figur reicht aber 24 Einheiten nach oben. Ein Klick auf Kopf oder Oberkörper wählte
+nichts aus, der Rahmen umfasste die untere Körperhälfte und das Schaf darunter, der
+Lebensbalken lag quer über der Brust (Screenshot vom 2026-09-30).
+
+- [x] `UnitWorldRect` beschreibt die Figur; Klick- und Rahmenauswahl prüfen dagegen,
+      Rahmen und Lebensbalken sitzen an der Figur und wachsen mit dem Zoom *(Agent E8)*
+
+### E9 · Stadtzentrum wuchs beim Zoomen nur als Grundplatte [R] — behoben
+
+Haus, Dach, Tür, Fenster und Ecktürme hatten feste Pixelmaße. Bei Zoom 2 blieb das
+Haus ein kleiner Fleck im großen Erdplatz. Der Pfad vor der Tür wurde nie gezeichnet —
+seine Höhe kam negativ heraus.
+
+- [x] `BuildingPart` rechnet den 128 × 128-Entwurf auf die tatsächliche Größe um *(Agent E9)*
+
+### E10 · Stein und Gold waren nie abbaubar [L] — behoben
+
+`StampResource` setzte bei den Rohstoffklumpen Kacheltyp und Menge, aber nie
+`ResourceType`. Die Ressource einer Kachel stammte damit aus ihrem Konstruktor: Wiese
+keine, zufälliger Einzelbaum Holz. Ein Prüfprogramm über 20 erzeugte Karten fand Stein
+0 von 557 Kacheln abbaubar, Gold 0 von 235, Wald aus Klumpen zu einem Drittel nicht —
+und 35 Stein- und Goldkacheln, die Holz lieferten. Dazu kamen rund 3 % graue
+Deko-Felsen, die wie Stein aussahen, aber nie etwas hergaben.
+
+- [x] `StampResource` setzt die Ressource des Klumpens *(Agent E10)*
+- [x] Deko-Felsen entfernt *(Agent E10)*
+- [x] Abnahme: `tools/kartenpruefung` — alle Stein-, Gold- und Waldkacheln abbaubar
 
 ### Kein Fehler, nur zur Beruhigung
 
@@ -267,8 +412,22 @@ Die größte Einzeländerung — hier zuerst einen Entwurf, dann Code.
       immer hell geblieben — der Zustand „erforscht, aber veraltet" kam damit
       *nie* vor. Aufgefallen ist es erst durch den Test.
 - [x] Abnahme: `tests/AoE.Tests/FogOfWarTests.cs`, 3 Tests
-- [ ] Offen: `RTSGameplayScreen` zeichnet den Nebel noch nicht — die Logik läuft,
-      die Darstellung fehlt. Gehört zu C7.
+- [x] Seit C7n aufgerufen: `RTSGameplayScreen` rechnet die Sicht viermal pro Sekunde
+      und zeichnet den Nebel *(Agent C7n)*
+
+### B6 · Gebäude auf `AoE.Core.Entities.Buildings` umstellen [X] — erledigt
+
+Beim Aufräumen von Block B übrig geblieben: die `Building`-Klasse in
+`TileMap.cs` führt eigene Werte (`MaxHealth = 1000`), während `AoE.Core`
+mit `Buildings.cs` (419 Zeilen) und `BuildingEntity` eine eigene Fassung hat.
+Dasselbe Muster wie B1–B5, nur für Gebäude.
+
+- [x] `Building` auf `BuildingEntity` umstellen, analog zu `Unit.Core` — `Building.Core`,
+      erzeugt von `CoreBuildings.Create`; die Lebenspunkte kommen von dort
+- [x] `MapGrid.AddBuilding` nutzen, damit Gebäude Sicht und Wegfindung beeinflussen —
+      `TileMap.AddBuilding` meldet das Gebäude an, `VisibilitySystem` zählt Gebäude
+      als Sichtquelle (3 neue Tests); Gebäudekacheln sperrte die Wegfindung schon
+      über `TileMap.IsWalkable`
 
 ---
 
@@ -277,34 +436,47 @@ Die größte Einzeländerung — hier zuerst einen Entwurf, dann Code.
 Die Spec priorisiert nach Spielgefühl, nicht nach Aufwand. C1 ist der Punkt, ohne den sich
 nichts nach AoE anfühlt.
 
-### B6 · Gebäude auf `AoE.Core.Entities.Buildings` umstellen [X] — neu
-
-Beim Aufräumen von Block B übrig geblieben: die `Building`-Klasse in
-`TileMap.cs:427` führt eigene Werte (`MaxHealth = 1000`), während `AoE.Core`
-mit `Buildings.cs` (419 Zeilen) und `BuildingEntity` eine eigene Fassung hat.
-Dasselbe Muster wie B1–B5, nur für Gebäude.
-
-- [ ] `Building` auf `BuildingEntity` umstellen, analog zu `Unit.Core`
-- [ ] `MapGrid.AddBuilding` nutzen, damit Gebäude Sicht und Wegfindung beeinflussen
-
----
-
-# Block C — Gameplay
-
 ### C1 · Dorfbewohner-Loop [X] — höchste Priorität
 
 laufen → sammeln → Traglast 10 → Abgabestelle → zurück → **automatisch fortsetzen**
 
-- [ ] Automatische Ressourcensuche und -sammlung
-- [ ] Abgabe an nächstgelegene Stelle (Stadtzentrum, Mühle, Lager)
-- [ ] Automatischer Neustart derselben Ressource nach Abgabe
-- [ ] Leerlauf-Erkennung: wann ist ein Dorfbewohner idle?
+- [x] Automatische Ressourcensuche und -sammlung — Linksklick auf eine Ressource (seit C8a);
+      ist die Quelle erschöpft, sucht der Dorfbewohner im Umkreis von 8 Kacheln
+      die nächste gleiche
+- [x] Abgabe an nächstgelegene Stelle — Stadtzentrum, seit C5 auch Mühle,
+      Holzfällerlager und Bergbaulager, sobald sie fertig gebaut sind
+- [x] Automatischer Neustart derselben Ressource nach Abgabe
+- [x] Leerlauf-Erkennung: untätig heißt Zustand Idle ohne Sammelauftrag; Zähler in
+      der unteren Leiste, Taste „." *(Agent C1c)*
+- [x] Startrohstoffe: je Spieler ein Steinbruch und eine Goldmine 7–10 Kacheln vom
+      Stadtzentrum, zur Kartenmitte hin *(Agent C1r)*
+- [x] Fischen: Schwärme an der Küste, 200 Nahrung; der Dorfbewohner stellt sich auf
+      eine begehbare Nachbarkachel und fängt vom Ufer aus *(Agent C1f)*
+- [ ] Offen: Sichtprüfung im laufenden Spiel — Holz, Stein und Nahrung (Schafe) sind
+      auf den Screenshots vom 2026-09-30 und 2026-10-01 bestätigt, Fischen fehlt noch
+- [x] Schickt man einen beladenen Dorfbewohner an eine andere Quelle derselben
+      Ressource, behält er seine Traglast — wie in AoE *(Agent C1t)*
 
-### C2 · Bevölkerungslimit [R]
+Aufbau: die Logik ist ein Zustandsautomat `GatherJob` in AoE.Core
+(`Economy/GatherJob.cs`, 15 Tests); das Spiel übersetzt ihn über
+`Data/TileMapGatherWorld.cs` auf die Kachelkarte. Vorher war Sammeln im Spiel
+unerreichbar: kein Befehl setzte den Zustand `Gathering`, `Returning` hatte keine
+Behandlung, alle Einheiten teilten sich einen Sammel-Timer, und abgeliefert wurden
+nur 70 %.
 
-- [ ] Gemeinsame Obergrenze (default 200) für Wirtschaft **und** Armee
-- [ ] Haus = +5 Plätze, Kosten 25 Holz
-- [ ] Bei vollem Limit Produktion stoppen — mit sichtbarem UI-Hinweis
+### C2 · Bevölkerungslimit [R] — erledigt
+
+- [x] Gemeinsame Obergrenze (default 200) für Wirtschaft **und** Armee — `Population.Capacity`
+      zählt die Gebäude, jede Einheit belegt einen Platz *(Agent C2a, C2b)*
+- [x] Haus = +5 Plätze, Kosten 25 Holz — Taste H, Linksklick, 2×2 Kacheln; seit C5 eine
+      Baustelle mit 25 s Bauzeit, erst das fertige Haus zählt *(Agent C2c, C5b)*
+- [x] Bei vollem Limit Produktion stoppen — mit sichtbarem UI-Hinweis: „Bev." rot, oben
+      „Bevölkerungslimit erreicht" *(Agent C2b)*
+- [x] Ausbildung im Stadtzentrum: Taste Q reiht einen Dorfbewohner ein (25 Nahrung, 25 s,
+      bis zu 15 in der Warteschlange) *(Agent C2b)*
+
+Achtung: die Spezifikation nennt 25 Nahrung je Dorfbewohner, im Original kostet er 50.
+Übernommen ist der Wert der Spezifikation (`VillagerCost` in `RTSGameplayScreen`).
 
 ### C3 · Endliche Vorkommen [L]
 
@@ -312,8 +484,8 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
 
 - [x] Abbau reduziert den Vorrat (`tile.ResourceAmount--`) statt zu regenerieren *(Agent C3)*
 - [x] Erschöpfte Quelle verschwindet bzw. wird zu Normalgelände *(Agent C3)*
-- [ ] Folge davon: ein Dorfbewohner bleibt auf der erschöpften Kachel stehen, statt
-      sich die nächste Quelle zu suchen — das schließt erst C1.
+- [x] Folge davon geschlossen durch C1: der Dorfbewohner sucht die nächste gleiche
+      Quelle, die erschöpfte Kachel wird zu Wiese
 
 ### C4 · Zeitalter als Gate [X]
 
@@ -321,24 +493,47 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
 - [ ] Kosten 500N · 800N+200G · 1000N+800G, je rund 2 Minuten
 - [ ] Jedes Zeitalter schaltet Gebäude und Einheiten frei
 
-### C5 · Bauen [X]
+### C5 · Bauen [X] — erledigt
 
-- [ ] Bauzeiten je Gebäude
-- [ ] Bauplatz-Logik: Kollision, freie Fläche
-- [ ] Mehrere Arbeiter mit abnehmendem Ertrag
+- [x] Bauzeiten je Gebäude — Richtwerte aus AoE II, die Spezifikation nennt keine: Haus
+      25 s, Mühle und Lager 35 s, Farm 15 s, Kaserne 50 s, Stadtzentrum 150 s *(Agent C5a)*
+- [x] Bauplatz-Logik: Kollision, freie Fläche — `TileMap.CanPlaceBuilding`, dazu Nebel und
+      Einheiten; seit C5b für jedes Gebäude des Baumenüs *(Agent C2c, C5b)*
+- [x] Mehrere Arbeiter mit abnehmendem Ertrag — Formel aus AoE II: n Arbeiter bauen
+      (n + 2) / 3-mal so schnell wie einer, vier also doppelt so schnell *(Agent C5a)*
+- [x] Baumenü: H Haus, M Mühle, F Holzfällerlager, B Bergbaulager; ein Linksklick mit
+      Dorfbewohnern auf eine eigene Baustelle schickt sie zum Mitbauen *(Agent C5b)*
+- [x] Lager als Abgabestellen, sobald sie fertig sind; ihre Erbauer sammeln danach gleich
+      die passende Ressource in der Nähe *(Agent C5b)*
+- [x] Eigene Grafik für Baustelle (mit Fortschrittsbalken), Mühle, Holzfällerlager und
+      Bergbaulager *(Agent C5c)*
+- [x] Liegengebliebene Baustellen: wer ein Gebäude fertig hat und nichts zu sammeln
+      bekommt, baut an der nächsten unfertigen eigenen Baustelle im Umkreis von 8 Kacheln
+      weiter *(Agent C5d)*
+- [ ] Offen: Ein beladener Dorfbewohner, den man bauen schickt, verliert seine Traglast —
+      AoE behält sie
+- [ ] Offen: Farmen (60 Holz, 175 Nahrung) — die Mühle als Voraussetzung steht jetzt
 
 ### C6 · HUD dreiteilig [R]
 
 - [ ] Ressourcenleiste oben: `[Holz] [Nahrung] [Gold] [Stein] [Bev. 37/45] « Feudalzeit »`
-- [ ] Bevölkerung rot bei erreichtem Limit
+- [x] Bevölkerung rot bei erreichtem Limit *(Agent C2b)*
 - [ ] Kommandoleiste unten: Aktionssymbole – Einheiteninfo – Minimap
 - [ ] Minimap: Geländefarben, eigene grün / Feinde rot, Kameraausschnitt als Rechteck
 
 ### C7 · Terrain-Rendering vervollständigen [R]
 
-- [ ] Bäume als prozedurale Pixel-Art
-- [ ] Beeren, Stein, Goldminen als Textur statt Farbfläche
+- [x] Nebel des Krieges: unerforscht schwarz, erforscht abgedunkelt, fremde Einheiten
+      nur in Sicht; ein Klick in den Nebel ist ein Laufbefehl *(Agent C7n)*
+- [x] Bäume als prozedurale Pixel-Art — bestand schon (`BuildForestTexture`, `DrawTree`)
+- [x] Beeren, Stein, Goldminen als Textur statt Farbfläche — bestand schon
+      (`BuildBerryTexture`, `BuildMountainTexture`, `BuildGoldTexture`)
 - [ ] Schatten und Beleuchtung
+- [x] Stadtzentrum skaliert im Ganzen mit dem Zoom *(Agent E9)*
+- [x] Wald als Blätterdach: dunkler Boden als Kachel, Baumkronen als eigene Figuren
+      über Kachelgrenzen hinweg *(Agent G1, G3)*
+- [x] Wasser: zwei überlagerte Wellen in drei Varianten, festes Rauschen ohne Flimmern,
+      Uferlinie mit Schaumstrich *(Agent G2, G4)*
 
 ### C10 · Kamera [R]
 
@@ -354,13 +549,19 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
       Bild und wird jetzt zentriert — links und rechts bleibt Rand. Entweder
       größere Karte, oder MIN_ZOOM dynamisch so setzen, dass die Karte das
       Fenster immer füllt (schließt dann aber die Gesamtübersicht aus)
-- [ ] Kantenscrollen mit der Maus
+- [x] Kantenscrollen mit der Maus, 8 Pixel Randstreifen *(Agent C10)*
+- [x] Karte mit gedrückter linker Maustaste ziehen, ab 6 Pixeln Weg *(Agent C8a)*
 
 ### C8 · Auswahl & Steuerung [R]
 
-- [ ] Selektion zeigt HP/Status
-- [ ] Rechtsklick → Bewegung oder Sammeln
-- [ ] Lasso-Auswahl per Mauszug
+- [x] Selektion zeigt HP/Status — für eine einzeln gewählte Einheit: Name, LP und
+      bei Dorfbewohnern die Traglast *(Agent C1c)*
+- [x] Befehl → Bewegung oder Sammeln — seit C8a per kurzem Linksklick, einmal pro Klick
+- [x] Lasso-Auswahl per Mauszug — seit C8a mit der rechten Taste (bestand schon als Rechteck)
+- [x] Maussteuerung auf Wunsch des Nutzers umgestellt: rechts markieren, links ziehen
+      verschiebt die Karte, kurzer Linksklick befiehlt *(Agent C8a)*
+- [x] Ein Linksklick auf eine eigene Einheit wählt sie aus, statt sie wegzuschicken —
+      vorher zog ein Klick zum Auswählen einen Bauarbeiter vom Bau ab *(Agent C8b)*
 
 ### C9 · Basis-KI [X]
 
@@ -410,8 +611,8 @@ Enthält reines Azure-Boilerplate ohne jeden Bezug zum Projekt.
 - [x] Projektstruktur konsolidiert, MD-Dateien zentral in `docs/`
 - [x] .NET-10-Migration: AoE.Core, Tests, Demo, Spiel-Core, DesktopGL, WindowsDX
 - [x] Build läuft fehlerfrei durch (AoE.Core + DesktopGL, 0 Warnungen)
-- [x] AoE.Core als Projektverweis eingebunden *(noch ungenutzt → Block B)*
-- [x] 15 Unit-Tests grün
+- [x] AoE.Core als Projektverweis eingebunden *(seit Block B im Spiel genutzt)*
+- [x] 108 Unit-Tests grün
 - [x] Kartengenerierung `TileMap.cs`: Seen mit Falloff, Beeren, Schafe, Wildschweine,
       Stein/Gold, PvP-Startpositionen
 - [x] Wasser-Animation
@@ -420,17 +621,26 @@ Enthält reines Azure-Boilerplate ohne jeden Bezug zum Projekt.
 - [x] Root-Solution `AgeOfEmpire.slnx`, `.gitignore`, `README.md`
 - [x] Zielplattformen auf PC + Mac festgelegt, Mobile-Projekte entfernt
 - [x] Endliche Ressourcenvorkommen (C3)
+- [x] Dorfbewohner-Loop (C1), Kantenscrollen (C10), Startplatz (E5)
+- [x] Nebel des Krieges (C7n), Maussteuerung (C8a), Gebäude aus AoE.Core (B6)
+- [x] Auswahl an der ganzen Figur (E8), Stadtzentrum skaliert mit dem Zoom (E9)
+- [x] Stein und Gold abbaubar (E10), Startrohstoffe (C1r), Fischen (C1f), Wald und Wasser (G1–G4)
+- [x] Bevölkerungslimit, Ausbildung und Häuser (C2), Traglast bleibt erhalten (C1t)
+- [x] Bauen mit Bauzeit, Bauarbeitern, Lagern und eigener Grafik (C5)
+- [x] Weiterbauen an liegengebliebenen Baustellen (C5d), Linksklick-Auswahl (C8b),
+      Werkzeug `tools/spielablauf`
 
 ---
 
 ## Notizen
 
 - **Lokale Agents:** `tools/ollama-agent/` verteilt Punkte von hier an ein Ollama-Modell
-  und nimmt sie per Build + Test ab (`py run_tasks.py --list`). Die IDs sind dieselben.
-  Sinnvoll für `[L]` und mit Sichtung für `[R]`; `[X]` gehört nicht dorthin.
+  (`qwen3.8:27b`, 256K Kontext) und nimmt sie per Build, Test und Prüfskript ab
+  (`py run_tasks.py --list`). Die IDs sind dieselben. Sinnvoll für `[L]` und mit
+  Sichtung für `[R]`; `[X]` gehört nicht dorthin.
 - Priorisierung folgt `docs/AgeOfEmpires.md`, Kap. „Relevanz für dieses Projekt" (Z. 672–715)
 - **Bekannter Engpass laut Spec:** es existiert *kein einziges AoE-taugliches Grafik-Asset*.
-  `RTSGameplayScreen` zeichnet farbige 32×32-Quadrate. Alle Punkte außer C6/C7 und der
+  `RTSGameplayScreen` zeichnet prozedural erzeugte 32×32-Pixelart statt echter Grafiken. Alle Punkte außer C6/C7 und der
   isometrischen Darstellung lassen sich damit trotzdem vollständig umsetzen und testen.
 - **Bewusst nicht nötig** fürs Grundgerüst: Zivilisationsboni, Reliquien, Mönche, Handel,
   Seekampf, Formationen, Kampagnen.

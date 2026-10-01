@@ -21,6 +21,11 @@ public enum TileType
 }
 
 /// <summary>
+/// Art der Nahrungsquelle auf einer Kachel – bestimmt, wie sie gezeichnet wird
+/// </summary>
+public enum FoodSource { None, Sheep, Berries, Fish }
+
+/// <summary>
 /// Represents a single tile on the game map
 /// </summary>
 public class Tile
@@ -35,6 +40,7 @@ public class Tile
     // Resource information (if tile contains resources)
     public Resource? ResourceType { get; set; }
     public int ResourceAmount { get; set; }
+    public FoodSource Food { get; set; }
     
     // Building on this tile
     public string Building { get; set; }

@@ -21,7 +21,9 @@ public class Player
     
     // Population
     public int Population { get; set; }
-    public int PopulationLimit { get; set; } = 10; // Start with 10 slots (5 houses)
+    // Bevölkerungsgrenze: rechnet RTSGameplayScreen.UpdatePopulationLimits aus
+    // den Gebäuden des Spielers (Stadtzentrum und Haus je 5, höchstens 200)
+    public int PopulationLimit { get; set; }
     public int PopulationCount { get; set; }
     
     // Civilization bonus

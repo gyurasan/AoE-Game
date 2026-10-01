@@ -37,6 +37,12 @@ LOG_DIR = HERE / "logs"
 # Harte Sperre: der Harness fasst die Git-History nicht an. Siehe README.
 FORBIDDEN = ("commit", "push", "reset --hard", "clean -fd", "rebase")
 
+# Geht die Ausgabe in eine Pipe, schreibt Python unter Windows cp1252. Ein "→"
+# in der Zusammenfassung des Modells warf dann UnicodeEncodeError und brach D15
+# nach den Aenderungen, aber vor der Abnahme ab. Die Konsole bekommt nicht
+# darstellbare Zeichen jetzt als "?"; die Logdatei schreibt ohnehin UTF-8.
+sys.stdout.reconfigure(errors="replace")
+
 
 def log_line(text: str, handle=None) -> None:
     print(text, flush=True)
@@ -231,22 +237,82 @@ def process(task: dict, model: str, handle, dry_run: bool, num_ctx: int) -> dict
             "written": result.written, "seconds": round(elapsed)}
 
 
+# Was --recheck erneut ausfuehrt: die gepflegten Pruefskripte, Build, Test und die
+# Kartenpruefung. Nicht dabei sind die Einzeiler aus der ersten Sitzung (H*, D1-D4) -
+# Momentaufnahmen, teils fuer laengst geloeschte Projekte - und "dotnet restore",
+# das mit Laufzeitkennung obj/ umschreibt.
+RECHECK_PREFIXES = (
+    "py tools/ollama-agent/checks/",
+    "dotnet build ",
+    "dotnet test ",
+    "dotnet run --project tools/kartenpruefung",
+    "dotnet run --project tools/spielablauf",
+)
+
+# Laeuft das Spiel, sperrt es seine .exe, und der Build von DesktopGL scheitert beim
+# Kopieren (MSB3027/MSB3021) - das sagt nichts ueber den Code.
+LOCKED_MARKERS = ("MSB3027", "MSB3021")
+
+
+def recheck(tasks: list[dict]) -> int:
+    """Fuehrt jede gepflegte Abnahme aus tasks.json einmal aus, ohne Agent und ohne Snapshot.
+
+    Entstanden, nachdem drei Pruefungen (d7, d8a, e5) still gebrochen waren: eine
+    spaetere Aufgabe hatte sie zu Recht ungueltig gemacht, aber niemand liess sie
+    erneut laufen. Ein Fehlschlag heisst deshalb nicht, dass die alte Aufgabe falsch
+    war - meist prueft die Abnahme eine Schreibweise oder einen Zustand statt einer
+    Eigenschaft (README, Pruefskripte).
+    """
+    commands: dict[str, list[str]] = {}
+    for task in tasks:
+        for command in task.get("verify", []):
+            if command.startswith(RECHECK_PREFIXES):
+                commands.setdefault(command, []).append(task["id"])
+
+    failed = locked = 0
+    for command, ids in commands.items():
+        code, output = run_command(command)
+        if code == 0:
+            log_line(f"  ok     {command}")
+            continue
+        if any(marker in output for marker in LOCKED_MARKERS):
+            locked += 1
+            log_line(f"  GESPERRT {command}   (die .exe ist in Benutzung - laeuft das Spiel?)")
+            continue
+        failed += 1
+        log_line(f"  FEHLER {command}   (Aufgaben {', '.join(ids)})")
+        for line in output.strip().splitlines()[-6:]:
+            log_line(f"         {line}")
+    gesperrt = f", {locked} gesperrt" if locked else ""
+    log_line(f"{len(commands)} Abnahmen, {failed} fehlgeschlagen{gesperrt}")
+    return 1 if failed else 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Lokale Ollama-Agents auf TODO-Punkte ansetzen.")
     parser.add_argument("--tasks", nargs="*", help="Aufgaben-IDs, z.B. H3 D2")
     parser.add_argument("--auto", action="store_true", help="alle Aufgaben mit \"auto\": true")
     parser.add_argument("--list", action="store_true", help="Aufgaben auflisten")
-    parser.add_argument("--model", default="qwen3.6:35b")
+    parser.add_argument("--model", default="qwen3.8:27b")
     parser.add_argument(
         "--num-ctx", type=int, default=262144,
-        help="Kontextfenster. qwen3.6:35b kann bis 262144. Groesser = mehr VRAM fuer den "
-             "KV-Cache und ein Neuladen des Modells, wenn es mit anderer Groesse geladen ist.",
+        help="Kontextfenster. 262144 ist das Trainingsmaximum von qwen3.8:27b und passt mit "
+             "q8_0-KV-Cache gerade noch ganz in 32 GB VRAM. Ist das Modell mit anderer Groesse "
+             "geladen, laedt Ollama es neu.",
     )
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--recheck", action="store_true",
+        help="alle gepflegten Abnahmen aus tasks.json erneut ausfuehren, ohne Agent - "
+             "findet Pruefungen, die eine spaetere Aufgabe gebrochen hat",
+    )
     args = parser.parse_args()
 
     tasks = json.loads((HERE / "tasks.json").read_text(encoding="utf-8"))["tasks"]
     by_id = {task["id"]: task for task in tasks}
+
+    if args.recheck:
+        return recheck(tasks)
 
     if args.list:
         for task in tasks:

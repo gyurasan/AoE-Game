@@ -10,18 +10,18 @@
     "C:\\Users\\gyura\\.nuget\\packages\\monogame.library.sdl\\2.32.10.2\\monogame.library.sdl.2.32.10.2.nupkg.sha512",
     "C:\\Users\\gyura\\.nuget\\packages\\nvorbis\\0.10.4\\nvorbis.0.10.4.nupkg.sha512",
     "C:\\Users\\gyura\\.nuget\\packages\\sixlabors.imagesharp\\3.1.12\\sixlabors.imagesharp.3.1.12.nupkg.sha512",
-    "C:\\Users\\gyura\\.nuget\\packages\\microsoft.netcore.app.runtime.win-x64\\10.0.12\\microsoft.netcore.app.runtime.win-x64.10.0.12.nupkg.sha512",
-    "C:\\Users\\gyura\\.nuget\\packages\\microsoft.netcore.app.runtime.osx-x64\\10.0.12\\microsoft.netcore.app.runtime.osx-x64.10.0.12.nupkg.sha512",
-    "C:\\Users\\gyura\\.nuget\\packages\\microsoft.netcore.app.runtime.osx-arm64\\10.0.12\\microsoft.netcore.app.runtime.osx-arm64.10.0.12.nupkg.sha512",
-    "C:\\Users\\gyura\\.nuget\\packages\\microsoft.netcore.app.runtime.linux-x64\\10.0.12\\microsoft.netcore.app.runtime.linux-x64.10.0.12.nupkg.sha512",
-    "C:\\Users\\gyura\\.nuget\\packages\\microsoft.windowsdesktop.app.runtime.win-x64\\10.0.12\\microsoft.windowsdesktop.app.runtime.win-x64.10.0.12.nupkg.sha512",
-    "C:\\Users\\gyura\\.nuget\\packages\\microsoft.aspnetcore.app.runtime.win-x64\\10.0.12\\microsoft.aspnetcore.app.runtime.win-x64.10.0.12.nupkg.sha512",
-    "C:\\Users\\gyura\\.nuget\\packages\\microsoft.aspnetcore.app.runtime.osx-x64\\10.0.12\\microsoft.aspnetcore.app.runtime.osx-x64.10.0.12.nupkg.sha512",
     "C:\\Users\\gyura\\.nuget\\packages\\microsoft.aspnetcore.app.runtime.osx-arm64\\10.0.12\\microsoft.aspnetcore.app.runtime.osx-arm64.10.0.12.nupkg.sha512",
-    "C:\\Users\\gyura\\.nuget\\packages\\microsoft.aspnetcore.app.runtime.linux-x64\\10.0.12\\microsoft.aspnetcore.app.runtime.linux-x64.10.0.12.nupkg.sha512",
-    "C:\\Users\\gyura\\.nuget\\packages\\microsoft.netcore.app.host.osx-x64\\10.0.12\\microsoft.netcore.app.host.osx-x64.10.0.12.nupkg.sha512",
     "C:\\Users\\gyura\\.nuget\\packages\\microsoft.netcore.app.host.osx-arm64\\10.0.12\\microsoft.netcore.app.host.osx-arm64.10.0.12.nupkg.sha512",
-    "C:\\Users\\gyura\\.nuget\\packages\\microsoft.netcore.app.host.linux-x64\\10.0.12\\microsoft.netcore.app.host.linux-x64.10.0.12.nupkg.sha512"
+    "C:\\Users\\gyura\\.nuget\\packages\\microsoft.netcore.app.runtime.linux-x64\\10.0.12\\microsoft.netcore.app.runtime.linux-x64.10.0.12.nupkg.sha512",
+    "C:\\Users\\gyura\\.nuget\\packages\\microsoft.netcore.app.runtime.osx-arm64\\10.0.12\\microsoft.netcore.app.runtime.osx-arm64.10.0.12.nupkg.sha512",
+    "C:\\Users\\gyura\\.nuget\\packages\\microsoft.netcore.app.host.osx-x64\\10.0.12\\microsoft.netcore.app.host.osx-x64.10.0.12.nupkg.sha512",
+    "C:\\Users\\gyura\\.nuget\\packages\\microsoft.netcore.app.host.linux-x64\\10.0.12\\microsoft.netcore.app.host.linux-x64.10.0.12.nupkg.sha512",
+    "C:\\Users\\gyura\\.nuget\\packages\\microsoft.aspnetcore.app.runtime.win-x64\\10.0.12\\microsoft.aspnetcore.app.runtime.win-x64.10.0.12.nupkg.sha512",
+    "C:\\Users\\gyura\\.nuget\\packages\\microsoft.netcore.app.runtime.osx-x64\\10.0.12\\microsoft.netcore.app.runtime.osx-x64.10.0.12.nupkg.sha512",
+    "C:\\Users\\gyura\\.nuget\\packages\\microsoft.windowsdesktop.app.runtime.win-x64\\10.0.12\\microsoft.windowsdesktop.app.runtime.win-x64.10.0.12.nupkg.sha512",
+    "C:\\Users\\gyura\\.nuget\\packages\\microsoft.netcore.app.runtime.win-x64\\10.0.12\\microsoft.netcore.app.runtime.win-x64.10.0.12.nupkg.sha512",
+    "C:\\Users\\gyura\\.nuget\\packages\\microsoft.aspnetcore.app.runtime.osx-x64\\10.0.12\\microsoft.aspnetcore.app.runtime.osx-x64.10.0.12.nupkg.sha512",
+    "C:\\Users\\gyura\\.nuget\\packages\\microsoft.aspnetcore.app.runtime.linux-x64\\10.0.12\\microsoft.aspnetcore.app.runtime.linux-x64.10.0.12.nupkg.sha512"
   ],
   "logs": []
 }

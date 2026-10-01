@@ -18,20 +18,38 @@ zurueckgespielt und die Aufgabe bleibt offen.
 py run_tasks.py --list                      # Aufgaben anzeigen
 py run_tasks.py --tasks H3 D2               # bestimmte Aufgaben
 py run_tasks.py --auto                      # alle mit "auto": true
-py run_tasks.py --tasks C3 --num-ctx 262144 # groesseres Kontextfenster
+py run_tasks.py --tasks C3 --num-ctx 131072 # kleineres Kontextfenster, spart VRAM
 py run_tasks.py --tasks H3 --dry-run        # nur anzeigen, was liefe
+py run_tasks.py --recheck                   # alle gepflegten Abnahmen erneut, ohne Agent
 ```
 
 Voraussetzung: Ollama laeuft auf `localhost:11434` und das Modell ist verfuegbar.
-Standard ist `qwen3.6:35b`, anderes per `--model`.
+Standard ist `qwen3.8:27b` (dicht, 27B, Q4_K_M), anderes per `--model` — etwa
+`qwen3.6:35b`, das bis 2026-09-30 Standard war.
 
 ## Kontextfenster
 
-`qwen3.6:35b` kann maximal **262144 Token (256K)** — nachzulesen ueber
-`/api/show` im Feld `qwen35moe.context_length`. Der Standard hier ist 262144.
-Groesserer Kontext heisst mehr VRAM fuer den KV-Cache; ist das Modell bereits mit
-einer anderen Groesse geladen, laedt Ollama es neu. Mit `OLLAMA_KV_CACHE_TYPE=q8_0`
-passen die 256K zusammen mit dem 22-GB-Modell vollstaendig auf die GPU.
+Standard ist **262144 Token (256K)**. Mehr geht nicht, aus zwei voneinander
+unabhaengigen Gruenden:
+
+- **Trainingsmaximum.** `qwen3.8:27b` ist auf 262144 Token trainiert
+  (`/api/show`, Feld `qwen35.context_length`). Groessere Werte reichen ueber die
+  trainierten Positionen hinaus; eine YaRN-Skalierung bietet Ollama nicht an.
+- **VRAM.** Gemessen am 2026-09-30 auf der RTX 5090 (32 GB) mit
+  `OLLAMA_KV_CACHE_TYPE=q8_0` und `OLLAMA_FLASH_ATTENTION=1`, Werte aus dem Ollama-Log:
+
+  | num_ctx | KV-Cache Modell + MTP-Entwurf | Prognose gesamt |
+  |---|---|---|
+  | 131072 | 4352 + 512 MiB | 21867 MiB |
+  | 262144 | 8704 + 1024 MiB | 27499 MiB |
+
+  Bei 262144 liegen alle 66 Schichten auf der GPU, danach sind knapp 400 MiB frei.
+  524288 braeuchte rund 37000 MiB und wuerde teilweise auf die CPU ausgelagert.
+
+Die Karte ist bei 256K also praktisch voll. Laeuft nebenher etwas mit nennenswertem
+VRAM-Bedarf, etwa das Spiel selbst, wird das Modell spuerbar langsamer — dann
+`--num-ctx 131072`. Ist das Modell bereits mit einer anderen Groesse geladen, etwa
+von einem anderen Werkzeug, laedt Ollama es neu (aus dem Dateicache rund 6 s).
 
 ## Werkzeuge des Agents
 
@@ -41,6 +59,8 @@ passen die 256K zusammen mit dem 22-GB-Modell vollstaendig auf die GPU.
 | `list_dir` | Verzeichnis auflisten (ohne `bin`, `obj`, `.vs`, `.git`) |
 | `replace_in_file` | chirurgischer Textersatz — **bevorzugt** |
 | `write_file` | Datei komplett neu schreiben — nur fuer neue/kleine Dateien |
+| `delete_file` | Datei loeschen — nur Pfade aus der Freigabeliste |
+| `rename_file` | Datei umbenennen, auch reine Gross-/Kleinschreibung |
 | `finish` | fertig, Abnahme starten |
 
 Kein Shell-Zugriff, keine Netzwerkzugriffe, kein Git.
@@ -77,6 +97,29 @@ In `tasks.json`:
 ```
 
 Die IDs entsprechen denen in `TODO.md`.
+
+## Pruefskripte
+
+Abnahmen, die mehr als eine Zeile brauchen, liegen als Skripte in `checks/` und
+laufen per `"verify": ["py tools/ollama-agent/checks/<name>.py"]` mit der
+Repo-Wurzel als Arbeitsverzeichnis. `_cs.py` findet C#-Methoden, `_todo.py`
+Abschnitte und Checkboxen in `TODO.md`.
+
+- **Vor dem Lauf gegen den Altstand pruefen** — die Abnahme muss dort scheitern,
+  und zwar aus dem richtigen Grund.
+- **Und gegen jede Stelle, die sie finden soll.** Der erste Methoden-Finder suchte die
+  Parameterliste per `\([^)]*\)` und scheiterte an `List<(int x, int y)>` und an
+  Ausdrucksruempfen (`=> ...;`) — zwei korrekte Ergebnisse (C1n, C1c) wurden verworfen.
+- **Nur Code pruefen, keinen Fliesstext.** Eine Sperre gegen „MonoGame" traf den
+  Doku-Kommentar „reine Logik ohne MonoGame".
+- **Nach jeder Runde `--recheck`.** Am 2026-10-01 waren drei Pruefungen (d7, d8a, e5)
+  still gebrochen: spaetere Aufgaben hatten ein Datum, eine Testzahl und die Schreibweise
+  `Width = 4` zu Recht geaendert, und die Abschlusspruefung lief nur ueber eine Auswahl.
+  `--recheck` fuehrt jede gepflegte Abnahme aus `tasks.json` genau so aus wie der
+  Harness - mit Argumenten, aus der Repo-Wurzel, Erfolg nach Exit-Code.
+- **Doku-Pruefungen sind Momentaufnahmen.** Sie sichern die Abnahme einer Aufgabe; eine
+  spaetere Aufgabe darf sie brechen. Zeilenzahlen deshalb messen (siehe
+  `d9_projekt_struktur.py`), nicht abschreiben.
 
 ## Erfahrungen aus dem ersten Lauf
 

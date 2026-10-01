@@ -4,6 +4,7 @@ using Microsoft.Xna.Framework;
 using Resource = AoE.Core.Entities.Resource;
 using UnitEntity = AoE.Core.Entities.UnitEntity;
 using DamageCalculator = AoE.Core.Combat.DamageCalculator;
+using GatherJob = AoE.Core.Economy.GatherJob;
 using UnitState = AoE.Core.Entities.UnitState;
 
 namespace AgeOfEmpiresClone.Core.Data;
@@ -94,14 +95,22 @@ public class Unit
     // Pathfinding
     public List<Vector2> Path { get; set; } = new List<Vector2>();
     
-    // Resource carrying
-    public Resource? CarryingResource { get; set; }
-    public int CarryingAmount { get; set; }
+    /// <summary>
+    /// Laufender Sammelauftrag, oder null. Traglast, Quelle und Abgabestelle
+    /// führt der Auftrag aus AoE.Core; die Einheit hält nur die Verknüpfung.
+    /// </summary>
+    public GatherJob Job { get; set; }
+
+    // Traglast — aus dem Sammelauftrag abgeleitet, nicht doppelt gepflegt
+    public Resource? CarryingResource => Job is { Carrying: > 0 } ? Job.Resource : null;
+    public int CarryingAmount => Job?.Carrying ?? 0;
     
-    // Building related
-    public bool IsBuilding { get; set; }
-    public string BuildingType { get; set; }
-    public float ConstructionProgress { get; set; }
+    /// <summary>
+    /// Die Baustelle, an der dieser Dorfbewohner baut oder zu der er
+    /// unterwegs ist, oder null. Wie schnell es vorangeht, hängt davon ab,
+    /// wie viele dort gerade arbeiten (BuildingRules.SpeedFactor).
+    /// </summary>
+    public Building BuildSite { get; set; }
     
     // Constructor
     public Unit(UnitType type, int ownerId)

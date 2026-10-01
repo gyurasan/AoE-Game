@@ -13,10 +13,11 @@ public sealed class Villager : UnitEntity
     private const int BASE_HP = 25;
     private const int BASE_ATTACK = 3;
     
-    public Villager(int ownerId, Position position) 
+    public Villager(int ownerId, Position position)
         : base(ownerId, position, CreateStats())
     {
-        State = UnitState.Gathering;
+        // Ein neuer Dorfbewohner ist untätig. Zum Sammeln schickt ihn erst
+        // ein Auftrag (GatherJob) — vorher begann jeder im Zustand Gathering.
     }
     
     private static UnitStats CreateStats()
