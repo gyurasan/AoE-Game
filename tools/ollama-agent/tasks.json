@@ -920,6 +920,23 @@
         "py tools/ollama-agent/checks/d9_projekt_struktur.py",
         "py tools/ollama-agent/checks/d8_todo.py a"
       ]
+    },
+    {
+      "id": "E11",
+      "title": "WindowsDX: Absturz beim Start, Grafikprofil HiDef",
+      "auto": false,
+      "max_turns": 16,
+      "prompt": "Die WindowsDX-Fassung des Spiels stürzt beim Start ab: MonoGame kann das Grafikgerät nicht anlegen, CreateSwapChain meldet E_INVALIDARG.\n\nUrsache (geprüft): Ohne Angabe nutzt MonoGame das Grafikprofil Reach. Unter DirectX ist das ein Gerät mit Feature Level 9_3, und dort darf der Bildpuffer höchstens 4096 Pixel breit oder hoch sein. Das Spiel fordert 80 % des Bildschirms an - auf dem 6K-Bildschirm (6016x3384) mit DPI-Überschreibung 4812x2707. Mit dem Profil HiDef (Feature Level 11_0) klappt das.\n\nZwei Änderungen, beide in AgeOfEvolutions/AgeOfEvolutions.Core/AgeOfEvolutionsGame.cs, sonst nichts:\n\n1. Im Konstruktor von AgeOfEvolutionsGame das Profil auf HiDef stellen. Ersetze diese Zeile:\n            graphicsDeviceManager = new GraphicsDeviceManager(this);\n\ndurch:\n            graphicsDeviceManager = new GraphicsDeviceManager(this);\n\n            // HiDef statt des Standardprofils Reach: Unter DirectX legt MonoGame\n            // mit Reach ein Gerät mit Feature Level 9_3 an, und dort darf der\n            // Bildpuffer höchstens 4096 Pixel breit oder hoch sein. 80 % eines\n            // 6K-Bildschirms in physischen Pixeln sind 4812 - CreateSwapChain\n            // scheiterte daran mit E_INVALIDARG. HiDef verlangt Feature Level\n            // 10_0 oder höher (8192 bzw. 16384 Pixel); DesktopGL wertet das\n            // Profil nicht aus.\n            graphicsDeviceManager.GraphicsProfile = GraphicsProfile.HiDef;\n\n2. Den Diagnoseblock entfernen, der für die Fehlersuche eingebaut war. Lösche genau diesen Block samt der Leerzeile danach (er steht im Zweig 'else if (IsDesktop)'):\n                if (Environment.GetEnvironmentVariable(\"AOE_DX_DIAG\") == \"1\")\n                {\n                    string props;\n                    try\n                    {\n                        props = string.Join(\",\", typeof(GraphicsAdapter).GetProperties()\n                            .Where(p => p.PropertyType.IsValueType)\n                            .Select(p => $\"{p.Name}={(p.GetMethod is null ? \"?\" : p.GetValue(GraphicsAdapter.DefaultAdapter))}\"));\n                    }\n                    catch (Exception pe) { props = \"read-fail: \" + pe.Message; }\n                    Console.WriteLine($\"[dxdiag] adapter {props} mode={display.Width}x{display.Height} pref={graphicsDeviceManager.PreferredBackBufferWidth}x{graphicsDeviceManager.PreferredBackBufferHeight} clientBefore={Window.ClientBounds.Width}x{Window.ClientBounds.Height}\");\n                }\n\n\nDanach folgt im selben Zweig direkt 'Window.AllowUserResizing = true;'. Die using-Direktiven bleiben alle stehen - System.Linq wird weiter für '.Contains(\"--rts\")' gebraucht.\n\nBenutze replace_in_file. Die Datei hat LF-Zeilenenden und Leerzeilen ohne Einrückung.",
+      "context_files": [
+        "AgeOfEvolutions/AgeOfEvolutions.Core/AgeOfEvolutionsGame.cs"
+      ],
+      "allow_write": [
+        "AgeOfEvolutions/AgeOfEvolutions.Core/AgeOfEvolutionsGame.cs"
+      ],
+      "verify": [
+        "dotnet build AgeOfEvolutions/AgeOfEvolutions.WindowsDX/AgeOfEvolutions.WindowsDX.csproj -v q --nologo",
+        "py tools/ollama-agent/checks/e11_dx_start.py"
+      ]
     }
   ]
 }

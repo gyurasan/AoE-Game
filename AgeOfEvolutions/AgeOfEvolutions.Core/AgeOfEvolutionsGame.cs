@@ -65,6 +65,15 @@ namespace AgeOfEvolutions.Core
             Window.Title = "Age of Evolutions";
             graphicsDeviceManager = new GraphicsDeviceManager(this);
 
+            // HiDef statt des Standardprofils Reach: Unter DirectX legt MonoGame
+            // mit Reach ein Gerät mit Feature Level 9_3 an, und dort darf der
+            // Bildpuffer höchstens 4096 Pixel breit oder hoch sein. 80 % eines
+            // 6K-Bildschirms in physischen Pixeln sind 4812 - CreateSwapChain
+            // scheiterte daran mit E_INVALIDARG. HiDef verlangt Feature Level
+            // 10_0 oder höher (8192 bzw. 16384 Pixel); DesktopGL wertet das
+            // Profil nicht aus.
+            graphicsDeviceManager.GraphicsProfile = GraphicsProfile.HiDef;
+
             // Share GraphicsDeviceManager as a service.
             Services.AddService(typeof(GraphicsDeviceManager), graphicsDeviceManager);
 
@@ -87,19 +96,6 @@ namespace AgeOfEvolutions.Core
                     Math.Max(1280, (int)(display.Width * 0.8f));
                 graphicsDeviceManager.PreferredBackBufferHeight =
                     Math.Max(768, (int)(display.Height * 0.8f));
-
-                if (Environment.GetEnvironmentVariable("AOE_DX_DIAG") == "1")
-                {
-                    string props;
-                    try
-                    {
-                        props = string.Join(",", typeof(GraphicsAdapter).GetProperties()
-                            .Where(p => p.PropertyType.IsValueType)
-                            .Select(p => $"{p.Name}={(p.GetMethod is null ? "?" : p.GetValue(GraphicsAdapter.DefaultAdapter))}"));
-                    }
-                    catch (Exception pe) { props = "read-fail: " + pe.Message; }
-                    Console.WriteLine($"[dxdiag] adapter {props} mode={display.Width}x{display.Height} pref={graphicsDeviceManager.PreferredBackBufferWidth}x{graphicsDeviceManager.PreferredBackBufferHeight} clientBefore={Window.ClientBounds.Width}x{Window.ClientBounds.Height}");
-                }
 
                 Window.AllowUserResizing = true;
                 Window.ClientSizeChanged += OnClientSizeChanged;
