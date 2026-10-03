@@ -1,7 +1,7 @@
 namespace AoE.Core.Entities;
 
 /// <summary>
-/// Die fünf Hauptressourcen in Age of Empires II
+/// Die fünf Hauptressourcen (nach Age of Empires)
 /// </summary>
 public enum Resource
 {

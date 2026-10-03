@@ -16,10 +16,10 @@ src/AoE.Core/ - net10.0, MonoGame-unabhängige Spiellogik:
     Entities/Buildings.cs (447), UnitEntity.cs (238), UnitTypes.cs (379), UnitClass.cs (57), Resource.cs (32)
     Map/VisibilitySystem.cs (412) - enthält AUCH die Klasse MapGrid; es gibt keine eigene MapGrid.cs
     Pathfinding/Pathfinding.cs (316) - A-Stern und Formationsbewegung
-AgeOfEmpiresClone/ - das MonoGame-Spiel:
-    AgeOfEmpiresClone.Core/ (net10.0) mit Data/, Screens/, Effects/, Inputs/, ScreenManagers/, Localization/, Settings/, Content/
-    AgeOfEmpiresClone.DesktopGL/ (net10.0) - Windows, macOS, Linux; RuntimeIdentifiers win-x64, osx-x64, osx-arm64, linux-x64
-    AgeOfEmpiresClone.WindowsDX/ (net10.0-windows) - nur Windows
+AgeOfEvolutions/ - das MonoGame-Spiel:
+    AgeOfEvolutions.Core/ (net10.0) mit Data/, Screens/, Effects/, Inputs/, ScreenManagers/, Localization/, Settings/, Content/
+    AgeOfEvolutions.DesktopGL/ (net10.0) - Windows, macOS, Linux; RuntimeIdentifiers win-x64, osx-x64, osx-arm64, linux-x64
+    AgeOfEvolutions.WindowsDX/ (net10.0-windows) - nur Windows
 tests/AoE.Tests/ - net10.0, xUnit, 108 Tests, alle grün
     UnitTests.cs (15), CounterTriangleTests.cs (5), PathfindingTests.cs (3), FogOfWarTests.cs (6), GatherJobTests.cs (21), TrainingTests.cs (22), ConstructionTests.cs (36)
 demo/DemoApp.csproj - net10.0, kleine Konsolen-Testapp
@@ -44,12 +44,12 @@ tools/spielablauf/ - lässt die Spielschleife ohne Grafik laufen und prüft Abl�
 | Resource.cs | src/AoE.Core/Entities/Resource.cs | 32 Zeilen |
 | VisibilitySystem.cs | src/AoE.Core/Map/VisibilitySystem.cs | 412 Zeilen, enthält AUCH MapGrid; Gebäude spenden Sicht wie Einheiten |
 | Pathfinding.cs | src/AoE.Core/Pathfinding/Pathfinding.cs | 316 Zeilen, A-Stern und Formationsbewegung |
-| TileMap.cs | AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Data/TileMap.cs | 729 Zeilen, Kartengenerierung mit Seen, Ressourcenklumpen, PvP-Startpositionen; Gebäude beliebiger Kantenlänge und `CanPlaceBuilding` |
-| TileMapGatherWorld.cs | AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Data/TileMapGatherWorld.cs | 137 Zeilen, setzt IGatherWorld auf die Kachelkarte um: Quellen, Abgabestellen am Gebäuderand, nur fertig gebaute |
-| Unit.cs | AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Data/Unit.cs | 199 Zeilen, Spieleinheit; hält über `Unit.Core` eine `UnitEntity` aus AoE.Core und reicht Kampfwerte, Lebenspunkte und Zustand durch; hält den Sammelauftrag (`Job`) und die Baustelle (`BuildSite`) |
-| CoreUnits.cs | AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Data/CoreUnits.cs | 101 Zeilen, bildet alle 17 Einheitentypen des Spiels auf Klassen aus AoE.Core ab |
-| CoreBuildings.cs | AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Data/CoreBuildings.cs | 29 Zeilen, bildet die Gebäudetypen des Spiels auf BuildingEntity aus AoE.Core ab |
-| RTSGameplayScreen.cs | AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Screens/RTSGameplayScreen.cs | 2412 Zeilen, prozedurale Texturen und Spielschleife; Ausbildung (Taste Q), Baumenü (H, M, F, B), Baustellen und die Klick-Entscheidung (`LeftClick`) |
+| TileMap.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/TileMap.cs | 729 Zeilen, Kartengenerierung mit Seen, Ressourcenklumpen, PvP-Startpositionen; Gebäude beliebiger Kantenlänge und `CanPlaceBuilding` |
+| TileMapGatherWorld.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/TileMapGatherWorld.cs | 137 Zeilen, setzt IGatherWorld auf die Kachelkarte um: Quellen, Abgabestellen am Gebäuderand, nur fertig gebaute |
+| Unit.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/Unit.cs | 199 Zeilen, Spieleinheit; hält über `Unit.Core` eine `UnitEntity` aus AoE.Core und reicht Kampfwerte, Lebenspunkte und Zustand durch; hält den Sammelauftrag (`Job`) und die Baustelle (`BuildSite`) |
+| CoreUnits.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/CoreUnits.cs | 101 Zeilen, bildet alle 17 Einheitentypen des Spiels auf Klassen aus AoE.Core ab |
+| CoreBuildings.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/CoreBuildings.cs | 29 Zeilen, bildet die Gebäudetypen des Spiels auf BuildingEntity aus AoE.Core ab |
+| RTSGameplayScreen.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs | 2412 Zeilen, prozedurale Texturen und Spielschleife; Ausbildung (Taste Q), Baumenü (H, M, F, B), Baustellen und die Klick-Entscheidung (`LeftClick`) |
 
 ## Build-Status
 
@@ -58,7 +58,7 @@ tools/spielablauf/ - lässt die Spielschleife ohne Grafik laufen und prüft Abl�
 | AoE.Core | net10.0 | baut fehlerfrei |
 | AoE.Tests | net10.0 | 108/108 grün |
 | DemoApp | net10.0 | in Ordnung |
-| AgeOfEmpiresClone.Core | net10.0 | fehlerfrei |
+| AgeOfEvolutions.Core | net10.0 | fehlerfrei |
 | DesktopGL | net10.0 | fehlerfrei, keine Warnungen |
 | WindowsDX | net10.0-windows | fehlerfrei |
 

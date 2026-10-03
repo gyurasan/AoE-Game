@@ -12,7 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _cs import melde, methode  # noqa: E402
 
-text = Path("AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Data/TileMap.cs").read_text(encoding="utf-8-sig")
+text = Path("AgeOfEvolutions/AgeOfEvolutions.Core/Data/TileMap.cs").read_text(encoding="utf-8-sig")
 fehler = []
 
 start = methode(text, "PlaceStartingPositions") or ""

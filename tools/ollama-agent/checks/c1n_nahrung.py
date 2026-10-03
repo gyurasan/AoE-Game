@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _cs import SCREEN, lies, melde, methode  # noqa: E402
 
-DATA = Path("AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Data")
+DATA = Path("AgeOfEvolutions/AgeOfEvolutions.Core/Data")
 tile = (DATA / "Tile.cs").read_text(encoding="utf-8-sig")
 karte = (DATA / "TileMap.cs").read_text(encoding="utf-8-sig")
 screen = lies(SCREEN)

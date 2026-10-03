@@ -1,0 +1,48 @@
+# Zeilenenden: im Repo und im Arbeitsverzeichnis immer LF.
+# Überschreibt core.autocrlf, damit alle Rechner und Tools (Git-Bash-grep,
+# Python-Prüfskripte) dieselben Bytes sehen.
+* text=auto eol=lf
+
+# Windows-spezifische Dateien brauchen CRLF
+*.sln   text eol=crlf
+*.cmd   text eol=crlf
+*.bat   text eol=crlf
+*.ps1   text eol=crlf
+
+# Shell-Skripte laufen nur mit LF
+*.sh    text eol=lf
+
+# Quelltext mit sprachspezifischen Diff-Hunk-Überschriften
+*.cs    text diff=csharp
+*.py    text diff=python
+*.md    text diff=markdown
+
+# Projekt- und Datendateien
+*.csproj     text
+*.props      text
+*.targets    text
+*.slnx       text
+*.resx       text
+*.json       text
+*.xml        text
+*.manifest   text
+*.mgcb       text
+*.spritefont text
+
+# Binärdateien: nie konvertieren, nie zeilenweise diffen
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.bmp   binary
+*.gif   binary
+*.ico   binary
+*.wav   binary
+*.mp3   binary
+*.ogg   binary
+*.ttf   binary
+*.otf   binary
+*.xnb   binary
+*.dll   binary
+*.exe   binary
+*.pdb   binary
+*.zip   binary

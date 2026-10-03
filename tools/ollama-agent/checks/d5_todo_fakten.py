@@ -58,7 +58,7 @@ if not re.search(rf"\b{anzahl}\s+Unit-Tests", text):
 test_zeile = next((l for l in lines if l.startswith("| `tests/AoE.Tests`")), "")
 if f"{anzahl}/{anzahl}" not in test_zeile:
     fehler.append(f"Tabellenzeile tests/AoE.Tests nennt nicht die gezaehlten {anzahl}/{anzahl}")
-dx_zeile = next((l for l in lines if l.startswith("| `AgeOfEmpiresClone.WindowsDX`")), "")
+dx_zeile = next((l for l in lines if l.startswith("| `AgeOfEvolutions.WindowsDX`")), "")
 zellen = [z.strip() for z in dx_zeile.strip().strip("|").split("|")]
 if len(zellen) < 3 or not re.search(r"ok|0 fehler", zellen[2], re.IGNORECASE):
     fehler.append(f"WindowsDX: Build-Spalte nicht auf OK ({dx_zeile!r})")
@@ -72,8 +72,8 @@ if "501" not in "\n".join(h1):
     fehler.append("H1: Anzahl 501 fehlt")
 
 # H4: offene Checkbox fuer die alte .sln
-if not any(re.match(r"\s*- \[ \].*AgeOfEmpiresClone\.sln", l) for l in abschnitt(lines, r"### H4 ")):
-    fehler.append("H4: offene Checkbox zur alten AgeOfEmpiresClone.sln fehlt")
+if not any(re.match(r"\s*- \[ \].*AgeOfEvolutions\.sln", l) for l in abschnitt(lines, r"### H4 ")):
+    fehler.append("H4: offene Checkbox zur alten AgeOfEvolutions.sln fehlt")
 
 fehler += struktur(lines, min_erledigt=52, min_offen=36, min_zeilen=425)
 melde(fehler, "D5 erfuellt: TODO.md auf Stand 2026-09-30")

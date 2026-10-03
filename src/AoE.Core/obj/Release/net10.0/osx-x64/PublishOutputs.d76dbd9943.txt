@@ -1,4 +1,0 @@
-D:\Apps\AgeOfEmpire\src\AoE.Core\bin\publish\osx\AoE.Core.dll
-D:\Apps\AgeOfEmpire\src\AoE.Core\bin\publish\osx\AoE.Core.deps.json
-D:\Apps\AgeOfEmpire\src\AoE.Core\bin\publish\osx\AoE.Core.pdb
-D:\Apps\AgeOfEmpire\src\AoE.Core\bin\publish\osx\SixLabors.ImageSharp.dll

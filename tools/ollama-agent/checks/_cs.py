@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-SCREEN = Path("AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Screens/RTSGameplayScreen.cs")
+SCREEN = Path("AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs")
 
 
 def lies(pfad: Path = SCREEN) -> str:

@@ -15,7 +15,7 @@ from _cs import SCREEN, lies, melde, methode  # noqa: E402
 
 fehler = []
 
-tilemap = Path("AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Data/TileMap.cs").read_text(encoding="utf-8-sig")
+tilemap = Path("AgeOfEvolutions/AgeOfEvolutions.Core/Data/TileMap.cs").read_text(encoding="utf-8-sig")
 if not re.search(r"TrainingQueue<UnitType>\s+Training\b", tilemap):
     fehler.append("Building hat keine TrainingQueue<UnitType> Training")
 if "ProductionQueue" in tilemap:
@@ -23,7 +23,7 @@ if "ProductionQueue" in tilemap:
 if not re.search(r"public\s+Unit\s+AddVillager\s*\(", tilemap):
     fehler.append("TileMap.AddVillager ist nicht oeffentlich oder gibt die Einheit nicht zurueck")
 
-player = Path("AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Data/Player.cs").read_text(encoding="utf-8-sig")
+player = Path("AgeOfEvolutions/AgeOfEvolutions.Core/Data/Player.cs").read_text(encoding="utf-8-sig")
 if re.search(r"PopulationLimit\s*\{\s*get;\s*set;\s*\}\s*=", player):
     fehler.append("Player.PopulationLimit hat noch einen festen Startwert")
 

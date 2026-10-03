@@ -12,6 +12,23 @@ Der Stand vom 2026-09-23 ist mit `4cb57d4` committet; alles vom 2026-09-30 und
 
 Zuletzt fertiggestellt:
 
+- **C1 Dorfbewohner-Loop** — Linksklick auf eine Ressource schickt Dorfbewohner
+  sammeln: Traglast 10, Abgabe am Stadtzentrum, selbstständig zurück, bei
+  erschöpfter Quelle zur nächsten gleichen. Logik als `GatherJob` in AoE.Core
+  (15 Tests), im Spiel über `TileMapGatherWorld`
+- **Kartengenerator reichlicher** — jede Karte trägt jetzt mehr: 7–10 Waldklumpen
+  (vorher 5–7, je größer), 4–7 Steinbrüche, 3–6 Goldminen, mehr Fische, mehr
+  Beerenbüsche. Alle Werte stecken im neuen `MapSettings` — das Menü kann sie
+  ändern und daraus direkt eine neue Karte bauen (`TileMap(w,h,t,s)`), ohne die
+  Generatoren anzugreifen. `MapSettings.Default` = die reichere Grundausstattung.
+- **Schaf-Wanderung** — Schafe laufen frei über die Wiese (ein Schaf pro Kachel,
+  100 Nahrung). Reserviert sind sie, während ein Dörfler sie erntet: das Schaf
+  bleibt am Platz, die Wanderung überspringt es, und `FindNearestSource` lässt
+  es für andere Dorfbewohner wegfallen, damit zwei nicht auf dasselbe Schaf
+  laufen. Neue Gruppe `schafe` in `tools/spielablauf` prüft Reservierung und
+  Wanderung ohne Grafik.
+- **C5f Farm** — Getreidefeld (Taste G, 3×3, 175 Nahrung/Kachel, Regrow 100 s),
+  neue `farm`-Gruppe in `tools/spielablauf` als Abnahme
 - **C5d, C8b** nach dem Screenshot vom 2026-10-01: Wer ein Gebäude fertig hat und nichts
   zu sammeln bekommt, baut an der nächsten unfertigen eigenen Baustelle im Umkreis von
   8 Kacheln weiter; ein Linksklick auf eine eigene Einheit wählt sie aus, statt sie
@@ -50,10 +67,6 @@ Zuletzt fertiggestellt:
   halten und ziehen verschiebt die Karte, ein kurzer Linksklick ist der Befehl
 - **B6 Gebäude** — `Building.Core` hält eine `BuildingEntity`; Gebäude spenden Sicht,
   das Stadtzentrum 5 Kacheln weit
-- **C1 Dorfbewohner-Loop** — Linksklick auf eine Ressource schickt Dorfbewohner
-  sammeln: Traglast 10, Abgabe am Stadtzentrum, selbstständig zurück, bei
-  erschöpfter Quelle zur nächsten gleichen. Logik als `GatherJob` in AoE.Core
-  (15 Tests), im Spiel über `TileMapGatherWorld`
 - **Leerlauf** — Zähler „Untätig" in der unteren Leiste, Taste „." springt zum
   nächsten untätigen Dorfbewohner; eine einzeln gewählte Einheit zeigt LP und Traglast
 - **C10** Kantenscrollen; die Pfeiltasten schwenken jetzt in Pfeilrichtung (E6)
@@ -82,14 +95,20 @@ Nächste sinnvolle Schritte, in dieser Reihenfolge:
 
 1. **Sichtprüfung im Spiel** — offen: Weiterbauen an liegengebliebenen Baustellen (C5d),
    Linksklick-Auswahl (C8b), Bauen von Mühle und Bergbaulager, dazu Wasser, Fischen und
-   Kantenscrollen. C5d und C8b prüft `tools/spielablauf` bereits ohne Grafik. Bestätigt
-   sind Wald, Stein, Gold, die Maussteuerung, Ausbildung mit Q, die rote
+   Kantenscrollen. C5d, C8b und die Farm prüft `tools/spielablauf` bereits ohne Grafik.
+   Bestätigt sind Wald, Stein, Gold, die Maussteuerung, Ausbildung mit Q, die rote
    Bevölkerungsanzeige, das Holzfällerlager und die Baustellen-Grafik (Screenshots vom
    2026-10-01).
-2. **Farmen** — die Mühle steht jetzt; eine Farm kostet 60 Holz und gibt 175 Nahrung
-   (offener Punkt in C5). Danach **C4 Zeitalter** als Gate für weitere Gebäude.
+2. **C4 Zeitalter** als Gate für weitere Gebäude.
 3. **Kampfschleife** — `Unit.Attack()` existiert seit B2 und wird nirgends aufgerufen.
    Auf Wunsch des Nutzers zurückgestellt (2026-09-30).
+
+Farm (C5f) ist fertig: Dorfbewohner wählen, Taste G (Getreide) drücken, Bauplatz
+anklicken — 3×3-Feld von 175 Nahrung. Die ausgewählten Dorfbewohner ernten die
+Getreidekacheln direkt wie jede andere Nahrungsquelle (Traglast bleibt erhalten) und
+liefern an Mühle oder Stadtzentrum; nach der Ernte wächst jede Kachel in rund
+100 s wieder nach. Die Grafik wechselt von hellem Getreide zu dunkler Erde, und
+`tools/spielablauf` prüft das ohne Grafik. Siehe Block C, C5f.
 
 Werkzeuge: `tools/ollama-agent/` verteilt `[L]`- und `[R]`-Punkte an ein lokales
 Ollama-Modell (`qwen3.8:27b`, 256K Kontext) und nimmt sie per Build, Test und
@@ -117,9 +136,9 @@ benennt jemand eine Methode um, meldet es das, statt still falsch zu prüfen.
 | `src/AoE.Core` | net10.0 | OK, 0 Fehler | Reine Logik, keine MonoGame-Abhängigkeit |
 | `tests/AoE.Tests` | net10.0 | **108/108 grün** | Einheiten und Ressourcen (15), Sammelauftrag (21), Ausbildung und Bevölkerung (22), Bauen (36), Konter-Dreieck (5), Wegfindung (3), Nebel (6) |
 | `demo/DemoApp` | net10.0 | OK | referenziert AoE.Core |
-| `AgeOfEmpiresClone.Core` | net10.0 | OK, 0 Fehler | Dateiname seit H2 kanonisch |
-| `AgeOfEmpiresClone.DesktopGL` | net10.0 | OK, 0 Fehler / 0 Warnungen | startbar |
-| `AgeOfEmpiresClone.WindowsDX` | net10.0-windows | OK, 0 Fehler | nur Windows |
+| `AgeOfEvolutions.Core` | net10.0 | OK, 0 Fehler | Dateiname seit H2 kanonisch |
+| `AgeOfEvolutions.DesktopGL` | net10.0 | OK, 0 Fehler / 0 Warnungen | startbar |
+| `AgeOfEvolutions.WindowsDX` | net10.0-windows | OK, 0 Fehler | nur Windows |
 
 **Die .NET-10-Migration und der Build sind erledigt.** Der eigentliche Engpass ist ein
 anderer, siehe Block B.
@@ -143,7 +162,7 @@ mobile"). Die 84 Dateien sind entfernt, die Löschung ist mit `4cb57d4` committe
 **Abnahmekriterium für jeden Punkt**, sofern nicht anders genannt:
 
 ```
-dotnet build AgeOfEmpiresClone/AgeOfEmpiresClone.DesktopGL/AgeOfEmpiresClone.DesktopGL.csproj
+dotnet build AgeOfEvolutions/AgeOfEvolutions.DesktopGL/AgeOfEvolutions.DesktopGL.csproj
 dotnet test  tests/AoE.Tests/AoE.Tests.csproj
 ```
 
@@ -166,7 +185,7 @@ Deshalb meldet `git status` nach jedem Build geänderte `.dll`-, `.pdb`- und
       dieser Schritt gehört dir, nicht einem Agent. Per Trockenlauf geprüft, erfasst
       genau diese 501 Dateien und keine Quelldatei, in PowerShell wie in der Git-Bash:
       `git rm -r --cached -- ':(glob)**/bin/**' ':(glob)**/obj/**' ':(glob)**/.vs/**'`
-      Der früher hier notierte Befehl mit `AgeOfEmpiresClone/*/bin` erfasste `src/`,
+      Der früher hier notierte Befehl mit `AgeOfEvolutions/*/bin` erfasste `src/`,
       `tests/`, `demo/` und `Content/` nicht und bricht in der Git-Bash mit
       „pathspec did not match" ganz ab.
 - [ ] Abnahme: `git status --short` zeigt nur noch echte Quelldateien
@@ -177,23 +196,23 @@ Die Datei hieß auf der Platte `AgeofempiresClone.Core.csproj`, während Git und
 verweisenden Projekte die kanonische Schreibweise nutzten. Unter Windows fiel das nicht auf —
 **auf Linux und macOS hätte es den Build gebrochen**, und genau die sind jetzt Zielplattform.
 
-- [x] Auf die kanonische Schreibweise `AgeOfEmpiresClone.Core.csproj` umbenannt *(Agent H2)*
+- [x] Auf die kanonische Schreibweise `AgeOfEvolutions.Core.csproj` umbenannt *(Agent H2)*
 
 ### H3 · Doppelten `ProjectReference` entfernen [L]
 
-`AgeOfEmpiresClone.Core.csproj` verwies **zweimal** auf AoE.Core — zwei ItemGroups,
+`AgeOfEvolutions.Core.csproj` verwies **zweimal** auf AoE.Core — zwei ItemGroups,
 einmal mit `/`, einmal mit `\`.
 
 - [x] Eine der beiden ItemGroups löschen *(Agent H3 — Build grün)*
 
 ### H4 · Solution vervollständigen [R]
 
-Die alte `AgeOfEmpiresClone.sln` enthielt nur Core + DesktopGL; `src/`, `tests/` und `demo/`
+Die alte `AgeOfEvolutions.sln` enthielt nur Core + DesktopGL; `src/`, `tests/` und `demo/`
 lagen in gar keiner Solution.
 
 - [x] Root-Solution `AgeOfEmpire.slnx` mit allen sechs Projekten *(Agent H4)* — XML-Format
       von .NET 10, keine GUIDs; `dotnet restore AgeOfEmpire.slnx` läuft durch
-- [ ] Offen: die alte `AgeOfEmpiresClone/AgeOfEmpiresClone.sln` liegt noch neben der `AgeOfEmpire.slnx` und kennt nur Core und DesktopGL — löschen oder bewusst behalten
+- [ ] Offen: die alte `AgeOfEvolutions/AgeOfEvolutions.sln` liegt noch neben der `AgeOfEmpire.slnx` und kennt nur Core und DesktopGL — löschen oder bewusst behalten
 
 ### H5 · Platformer-Reste entfernen [R]
 
@@ -508,18 +527,25 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
 - [x] Eigene Grafik für Baustelle (mit Fortschrittsbalken), Mühle, Holzfällerlager und
       Bergbaulager *(Agent C5c)*
 - [x] Liegengebliebene Baustellen: wer ein Gebäude fertig hat und nichts zu sammeln
-      bekommt, baut an der nächsten unfertigen eigenen Baustelle im Umkreis von 8 Kacheln
-      weiter *(Agent C5d)*
+  bekommt, baut an der nächsten unfertigen eigenen Baustelle im Umkreis von 8 Kacheln
+  weiter *(Agent C5d)*
 - [ ] Offen: Ein beladener Dorfbewohner, den man bauen schickt, verliert seine Traglast —
-      AoE behält sie
-- [ ] Offen: Farmen (60 Holz, 175 Nahrung) — die Mühle als Voraussetzung steht jetzt
+  AoE behält sie
+- [x] **C5f Farm** — Dorfbewohner wählen, Taste G (Getreide) drücken, einen freien
+  3×3-Platz anklicken: 60 Holz, 9 Kacheln je 175 Nahrung, alle begehbar (wie ein
+  Beerenbusch). Die Ernte geht an Mühle oder Stadtzentrum, nach der Ernte wächst jede
+  Kachel in ~100 s wieder nach. Logik in `TileMap.PlantCrop` und `TileMap.RegrowCrop`;
+  Abnahme als `farm`-Gruppe in `tools/spielablauf` *(2026-10-03)*
 
 ### C6 · HUD dreiteilig [R]
 
 - [ ] Ressourcenleiste oben: `[Holz] [Nahrung] [Gold] [Stein] [Bev. 37/45] « Feudalzeit »`
 - [x] Bevölkerung rot bei erreichtem Limit *(Agent C2b)*
 - [ ] Kommandoleiste unten: Aktionssymbole – Einheiteninfo – Minimap
-- [ ] Minimap: Geländefarben, eigene grün / Feinde rot, Kameraausschnitt als Rechteck
+- [ ] Minimap: kleine Karte links unten im Untermenü, isometrisch (Rhombus) wie im
+      AoE-II-HUD — Referenzbild `docs/overview.jpg`: Grün Land, Braun Wald, Blau
+      Wasser, weiße Punkte eigene Einheiten, dunkler Rahmen. Geländefarben, eigene
+      grün / Feinde rot, Kameraausschnitt als Rechteck
 
 ### C7 · Terrain-Rendering vervollständigen [R]
 
@@ -589,7 +615,7 @@ fehlgeschlagenen Patch aus:
 ### D4 · Zielplattformen in den MD-Dateien festhalten [L]
 
 - [x] `README.md`: Abschnitt „Zielplattformen"; Android/iOS als nicht unterstützt vermerkt *(Agent D4)*
-- [x] `AgeOfEmpiresClone/game_plan.md`: Hinweis auf die Entfernung der Mobile-Projekte *(Agent D4)*
+- [x] `AgeOfEvolutions/game_plan.md`: Hinweis auf die Entfernung der Mobile-Projekte *(Agent D4)*
 - [x] `docs/PROJEKT_STRUKTUR.md`: im Kopf vermerkt *(Agent D1)*
 
 ### D2 · `README.md` im Root [L]
@@ -628,7 +654,9 @@ Enthält reines Azure-Boilerplate ohne jeden Bezug zum Projekt.
 - [x] Bevölkerungslimit, Ausbildung und Häuser (C2), Traglast bleibt erhalten (C1t)
 - [x] Bauen mit Bauzeit, Bauarbeitern, Lagern und eigener Grafik (C5)
 - [x] Weiterbauen an liegengebliebenen Baustellen (C5d), Linksklick-Auswahl (C8b),
-      Werkzeug `tools/spielablauf`
+  Werkzeug `tools/spielablauf`
+- [x] **C5f Farm** — Getreidefeld (Taste G, 3×3, 175 Nahrung/Kachel, Regrow ~100 s),
+  neue `farm`-Gruppe in `tools/spielablauf` als Abnahme *(2026-10-03)*
 
 ---
 

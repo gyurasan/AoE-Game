@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/Core/">
+    <Project Path="src/AoE.Core/AoE.Core.csproj" />
+  </Folder>
+  <Folder Name="/Tests/">
+    <Project Path="tests/AoE.Tests/AoE.Tests.csproj" />
+  </Folder>
+  <Folder Name="/Demo/">
+    <Project Path="demo/DemoApp.csproj" />
+  </Folder>
+  <Folder Name="/AgeOfEvolutions/">
+    <Project Path="AgeOfEvolutions/AgeOfEvolutions.Core/AgeOfEvolutions.Core.csproj" />
+    <Project Path="AgeOfEvolutions/AgeOfEvolutions.DesktopGL/AgeOfEvolutions.DesktopGL.csproj" />
+    <Project Path="AgeOfEvolutions/AgeOfEvolutions.WindowsDX/AgeOfEvolutions.WindowsDX.csproj" />
+  </Folder>
+</Solution>

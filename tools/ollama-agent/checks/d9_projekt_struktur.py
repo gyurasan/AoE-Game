@@ -39,11 +39,11 @@ TABELLE = [
     "src/AoE.Core/Economy/GatherJob.cs",
     "src/AoE.Core/Entities/UnitTypes.cs",
     "src/AoE.Core/Map/VisibilitySystem.cs",
-    "AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Data/TileMap.cs",
-    "AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Data/TileMapGatherWorld.cs",
-    "AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Data/CoreBuildings.cs",
-    "AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Data/Unit.cs",
-    "AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Screens/RTSGameplayScreen.cs",
+    "AgeOfEvolutions/AgeOfEvolutions.Core/Data/TileMap.cs",
+    "AgeOfEvolutions/AgeOfEvolutions.Core/Data/TileMapGatherWorld.cs",
+    "AgeOfEvolutions/AgeOfEvolutions.Core/Data/CoreBuildings.cs",
+    "AgeOfEvolutions/AgeOfEvolutions.Core/Data/Unit.cs",
+    "AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs",
 ]
 for pfad in TABELLE:
     zeile = next((l for l in text.splitlines() if l.startswith("|") and f"| {pfad} |" in l), None)

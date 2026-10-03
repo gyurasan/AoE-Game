@@ -671,7 +671,7 @@ mehrere Kacheln belegen (Gebäude), zählt die vorderste Kachel.
 
 ## Relevanz für dieses Projekt
 
-**Stand am 15.08.2026:** Der Code in `AgeOfEmpiresClone/` war ursprünglich das unveränderte
+**Stand am 15.08.2026:** Der Code in `AgeOfEvolutions/` war ursprünglich das unveränderte
 MonoGame-„Platformer 2D"-Beispiel — ein Jump'n'Run mit Springen, Gems und Ausgang.
 `game_plan.md` beschreibt dagegen einen RTS. Inzwischen ist umgestellt worden:
 `MainMenuScreen` zeigt ein AoE-artiges Menü über `Content/Backgrounds/menu.png`,

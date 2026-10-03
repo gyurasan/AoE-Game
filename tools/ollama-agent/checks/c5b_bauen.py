@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _cs import lies, melde, methode  # noqa: E402
 
 fehler = []
-DATA = Path("AgeOfEmpiresClone/AgeOfEmpiresClone.Core/Data")
+DATA = Path("AgeOfEvolutions/AgeOfEvolutions.Core/Data")
 
 
 def datei(name: str) -> str:

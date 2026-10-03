@@ -5,7 +5,7 @@
 // Jede genannte Regelgruppe wird geprüft; ohne Angabe nur die Statistik.
 // Exit-Code 1, sobald eine Regel auf irgendeiner Karte verletzt ist – damit
 // taugt das Programm als Abnahme für den Ollama-Harness.
-using AgeOfEmpiresClone.Core.Data;
+using AgeOfEvolutions.Core.Data;
 using Resource = AoE.Core.Entities.Resource;
 
 const int KARTEN = 50;

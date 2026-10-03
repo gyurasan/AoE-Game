@@ -1,11 +1,11 @@
-# Age of Empires Klon
+# Age of Evolutions
 
 Ein Age-of-Empires-I-artiges Echtzeitstrategiespiel, implementiert in C# mit MonoGame unter .NET 10.
 
 ## Projektstruktur
 
 - **src/AoE.Core**: MonoGame-unabhängige Spiellogik (Kampf, Wirtschaft, Karte, Wegfindung)
-- **AgeOfEmpiresClone/**: MonoGame-Spiel mit den Plattformprojekten DesktopGL und WindowsDX
+- **AgeOfEvolutions/**: MonoGame-Spiel mit den Plattformprojekten DesktopGL und WindowsDX
 - **tests/AoE.Tests**: Unit-Tests
 - **demo/**: Kleine Konsolen-Testapp
 - **docs/**: Dokumentation
@@ -20,8 +20,8 @@ Ein Age-of-Empires-I-artiges Echtzeitstrategiespiel, implementiert in C# mit Mon
 ## Bauen und Starten
 
 ```bash
-dotnet build AgeOfEmpiresClone/AgeOfEmpiresClone.DesktopGL/AgeOfEmpiresClone.DesktopGL.csproj
-dotnet run --project AgeOfEmpiresClone/AgeOfEmpiresClone.DesktopGL
+dotnet build AgeOfEvolutions/AgeOfEvolutions.DesktopGL/AgeOfEvolutions.DesktopGL.csproj
+dotnet run --project AgeOfEvolutions/AgeOfEvolutions.DesktopGL
 ```
 
 ## Tests

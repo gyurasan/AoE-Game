@@ -2,8 +2,8 @@ using AoE.Core.Entities;
 using AoE.Core.Combat;
 using AoE.Core.Economy;
 
-// Demo: Age of Empires II Core Game Logic
-Console.WriteLine("=== Age of Empires II - Core Logic Demo ===\n");
+// Demo: Age of Evolutions Core Game Logic
+Console.WriteLine("=== Age of Evolutions - Core Logic Demo ===\n");
 
 // 1. Ressourcen-System testen
 Console.WriteLine("1. Ressourcen-System:");
