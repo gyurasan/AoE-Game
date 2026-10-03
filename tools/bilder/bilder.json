@@ -1,6 +1,9 @@
 {
   "menu": {
-    "groesse": [1664, 928],
+    "groesse": [
+      1664,
+      928
+    ],
     "schritte": 30,
     "cfg": 3.0,
     "stil": "Highly detailed digital painting in the style of classic 1990s real-time strategy game box art, rich warm colors, soft golden light.",
@@ -15,22 +18,148 @@
     ]
   },
   "icons": {
-    "groesse": [1024, 1024],
-    "zielgroesse": [128, 128],
+    "groesse": [
+      1024,
+      1024
+    ],
+    "zielgroesse": [
+      128,
+      128
+    ],
     "schritte": 30,
     "cfg": 3.0,
     "stil": "Game user interface icon in 16-bit pixel art style, crisp square pixels, limited warm color palette, one single object centered and filling most of the image, three-quarter view, plain flat dark brown background, no text.",
     "negativ": "text, letters, numbers, words, watermark, logo, signature, frame, border, photo, realistic, 3d render, multiple objects, cluttered background, blurry",
     "bilder": [
-      {"name": "dorfbewohner",     "seed": 2001, "ziel": "Icons/dorfbewohner.png", "prompt": "A medieval peasant villager wearing a straw hat and a brown tunic, holding a wooden hoe."},
-      {"name": "zeitalter",        "seed": 2002, "ziel": "Icons/zeitalter.png", "prompt": "An ornate golden hourglass with a small golden upward arrow above it, symbol for advancing to the next age."},
-      {"name": "haus",             "seed": 2003, "ziel": "Icons/haus.png", "prompt": "A small medieval timber-framed house with a red tiled roof and a wooden door."},
-      {"name": "muehle",           "seed": 2004, "ziel": "Icons/muehle.png", "prompt": "A medieval windmill with four white canvas sails and a thatched roof."},
-      {"name": "holzfaellerlager", "seed": 2005, "ziel": "Icons/holzfaellerlager.png", "prompt": "A stack of chopped wooden logs next to a tree stump with an axe stuck in it."},
-      {"name": "bergbaulager",     "seed": 2006, "ziel": "Icons/bergbaulager.png", "prompt": "A pickaxe resting on a pile of gold nuggets and grey stone blocks."},
-      {"name": "farm",             "seed": 2007, "ziel": "Icons/farm.png", "prompt": "A small square field of ripe golden wheat with a low wooden fence."},
-      {"name": "wachturm",         "seed": 2008, "ziel": "Icons/wachturm.png", "prompt": "A medieval stone watchtower with battlements on top and a small blue flag."},
-      {"name": "untaetig",         "seed": 2009, "ziel": "Icons/untaetig.png", "prompt": "A tired villager sitting idle on a wooden barrel, yawning, with a hoe leaning against the barrel."}
+      {
+        "name": "dorfbewohner",
+        "seed": 2001,
+        "ziel": "Icons/dorfbewohner.png",
+        "prompt": "A medieval peasant villager wearing a straw hat and a brown tunic, holding a wooden hoe."
+      },
+      {
+        "name": "zeitalter",
+        "seed": 2002,
+        "ziel": "Icons/zeitalter.png",
+        "prompt": "An ornate golden hourglass with a small golden upward arrow above it, symbol for advancing to the next age."
+      },
+      {
+        "name": "haus",
+        "seed": 2003,
+        "ziel": "Icons/haus.png",
+        "prompt": "A small medieval timber-framed house with a red tiled roof and a wooden door."
+      },
+      {
+        "name": "muehle",
+        "seed": 2004,
+        "ziel": "Icons/muehle.png",
+        "prompt": "A medieval windmill with four white canvas sails and a thatched roof."
+      },
+      {
+        "name": "holzfaellerlager",
+        "seed": 2005,
+        "ziel": "Icons/holzfaellerlager.png",
+        "prompt": "A stack of chopped wooden logs next to a tree stump with an axe stuck in it."
+      },
+      {
+        "name": "bergbaulager",
+        "seed": 2006,
+        "ziel": "Icons/bergbaulager.png",
+        "prompt": "A pickaxe resting on a pile of gold nuggets and grey stone blocks."
+      },
+      {
+        "name": "farm",
+        "seed": 2007,
+        "ziel": "Icons/farm.png",
+        "prompt": "A small square field of ripe golden wheat with a low wooden fence."
+      },
+      {
+        "name": "wachturm",
+        "seed": 2008,
+        "ziel": "Icons/wachturm.png",
+        "prompt": "A medieval stone watchtower with battlements on top and a small blue flag."
+      },
+      {
+        "name": "untaetig",
+        "seed": 2009,
+        "ziel": "Icons/untaetig.png",
+        "prompt": "A tired villager sitting idle on a wooden barrel, yawning, with a hoe leaning against the barrel."
+      }
+    ]
+  },
+  "gebaeude": {
+    "groesse": [
+      1024,
+      1024
+    ],
+    "schritte": 30,
+    "cfg": 3.0,
+    "freistellen": true,
+    "stil": "Game sprite for a top-down 2D strategy game, three-quarter top-down view from the south: the front facade faces the viewer and the roof is seen from above. Detailed 16-bit pixel art, crisp pixels, warm medieval colors, soft light from the upper left. One single building centered, fully visible, isolated on a plain white background, no ground plate, no shadow on the background, no text.",
+    "negativ": "text, letters, logo, watermark, frame, border, isometric diamond grid, multiple buildings, people, trees, landscape, scenery, cut off, cropped, blurry, photo, 3d render",
+    "bilder": [
+      {
+        "name": "stadtzentrum",
+        "seed": 3001,
+        "prompt": "A large medieval town center: a sturdy two-storey hall of stone and timber with a red tiled roof, four small corner towers, a wide wooden gate and a blue banner above the gate.",
+        "ziel": "Gebaeude/stadtzentrum.png",
+        "zielbreite": 384
+      },
+      {
+        "name": "haus",
+        "seed": 3002,
+        "prompt": "A small medieval timber-framed house with white plaster walls, a red tiled roof, a wooden door and a small blue pennant on the roof.",
+        "ziel": "Gebaeude/haus.png"
+      },
+      {
+        "name": "muehle",
+        "seed": 3003,
+        "prompt": "A medieval windmill with four white canvas sails on a round stone tower with a thatched roof and a small blue flag.",
+        "ziel": "Gebaeude/muehle.png"
+      },
+      {
+        "name": "holzfaellerlager",
+        "seed": 3004,
+        "prompt": "An open medieval lumber camp: a wooden shed with a slanted roof, a big stack of chopped logs in front, a tree stump with an axe and a small blue flag.",
+        "ziel": "Gebaeude/holzfaellerlager.png"
+      },
+      {
+        "name": "bergbaulager",
+        "seed": 3005,
+        "prompt": "An open medieval mining camp: a wooden shed with a slanted roof, a wooden cart full of grey stone and gold ore in front, pickaxes leaning on the wall and a small blue flag.",
+        "ziel": "Gebaeude/bergbaulager.png"
+      },
+      {
+        "name": "wachturm",
+        "seed": 3006,
+        "prompt": "A tall medieval stone watchtower with battlements on top, a small arched door and a blue flag on the top.",
+        "ziel": "Gebaeude/wachturm.png"
+      }
+    ],
+    "zuschneiden": true,
+    "zielbreite": 256,
+    "spielerfarben": true
+  },
+  "einheiten": {
+    "groesse": [
+      1024,
+      1024
+    ],
+    "schritte": 30,
+    "cfg": 3.0,
+    "freistellen": true,
+    "zuschneiden": true,
+    "zielbreite": 128,
+    "spielerfarben": true,
+    "stil": "Game character sprite for a top-down 2D strategy game, three-quarter view from the front, full body from head to feet, standing upright, detailed 16-bit pixel art, crisp pixels, warm medieval colors, soft light from the upper left. One single character centered, fully visible, isolated on a plain white background, no shadow on the background, no text.",
+    "negativ": "text, letters, logo, watermark, frame, border, multiple characters, crowd, building, landscape, scenery, cut off feet, cropped, blurry, photo, 3d render",
+    "bilder": [
+      {
+        "name": "dorfbewohner",
+        "seed": 4001,
+        "ziel": "Einheiten/dorfbewohner.png",
+        "prompt": "A medieval peasant villager in a bright blue tunic with a brown belt, brown trousers, leather shoes and a straw hat, carrying a wooden hoe over the shoulder, friendly face, walking pose turned slightly to the right."
+      }
     ]
   }
 }

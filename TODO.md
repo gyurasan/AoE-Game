@@ -603,6 +603,8 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
       (`BuildBerryTexture`, `BuildMountainTexture`, `BuildGoldTexture`)
 - [ ] Schatten und Beleuchtung
 - [x] Stadtzentrum skaliert im Ganzen mit dem Zoom *(Agent E9)*
+- [x] Gebäude als Sprites aus Qwen-Image (`tools/bilder`, freigestellt mit BiRefNet), Fahnen
+      und Banner in Spielerfarbe; Baustellen und die Farm zeichnet weiter der Code *(Agent C6g)*
 - [x] Wald als Blätterdach: dunkler Boden als Kachel, Baumkronen als eigene Figuren
       über Kachelgrenzen hinweg *(Agent G1, G3)*
 - [x] Wasser: zwei überlagerte Wellen in drei Varianten, festes Rauschen ohne Flimmern,

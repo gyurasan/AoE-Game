@@ -40,6 +40,9 @@ TEXT_ENCODER = "qwen_2.5_vl_7b_fp8_scaled.safetensors"
 VAE = "qwen_image_vae.safetensors"
 
 
+FREISTELLER = "birefnet.safetensors"   # models/background_removal, Comfy-Org/BiRefNet
+
+
 def workflow(prompt: str, negativ: str, breite: int, hoehe: int, seed: int,
              schritte: int, cfg: float, praefix: str) -> dict:
     """Der Qwen-Image-Graph der ComfyUI-Vorlage im API-Format."""
@@ -62,6 +65,23 @@ def workflow(prompt: str, negativ: str, breite: int, hoehe: int, seed: int,
     }
 
 
+def freistell_graph(eingabe: str, praefix: str) -> dict:
+    """BiRefNet stellt ein hochgeladenes Bild frei, das PNG bekommt einen Alphakanal.
+
+    JoinImageWithAlpha rechnet alpha = 1 - Maske, RemoveBackground liefert aber
+    die Vordergrundmaske - deshalb dazwischen InvertMask, sonst würde gerade das
+    Motiv durchsichtig.
+    """
+    return {
+        "1": {"class_type": "LoadImage", "inputs": {"image": eingabe}},
+        "2": {"class_type": "LoadBackgroundRemovalModel", "inputs": {"bg_removal_name": FREISTELLER}},
+        "3": {"class_type": "RemoveBackground", "inputs": {"bg_removal_model": ["2", 0], "image": ["1", 0]}},
+        "4": {"class_type": "InvertMask", "inputs": {"mask": ["3", 0]}},
+        "5": {"class_type": "JoinImageWithAlpha", "inputs": {"image": ["1", 0], "alpha": ["4", 0]}},
+        "6": {"class_type": "SaveImage", "inputs": {"images": ["5", 0], "filename_prefix": praefix}},
+    }
+
+
 def anfrage(pfad: str, daten: dict | None = None):
     req = urllib.request.Request(SERVER + pfad, method="POST" if daten is not None else "GET")
     if daten is not None:
@@ -71,13 +91,21 @@ def anfrage(pfad: str, daten: dict | None = None):
         return antwort.read()
 
 
-def erzeuge(eintrag: dict, gruppe: dict, seed: int, ziel: Path) -> Path:
-    stil = gruppe.get("stil", "")
-    prompt = f"{eintrag['prompt']} {stil}".strip()
-    negativ = gruppe.get("negativ", "")
-    breite, hoehe = eintrag.get("groesse", gruppe["groesse"])
-    graph = workflow(prompt, negativ, breite, hoehe, seed,
-                     gruppe.get("schritte", 30), gruppe.get("cfg", 3.0), f"aoe_{eintrag['name']}")
+def hochladen(datei: Path) -> str:
+    """Lädt ein Bild in den input-Ordner von ComfyUI (POST /upload/image)."""
+    grenze = "----aoe" + str(random.randrange(10**12))
+    kopf = (f"--{grenze}\r\nContent-Disposition: form-data; name=\"overwrite\"\r\n\r\ntrue\r\n"
+            f"--{grenze}\r\nContent-Disposition: form-data; name=\"image\"; filename=\"{datei.name}\"\r\n"
+            f"Content-Type: image/png\r\n\r\n").encode("utf-8")
+    rumpf = kopf + datei.read_bytes() + f"\r\n--{grenze}--\r\n".encode("utf-8")
+    req = urllib.request.Request(SERVER + "/upload/image", data=rumpf, method="POST",
+                                 headers={"Content-Type": f"multipart/form-data; boundary={grenze}"})
+    with urllib.request.urlopen(req, timeout=60) as antwort:
+        return json.loads(antwort.read())["name"]
+
+
+def ausfuehren(graph: dict, ziel: Path) -> float:
+    """Schickt einen Graphen an ComfyUI, wartet auf das Bild und speichert es."""
     antwort = json.loads(anfrage("/prompt", {"prompt": graph}))
     if antwort.get("node_errors"):
         raise RuntimeError(f"ComfyUI lehnt den Graphen ab: {antwort['node_errors']}")
@@ -103,7 +131,23 @@ def erzeuge(eintrag: dict, gruppe: dict, seed: int, ziel: Path) -> Path:
                                       "type": bild["type"]})
     ziel.parent.mkdir(parents=True, exist_ok=True)
     ziel.write_bytes(anfrage(f"/view?{abfrage}"))
-    print(f"  {ziel.relative_to(HIER)}  ({time.time() - beginn:.0f} s, Seed {seed})")
+    return time.time() - beginn
+
+
+def erzeuge(eintrag: dict, gruppe: dict, seed: int, ziel: Path) -> Path:
+    stil = gruppe.get("stil", "")
+    prompt = f"{eintrag['prompt']} {stil}".strip()
+    breite, hoehe = eintrag.get("groesse", gruppe["groesse"])
+    graph = workflow(prompt, gruppe.get("negativ", ""), breite, hoehe, seed,
+                     gruppe.get("schritte", 30), gruppe.get("cfg", 3.0), f"aoe_{eintrag['name']}")
+    dauer = ausfuehren(graph, ziel)
+    print(f"  {ziel.relative_to(HIER)}  ({dauer:.0f} s, Seed {seed})")
+    return ziel
+
+
+def freistellen(roh: Path, ziel: Path) -> Path:
+    dauer = ausfuehren(freistell_graph(hochladen(roh), f"aoe_frei_{ziel.stem}"), ziel)
+    print(f"  {ziel.relative_to(HIER)}  freigestellt ({dauer:.0f} s)")
     return ziel
 
 
@@ -112,6 +156,8 @@ def main() -> None:
     teile.add_argument("gruppe")
     teile.add_argument("namen", nargs="*", help="nur diese Einträge der Gruppe")
     teile.add_argument("--seeds", type=int, default=1, help="Varianten je Bild (Seed, Seed+1, ...)")
+    teile.add_argument("--nur-freistellen", action="store_true",
+                       help="vorhandene Rohbilder nur freistellen, nicht neu erzeugen")
     args = teile.parse_args()
 
     katalog = json.loads((HIER / "bilder.json").read_text(encoding="utf-8"))
@@ -120,11 +166,22 @@ def main() -> None:
     if not eintraege:
         sys.exit(f"keine Einträge {args.namen} in Gruppe {args.gruppe}")
 
+    # Gruppen mit "freistellen": das Rohbild heißt <name>_<seed>_roh.png, das
+    # freigestellte <name>_<seed>.png. Freigestellt wird in einem zweiten
+    # Durchgang, nachdem Qwen-Image den Grafikspeicher geräumt hat: liegen beide
+    # Modelle zugleich darin, bricht BiRefNet den Server mit "Fatal Python error:
+    # Aborted" ab (ComfyUI 0.38, 2026-10-03).
+    frei = gruppe.get("freistellen", False)
+    auftraege = [(e, e.get("seed", random.randrange(2**31)) + k) for e in eintraege for k in range(args.seeds)]
+    ordner = AUSGABE / args.gruppe
     print(f"{len(eintraege)} Bild(er) x {args.seeds} Seed(s), Gruppe {args.gruppe}")
-    for e in eintraege:
-        for k in range(args.seeds):
-            seed = e.get("seed", random.randrange(2**31)) + k
-            erzeuge(e, gruppe, seed, AUSGABE / args.gruppe / f"{e['name']}_{seed}.png")
+    if not args.nur_freistellen:
+        for e, seed in auftraege:
+            erzeuge(e, gruppe, seed, ordner / f"{e['name']}_{seed}{'_roh' if frei else ''}.png")
+    if frei:
+        anfrage("/free", {"unload_models": True, "free_memory": True})
+        for e, seed in auftraege:
+            freistellen(ordner / f"{e['name']}_{seed}_roh.png", ordner / f"{e['name']}_{seed}.png")
 
 
 if __name__ == "__main__":

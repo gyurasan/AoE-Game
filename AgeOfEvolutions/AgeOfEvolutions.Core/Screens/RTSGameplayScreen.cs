@@ -177,6 +177,17 @@ public class RTSGameplayScreen : GameScreen
         ("G", "Icons/farm"), ("T", "Icons/wachturm"), (".", "Icons/untaetig"),
     };
     private readonly Dictionary<string, Texture2D> _buttonIcons = new();
+
+    // Gebäude als Sprites - erzeugt mit Qwen-Image (tools/bilder/bilder.json,
+    // Gruppe gebaeude), freigestellt und je Spieler eingefärbt: _blau für
+    // Spieler 0, _rot für Spieler 1. Schlüssel ist der Gebäudename der Karte.
+    private static readonly (string Type, string Asset)[] BuildingSprites =
+    {
+        ("Stadtzentrum", "Gebaeude/stadtzentrum"), ("Haus", "Gebaeude/haus"),
+        ("Mühle", "Gebaeude/muehle"), ("Holzfällerlager", "Gebaeude/holzfaellerlager"),
+        ("Bergbaulager", "Gebaeude/bergbaulager"), ("Wachturm", "Gebaeude/wachturm"),
+    };
+    private readonly Dictionary<(string Type, int Owner), Texture2D> _buildingSprites = new();
     private List<CommandButton> _buttons = new();
     private int _buttonsLayoutHeight;    // Fensterhöhe, für die _buttons angelegt sind
     private bool _buttonsLayoutBuilders; // ob dabei ein Dorfbewohner ausgewählt war
@@ -253,6 +264,22 @@ public class RTSGameplayScreen : GameScreen
             }
             catch (Microsoft.Xna.Framework.Content.ContentLoadException)
             {
+            }
+        }
+
+        // Gebäude-Sprites je Spielerfarbe; fehlt eines, zeichnet DrawBuilding
+        // das Gebäude wie bisher selbst
+        foreach (var (type, asset) in BuildingSprites)
+        {
+            foreach (var (owner, colour) in new[] { (0, "_blau"), (1, "_rot") })
+            {
+                try
+                {
+                    _buildingSprites[(type, owner)] = ScreenManager.Game.Content.Load<Texture2D>(asset + colour);
+                }
+                catch (Microsoft.Xna.Framework.Content.ContentLoadException)
+                {
+                }
             }
         }
 
@@ -2047,9 +2074,11 @@ public class RTSGameplayScreen : GameScreen
     {
         // Nur Gebäude mit bekanntem Typ zeichnen (erstmal: Stadtzentrum)
         Rectangle rect = TileScreenRect(b.X, b.Y, b.Width, b.Height);
-        
-        if (rect.Intersects(screenBounds) == false && 
-            new Rectangle(rect.X - 32, rect.Y - 32, rect.Width + 64, rect.Height + 64).Intersects(screenBounds) == false)
+
+        // Sprites ragen nach oben über die Grundfläche hinaus (der Wachturm um
+        // fast eine weitere Grundfläche) - der Sichtbereich prüft das mit
+        if (rect.Intersects(screenBounds) == false &&
+            new Rectangle(rect.X - 32, rect.Y - rect.Height - 32, rect.Width + 64, rect.Height * 2 + 64).Intersects(screenBounds) == false)
             return;
         
         bool isPlayer1 = b.OwnerId == 0;
@@ -2059,6 +2088,16 @@ public class RTSGameplayScreen : GameScreen
         if (!b.IsComplete)
         {
             DrawConstructionSite(spriteBatch, rect, b.Construction.Progress);
+            return;
+        }
+
+        // Sprite so breit wie die Grundfläche und unten bündig mit ihr - hohe
+        // Gebäude wie Turm und Mühle ragen über die Kacheln dahinter hinaus
+        if (_buildingSprites.TryGetValue((b.Type, b.OwnerId), out var sprite))
+        {
+            int spriteHeight = rect.Width * sprite.Height / sprite.Width;
+            spriteBatch.Draw(sprite, new Rectangle(rect.X, rect.Bottom - spriteHeight, rect.Width, spriteHeight),
+                             Color.White);
             return;
         }
         switch (b.Core.BuildingType)
