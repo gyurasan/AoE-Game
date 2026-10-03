@@ -16,6 +16,12 @@ tools/bilder/ausgabe/<gruppe>/<name>_<seed>.png und werden NICHT automatisch
 ins Spiel übernommen; welches Bild ins Content-Verzeichnis kommt, entscheidet
 der Nutzer.
 
+Ein Eintrag mit "vorlage" und "maske" malt nur einen Teil eines vorhandenen
+Bilds neu (Inpainting), etwa um der Figur ihr Werkzeug abzunehmen: "vorlage" ist
+eine Datei im Ausgabeordner der Gruppe, "maske" beschreibt die neu zu malende
+Fläche als Linien [x1, y1, x2, y2, Dicke] und Ellipsen [x, y, rx, ry] in
+Pixeln der Vorlage. Alles außerhalb der Maske bleibt Pixel für Pixel erhalten.
+
 Vor dem Lauf das Ollama-Sprachmodell entladen (ollama stop qwen3.8:27b) - es
 belegt sonst rund 27 GB Grafikspeicher.
 """
@@ -27,6 +33,7 @@ import sys
 import time
 import urllib.parse
 import urllib.request
+import zlib
 from pathlib import Path
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -80,6 +87,71 @@ def freistell_graph(eingabe: str, praefix: str) -> dict:
         "5": {"class_type": "JoinImageWithAlpha", "inputs": {"image": ["1", 0], "alpha": ["4", 0]}},
         "6": {"class_type": "SaveImage", "inputs": {"images": ["5", 0], "filename_prefix": praefix}},
     }
+
+
+def ausbesser_graph(prompt: str, negativ: str, vorlage: str, maske: str, seed: int,
+                    schritte: int, cfg: float, praefix: str) -> dict:
+    """Malt die weiße Fläche der Maske in der Vorlage neu (Inpainting).
+
+    SetLatentNoiseMask lässt den Sampler nur unter der Maske arbeiten; danach
+    setzt ImageCompositeMasked das Ergebnis in die unveränderte Vorlage ein -
+    sonst verschöbe der Weg durch das VAE auch die Pixel außerhalb ein wenig.
+    """
+    graph = workflow(prompt, negativ, 0, 0, seed, schritte, cfg, praefix)
+    del graph["7"]
+    graph.update({
+        "11": {"class_type": "LoadImage", "inputs": {"image": vorlage}},
+        "12": {"class_type": "LoadImageMask", "inputs": {"image": maske, "channel": "red"}},
+        "13": {"class_type": "VAEEncode", "inputs": {"pixels": ["11", 0], "vae": ["3", 0]}},
+        "14": {"class_type": "SetLatentNoiseMask", "inputs": {"samples": ["13", 0], "mask": ["12", 0]}},
+        "15": {"class_type": "ImageCompositeMasked",
+               "inputs": {"destination": ["11", 0], "source": ["9", 0], "x": 0, "y": 0,
+                          "resize_source": False, "mask": ["12", 0]}},
+    })
+    graph["8"]["inputs"]["latent_image"] = ["14", 0]
+    graph["10"]["inputs"]["images"] = ["15", 0]
+    return graph
+
+
+def maske_zeichnen(form: dict, breite: int, hoehe: int, ziel: Path) -> Path:
+    """Zeichnet die Inpainting-Maske als Graustufen-PNG: weiß wird neu gemalt.
+
+    Linien [x1, y1, x2, y2, Dicke] und Ellipsen [x, y, rx, ry] in Pixeln.
+    Reines Python mit eigenem PNG-Schreiber - die Python-Installation für
+    diese Skripte hat kein Pillow.
+    """
+    pixel = bytearray(breite * hoehe)
+
+    def fuellen(x0, y0, x1, y1, drin):
+        for y in range(max(0, int(y0)), min(hoehe, int(y1) + 1)):
+            for x in range(max(0, int(x0)), min(breite, int(x1) + 1)):
+                if drin(x, y):
+                    pixel[y * breite + x] = 255
+
+    for x1, y1, x2, y2, dicke in form.get("linien", []):
+        r = dicke / 2
+        dx, dy = x2 - x1, y2 - y1
+        laenge2 = dx * dx + dy * dy or 1
+
+        def auf_linie(x, y, x1=x1, y1=y1, dx=dx, dy=dy, laenge2=laenge2, r=r):
+            s = max(0.0, min(1.0, ((x - x1) * dx + (y - y1) * dy) / laenge2))
+            return (x - x1 - s * dx) ** 2 + (y - y1 - s * dy) ** 2 <= r * r
+
+        fuellen(min(x1, x2) - r, min(y1, y2) - r, max(x1, x2) + r, max(y1, y2) + r, auf_linie)
+    for cx, cy, rx, ry in form.get("ellipsen", []):
+        fuellen(cx - rx, cy - ry, cx + rx, cy + ry,
+                lambda x, y, cx=cx, cy=cy, rx=rx, ry=ry: ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1)
+
+    def abschnitt(art: bytes, daten: bytes) -> bytes:
+        return (len(daten).to_bytes(4, "big") + art + daten
+                + zlib.crc32(art + daten).to_bytes(4, "big"))
+
+    zeilen = b"".join(b"\0" + bytes(pixel[y * breite:(y + 1) * breite]) for y in range(hoehe))
+    kopf = breite.to_bytes(4, "big") + hoehe.to_bytes(4, "big") + bytes([8, 0, 0, 0, 0])
+    ziel.parent.mkdir(parents=True, exist_ok=True)
+    ziel.write_bytes(b"\x89PNG\r\n\x1a\n" + abschnitt(b"IHDR", kopf)
+                     + abschnitt(b"IDAT", zlib.compress(zeilen, 9)) + abschnitt(b"IEND", b""))
+    return ziel
 
 
 def anfrage(pfad: str, daten: dict | None = None):
@@ -140,8 +212,14 @@ def erzeuge(eintrag: dict, gruppe: dict, seed: int, ziel: Path) -> Path:
     breite, hoehe = eintrag.get("groesse", gruppe["groesse"])
     # Ein Eintrag kann eigene Negativbegriffe mitbringen, zusätzlich zu denen der Gruppe
     negativ = ", ".join(n for n in (gruppe.get("negativ", ""), eintrag.get("negativ", "")) if n)
-    graph = workflow(prompt, negativ, breite, hoehe, seed,
-                     gruppe.get("schritte", 30), gruppe.get("cfg", 3.0), f"aoe_{eintrag['name']}")
+    if "vorlage" in eintrag:
+        vorlage = ziel.parent / eintrag["vorlage"]
+        maske = maske_zeichnen(eintrag["maske"], breite, hoehe, ziel.parent / f"{eintrag['name']}_maske.png")
+        graph = ausbesser_graph(prompt, negativ, hochladen(vorlage), hochladen(maske), seed,
+                                gruppe.get("schritte", 30), gruppe.get("cfg", 3.0), f"aoe_{eintrag['name']}")
+    else:
+        graph = workflow(prompt, negativ, breite, hoehe, seed,
+                         gruppe.get("schritte", 30), gruppe.get("cfg", 3.0), f"aoe_{eintrag['name']}")
     dauer = ausfuehren(graph, ziel)
     print(f"  {ziel.relative_to(HIER)}  ({dauer:.0f} s, Seed {seed})")
     return ziel

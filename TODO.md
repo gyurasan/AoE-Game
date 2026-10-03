@@ -636,6 +636,10 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
 - [x] Dorfbewohner als Sprite (Qwen-Image) mit Bewegung aus dem Code: wippt beim Gehen, holt
       beim Sammeln und Bauen aus, atmet im Stehen, blickt in Laufrichtung, Schatten und
       Traglast-Bündel *(Agent C6v)*
+- [x] Werkzeuge als eigene Sprites in der Faust: Axt, Spitzhacke, Hammer, Sichel, Hacke und
+      Angel je nach Arbeit; beim Arbeiten holt das Werkzeug aus und schlägt zu, die Figur
+      steht still. Die Hacke hat Qwen-Image per Inpainting aus dem Dorfbewohner-Bild
+      entfernt *(Agent C6t)*
 - [x] Gras aus einem großen, kachelbar gemachten Grasbild (Qwen-Image), vier Bildpixel je
       Welteinheit, wiederholt alle acht Kacheln; Schaf und Beerenbusch auf durchsichtigem
       Grund darüber; Wald mit fünf Baumarten als Sprites mit Stamm statt runder
@@ -644,6 +648,10 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
       gegeneinander treibenden Lagen; Stein und Gold als freigestellte Haufen auf Gras,
       zwei Varianten je Rohstoff; Gras statt dunkler Kacheln unter den Bäumen; der Boden
       in einem eigenen Durchgang mit wiederholender Abtastung (`DrawGround`) *(Agent C7r)*
+- [x] Felder aus Acker und Weizen statt der gezeichneten Farmtextur: beide kachelbar
+      (Boden/acker, Boden/weizen), die Kante des Felds als dunkler Erdstreifen, und der
+      Weizen wächst sichtbar beim Nachwachsen (WheatLook aus Vorrat und FarmRegrow);
+      FARM_FOOD und FARM_REGROW_SECONDS als Konstanten in TileMap *(C7f)*
 - [x] Wald als Blätterdach: dunkler Boden als Kachel, Baumkronen als eigene Figuren
       über Kachelgrenzen hinweg *(Agent G1, G3)*
 - [x] Wasser: zwei überlagerte Wellen in drei Varianten, festes Rauschen ohne Flimmern,

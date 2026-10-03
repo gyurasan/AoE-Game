@@ -197,6 +197,28 @@ public class RTSGameplayScreen : GameScreen
     private readonly Dictionary<int, Texture2D> _villagerSprites = new();
     private Texture2D _shadowTex;          // weicher Schatten unter den Füßen
 
+    // Werkzeuge der Dorfbewohner (tools/bilder, Gruppe werkzeuge): waagerecht,
+    // Griff links, Kopf rechts, Schneide unten. DrawTool dreht sie um die Faust.
+    // Winkel in Bogenmaß für eine nach rechts blickende Figur: 0 zeigt nach vorn,
+    // negativ nach oben. Länge als Anteil an der Figurenhöhe, Rate in Schlägen
+    // je Sekunde.
+    private enum Tool { Hoe, Axe, Pickaxe, Hammer, Sickle, Rod }
+    private readonly record struct ToolStyle(string Asset, float Length, float Raised, float Strike, float Rate);
+    private static readonly Dictionary<Tool, ToolStyle> ToolStyles = new()
+    {
+        [Tool.Hoe] = new("Werkzeuge/hacke", 0.75f, -2.3f, 0.75f, 0.9f),
+        [Tool.Axe] = new("Werkzeuge/axt", 0.6f, -2.4f, 0.7f, 1.0f),
+        [Tool.Pickaxe] = new("Werkzeuge/spitzhacke", 0.6f, -2.4f, 0.75f, 0.9f),
+        [Tool.Hammer] = new("Werkzeuge/hammer", 0.42f, -1.9f, 0.35f, 1.6f),
+        [Tool.Sickle] = new("Werkzeuge/sichel", 0.4f, -1.1f, 0.9f, 1.3f),
+        [Tool.Rod] = new("Werkzeuge/angel", 0.95f, -0.75f, -0.55f, 0.4f),
+    };
+    private const float TOOL_REST = -2.7f;   // auf der Schulter, der Kopf schräg hinten oben
+    // Faust im Dorfbewohner-Sprite als Anteil an Breite und Höhe - am Bild gemessen
+    private static readonly Vector2 VillagerFist = new(0.89f, 0.31f);
+    private readonly Dictionary<Tool, Texture2D> _toolSprites = new();
+    private readonly Dictionary<Tool, Vector2> _toolGrips = new();   // Griffpunkt im Werkzeugbild
+
     // Boden, Wald und Rohstoffe aus tools/bilder (Gruppen boden, baeume und
     // rohstoffe): große kachelbare Bilder für Gras, Sand und Wasser, freigestellte
     // Bäume mit Stamm, Stein- und Goldhaufen.
@@ -208,6 +230,8 @@ public class RTSGameplayScreen : GameScreen
     private Texture2D _grassTex;
     private Texture2D _sandTex;
     private Texture2D _waterGroundTex;    // Wasserbild; waterTex sind die gezeichneten Wasserkacheln
+    private Texture2D _soilTex;           // Acker (Boden/acker)
+    private Texture2D _wheatTex;          // Weizen (Boden/weizen)
     private Texture2D[] _treeSprites = Array.Empty<Texture2D>();
     private Texture2D[] _stoneSprites = Array.Empty<Texture2D>();
     private Texture2D[] _goldSprites = Array.Empty<Texture2D>();
@@ -315,9 +339,19 @@ public class RTSGameplayScreen : GameScreen
             }
         }
         _shadowTex = BuildShadowTexture(graphicsDevice);
+        foreach (var (tool, style) in ToolStyles)
+        {
+            if (LoadOptional(style.Asset) is { } tex)
+            {
+                _toolSprites[tool] = tex;
+                _toolGrips[tool] = ToolGrip(tex);
+            }
+        }
 
         _grassTex = LoadOptional("Boden/gras");
         _sandTex = LoadOptional("Boden/sand");
+        _soilTex = LoadOptional("Boden/acker");
+        _wheatTex = LoadOptional("Boden/weizen");
         _waterGroundTex = LoadOptional("Boden/wasser");
         _treeSprites = TreeAssets.Select(LoadOptional).Where(t => t != null).ToArray();
         _stoneSprites = StoneAssets.Select(LoadOptional).Where(t => t != null).ToArray();
@@ -1969,6 +2003,8 @@ public class RTSGameplayScreen : GameScreen
                                   || (tile.Type == TileType.Forest && _treeSprites.Length > 0);
                 if (tile.Type == TileType.Water && _waterGroundTex != null)
                     DrawWater(spriteBatch, x, y, rect);
+                else if (tile.Farm && _soilTex != null)
+                    DrawField(spriteBatch, tile, x, y, rect);
                 else if (tile.Type == TileType.Sand && _sandTex != null)
                     DrawGroundImage(spriteBatch, _sandTex, x, y, rect);
                 else if (grassUnder && _grassTex != null)
@@ -2006,6 +2042,8 @@ public class RTSGameplayScreen : GameScreen
                 // Eine Farm hat ihren eigenen Erdfleck; darunter nur ein neutraler
                 // dunkler Grund, damit die Halme absetzen.
                 bool isFish = tile.Food == FoodSource.Fish;
+                if (isFarm && _soilTex != null && _wheatTex != null)
+                    continue;
                 if (isFarm)
                     spriteBatch.Draw(px, rect, new Color(70, 55, 30));
                 else if (!isFish && _grassTex != null)
@@ -2096,6 +2134,84 @@ public class RTSGameplayScreen : GameScreen
         TileType.GoldMine => _goldSprites,
         _ => Array.Empty<Texture2D>(),
     };
+
+    /// <summary>
+    /// Eine Farm-Kachel: der Acker liegt als Grund, der Weizen darüber mit der
+    /// Deckkraft und dem Goldton aus WheatLook. Am Feldrand (Nachbar ohne Farm)
+    /// liegt eine schmale, dunkle Erdkante - so setzt sich das Getreide ab und
+    /// die Feldgrenze ist lesbar. Geerntete Kacheln zeigen den nackten Acker;
+    /// der Weizen keimt beim Nachwachsen wieder aus, bis er wieder voll steht.
+    /// </summary>
+    private void DrawField(SpriteBatch spriteBatch, Data.Tile tile, int x, int y, Rectangle rect)
+    {
+        DrawGroundImage(spriteBatch, _soilTex, x, y, rect);
+
+        // Feldkante an jeder Seite, an der keine weitere Farm-Kachel angrenzt
+        if (IsField(x, y - 1))
+            DrawFieldEdge(spriteBatch, rect, false, true);
+        if (IsField(x, y + 1))
+            DrawFieldEdge(spriteBatch, rect, false, false);
+        if (IsField(x - 1, y))
+            DrawFieldEdge(spriteBatch, rect, true, true);
+        if (IsField(x + 1, y))
+            DrawFieldEdge(spriteBatch, rect, true, false);
+
+        var (growth, tint) = WheatLook(tile);
+        if (growth <= 0f) return;
+        int ts = tileMap.TileSize * GROUND_TEXELS, size = _wheatTex.Width;
+        var source = new Rectangle((x * ts) % size, (y * ts) % size, ts, ts);
+        spriteBatch.Draw(_wheatTex, rect, source,
+                         new Color(tint.R / 255f, tint.G / 255f, tint.B / 255f, growth));
+    }
+
+    /// <summary>
+    /// Die Weizendeckkraft und der Weizenton einer Farm-Kachel. Das stehende
+    /// Getreide folgt dem Vorrat: mit jeder geernteten Einheit wird das Feld
+    /// kahl (Deckkraft sinkt, Ton bleibt gold). Nach der Ernte wächst es wieder
+    /// nach (Deckkraft von 0, Ton von grün nach gold) - sichtbar über FarmRegrow,
+    /// bis bei FARM_FOOD wieder goldener Vollstand steht.
+    /// </summary>
+    private (float Growth, Color Tint) WheatLook(Data.Tile tile)
+    {
+        var gold = new Color(255, 216, 120);
+        var keim = new Color(150, 190, 80);
+        if (tile.ResourceType == Resource.Food && tile.ResourceAmount > 0)
+        {
+            float stand = MathHelper.Clamp(tile.ResourceAmount / (float)TileMap.FARM_FOOD, 0.2f, 1f);
+            return (stand, gold);
+        }
+        float nach = 1f - MathHelper.Clamp(tile.FarmRegrow / TileMap.FARM_REGROW_SECONDS, 0f, 1f);
+        if (nach <= 0f) return (0f, Color.White);
+        return (nach, Color.Lerp(keim, gold, nach));
+    }
+
+    /// <summary>Ob an (x, y) eine nicht-Acker-Kachel oder die Kartenkante liegt.</summary>
+    private bool IsField(int x, int y)
+    {
+        var t = tileMap.GetTile(x, y);
+        return t == null || !t.Farm;
+    }
+
+    /// <summary>
+    /// Die dunkle Erdkante an einer Seite einer Ackerkachel: waagerecht =
+    /// senkrechte Kante, linksOben = obere bzw. linke Seite des Kachelfelds.
+    /// Eine 3-px-Linie in Boden-Schwarz, damit der Acker eine Kante bekommt.
+    /// </summary>
+    private void DrawFieldEdge(SpriteBatch spriteBatch, Rectangle rect, bool waagerecht, bool linksOben)
+    {
+        const int breite = 3;
+        var rand = waagerecht
+            ? new Rectangle(rect.Left, rect.Top, breite, rect.Height)
+            : new Rectangle(rect.Left, rect.Top, rect.Width, breite);
+        if (waagerecht && !linksOben)
+            rand = new Rectangle(rect.Right - breite, rect.Top, breite, rect.Height);
+        if (!waagerecht && !linksOben)
+            rand = new Rectangle(rect.Left, rect.Bottom - breite, rect.Width, breite);
+        if (px != null)
+            spriteBatch.Draw(px, rand, new Color(34, 24, 12));
+        else
+            spriteBatch.Draw(_soilTex, rand, new Color(34, 24, 12, 160));
+    }
 
     /// <summary>
     /// Ein Stein- oder Goldhaufen je Kachel, anderthalb bis gut eindreiviertel
@@ -2701,6 +2817,8 @@ public class RTSGameplayScreen : GameScreen
         bool working = !moving && (unit.Job?.Phase == GatherPhase.Gathering || unit.State == UnitState.Building);
         // Jede Einheit im eigenen Takt, sonst wippt das ganze Dorf im Gleichschritt
         float t = animationTime + (unit.GetHashCode() & 0xFF) / 40f;
+        var tool = ToolFor(unit);
+        bool hasTool = _toolSprites.ContainsKey(tool);
 
         float bob = 0f, tilt = 0f, stretch = 1f;
         if (moving)
@@ -2709,13 +2827,13 @@ public class RTSGameplayScreen : GameScreen
             bob = MathF.Abs(MathF.Sin(step)) * 1.5f * cameraZoom;
             tilt = MathF.Sin(step) * 0.05f;
         }
-        else if (working)
+        else if (working && !hasTool)
         {
-            // Ausholen und Zuschlagen: kräftig nach vorn, verhalten zurück
+            // Ohne Werkzeugbild holt die ganze Figur aus: kräftig nach vorn, verhalten zurück
             float swing = MathF.Sin(t * 7f);
             tilt = (swing > 0f ? swing : swing * 0.3f) * 0.2f;
         }
-        else
+        else if (!working)
         {
             stretch = 1f + MathF.Sin(t * 2.2f) * 0.02f;
         }
@@ -2726,6 +2844,16 @@ public class RTSGameplayScreen : GameScreen
             int shadowWidth = (int)(size * 0.7f), shadowHeight = Math.Max(2, (int)(size * 0.18f));
             spriteBatch.Draw(_shadowTex, new Rectangle((int)screenPos.X - shadowWidth / 2,
                 (int)screenPos.Y - shadowHeight / 2, shadowWidth, shadowHeight), Color.White);
+        }
+
+        // Das Werkzeug liegt hinter der Figur: die Faust umschließt den Stiel, Kopf
+        // und Hut verdecken ihn auf der Schulter. Beim Arbeiten holt es aus und
+        // schlägt zu, die Figur selbst steht dabei still.
+        if (hasTool)
+        {
+            float angle = working ? SwingAngle(ToolStyles[tool], t) : TOOL_REST;
+            DrawTool(spriteBatch, tool, angle, figure, screenPos - new Vector2(0, bob), size, stretch,
+                     tilt, motion.FacingLeft);
         }
 
         // Das Sprite blickt nach rechts; nach links gespiegelt kippt es auch gespiegelt
@@ -2752,6 +2880,87 @@ public class RTSGameplayScreen : GameScreen
             spriteBatch.Draw(px, new Rectangle(bx - 1, by - 1, bundle + 2, bundle + 2), new Color(40, 28, 16));
             spriteBatch.Draw(px, new Rectangle(bx, by, bundle, bundle), colour);
         }
+    }
+
+    /// <summary>
+    /// Das Werkzeug zur Arbeit: Hammer am Bau, Axt im Wald, Spitzhacke an Stein
+    /// und Gold, Hacke auf dem Feld, Angel am Fischgrund, Sichel an Beeren und
+    /// Schafen. Ohne Auftrag trägt der Dorfbewohner die Hacke.
+    /// </summary>
+    private Tool ToolFor(Unit unit)
+    {
+        if (unit.State == UnitState.Building)
+            return Tool.Hammer;
+        if (unit.Job is not { } job)
+            return Tool.Hoe;
+        return job.Resource switch
+        {
+            Resource.Wood => Tool.Axe,
+            Resource.Stone or Resource.Gold => Tool.Pickaxe,
+            _ => tileMap.GetTile(job.Source.X, job.Source.Y)?.Food switch
+            {
+                FoodSource.Farm => Tool.Hoe,
+                FoodSource.Fish => Tool.Rod,
+                _ => Tool.Sickle,
+            },
+        };
+    }
+
+    /// <summary>
+    /// Winkel des Werkzeugs beim Arbeiten: langsam ausholen (70 % des Takts),
+    /// schnell und beschleunigt zuschlagen (30 %) - so liest sich der Hieb.
+    /// </summary>
+    private static float SwingAngle(ToolStyle style, float t)
+    {
+        float phase = t * style.Rate % 1f;
+        return phase < 0.7f
+            ? MathHelper.SmoothStep(style.Strike, style.Raised, phase / 0.7f)
+            : MathHelper.Lerp(style.Raised, style.Strike, MathF.Pow((phase - 0.7f) / 0.3f, 2f));
+    }
+
+    /// <summary>
+    /// Zeichnet das Werkzeug, um die Faust gedreht. angle gilt für eine nach rechts
+    /// blickende Figur; die Faust folgt der Figur mit Wippen, Neigen und Spiegeln.
+    /// Gespiegelt liegt der Griff im Bild rechts - der Ursprung spiegelt mit.
+    /// </summary>
+    private void DrawTool(SpriteBatch spriteBatch, Tool tool, float angle, Texture2D figure, Vector2 feet,
+                          int size, float stretch, float tilt, bool facingLeft)
+    {
+        var tex = _toolSprites[tool];
+        var grip = _toolGrips[tool];
+        float scale = (float)size / figure.Height;
+        var fist = new Vector2((VillagerFist.X - 0.5f) * figure.Width * scale,
+                               (VillagerFist.Y - 1f) * figure.Height * scale * stretch);
+        if (facingLeft)
+            fist.X = -fist.X;
+        fist = Vector2.Transform(fist, Matrix.CreateRotationZ(facingLeft ? -tilt : tilt));
+
+        float toolScale = size * ToolStyles[tool].Length / tex.Width;
+        spriteBatch.Draw(tex, feet + fist, null, Color.White,
+                         facingLeft ? -(angle + tilt) : angle + tilt,
+                         facingLeft ? new Vector2(tex.Width - grip.X, grip.Y) : grip,
+                         toolScale, facingLeft ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 0f);
+    }
+
+    /// <summary>
+    /// Griffpunkt eines Werkzeugbilds: ein Zwölftel der Breite vom linken
+    /// Stielende, in der Mitte der dort deckenden Pixel - die Werkzeuge liegen
+    /// waagerecht, aber nicht jeder Stiel genau auf halber Höhe.
+    /// </summary>
+    private static Vector2 ToolGrip(Texture2D tex)
+    {
+        var pixels = new Color[tex.Width * tex.Height];
+        tex.GetData(pixels);
+        int column = tex.Width / 12, sum = 0, count = 0;
+        for (int y = 0; y < tex.Height; y++)
+        {
+            if (pixels[y * tex.Width + column].A > 128)
+            {
+                sum += y;
+                count++;
+            }
+        }
+        return new Vector2(column, count > 0 ? (float)sum / count : tex.Height / 2f);
     }
 
     /// <summary>Weicher, ovaler Schatten: in der Mitte dunkel, zum Rand durchsichtig.</summary>

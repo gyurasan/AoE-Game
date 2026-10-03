@@ -157,8 +157,111 @@
       {
         "name": "dorfbewohner",
         "seed": 4002,
-        "ziel": "Einheiten/dorfbewohner.png",
         "prompt": "A medieval peasant villager in a bright blue tunic with a brown belt, brown trousers, leather shoes and a straw hat, carrying a wooden hoe over the shoulder, friendly face, walking pose turned slightly to the right."
+      },
+      {
+        "name": "dorfbewohner_frei",
+        "seed": 4101,
+        "ziel": "Einheiten/dorfbewohner.png",
+        "vorlage": "dorfbewohner_4002_roh.png",
+        "maske": {
+          "ellipsen": [
+            [
+              225,
+              150,
+              95,
+              95
+            ],
+            [
+              165,
+              215,
+              38,
+              38
+            ],
+            [
+              700,
+              335,
+              54,
+              62
+            ]
+          ],
+          "linien": [
+            [
+              225,
+              85,
+              345,
+              152,
+              46
+            ],
+            [
+              555,
+              255,
+              665,
+              310,
+              56
+            ],
+            [
+              725,
+              338,
+              905,
+              447,
+              56
+            ]
+          ]
+        },
+        "prompt": "A medieval peasant villager in a bright blue tunic with a brown belt, brown trousers, leather shoes and a straw hat, friendly face, walking pose turned slightly to the right, his right hand raised to the shoulder and clenched into an empty fist, holding nothing.",
+        "negativ": "hoe, tool, stick, handle, staff, pole, rod, weapon, object in hand"
+      }
+    ]
+  },
+  "werkzeuge": {
+    "groesse": [
+      1024,
+      1024
+    ],
+    "schritte": 30,
+    "cfg": 3.0,
+    "freistellen": true,
+    "zuschneiden": true,
+    "zielbreite": 128,
+    "stil": "Game item sprite for a 2D strategy game, side view, detailed 16-bit pixel art, crisp pixels, warm medieval colors, soft light from the upper left. One single tool lying perfectly horizontal across the image, fully visible, isolated on a plain white background, no shadow, no text.",
+    "negativ": "text, letters, logo, watermark, frame, border, hand, person, multiple tools, diagonal, tilted, vertical, cut off, cropped, blurry, photo, 3d render, scenery",
+    "bilder": [
+      {
+        "name": "axt",
+        "seed": 8001,
+        "ziel": "Werkzeuge/axt.png",
+        "prompt": "A woodcutter's axe: a long straight wooden handle on the left half, the iron axe head at the right end, its sharp cutting edge pointing straight down."
+      },
+      {
+        "name": "spitzhacke",
+        "seed": 8103,
+        "ziel": "Werkzeuge/spitzhacke.png",
+        "prompt": "A miner's pickaxe: a long straight wooden handle on the left, the curved iron pick head at the right end crossing the handle vertically, one pointed tip up and one down."
+      },
+      {
+        "name": "hammer",
+        "seed": 8201,
+        "ziel": "Werkzeuge/hammer.png",
+        "prompt": "A builder's hammer: a straight wooden handle on the left, a heavy iron hammer head at the right end crossing the handle vertically."
+      },
+      {
+        "name": "sichel",
+        "seed": 8301,
+        "ziel": "Werkzeuge/sichel.png",
+        "prompt": "A sickle: a short straight wooden grip on the left, a curved shiny iron blade on the right that curves downward like a crescent."
+      },
+      {
+        "name": "hacke",
+        "seed": 8403,
+        "ziel": "Werkzeuge/hacke.png",
+        "prompt": "A farmer's garden hoe: a long straight wooden handle on the left, a flat iron hoe blade at the right end bent at a right angle, pointing straight down."
+      },
+      {
+        "name": "angel",
+        "seed": 8502,
+        "ziel": "Werkzeuge/angel.png",
+        "prompt": "A simple wooden fishing rod: a long thin wooden pole from left to right, a fishing line hanging straight down from the right tip."
       }
     ]
   },
@@ -190,6 +293,20 @@
         "ziel": "Boden/wasser.png",
         "prompt": "Calm deep lake surface in classic 16-bit RPG style: many small curved wavy ripple lines in light cyan scattered evenly over deep blue and teal water, the little waves curve and point in different directions, the same brightness everywhere.",
         "negativ": "sun, sun glare, bright spot, light gradient, light rays, horizontal stripes, straight lines, scanlines, foam, big waves"
+      },
+      {
+        "name": "acker",
+        "seed": 5311,
+        "ziel": "Boden/acker.png",
+        "prompt": "Dark brown freshly tilled farm soil seen from straight above: loose crumbly earth with small clods and a few pebbles, evenly spread over the whole image, no rows.",
+        "negativ": "grass, flowers, path, fence, sun glare, light gradient, rows, stripes, furrows, lines, grid"
+      },
+      {
+        "name": "weizen",
+        "seed": 5411,
+        "ziel": "Boden/weizen.png",
+        "prompt": "Ripe golden wheat seen from straight above: a dense mass of wheat ears and stalks pointing in slightly different directions, evenly spread over the whole image, no rows.",
+        "negativ": "grass, flowers, path, fence, sun glare, light gradient, rows, stripes, lines, grid"
       }
     ],
     "kachelbar": true

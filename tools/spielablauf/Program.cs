@@ -1,6 +1,6 @@
 // Spielablauf: stellt Abläufe aus RTSGameplayScreen ohne Grafik nach und prüft sie.
 //
-//   dotnet run --project tools/spielablauf -- bauen weiterbauen linksklick farm schafe bewegen minimap zoom leiste zeitalter turm menue animation fenster
+//   dotnet run --project tools/spielablauf -- bauen weiterbauen linksklick farm schafe bewegen minimap zoom leiste zeitalter turm menue animation fenster werkzeug feld
 //
 // Jede genannte Gruppe läuft auf drei frisch erzeugten Karten. Die Spielschleife
 // läuft Bild für Bild (60 je Sekunde) mit denselben Methoden, die Update() im Spiel
@@ -23,6 +23,8 @@ using Resource = AoE.Core.Entities.Resource;
 using UnitState = AoE.Core.Entities.UnitState;
 using Age = AoE.Core.Economy.Age;
 using AgeProgress = AoE.Core.Economy.AgeProgress;
+using CorePosition = AoE.Core.Entities.Position;
+using GatherJob = AoE.Core.Economy.GatherJob;
 
 const int KARTEN = 3;
 var gruppen = new HashSet<string>(args.Where(a => !a.StartsWith("-")).Select(a => a.ToLowerInvariant()));
@@ -74,6 +76,10 @@ for (int karte = 1; karte <= KARTEN; karte++)
         Pruefe($"Karte {karte}, Wachturm", () => Turm(karte, verstoesse));
     if (gruppen.Contains("fenster") && karte == 1)
         Pruefe("Fenster", () => Fenster(verstoesse));
+    if (gruppen.Contains("werkzeug") && karte == 1)
+        Pruefe("Werkzeug", () => Werkzeug(verstoesse));
+    if (gruppen.Contains("feld") && karte == 1)
+        Pruefe("Feld", () => Feld(verstoesse));
     if (gruppen.Contains("animation") && karte == 1)
         Pruefe("Animation", () => Animation(verstoesse));
     // Das Hauptmenü braucht keine Karte
@@ -1059,6 +1065,150 @@ static void Fenster(List<string> verstoesse)
 
     if (verstoesse.Count == vorher)
         Console.WriteLine($"  ok  {wer}: der Zoom folgt der Fensterhöhe, der Ausschnitt bleibt gleich groß");
+}
+
+// Werkzeuge (C6t): jede Arbeit hat ihr Werkzeug, und der Schlag holt langsam aus
+// und schlägt schnell zu. Entstanden am 2026-10-03: die Dorfbewohner kippten beim
+// Arbeiten als Ganzes vor und zurück, statt ihr Werkzeug zu schwingen.
+static void Werkzeug(List<string> verstoesse)
+{
+    const string wer = "Werkzeug";
+    const BindingFlags F = BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
+    var w = new Welt();
+    int vorher = verstoesse.Count;
+    var dorf = w.Dorfbewohner().First();
+    string Werkzeug() => w.Call("ToolFor", dorf).ToString()!;
+    Tile Kachel(FoodSource quelle)
+    {
+        for (int x = 0; x < w.Map.Width; x++)
+            for (int y = 0; y < w.Map.Height; y++)
+                if (w.Map.GetTile(x, y) is { } k && k.Food == quelle && k.ResourceAmount > 0)
+                    return k;
+        return null;
+    }
+    void Erwarte(string arbeit, string werkzeug)
+    {
+        if (Werkzeug() != werkzeug)
+            verstoesse.Add($"{wer}: {arbeit} mit {Werkzeug()}, erwartet {werkzeug}");
+    }
+
+    dorf.Job = null;
+    dorf.State = UnitState.Idle;
+    Erwarte("ohne Auftrag", "Hoe");
+    dorf.State = UnitState.Building;
+    Erwarte("am Bau", "Hammer");
+    dorf.State = UnitState.Gathering;
+    foreach (var (rohstoff, werkzeug) in new[] { (Resource.Wood, "Axe"), (Resource.Stone, "Pickaxe"), (Resource.Gold, "Pickaxe") })
+    {
+        dorf.Job = new GatherJob(0, rohstoff, new CorePosition(0, 0));
+        Erwarte($"an {rohstoff}", werkzeug);
+    }
+    w.Map.PlantCrop(1, 1, 3);
+    foreach (var (quelle, werkzeug) in new[] { (FoodSource.Farm, "Hoe"), (FoodSource.Berries, "Sickle"), (FoodSource.Fish, "Rod") })
+    {
+        if (Kachel(quelle) is not { } k)
+            continue;   // nicht jede Karte hat Beeren oder Fische
+        dorf.Job = new GatherJob(0, Resource.Food, new CorePosition(k.X, k.Y));
+        Erwarte($"an {quelle}", werkzeug);
+    }
+
+    // Der Schlag: bei Takt 0 unten, nach 70 % ausgeholt, dann schnell wieder unten
+    var typ = typeof(RTSGameplayScreen);
+    var stile = (System.Collections.IDictionary)(typ.GetField("ToolStyles", F)?.GetValue(null)
+        ?? throw new InvalidOperationException("Feld RTSGameplayScreen.ToolStyles nicht gefunden - umbenannt?"));
+    var werkzeugTyp = typ.GetNestedType("Tool", BindingFlags.NonPublic)
+        ?? throw new InvalidOperationException("Typ RTSGameplayScreen.Tool nicht gefunden - umbenannt?");
+    var schwung = typ.GetMethod("SwingAngle", F)
+        ?? throw new InvalidOperationException("Methode RTSGameplayScreen.SwingAngle nicht gefunden - umbenannt?");
+    foreach (var name in new[] { "Axe", "Pickaxe", "Hoe", "Hammer" })
+    {
+        var stil = stile[Enum.Parse(werkzeugTyp, name)]!;
+        float Wert(string feld) => (float)stil.GetType().GetProperty(feld)!.GetValue(stil)!;
+        float rate = Wert("Rate"), oben = Wert("Raised"), unten = Wert("Strike");
+        float Winkel(float phase) => (float)schwung.Invoke(null, new object[] { stil, phase / rate })!;
+
+        if (!(oben < -MathF.PI / 2 && unten > 0f))
+            verstoesse.Add($"{wer}: {name} holt nicht über die Senkrechte aus ({oben:0.00}) oder schlägt nicht nach vorn unten ({unten:0.00})");
+        if (Math.Abs(Winkel(0f) - unten) > 0.01f || Math.Abs(Winkel(0.7f) - oben) > 0.01f)
+            verstoesse.Add($"{wer}: {name} beginnt nicht unten ({Winkel(0f):0.00}) oder ist bei 70 % nicht ausgeholt ({Winkel(0.7f):0.00})");
+        float ausholen = 0f, zuschlagen = 0f;
+        for (int i = 0; i < 100; i++)
+        {
+            float a = i / 100f, b = (i + 1) / 100f;
+            float schritt = Math.Abs(Winkel(Math.Min(b, 0.9999f)) - Winkel(a));
+            if (b <= 0.7f) ausholen = Math.Max(ausholen, schritt);
+            else if (a >= 0.7f) zuschlagen = Math.Max(zuschlagen, schritt);
+        }
+        if (zuschlagen < 2f * ausholen)
+            verstoesse.Add($"{wer}: {name} schlägt nicht deutlich schneller zu ({zuschlagen:0.000}) als es ausholt ({ausholen:0.000})");
+    }
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: jede Arbeit hat ihr Werkzeug, langsam ausgeholt und schnell zugeschlagen");
+}
+
+// Feld (C7f): ein Acker bildet den Grund, der Weizen steht darüber - und das
+// Wachstum ist sichtbar. Die Zahlen rechnet WheatLook aus Vorrat und
+// FarmRegrow: voll = gold und dichte Deckung, gerade geerntet = nackter
+// Acker, dazwischen wächst der Weizen von grün nach gold heran.
+static void Feld(List<string> verstoesse)
+{
+    const string wer = "Feld";
+    int vorher = verstoesse.Count;
+    var w = new Welt();
+    w.Map.PlantCrop(1, 1, 3);
+    var kachel = w.Map.GetTile(2, 2)
+        ?? throw new InvalidOperationException("Pflanzen hat keine Kachel hinterlassen");
+    if (!kachel.Farm || kachel.ResourceAmount != 175)
+        verstoesse.Add($"{wer}: Vorausetzung fehlt - die Kachel ist kein volles Feld (Farm={kachel.Farm}, Vorrat={kachel.ResourceAmount})");
+
+    (float Deckung, Color Ton) Aussehen(Tile k)
+    {
+        object r = w.Call("WheatLook", k);
+        var typ = r.GetType();
+        return ((float)typ.GetField("Item1").GetValue(r), (Color)typ.GetField("Item2").GetValue(r));
+    }
+
+    // Just gepflanzt: dicht und gold
+    var (voll, tint) = Aussehen(kachel);
+    if (voll < 0.99f)
+        verstoesse.Add($"{wer}: voller Acker trägt keinen vollen Weizen (Deckung {voll:0.00})");
+    if (!(tint.R > tint.B && tint.G > tint.B))
+        verstoesse.Add($"{wer}: reifer Weizen ist nicht warmtönig (R{tint.R} G{tint.G} B{tint.B})");
+
+    // Geerntet und noch nichts neu gewachsen: nackter Acker
+    kachel.ResourceType = null;
+    kachel.ResourceAmount = 0;
+    kachel.FarmRegrow = TileMap.FARM_REGROW_SECONDS;
+    var (leer, _) = Aussehen(kachel);
+    if (leer > 0.01f)
+        verstoesse.Add($"{wer}: eine gerade geerntete Kachel zeigt keinen nackten Acker (Deckung {leer:0.00})");
+
+    // Halb nachgewachsen: halbe Deckung, Ton zwischen grün und gold
+    kachel.FarmRegrow = TileMap.FARM_REGROW_SECONDS / 2f;
+    var (halb, mittig) = Aussehen(kachel);
+    if (halb < 0.25f || halb > 0.75f)
+        verstoesse.Add($"{wer}: halbes Nachwachsen trägt keinen halben Weizen (Deckung {halb:0.00})");
+    if (mittig.G < mittig.R)
+        verstoesse.Add($"{wer}: halber Weizen ist rötlich statt grün-gold (R{mittig.R} G{mittig.G} B{mittig.B})");
+
+    // Ganz jung: klar grün (Grün über Rot)
+    kachel.FarmRegrow = TileMap.FARM_REGROW_SECONDS * 0.8f;
+    var (_, jungton) = Aussehen(kachel);
+    if (jungton.G <= jungton.R)
+        verstoesse.Add($"{wer}: ganz junger Weizen ist nicht grün (R{jungton.R} G{jungton.G} B{jungton.B})");
+
+    // Countdown abgelaufen: wieder voll, und RegrowCrop füllt auf
+    kachel.FarmRegrow = 0f;
+    (float wieder, _) = Aussehen(kachel);
+    if (wieder < 0.99f)
+        verstoesse.Add($"{wer}: abgelaufener Countdown ist nicht voller Weizen (Deckung {wieder:0.00})");
+    w.Map.RegrowCrop(TileMap.FARM_REGROW_SECONDS);
+    if (kachel.ResourceAmount != 175)
+        verstoesse.Add($"{wer}: RegrowCrop füllt die Kachel nicht wieder auf (Vorrat={kachel.ResourceAmount})");
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: nackter Acker, Weizen wächst sichtbar nach, bis der Vorrat wieder voll steht");
 }
 
 /// <summary>Eine Spielwelt: echte Karte, zwei Spieler, der Bildschirm ohne Grafik.</summary>

@@ -572,12 +572,17 @@ public class TileMap
         return tile != null && tile.Walkable && string.IsNullOrEmpty(tile.Building);
     }
 
+    /// <summary>Vorrat einer vollen Farm-Kachel (AoE II: jede Zeile ist eine 175-Nahrungsquelle).</summary>
+    public const int FARM_FOOD = 175;
+    /// <summary>Sekunden, bis eine geerntete Farm-Kachel wieder voll ist.</summary>
+    public const float FARM_REGROW_SECONDS = 100f;
+
     /// <summary>
     /// Plantet ein 3×3-Getreidefeld auf der linken oberen Ecke (x, y). Jede
-    /// Kachel ist eine unabhängige 175-Nahrungsquelle (AoE II: jede Zeile wächst
-    /// und wird erneut geerntet). Die Kacheln bleiben begehbar — wie ein Beeren-
-    /// busch —, nur <c>Buildable</c> wird gesperrt, damit nichts anderes darauf
-    /// baut.
+    /// Kachel ist eine unabhängige Nahrungskachel (FARM_FOOD) und wächst nach
+    /// Ernte über FARM_REGROW_SECONDS wieder nach. Die Kacheln bleiben begehbar
+    /// — wie ein Beerenbusch —, nur <c>Buildable</c> wird gesperrt, damit nichts
+    /// anderes darauf baut.
     /// </summary>
     public void PlantCrop(int x, int y, int size)
     {
@@ -590,7 +595,7 @@ public class TileMap
                 t.Farm = true;
                 t.FarmRegrow = 0f;
                 t.ResourceType = AoE.Core.Entities.Resource.Food;
-                t.ResourceAmount = 175;
+                t.ResourceAmount = FARM_FOOD;
                 t.Food = FoodSource.Farm;
                 t.Walkable = true;
                 t.Buildable = false;
@@ -606,7 +611,6 @@ public class TileMap
     /// </summary>
     public void RegrowCrop(float dt)
     {
-        const float regrowDuration = 100f;
         for (int x = 0; x < Width; x++)
         {
             for (int y = 0; y < Width && y < Height; y++)
@@ -616,12 +620,12 @@ public class TileMap
                 bool full = t.ResourceType == AoE.Core.Entities.Resource.Food && t.ResourceAmount > 0;
                 if (full) continue;
                 // Kachel geerntet, noch nicht gestartet: Countdown starten
-                if (t.FarmRegrow <= 0f) t.FarmRegrow = regrowDuration;
+                if (t.FarmRegrow <= 0f) t.FarmRegrow = FARM_REGROW_SECONDS;
                 t.FarmRegrow -= dt;
                 if (t.FarmRegrow <= 0f)
                 {
                     t.ResourceType = AoE.Core.Entities.Resource.Food;
-                    t.ResourceAmount = 175;
+                    t.ResourceAmount = FARM_FOOD;
                     t.FarmRegrow = 0f;   // voll, Regrow zurückgesetzt (wird beim nächsten Erntetakt neu gesetzt)
                 }
             }
