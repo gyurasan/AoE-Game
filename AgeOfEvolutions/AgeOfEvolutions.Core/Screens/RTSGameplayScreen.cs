@@ -152,7 +152,14 @@ public class RTSGameplayScreen : GameScreen
             public Action Action;
     }
     private List<CommandButton> _buttons = new();
+    private int _buttonsLayoutHeight;    // Fensterhöhe, für die _buttons angelegt sind
     private Rectangle _minimapRect;      // das gezeichnete Rhombus-Feld (Klickfläche)
+
+    // Breite der Minimap: 210 px im kleinsten Fenster, ab rund 2300 px
+    // Fensterbreite 380 px, also gut 80 % mehr. Breiter geht es nicht: die
+    // Raute ist halb so hoch wie breit, 190 px bei 200 px Leistenhöhe.
+    private const int MINIMAP_MIN_WIDTH = 210;
+    private const int MINIMAP_MAX_WIDTH = 380;
 
     // Bauen (C5): Dorfbewohner wählen, Taste drücken, Bauplatz anklicken.
     // Kosten, Bauzeit und Größe kommen aus AoE.Core (BuildingRules); der Name
@@ -2386,14 +2393,16 @@ public class RTSGameplayScreen : GameScreen
                 new Vector2((screenBounds.Width - centerSize.X) / 2f, 6), centerColor);
         }
 
-        // Untere Leiste: Minimap (links unten) + quadratische Befehlstasten +
-        // Einheiteninfo. Klicks hier gelten nie der Karte (IsOverHud).
+        // Untere Leiste wie in der Spezifikation (Kommandoleiste) und im
+        // Referenzbild docs/overview.jpg: Befehlstasten links, Einheiteninfo in
+        // der Mitte, Minimap rechts. Klicks hier gelten nie der Karte (IsOverHud).
         int barY = screenBounds.Height - HUD_BOTTOM_HEIGHT;
         var bottomBarRect = new Rectangle(0, barY, screenBounds.Width, HUD_BOTTOM_HEIGHT);
         spriteBatch.Draw(px, bottomBarRect, new Color(94, 76, 48));
         spriteBatch.Draw(px, new Rectangle(0, barY, screenBounds.Width, 2), new Color(140, 115, 75));
 
-        DrawMinimap(spriteBatch, new Rectangle(10, barY + 10, 210, 180));
+        var minimapRect = MinimapRect();
+        DrawMinimap(spriteBatch, minimapRect);
 
         // Quadratische Befehlstasten — dieselbe Wirkung wie Q / H / M / F / B / G / .
         LayoutButtons();
@@ -2401,7 +2410,7 @@ public class RTSGameplayScreen : GameScreen
         foreach (var b in _buttons)
             DrawCommandButton(spriteBatch, b, cursor);
 
-        // Einheiteninfo rechts in der Leiste
+        // Einheiteninfo in der Mitte, zwischen Tasten und Minimap
         string infoLine;
         if (selectedUnits.Count > 1)
             infoLine = $"{selectedUnits.Count} Einheiten ausgewählt";
@@ -2423,19 +2432,55 @@ public class RTSGameplayScreen : GameScreen
         {
             infoLine = "Links: bewegen/sammeln/bauen   Rechts: auswählen   Ziehen: Karte   Q/H/M/F/B/G: Befehle oben   .: untätig";
         }
-        var infoSize = ScreenManager.Font.MeasureString(infoLine);
-        spriteBatch.DrawString(ScreenManager.Font, infoLine,
-            new Vector2(screenBounds.Width - 12 - infoSize.X, barY + 18), Color.White);
+        // Im kleinsten Fenster ist der Platz schmaler als der Hilfetext - dann
+        // bricht er an den Dreifach-Leerzeichen um, statt unter die Minimap zu laufen
+        int infoLeft = _buttons[^1].Rect.Right + 24;
+        float infoWidth = minimapRect.Left - 24 - infoLeft;
+        var lines = WrapHudText(infoLine, infoWidth);
+        for (int i = 0; i < lines.Count; i++)
+            spriteBatch.DrawString(ScreenManager.Font, lines[i],
+                new Vector2(infoLeft, barY + 18 + i * ScreenManager.Font.LineSpacing), Color.White);
+    }
+
+    /// <summary>
+    /// Zerlegt einen Leistentext an seinen Dreifach-Leerzeichen in Zeilen von
+    /// höchstens <paramref name="maxWidth"/> Pixeln. Ein einzelner zu langer
+    /// Abschnitt bleibt eine eigene Zeile.
+    /// </summary>
+    private List<string> WrapHudText(string text, float maxWidth)
+    {
+        var lines = new List<string>();
+        string line = "";
+        foreach (var part in text.Split("   "))
+        {
+            string candidate = line.Length == 0 ? part : line + "   " + part;
+            if (line.Length > 0 && ScreenManager.Font.MeasureString(candidate).X > maxWidth)
+            {
+                lines.Add(line);
+                line = part;
+            }
+            else
+            {
+                line = candidate;
+            }
+        }
+        if (line.Length > 0)
+            lines.Add(line);
+        return lines;
     }
 
     // Befehlstasten in der unteren Leiste: ein mal anlegen (LayoutButtons),
     // dann nur noch den Zustand zeichnen. Der goldene Rahmen folgt placing.
     private void LayoutButtons()
     {
-        if (_buttons.Count > 0)
+        // Neu anlegen, wenn sich die Fensterhöhe geändert hat - sonst blieben
+        // die Tasten nach dem Vergrößern an der alten Stelle über der Karte
+        if (_buttons.Count > 0 && _buttonsLayoutHeight == screenBounds.Height)
             return;
+        _buttons.Clear();
+        _buttonsLayoutHeight = screenBounds.Height;
         int size = 46, gap = 6;
-        int x = 240, y = screenBounds.Height - HUD_BOTTOM_HEIGHT + 14;
+        int x = 10, y = screenBounds.Height - HUD_BOTTOM_HEIGHT + 14;
         AddButton(ref x, size, gap, y, "Q", "Dorf.", "25 Nahrung / 25 s", TrainVillager);
         foreach (var e in BuildMenu)
             AddButton(ref x, size, gap, y, e.Key.ToString().ToUpperInvariant(),
@@ -2501,42 +2546,53 @@ public class RTSGameplayScreen : GameScreen
     }
 
     // --- Minimap (C6) -----------------------------------------------------------
-    // 2:1-Isometrie wie in AoE II: der Punkt (x, y) der Map (Kacheln, 0..mapW)
-    // liegt im Zielrechteck (we W, ht = W/2 hoch) bei
-    //     px = (x - y) * k + W/2 ,  py = (x + y) * k
-    // mit k = W / (2*mapW). Die Karte (mapW×mapH) füllt genau die Diagonalen.
+    // 2:1-Isometrie wie in AoE II: der Kartenpunkt (x, y) in Kacheln liegt im
+    // Feld r (Breite W, Höhe W/2) bei
+    //     px = r.Left + (x - y + mapH) * k ,  py = r.Top + (x + y) * k / 2
+    // mit k = W / (mapW + mapH). Die Raute füllt r genau aus: oben die Ecke
+    // (0, 0), rechts (mapW, 0), unten (mapW, mapH), links (0, mapH).
 
-    /// <summary>Map-Punkt → Bildschirmkoordinaten innerhalb der Minimap.</summary>
-    private Vector2 MinimapPoint(float x, float y, Rectangle r)
+    /// <summary>
+    /// Feld der Minimap rechts in der unteren Leiste, senkrecht mittig. Die
+    /// Breite wächst mit dem Fenster von MINIMAP_MIN_WIDTH bis MINIMAP_MAX_WIDTH.
+    /// </summary>
+    private Rectangle MinimapRect()
     {
-        float mapW = tileMap.Width;
-        float k = r.Width / (2f * mapW);
-        return new Vector2(r.Left + (x - y) * k + r.Width / 2f,
-                           r.Top + (x + y) * k);
+        int w = Math.Clamp(screenBounds.Width / 6, MINIMAP_MIN_WIDTH, MINIMAP_MAX_WIDTH);
+        int h = w / 2;
+        int barY = screenBounds.Height - HUD_BOTTOM_HEIGHT;
+        return new Rectangle(screenBounds.Width - w - 12, barY + (HUD_BOTTOM_HEIGHT - h) / 2, w, h);
     }
 
+    /// <summary>Kartenpunkt (Kacheln) → Bildschirmkoordinaten innerhalb der Minimap.</summary>
+    private Vector2 MinimapPoint(float x, float y, Rectangle r)
+    {
+        float k = r.Width / (float)(tileMap.Width + tileMap.Height);
+        return new Vector2(r.Left + (x - y + tileMap.Height) * k,
+                           r.Top + (x + y) * k / 2f);
+    }
+
+    /// <summary>
+    /// Klick in die Minimap: die Kamera mittig über den angeklickten Kartenpunkt.
+    /// Umkehrung von MinimapPoint über a = x - y und b = x + y.
+    /// </summary>
     private void CenterCameraOnMinimapPoint(Point cursor)
     {
-        // Umkehrung von MinimapPoint:
-        //   x = ((px - W/2 - r.Left) + (py - r.Top)) / k * 1/(2k?)  →  x = a + b
-        //   y = b - a   mit a = (px - W/2 - r.Left)/k, b = (py - r.Top)/k /1
-        //   k = W/(2*mapW)
         var r = _minimapRect;
-        float mapW = tileMap.Width;
-        float k = r.Width / (2f * mapW);
-        float a = (cursor.X - r.Left - r.Width / 2f) / k;   // = x - y (Kacheln)
-        float b = (cursor.Y - r.Top) / k;                   // = x + y (Kacheln)
-        float wx = MathHelper.Clamp((a + b) / 2f, 0f, mapW - 1f);
-        float wy = MathHelper.Clamp((b - a) / 2f, 0f, tileMap.Height - 1f);
-        var world = tileMap.GridToWorld(new Vector2(wx, wy));
+        float k = r.Width / (float)(tileMap.Width + tileMap.Height);
+        float a = (cursor.X - r.Left) / k - tileMap.Height;
+        float b = (cursor.Y - r.Top) * 2f / k;
+        float gx = MathHelper.Clamp((a + b) / 2f, 0f, tileMap.Width);
+        float gy = MathHelper.Clamp((b - a) / 2f, 0f, tileMap.Height);
+        var world = new Vector2(gx, gy) * tileMap.TileSize;
         cameraPosition = new Vector2(screenBounds.Width / (2f * cameraZoom),
                                      screenBounds.Height / (2f * cameraZoom)) - world;
         ClampCamera();
     }
 
     /// <summary>
-    /// Zeichnet die Minimap: dunkler Grund, erkundetes Gelände als Punkte,
-    /// eigene Einheiten weiß, fremde rot, Kamera-Ausschnitt als Viereck.
+    /// Zeichnet die Minimap: dunkler Grund, erkundetes Gelände, eigene Einheiten
+    /// weiß, fremde rot (nur in Sicht), Kameraausschnitt als weiße Raute.
     /// </summary>
     private void DrawMinimap(SpriteBatch sb, Rectangle r)
     {
@@ -2545,64 +2601,76 @@ public class RTSGameplayScreen : GameScreen
         sb.Draw(px, r, new Color(12, 12, 12));
 
         int mapW = tileMap.Width, mapH = tileMap.Height;
-        // 2:2-Punkte genügen bei dieser Größe
+        // Eine Kachel ist auf der Minimap eine Raute von 2k × k Pixeln. Ein
+        // Quadrat von gut k Pixeln um ihre Mitte schließt lückenlos an die
+        // Nachbarn an - die Reihen liegen k/2 übereinander und k versetzt.
+        float k = r.Width / (float)(mapW + mapH);
+        int dot = (int)MathF.Ceiling(k) + 1;
         for (int y = 0; y < mapH; y++)
         {
             for (int x = 0; x < mapW; x++)
             {
-                Color? c = null;
-                if (tileMap.IsTileExplored(x, y, 0))
-                {
-                    var tile = tileMap.GetTile(x, y);
-                    c = (string.IsNullOrEmpty(tile.Building))
-                        ? IsoCol[(int)tile.Type]
-                        : IsoBuilding;
-                    if (tile.Food == FoodSource.Sheep && tile.ResourceAmount > 0)
-                        c = IsoSheep;
-                    else if (tile.Farm && tile.ResourceAmount > 0)
-                        c = IsoFarm;
-                    if (!tileMap.IsTileVisible(x, y, 0))
-                        c = new Color(c.Value.R * 96 / 255, c.Value.G * 96 / 255, c.Value.B * 96 / 255);
-                }
-                if (c == null)
+                if (!tileMap.IsTileExplored(x, y, 0))
                     continue;
+                var tile = tileMap.GetTile(x, y);
+                Color c = string.IsNullOrEmpty(tile.Building) ? IsoCol[(int)tile.Type] : IsoBuilding;
+                if (tile.Food == FoodSource.Sheep && tile.ResourceAmount > 0)
+                    c = IsoSheep;
+                else if (tile.Farm && tile.ResourceAmount > 0)
+                    c = IsoFarm;
+                if (!tileMap.IsTileVisible(x, y, 0))
+                    c = new Color(c.R * 96 / 255, c.G * 96 / 255, c.B * 96 / 255);
                 var p = MinimapPoint(x + 0.5f, y + 0.5f, r);
-                sb.Draw(px, new Rectangle((int)p.X, (int)p.Y, 2, 2), c.Value);
+                sb.Draw(px, new Rectangle((int)(p.X - dot / 2f), (int)(p.Y - dot / 2f), dot, dot), c);
             }
         }
 
-        // Einheiten
-        float ts = (float)tileMap.TileSize;
+        // Einheiten - Position ist die Mitte der Figur in Weltpixeln. Fremde
+        // nur in Sicht, sonst verriete die Minimap, was der Nebel verbirgt.
+        float ts = tileMap.TileSize;
         foreach (var u in units)
         {
-            var p = MinimapPoint(u.Position.X / ts + 0.5f, u.Position.Y / ts + 0.5f, r);
-            sb.Draw(px, new Rectangle((int)p.X, (int)p.Y, 3, 3),
+            float ux = u.Position.X / ts, uy = u.Position.Y / ts;
+            if (u.OwnerId != 0 && !tileMap.IsTileVisible((int)ux, (int)uy, 0))
+                continue;
+            var p = MinimapPoint(ux, uy, r);
+            sb.Draw(px, new Rectangle((int)p.X - 1, (int)p.Y - 1, 3, 3),
                     u.OwnerId == 0 ? Color.White : new Color(235, 70, 60));
         }
 
-        // Kameraausschnitt
-        float viewW = (float)screenBounds.Width / cameraZoom;
-        float viewH = (float)screenBounds.Height / cameraZoom;
-        float gx0 = MathHelper.Clamp(-cameraPosition.X / ts, 0f, mapW - 1f);
-        float gy0 = MathHelper.Clamp(-cameraPosition.Y / ts, 0f, mapH - 1f);
-        float gx1 = MathHelper.Clamp((-cameraPosition.X + viewW) / ts, 0f, mapW - 1f);
-        float gy1 = MathHelper.Clamp((-cameraPosition.Y + viewH) / ts, 0f, mapH - 1f);
-        sb.Draw(px, MinimapLineRect(MinimapPoint(gx0, gy0, r), MinimapPoint(gx1, gy0, r)), Color.White);
-        sb.Draw(px, MinimapLineRect(MinimapPoint(gx1, gy0, r), MinimapPoint(gx1, gy1, r)), Color.White);
-        sb.Draw(px, MinimapLineRect(MinimapPoint(gx1, gy1, r), MinimapPoint(gx0, gy1, r)), Color.White);
-        sb.Draw(px, MinimapLineRect(MinimapPoint(gx0, gy1, r), MinimapPoint(gx0, gy0, r)), Color.White);
+        // Kameraausschnitt: der Kartenbereich zwischen den beiden Leisten
+        float gx0 = MathHelper.Clamp(-cameraPosition.X / ts, 0f, mapW);
+        float gx1 = MathHelper.Clamp((-cameraPosition.X + screenBounds.Width / cameraZoom) / ts, 0f, mapW);
+        float gy0 = MathHelper.Clamp((-cameraPosition.Y + HUD_TOP_HEIGHT / cameraZoom) / ts, 0f, mapH);
+        float gy1 = MathHelper.Clamp((-cameraPosition.Y + (screenBounds.Height - HUD_BOTTOM_HEIGHT) / cameraZoom) / ts, 0f, mapH);
+        var top = MinimapPoint(gx0, gy0, r);
+        var right = MinimapPoint(gx1, gy0, r);
+        var bottom = MinimapPoint(gx1, gy1, r);
+        var left = MinimapPoint(gx0, gy1, r);
+        DrawMinimapLine(sb, top, right, Color.White);
+        DrawMinimapLine(sb, right, bottom, Color.White);
+        DrawMinimapLine(sb, bottom, left, Color.White);
+        DrawMinimapLine(sb, left, top, Color.White);
 
         _minimapRect = r;
     }
 
-    /// <summary>Bindet eine schräge Linie zwischen zwei Punkten ein (2px breit).</summary>
-    private static Rectangle MinimapLineRect(Vector2 a, Vector2 b)
-        => new Rectangle((int)System.Math.Min(a.X, b.X), (int)System.Math.Min(a.Y, b.Y),
-                         (int)System.Math.Max(1, System.Math.Abs(b.X - a.X)),
-                         (int)System.Math.Max(1, System.Math.Abs(b.Y - a.Y)));
+    /// <summary>
+    /// Linie von a nach b, 1 px breit: das 1×1-Pixel auf die Länge gestreckt und
+    /// gedreht. Ein achsenparalleles Rechteck zwischen den Endpunkten wäre bei
+    /// schrägen Kanten eine gefüllte Fläche - so verdeckte die erste Fassung
+    /// die ganze Minimap.
+    /// </summary>
+    private void DrawMinimapLine(SpriteBatch sb, Vector2 a, Vector2 b, Color color)
+    {
+        var d = b - a;
+        float length = d.Length();
+        if (length < 0.5f)
+            return;
+        sb.Draw(px, a, null, color, MathF.Atan2(d.Y, d.X), Vector2.Zero,
+                new Vector2(length, 1f), SpriteEffects.None, 0f);
+    }
 
-    // Befehlstasten anlegen: einmal pro Fenstergröße, danach nur zeichnen.
-    // (LayoutButtons legt die Reihenfolge fest, die Struktur wird hier ergänzt.)
     // --- Ende Minimap ------------------------------------------------------------
     
     

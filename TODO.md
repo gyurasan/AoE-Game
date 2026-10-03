@@ -542,7 +542,7 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
 - [ ] Ressourcenleiste oben: `[Holz] [Nahrung] [Gold] [Stein] [Bev. 37/45] « Feudalzeit »`
 - [x] Bevölkerung rot bei erreichtem Limit *(Agent C2b)*
 - [ ] Kommandoleiste unten: Aktionssymbole – Einheiteninfo – Minimap
-- [ ] Minimap: kleine Karte links unten im Untermenü, isometrisch (Rhombus) wie im
+- [ ] Minimap: kleine Karte rechts unten in der Kommandoleiste, isometrisch (Rhombus) wie im
       AoE-II-HUD — Referenzbild `docs/overview.jpg`: Grün Land, Braun Wald, Blau
       Wasser, weiße Punkte eigene Einheiten, dunkler Rahmen. Geländefarben, eigene
       grün / Feinde rot, Kameraausschnitt als Rechteck

@@ -1,6 +1,6 @@
 // Spielablauf: stellt Abläufe aus RTSGameplayScreen ohne Grafik nach und prüft sie.
 //
-//   dotnet run --project tools/spielablauf -- bauen weiterbauen linksklick farm schafe
+//   dotnet run --project tools/spielablauf -- bauen weiterbauen linksklick farm schafe bewegen minimap
 //
 // Jede genannte Gruppe läuft auf drei frisch erzeugten Karten. Die Spielschleife
 // läuft Bild für Bild (60 je Sekunde) mit denselben Methoden, die Update() im Spiel
@@ -57,6 +57,9 @@ for (int karte = 1; karte <= KARTEN; karte++)
         Pruefe($"Karte {karte}, nicht durch Gebäude", () => NichtDurchGebaeude(karte, verstoesse));
         Pruefe($"Karte {karte}, nicht durch Wasser", () => NichtDurchWasser(karte, verstoesse));
     }
+    // Lage und Umrechnung der Minimap hängen nicht von der Karte ab
+    if (gruppen.Contains("minimap") && karte == 1)
+        Pruefe("Minimap", () => Minimap(verstoesse));
 }
 
 if (verstoesse.Count > 0)
@@ -591,6 +594,58 @@ static void NichtDurchWasser(int karte, List<string> verstoesse)
     }
 }
 
+// Minimap rechts in der unteren Leiste, als 2:1-Raute, mit dem Fenster wachsend
+// (210 px im kleinsten, gut 80 % mehr in großen Fenstern); ein Klick in die
+// Minimap stellt die Kamera mittig über den angeklickten Punkt.
+// Entstanden am 2026-10-03: die Minimap saß links, ragte unten aus dem Fenster
+// und war von weißen Rechtecken verdeckt.
+static void Minimap(List<string> verstoesse)
+{
+    const int leiste = 200;       // HUD_BOTTOM_HEIGHT
+    const float zoom = 4f;        // Ausschnitt kleiner als die Karte, sonst zentriert ClampCamera
+    var w = new Welt();
+    int vorher = verstoesse.Count;
+    foreach (var (bw, bh) in new[] { (1280, 768), (2406, 1353), (4812, 2707) })
+    {
+        string wer = $"Minimap {bw}x{bh}";
+        w.Set("screenBounds", new Rectangle(0, 0, bw, bh));
+        var r = (Rectangle)w.Call("MinimapRect");
+        if (r.Left < bw / 2 || r.Right > bw || bw - r.Right > 40)
+            verstoesse.Add($"{wer}: Feld {r} sitzt nicht rechts in der Leiste");
+        if (r.Top < bh - leiste || r.Bottom > bh)
+            verstoesse.Add($"{wer}: Feld {r} ragt aus der unteren Leiste (ab y = {bh - leiste})");
+        int mindestens = bw >= 2300 ? 370 : 210;
+        if (r.Width < mindestens)
+            verstoesse.Add($"{wer}: Minimap {r.Width} px breit, erwartet mindestens {mindestens}");
+
+        // Die vier Kartenecken liegen im Feld, die Raute ist doppelt so breit wie hoch
+        var ecken = new[] { (0f, 0f), (64f, 0f), (64f, 64f), (0f, 64f) }
+            .Select(e => (Vector2)w.Call("MinimapPoint", e.Item1, e.Item2, r)).ToList();
+        if (ecken.Any(p => p.X < r.Left - 1 || p.X > r.Right + 1 || p.Y < r.Top - 1 || p.Y > r.Bottom + 1))
+            verstoesse.Add($"{wer}: Kartenecken {string.Join(" ", ecken)} nicht alle im Feld {r}");
+        float breite = ecken.Max(p => p.X) - ecken.Min(p => p.X);
+        float hoehe = ecken.Max(p => p.Y) - ecken.Min(p => p.Y);
+        if (Math.Abs(hoehe * 2 - breite) > 2)
+            verstoesse.Add($"{wer}: Raute {breite:0}x{hoehe:0} statt 2:1");
+
+        // Klick in die Minimap: die angeklickte Kachel steht danach in der Bildmitte
+        w.Set("cameraZoom", zoom);
+        w.Set("_minimapRect", r);
+        foreach (var ziel in new[] { new Vector2(32, 32), new Vector2(24, 40), new Vector2(40, 24) })
+        {
+            var klick = (Vector2)w.Call("MinimapPoint", ziel.X, ziel.Y, r);
+            w.Call("CenterCameraOnMinimapPoint", new Point((int)MathF.Round(klick.X), (int)MathF.Round(klick.Y)));
+            var kamera = (Vector2)w.Get("cameraPosition");
+            var mitte = (new Vector2(bw, bh) / (2f * zoom) - kamera) / w.Map.TileSize;
+            if (Vector2.Distance(mitte, ziel) > 1f)
+                verstoesse.Add($"{wer}: Klick auf Kachel {ziel} zentriert Kachel {mitte}");
+        }
+        w.Set("cameraZoom", 1f);
+    }
+    if (verstoesse.Count == vorher)
+        Console.WriteLine("  ok  Minimap: rechts in der Leiste, 2:1, wächst mit dem Fenster, Klick zentriert");
+}
+
 /// <summary>Eine Spielwelt: echte Karte, zwei Spieler, der Bildschirm ohne Grafik.</summary>
 class Welt
 {
@@ -620,7 +675,9 @@ class Welt
     static FieldInfo Feld(string name) => T.GetField(name, F)
         ?? throw new InvalidOperationException($"Feld RTSGameplayScreen.{name} nicht gefunden - umbenannt?");
 
-    void Set(string name, object wert) => Feld(name).SetValue(_screen, wert);
+    public void Set(string name, object wert) => Feld(name).SetValue(_screen, wert);
+
+    public object Get(string name) => Feld(name).GetValue(_screen);
 
     public object Call(string name, params object[] args)
     {
