@@ -16,7 +16,8 @@ Zuletzt fertiggestellt:
   unter `D:\Apps\ComfyUI`; `tools/bilder` erzeugt daraus die Spielgrafik (Prompts und Seeds
   in `bilder.json`, wiederholbar) und bereitet sie für `Content/` auf. Neu: Menübild,
   Symbole der Befehlstasten, Gebäude als Sprites in Spielerfarbe (C6i, C6g), Dorfbewohner
-  als Sprite mit Bewegung aus dem Code (C6v), kachelbares Gras und fünf Baumarten (C7g).
+  als Sprite mit Bewegung aus dem Code (C6v), kachelbares Gras und fünf Baumarten (C7g),
+  Sand, treibendes Wasser sowie Stein- und Goldhaufen (C7r).
   Das Hauptmenü ist mit der Maus bedienbar und wächst mit dem Fenster (E12), der Zoom
   folgt der Fensterhöhe (C10s). Bilder des Spiels in `docs/bilder/` und im README
 - **2026-10-03** — die DX-Fassung startet wieder (E11, Grafikprofil HiDef); die Minimap
@@ -120,10 +121,9 @@ Nächste sinnvolle Schritte, in dieser Reihenfolge:
    Holzfällerlager und die Baustellen-Grafik (Screenshots vom 2026-10-01), dazu per
    Bildschirmfoto Menü, Leiste mit Symbolen, Minimap, Gebäude, Dorfbewohner, Gras und
    Wald (2026-10-03).
-2. **Restliche Grafik im neuen Stil** — Fels, Gold, Sand, Wasser, Schafe, Beerenbüsche,
-   Baustelle und Farm zeichnet noch der Code; neben den Sprites wirken sie flach. Echte
-   Laufbilder für die Dorfbewohner bräuchten Qwen-Image-Edit (dieselbe Figur in mehreren
-   Posen).
+2. **Restliche Grafik im neuen Stil** — Schafe, Beerenbüsche, Fische, Baustelle und Farm
+   zeichnet noch der Code; neben den Sprites wirken sie flach. Echte Laufbilder für die
+   Dorfbewohner bräuchten Qwen-Image-Edit (dieselbe Figur in mehreren Posen).
 3. **Bedienoberfläche mit der Auflösung skalieren** — Leisten, Schrift, Tasten und Minimap
    haben feste Pixelmaße und wirken in der DX-Fassung (2707 px hoch) halb so groß; dazu
    ein Infokästchen am Mauszeiger statt des Hinweises in der Leistenmitte.
@@ -640,6 +640,10 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
       Welteinheit, wiederholt alle acht Kacheln; Schaf und Beerenbusch auf durchsichtigem
       Grund darüber; Wald mit fünf Baumarten als Sprites mit Stamm statt runder
       Kronen *(Agent C7g)*
+- [x] Sand und Wasser aus kachelbaren Bodenbildern (Qwen-Image), das Wasser in zwei
+      gegeneinander treibenden Lagen; Stein und Gold als freigestellte Haufen auf Gras,
+      zwei Varianten je Rohstoff; Gras statt dunkler Kacheln unter den Bäumen; der Boden
+      in einem eigenen Durchgang mit wiederholender Abtastung (`DrawGround`) *(Agent C7r)*
 - [x] Wald als Blätterdach: dunkler Boden als Kachel, Baumkronen als eigene Figuren
       über Kachelgrenzen hinweg *(Agent G1, G3)*
 - [x] Wasser: zwei überlagerte Wellen in drei Varianten, festes Rauschen ohne Flimmern,

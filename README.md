@@ -8,9 +8,9 @@ Ein Age-of-Empires-I-artiges Echtzeitstrategiespiel, implementiert in C# mit Mon
 
 *Spielbeginn: Stadtzentrum und Dorfbewohner, rundherum noch Nebel.*
 
-![Kartenübersicht ohne Nebel](docs/bilder/karte.jpg)
+![Kartenausschnitt ohne Nebel](docs/bilder/karte.jpg)
 
-*Eine ganze Karte, für die Aufnahme ohne Nebel: Wälder, Seen, Steinbrüche, Goldminen.*
+*Ein Kartenausschnitt, für die Aufnahme ohne Nebel: Wald, ein See mit Strand, Steinbrüche und Goldadern.*
 
 ## Spielstand
 
@@ -80,7 +80,7 @@ dotnet test tests/AoE.Tests/AoE.Tests.csproj
 
 ## Grafik
 
-Menübild, Tastensymbole, Gebäude, Dorfbewohner, Gras und Bäume sind mit Qwen-Image erzeugt,
+Menübild, Tastensymbole, Gebäude, Dorfbewohner, Boden, Bäume, Stein und Gold sind mit Qwen-Image erzeugt,
 lokal über ComfyUI. Prompts, Seeds und die Werkzeuge dafür liegen in `tools/bilder`, jedes
 Bild lässt sich damit genau so wieder erzeugen; Einzelheiten in der
 [Projektstruktur](docs/PROJEKT_STRUKTUR.md#grafik).

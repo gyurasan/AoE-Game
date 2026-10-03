@@ -32,7 +32,9 @@ elif len(re.findall(r"IsLand\s*\(", ufer)) < 4:
     fehler.append("DrawShore prueft nicht alle vier Kanten auf Land")
 if methode(text, "IsLand") is None:
     fehler.append("Methode IsLand fehlt")
-if not re.search(r"DrawShore\s*\(", methode(text, "DrawTileMap") or ""):
-    fehler.append("DrawTileMap zeichnet keine Uferlinie")
+# Den Boden samt Ufer zeichnet seit C7r DrawGround, vorher DrawTileMap
+boden = (methode(text, "DrawTileMap") or "") + (methode(text, "DrawGround") or "")
+if not re.search(r"DrawShore\s*\(", boden):
+    fehler.append("weder DrawTileMap noch DrawGround zeichnet die Uferlinie")
 
 melde(fehler, "G2 erfuellt: ruhiges Wasser mit Uferlinie")

@@ -138,7 +138,9 @@ def erzeuge(eintrag: dict, gruppe: dict, seed: int, ziel: Path) -> Path:
     stil = gruppe.get("stil", "")
     prompt = f"{eintrag['prompt']} {stil}".strip()
     breite, hoehe = eintrag.get("groesse", gruppe["groesse"])
-    graph = workflow(prompt, gruppe.get("negativ", ""), breite, hoehe, seed,
+    # Ein Eintrag kann eigene Negativbegriffe mitbringen, zusätzlich zu denen der Gruppe
+    negativ = ", ".join(n for n in (gruppe.get("negativ", ""), eintrag.get("negativ", "")) if n)
+    graph = workflow(prompt, negativ, breite, hoehe, seed,
                      gruppe.get("schritte", 30), gruppe.get("cfg", 3.0), f"aoe_{eintrag['name']}")
     dauer = ausfuehren(graph, ziel)
     print(f"  {ziel.relative_to(HIER)}  ({dauer:.0f} s, Seed {seed})")

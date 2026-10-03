@@ -197,14 +197,21 @@ public class RTSGameplayScreen : GameScreen
     private readonly Dictionary<int, Texture2D> _villagerSprites = new();
     private Texture2D _shadowTex;          // weicher Schatten unter den Füßen
 
-    // Boden und Wald aus tools/bilder (Gruppen boden und baeume): ein großes
-    // Grasbild und freigestellte Bäume mit Stamm.
-    // Fehlen sie, zeichnet der Code Gras und Baumkronen wie bisher selbst.
+    // Boden, Wald und Rohstoffe aus tools/bilder (Gruppen boden, baeume und
+    // rohstoffe): große kachelbare Bilder für Gras, Sand und Wasser, freigestellte
+    // Bäume mit Stamm, Stein- und Goldhaufen.
+    // Fehlt ein Bild, zeichnet der Code diesen Teil wie bisher selbst.
     private static readonly string[] TreeAssets =
         { "Baeume/laubbaum", "Baeume/laubbaum2", "Baeume/nadelbaum", "Baeume/nadelbaum2", "Baeume/buschbaum" };
+    private static readonly string[] StoneAssets = { "Rohstoffe/stein", "Rohstoffe/stein2" };
+    private static readonly string[] GoldAssets = { "Rohstoffe/gold", "Rohstoffe/gold2" };
     private Texture2D _grassTex;
+    private Texture2D _sandTex;
+    private Texture2D _waterGroundTex;    // Wasserbild; waterTex sind die gezeichneten Wasserkacheln
     private Texture2D[] _treeSprites = Array.Empty<Texture2D>();
-    private const int GRASS_TEXELS = 4;   // Bildpixel des Grasbilds je Welteinheit
+    private Texture2D[] _stoneSprites = Array.Empty<Texture2D>();
+    private Texture2D[] _goldSprites = Array.Empty<Texture2D>();
+    private const int GROUND_TEXELS = 4;   // Bildpixel der Bodenbilder je Welteinheit
 
     // Bewegung je Einheit, aus der Lage zwischen zwei Updates abgeleitet - die
     // Einheit selbst speichert weder Blickrichtung noch Tempo
@@ -309,25 +316,12 @@ public class RTSGameplayScreen : GameScreen
         }
         _shadowTex = BuildShadowTexture(graphicsDevice);
 
-        try
-        {
-            _grassTex = ScreenManager.Game.Content.Load<Texture2D>("Boden/gras");
-        }
-        catch (Microsoft.Xna.Framework.Content.ContentLoadException)
-        {
-        }
-        var trees = new List<Texture2D>();
-        foreach (var asset in TreeAssets)
-        {
-            try
-            {
-                trees.Add(ScreenManager.Game.Content.Load<Texture2D>(asset));
-            }
-            catch (Microsoft.Xna.Framework.Content.ContentLoadException)
-            {
-            }
-        }
-        _treeSprites = trees.ToArray();
+        _grassTex = LoadOptional("Boden/gras");
+        _sandTex = LoadOptional("Boden/sand");
+        _waterGroundTex = LoadOptional("Boden/wasser");
+        _treeSprites = TreeAssets.Select(LoadOptional).Where(t => t != null).ToArray();
+        _stoneSprites = StoneAssets.Select(LoadOptional).Where(t => t != null).ToArray();
+        _goldSprites = GoldAssets.Select(LoadOptional).Where(t => t != null).ToArray();
 
         // Gebäude-Sprites je Spielerfarbe; fehlt eines, zeichnet DrawBuilding
         // das Gebäude wie bisher selbst
@@ -489,6 +483,19 @@ public class RTSGameplayScreen : GameScreen
         }
     }
     
+    /// <summary>Lädt ein Bild aus dem Content-Verzeichnis, null wenn es fehlt.</summary>
+    private Texture2D LoadOptional(string asset)
+    {
+        try
+        {
+            return ScreenManager.Game.Content.Load<Texture2D>(asset);
+        }
+        catch (Microsoft.Xna.Framework.Content.ContentLoadException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>
     /// Erzeugt prozedurale Pixel-Art-Texturen für alle Kacheltypen + Wasserframes.
     /// Ruft sich in LoadContent, nachdem graphicsDevice verfügbar ist.
@@ -1895,6 +1902,12 @@ public class RTSGameplayScreen : GameScreen
         // Deliberately drawn without ScreenManager.GlobalTransformation: this screen
         // renders in raw backbuffer space so that mouse coordinates and drawn pixels
         // line up for unit selection.
+        // Der Boden kommt zuerst, in einem eigenen Durchgang mit wiederholender
+        // Abtastung - siehe DrawGround
+        spriteBatch.Begin(samplerState: SamplerState.LinearWrap);
+        DrawGround(spriteBatch);
+        spriteBatch.End();
+
         spriteBatch.Begin();
 
         // Draw tilemap
@@ -1931,30 +1944,47 @@ public class RTSGameplayScreen : GameScreen
             ScreenManager.FadeBackBufferToBlack(1f - TransitionAlpha);
     }
     
-    private void DrawTileMap(SpriteBatch spriteBatch)
+    /// <summary>
+    /// Bodenkacheln: Gras, Sand und Wasser aus den großen Bodenbildern, sonst die
+    /// gezeichneten Kacheltexturen, am Wasser die Uferlinie. Unter Bäumen, Stein
+    /// und Gold liegt Gras, wenn sie als Sprites geladen sind - DrawTrees und
+    /// DrawPile stellen sie in DrawTileMap darauf; der dunkle Waldboden zeigte
+    /// neben einzelnen Bäumen sein Kachelquadrat. Draw ruft das in einem eigenen
+    /// SpriteBatch mit SamplerState.LinearWrap auf: die Bodenbilder sind
+    /// kachelbar, und das treibende Wasser greift über den Bildrand hinaus.
+    /// </summary>
+    private void DrawGround(SpriteBatch spriteBatch)
     {
-        // Kacheln
         for (int x = 0; x < tileMap.Width; x++)
         {
             for (int y = 0; y < tileMap.Height; y++)
             {
                 var tile = tileMap.GetTile(x, y);
                 if (tile == null) continue;
-                
+
                 var rect = TileScreenRect(x, y);
-                if (rect.Intersects(screenBounds))
-                {
-                    var tex = GetTileTexture(tile);
-                    if (tile.Type == TileType.Grassland && _grassTex != null)
-                        DrawGrass(spriteBatch, x, y, rect);
-                    else if (tex != null)
-                        spriteBatch.Draw(tex, rect, Color.White);
-                    if (tile.Type == TileType.Water)
-                        DrawShore(spriteBatch, x, y, rect);
-                }
+                if (!rect.Intersects(screenBounds)) continue;
+
+                bool grassUnder = tile.Type == TileType.Grassland || PileSprites(tile.Type).Length > 0
+                                  || (tile.Type == TileType.Forest && _treeSprites.Length > 0);
+                if (tile.Type == TileType.Water && _waterGroundTex != null)
+                    DrawWater(spriteBatch, x, y, rect);
+                else if (tile.Type == TileType.Sand && _sandTex != null)
+                    DrawGroundImage(spriteBatch, _sandTex, x, y, rect);
+                else if (grassUnder && _grassTex != null)
+                    DrawGroundImage(spriteBatch, _grassTex, x, y, rect);
+                else if (GetTileTexture(tile) is { } tex)
+                    spriteBatch.Draw(tex, rect, Color.White);
+                if (tile.Type == TileType.Water)
+                    DrawShore(spriteBatch, x, y, rect);
             }
         }
-        
+    }
+
+    private void DrawTileMap(SpriteBatch spriteBatch)
+    {
+        // Den Boden hat DrawGround schon gezeichnet, hier kommt alles darauf.
+
         // Nahrungskacheln (Schafe, Beeren, Fische) und Getreidefelder als Objekte.
         // Farm-Kacheln bleiben sichtbar, auch wenn ihr Vorschot geerntet ist: sie
         // wachsen nach und werden mit zunehmendem Fortschritt heller gezeichnet.
@@ -1979,7 +2009,7 @@ public class RTSGameplayScreen : GameScreen
                 if (isFarm)
                     spriteBatch.Draw(px, rect, new Color(70, 55, 30));
                 else if (!isFish && _grassTex != null)
-                    DrawGrass(spriteBatch, x, y, rect);
+                    DrawGroundImage(spriteBatch, _grassTex, x, y, rect);
                 else if (!isFish && tileTex.TryGetValue(TileType.Grassland, out var grass))
                     spriteBatch.Draw(grass, rect, Color.White);
 
@@ -2004,15 +2034,18 @@ public class RTSGameplayScreen : GameScreen
             }
         }
         
-        // Baumkronen als eigene Figuren, zeilenweise von oben: tiefere Kronen
-        // überdecken höhere, auch über Kachelgrenzen hinweg
+        // Baumkronen, Stein- und Goldhaufen als eigene Figuren, zeilenweise von
+        // oben: tiefere überdecken höhere, auch über Kachelgrenzen hinweg
         for (int y = 0; y < tileMap.Height; y++)
         {
             for (int x = 0; x < tileMap.Width; x++)
             {
                 var tile = tileMap.GetTile(x, y);
-                if (tile != null && tile.Type == TileType.Forest)
+                if (tile == null) continue;
+                if (tile.Type == TileType.Forest)
                     DrawCrowns(spriteBatch, x, y);
+                else if (PileSprites(tile.Type).Length > 0)
+                    DrawPile(spriteBatch, x, y, PileSprites(tile.Type));
             }
         }
 
@@ -2024,18 +2057,66 @@ public class RTSGameplayScreen : GameScreen
     }
 
     /// <summary>
-    /// Grasboden aus dem großen Grasbild: die Kachel (x, y) zeigt ihren eigenen
-    /// Ausschnitt, GRASS_TEXELS Bildpixel je Welteinheit - das KI-Bild ist grob
-    /// gepixelt, bei einem Bildpixel je Welteinheit wurden die Halme riesig. Das
-    /// Bild ist kachelbar (tools/bilder, "kachelbar") und wiederholt sich alle
-    /// acht Kacheln. Gespiegelt statt wiederholt zeigte es an jeder Spiegelkante
-    /// einen Streifen, wo die Halmspitzen aufeinanderstießen.
+    /// Bodenkachel aus einem großen kachelbaren Bodenbild (Gras, Sand, Wasser):
+    /// die Kachel (x, y) zeigt ihren eigenen Ausschnitt, GROUND_TEXELS Bildpixel
+    /// je Welteinheit - die KI-Bilder sind grob gepixelt, bei einem Bildpixel je
+    /// Welteinheit wurden die Halme riesig. Die Bilder wiederholen sich alle acht
+    /// Kacheln. Gespiegelt statt wiederholt zeigte das Gras an jeder Spiegelkante
+    /// einen Streifen, wo die Halmspitzen aufeinanderstießen. drift verschiebt den
+    /// Ausschnitt um so viele Bildpixel; über den Bildrand hinaus geht das nur im
+    /// Bodendurchgang mit wiederholender Abtastung (DrawGround).
     /// </summary>
-    private void DrawGrass(SpriteBatch spriteBatch, int x, int y, Rectangle rect)
+    private void DrawGroundImage(SpriteBatch spriteBatch, Texture2D image, int x, int y, Rectangle rect,
+                                 Vector2 drift = default, float alpha = 1f)
     {
-        int ts = tileMap.TileSize * GRASS_TEXELS, size = _grassTex.Width;
-        var source = new Rectangle(x * ts % size, y * ts % size, ts, ts);
-        spriteBatch.Draw(_grassTex, rect, source, Color.White);
+        int ts = tileMap.TileSize * GROUND_TEXELS, size = image.Width;
+        var source = new Rectangle((x * ts + (int)drift.X) % size, (y * ts + (int)drift.Y) % size, ts, ts);
+        spriteBatch.Draw(image, rect, source, Color.White * alpha);
+    }
+
+    /// <summary>
+    /// Wasser aus dem Wasserbild in zwei Lagen, die langsam in verschiedene
+    /// Richtungen treiben: die Kräusel wandern und überlagern sich wie auf einem
+    /// See im Wind. Beide Lagen hängen nur an animationTime, nicht an der Kachel -
+    /// über Kachelgrenzen hinweg bleibt das Bild so lückenlos.
+    /// </summary>
+    private void DrawWater(SpriteBatch spriteBatch, int x, int y, Rectangle rect)
+    {
+        int size = _waterGroundTex.Width;
+        float t = animationTime;
+        DrawGroundImage(spriteBatch, _waterGroundTex, x, y, rect, new Vector2(t * 6f, t * 2f));
+        DrawGroundImage(spriteBatch, _waterGroundTex, x, y, rect,
+                        new Vector2(size / 2 + t * 2f, size / 3 + t * 5f), 0.4f);
+    }
+
+    /// <summary>Die Haufen-Sprites für Stein- und Goldkacheln, sonst keine.</summary>
+    private Texture2D[] PileSprites(TileType type) => type switch
+    {
+        TileType.Mountain => _stoneSprites,
+        TileType.GoldMine => _goldSprites,
+        _ => Array.Empty<Texture2D>(),
+    };
+
+    /// <summary>
+    /// Ein Stein- oder Goldhaufen je Kachel, anderthalb bis gut eindreiviertel
+    /// Kachelbreiten groß und gegeneinander versetzt - Nachbarhaufen überlappen
+    /// so zu einem Steinbruch oder einer Goldader statt in Reihen zu stehen.
+    /// Bild, Größe und Versatz kommen fest aus dem Ortshash der Kachel, sonst
+    /// zappelten die Haufen.
+    /// </summary>
+    private void DrawPile(SpriteBatch spriteBatch, int x, int y, Texture2D[] sprites)
+    {
+        var tileRect = TileScreenRect(x, y);
+        int hash = unchecked(x * 73856093 ^ y * 19349663) & 0x7FFFFFFF;
+        var tex = sprites[(hash >> 16) % sprites.Length];
+        int width = tileRect.Width * (150 + (hash >> 20) % 26) / 100;
+        int height = width * tex.Height / tex.Width;
+        int jx = ((hash >> 4) % 11 - 5) * tileRect.Width / 32;
+        int jy = ((hash >> 8) % 7 - 3) * tileRect.Width / 32;
+        var target = new Rectangle(tileRect.Center.X - width / 2 + jx,
+                                   tileRect.Bottom - tileRect.Height / 6 - height + jy, width, height);
+        if (target.Intersects(screenBounds))
+            spriteBatch.Draw(tex, target, Color.White);
     }
 
     /// <summary>
@@ -2153,8 +2234,10 @@ public class RTSGameplayScreen : GameScreen
     {
         int shallow = Math.Max(2, rect.Width / 6);
         int foam = Math.Max(1, rect.Width / 32);
-        var shallowColor = new Color(80, 145, 200);
-        var foamColor = new Color(205, 228, 240);
+        // Halbdurchsichtig, damit die Wellen des Wasserbilds durchscheinen - deckend
+        // war die Kante neben ihnen ein flaches hellblaues Band
+        var shallowColor = new Color(80, 145, 200) * 0.55f;
+        var foamColor = new Color(205, 228, 240) * 0.8f;
 
         if (IsLand(x, y - 1))   // oben
         {

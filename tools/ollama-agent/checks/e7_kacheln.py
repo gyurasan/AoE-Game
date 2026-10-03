@@ -25,7 +25,9 @@ else:
     if rechteck.count("WorldToScreen") < 2:
         fehler.append("TileScreenRect rechnet nicht beide Ecken in Bildschirmkoordinaten um")
 
-karte = methode(text, "DrawTileMap") or ""
+# Seit C7r zeichnet DrawGround den Boden in einem eigenen Durchgang, DrawTileMap
+# alles darauf - beide zusammen sind die Karte
+karte = (methode(text, "DrawTileMap") or "") + (methode(text, "DrawGround") or "")
 if "GridToWorld" in karte:
     fehler.append("DrawTileMap nutzt noch GridToWorld")
 if len(re.findall(r"TileScreenRect\s*\(\s*x\s*,\s*y\s*\)", karte)) < 2:

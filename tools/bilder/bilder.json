@@ -177,6 +177,19 @@
         "seed": 5002,
         "ziel": "Boden/gras.png",
         "prompt": "Short lush green meadow grass with small tufts in a few shades of green and a very few tiny yellow and white flowers scattered evenly."
+      },
+      {
+        "name": "sand",
+        "seed": 5103,
+        "ziel": "Boden/sand.png",
+        "prompt": "Fine dry light golden beach sand with soft shallow wind ripples and a very few tiny pebbles scattered evenly."
+      },
+      {
+        "name": "wasser",
+        "seed": 5221,
+        "ziel": "Boden/wasser.png",
+        "prompt": "Calm deep lake surface in classic 16-bit RPG style: many small curved wavy ripple lines in light cyan scattered evenly over deep blue and teal water, the little waves curve and point in different directions, the same brightness everywhere.",
+        "negativ": "sun, sun glare, bright spot, light gradient, light rays, horizontal stripes, straight lines, scanlines, foam, big waves"
       }
     ],
     "kachelbar": true
@@ -223,6 +236,45 @@
         "seed": 6201,
         "ziel": "Baeume/buschbaum.png",
         "prompt": "A bushy broadleaf tree with a wide light green crown made of several leaf clumps and a short brown trunk."
+      }
+    ]
+  },
+  "rohstoffe": {
+    "groesse": [
+      1024,
+      1024
+    ],
+    "schritte": 30,
+    "cfg": 3.0,
+    "freistellen": true,
+    "zuschneiden": true,
+    "zielbreite": 160,
+    "stil": "Game sprite for a top-down 2D strategy game, three-quarter top-down view from the south, detailed 16-bit pixel art, crisp pixels, soft light from the upper left. One single low wide pile centered and fully visible, isolated on a plain white background, no ground plate, no grass, no shadow on the background, no text.",
+    "negativ": "text, letters, logo, watermark, frame, border, mountain, cliff, landscape, scenery, grass, trees, buildings, people, tools, cart, cut off, cropped, blurry, photo, 3d render",
+    "bilder": [
+      {
+        "name": "stein",
+        "seed": 7002,
+        "ziel": "Rohstoffe/stein.png",
+        "prompt": "A low wide pile of large rough grey granite boulders and a few quarried square grey stone blocks."
+      },
+      {
+        "name": "stein2",
+        "seed": 7004,
+        "ziel": "Rohstoffe/stein2.png",
+        "prompt": "A low wide pile of large rough grey granite boulders and a few quarried square grey stone blocks."
+      },
+      {
+        "name": "gold",
+        "seed": 7103,
+        "ziel": "Rohstoffe/gold.png",
+        "prompt": "A low wide pile of dark brown rocks with thick glittering gold veins and many shiny gold nuggets."
+      },
+      {
+        "name": "gold2",
+        "seed": 7102,
+        "ziel": "Rohstoffe/gold2.png",
+        "prompt": "A low wide pile of dark brown rocks with thick glittering gold veins and many shiny gold nuggets."
       }
     ]
   }
