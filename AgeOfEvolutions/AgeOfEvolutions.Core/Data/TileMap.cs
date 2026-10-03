@@ -345,9 +345,10 @@ public class TileMap
         StampResource(cx, cy, 2, type, resource, baseAmount);
     }
 
-    // Schafherden: 6–9 Stellen je 3–7 Schafe (vorher 4–5 je 2–4), nur auf
-    // Gras. Die Schaf-Kacheln landen in _sheepCoords — die Wanderung
-    // (UpdateSheep) bewegt genau diese.
+    // Schafherden: 6–9 Stellen je 6–14 Schafe, nur auf Gras. Die Schaf-Kacheln
+    // landen in _sheepCoords — die Wanderung (UpdateSheep) bewegt genau diese.
+    // Die Aufstellung verteilt eine Herde über ein 5×5-Feld, damit die
+    // verdoppelte Menge nicht auf dieselben Kacheln gestapelt wird.
     private void PlaceSheep(List<(int x, int y)> woodCenters)
     {
         int herds = _random.Next(Settings.SheepHerdsMin, Settings.SheepHerdsMax + 1);
@@ -357,10 +358,11 @@ public class TileMap
             int count = _random.Next(Settings.SheepPerHerdMin, Settings.SheepPerHerdMax + 1);
             for (int i = 0; i < count; i++)
             {
-                int sx = cx + _random.Next(-1, 2);
-                int sy = cy + _random.Next(-1, 2);
+                int sx = cx + _random.Next(-2, 3);
+                int sy = cy + _random.Next(-2, 3);
                 var t = GetTile(sx, sy);
                 if (t == null || t.Type != TileType.Grassland) continue;
+                if (t.Food == FoodSource.Sheep) continue;   // eine Kachel pro Schaf
                 t.ResourceType = Resource.Food;
                 t.ResourceAmount = Settings.SheepFood;
                 t.Food = FoodSource.Sheep;

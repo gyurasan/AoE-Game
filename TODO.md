@@ -36,8 +36,9 @@ Zuletzt fertiggestellt:
   sammeln: Traglast 10, Abgabe am Stadtzentrum, selbstständig zurück, bei
   erschöpfter Quelle zur nächsten gleichen. Logik als `GatherJob` in AoE.Core
   (15 Tests), im Spiel über `TileMapGatherWorld`
-- **Kartengenerator reichlicher** — jede Karte trägt jetzt mehr: 7–10 Waldklumpen
-  (vorher 5–7, je größer), 4–7 Steinbrüche, 3–6 Goldminen, mehr Fische, mehr
+- **Kartengenerator reichlicher** — jede Karte trägt jetzt mehr: 9–13 Waldklumpen
+  (vorher 7–10), 3–6 Steinbrüche und 2–5 Goldminen (je um 25 % gesenkt, weil
+  Gold und Stein zu viel generiert wurden), mehr Fische, mehr
   Beerenbüsche. Alle Werte stecken im neuen `MapSettings` — das Menü kann sie
   ändern und daraus direkt eine neue Karte bauen (`TileMap(w,h,t,s)`), ohne die
   Generatoren anzugreifen. `MapSettings.Default` = die reichere Grundausstattung.

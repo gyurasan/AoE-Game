@@ -764,24 +764,40 @@ public class RTSGameplayScreen : GameScreen
     private Texture2D BuildSheepTexture(GraphicsDevice gd)
     {
         var b = new TextureBuilder(32, 32);
-        // Durchsichtiger Grund: darunter liegt das Gras der Karte
-        
-        // Schaf (sehr klein, pixelartig): 8×6 Pixel
-        int sx = 10, sy = 12;
-        // Wollkörper
-        b.FillRect(sx, sy + 2, 10, 5, new Color(230, 228, 220));
-        b.FillRect(sx + 1, sy + 1, 8, 1, new Color(230, 228, 220)); // Oberkante
-        // Kopf (dunkler)
-        b.FillRect(sx + 9, sy + 1, 3, 4, new Color(70, 60, 55));
-        b.Set(sx + 11, sy + 2, new Color(30, 30, 30)); // Auge
-        // Beine
-        b.Set(sx + 1, sy + 7, new Color(60, 50, 45));
-        b.Set(sx + 3, sy + 7, new Color(60, 50, 45));
-        b.Set(sx + 6, sy + 7, new Color(60, 50, 45));
-        b.Set(sx + 8, sy + 7, new Color(60, 50, 45));
-        // Schatten
-        for (int x = sx; x < sx + 12; x++)
-            b.Set(x, sy + 8, new Color(56, 106, 38, 120));
+        var wolle = new Color(238, 236, 228);
+        var wolleUnten = new Color(212, 210, 200);
+        var dunkel = new Color(92, 78, 68);
+        var bein = new Color(70, 58, 52);
+        var schnauze = new Color(76, 62, 54);
+
+        // Weicher Schatten auf dem Gras (zweireihig, in der Mitte breiter)
+        for (int x = 9; x <= 23; x++)
+            b.Set(x, 25, new Color(56, 106, 38, 110));
+        for (int x = 11; x <= 21; x++)
+            b.Set(x, 26, new Color(56, 106, 38, 60));
+
+        // Vier schmale Beine
+        foreach (var lx in new[] { 11, 13, 19, 21 })
+            for (int y = 19; y <= 24; y++)
+                b.Set(lx, y, bein);
+
+        // Wollkörper aus überlappenden Kreisen - fluffig statt kastig
+        b.FillCircle(13, 15, 4, wolle);
+        b.FillCircle(17, 14, 5, wolle);
+        b.FillCircle(21, 15, 4, wolle);
+        b.FillCircle(15, 17, 3, wolle);
+        b.FillCircle(19, 17, 3, wolle);
+        b.FillCircle(17, 17, 4, wolle);
+
+        // Unterkante etwas dunkler, damit die Wolle Tiefe bekommt
+        for (int x = 10; x <= 24; x++) b.Set(x, 19, wolleUnten);
+        for (int x = 13; x <= 21; x++) b.Set(x, 20, wolleUnten);
+
+        // Kopf nach rechts, Schnauze schräg nach unten, Ohr und Auge
+        b.FillCircle(25, 16, 3, dunkel);
+        b.FillRect(26, 17, 3, 2, schnauze);
+        b.Set(24, 13, dunkel);            // Ohr
+        b.Set(25, 15, new Color(35, 30, 28)); // Auge
         return b.Build(gd);
     }
 
