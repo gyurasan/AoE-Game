@@ -17,6 +17,8 @@ using BuildingType = AoE.Core.Entities.BuildingType;
 using Population = AoE.Core.Economy.Population;
 using BuildingRules = AoE.Core.Economy.BuildingRules;
 using Construction = AoE.Core.Economy.Construction;
+using Age = AoE.Core.Economy.Age;
+using AgeRules = AoE.Core.Economy.AgeRules;
 
 namespace AgeOfEvolutions.Core.Screens;
 
@@ -81,6 +83,7 @@ public class RTSGameplayScreen : GameScreen
     private Vector2? dragStart;
     private Vector2 dragCameraStart;
     private bool isDragging;
+    private bool hudPressed;   // links über der Leiste gedrückt: Taste oder Minimap beim Loslassen
     private const float DRAG_THRESHOLD = 6f;
     
     // Rendering (prozedural generierte AoE1-artige Texturen)
@@ -165,13 +168,13 @@ public class RTSGameplayScreen : GameScreen
     }
     private List<CommandButton> _buttons = new();
     private int _buttonsLayoutHeight;    // Fensterhöhe, für die _buttons angelegt sind
-    private Rectangle _minimapRect;      // das gezeichnete Rhombus-Feld (Klickfläche)
+    private bool _buttonsLayoutBuilders; // ob dabei ein Dorfbewohner ausgewählt war
+    private Age _buttonsLayoutAge;       // und welches Zeitalter galt
+    private Rectangle _minimapRect;      // das gezeichnete Minimap-Feld (Klickfläche)
 
-    // Breite der Minimap: 210 px im kleinsten Fenster, ab rund 2300 px
-    // Fensterbreite 380 px, also gut 80 % mehr. Breiter geht es nicht: die
-    // Raute ist halb so hoch wie breit, 190 px bei 200 px Leistenhöhe.
-    private const int MINIMAP_MIN_WIDTH = 210;
-    private const int MINIMAP_MAX_WIDTH = 380;
+    // Abstand der Minimap zur Ober- und Unterkante der Leiste; der 2-px-Rahmen
+    // liegt darin. Die Größe folgt aus der Leistenhöhe, siehe MinimapTilePixels.
+    private const int MINIMAP_MARGIN = 4;
 
     // Bauen (C5): Dorfbewohner wählen, Taste drücken, Bauplatz anklicken.
     // Kosten, Bauzeit und Größe kommen aus AoE.Core (BuildingRules); der Name
@@ -183,6 +186,7 @@ public class RTSGameplayScreen : GameScreen
         (Keys.F, BuildingType.LumberCamp, "Holzfällerlager"),
         (Keys.B, BuildingType.MiningCamp, "Bergbaulager"),
         (Keys.G, BuildingType.Farm, "Farm"),
+        (Keys.T, BuildingType.Tower, "Wachturm"),   // ab der Feudalzeit
     };
     private BuildingType? placing;   // was gerade gesetzt wird, oder null
     private Vector2 mouseGridCell;
@@ -285,6 +289,7 @@ public class RTSGameplayScreen : GameScreen
         UpdateUnits(gameTime);
         UpdatePopulationLimits();
         UpdateTraining((float)gameTime.ElapsedGameTime.TotalSeconds);
+        UpdateAges((float)gameTime.ElapsedGameTime.TotalSeconds);
         UpdateConstruction((float)gameTime.ElapsedGameTime.TotalSeconds);
         tileMap.RegrowCrop((float)gameTime.ElapsedGameTime.TotalSeconds);
         UpdateSheepClaims();    // Reservierung = der einzige Dorfbewohner, der gerade erntet
@@ -823,10 +828,15 @@ public class RTSGameplayScreen : GameScreen
         }
     }
 
-    private void HandleRtsInput(GameTime gameTime)
+    /// <summary>
+    /// Eingabe eines Bildes. Ohne Angabe liest die Methode Tastatur und Maus
+    /// selbst; tools/spielablauf übergibt beide, um Klicks nachzustellen.
+    /// </summary>
+    private void HandleRtsInput(GameTime gameTime, KeyboardState? keyboardInput = null,
+                                MouseState? mouseInput = null)
     {
-        var keyboard = Keyboard.GetState();
-        var mouse = Mouse.GetState();
+        var keyboard = keyboardInput ?? Keyboard.GetState();
+        var mouse = mouseInput ?? Mouse.GetState();
         
         // Kamera schwenken: Pfeiltasten und Bildrand
         var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
@@ -867,7 +877,12 @@ public class RTSGameplayScreen : GameScreen
         if (keyboard.IsKeyDown(Keys.Q) && previousKeyboard.IsKeyUp(Keys.Q))
             TrainVillager();
 
-        // Baumenü: H Haus, M Mühle, F Holzfällerlager, B Bergbaulager, G Farm.
+        // A: Aufstieg ins nächste Zeitalter, ebenfalls im Stadtzentrum
+        if (keyboard.IsKeyDown(Keys.A) && previousKeyboard.IsKeyUp(Keys.A))
+            AdvanceAge();
+
+        // Baumenü: H Haus, M Mühle, F Holzfällerlager, B Bergbaulager, G Farm,
+        // ab der Feudalzeit T Wachturm.
         // Dieselbe Taste noch einmal schaltet den Setzmodus aus; identisch
         // erledigen die quadratischen Befehlstasten in der unteren Leiste.
         foreach (var entry in BuildMenu)
@@ -934,15 +949,23 @@ public class RTSGameplayScreen : GameScreen
             selectionRectangle = Rectangle.Empty;
         }
 
-        // Links: gedrückt halten und ziehen verschiebt die Karte
+        // Links: gedrückt halten und ziehen verschiebt die Karte. Über der Leiste
+        // beginnt kein Ziehen - dort merkt sich hudPressed den Druck, damit das
+        // Loslassen die Taste oder die Minimap auslöst.
         if (mouse.LeftButton == ButtonState.Pressed)
         {
-            if (!dragStart.HasValue && previousMouse.LeftButton == ButtonState.Released
-                && !IsOverHud(mouse.Position))
+            if (!dragStart.HasValue && !hudPressed && previousMouse.LeftButton == ButtonState.Released)
             {
-                dragStart = mousePos;
-                dragCameraStart = cameraPosition;
-                isDragging = false;
+                if (IsOverHud(mouse.Position))
+                {
+                    hudPressed = true;
+                }
+                else
+                {
+                    dragStart = mousePos;
+                    dragCameraStart = cameraPosition;
+                    isDragging = false;
+                }
             }
 
             if (dragStart.HasValue)
@@ -959,17 +982,20 @@ public class RTSGameplayScreen : GameScreen
                 }
             }
         }
+        else if (hudPressed)
+        {
+            // Über der Leiste gedrückt und losgelassen: Taste oder Minimap. Bis
+            // 2026-10-03 kam dieser Klick nie an - das Loslassen wurde nur
+            // ausgewertet, wenn auf der Karte ein Ziehen begonnen hatte.
+            hudPressed = false;
+            if (IsOverHud(mouse.Position))
+                HandleHudButtons(mouse.Position);
+        }
         else if (dragStart.HasValue)
         {
-            // Losgelassen ohne zu ziehen: ein Klick - was er bedeutet, entscheidet
-            // die Mausposition. Die Leiste (Minimap, Tasten) hat ihre eigene Logik.
-            if (!isDragging)
-            {
-                if (IsOverHud(mouse.Position))
-                    HandleHudButtons(mouse.Position);
-                else
-                    LeftClick(mousePos);
-            }
+            // Losgelassen ohne zu ziehen: ein Klick auf die Karte
+            if (!isDragging && !IsOverHud(mouse.Position))
+                LeftClick(mousePos);
 
             dragStart = null;
             isDragging = false;
@@ -1075,6 +1101,9 @@ public class RTSGameplayScreen : GameScreen
     /// Dorfbewohner gibt es einen Hinweis. Wird von Taste und Leiste gleichermaßen
     /// aufgerufen.
     /// </summary>
+    /// <summary>Ein Dorfbewohner ist ausgewählt - nur der kann bauen.</summary>
+    private bool VillagerSelected() => selectedUnits.Any(u => u.Core is CoreVillager);
+
     private void TogglePlacing(BuildingType type)
     {
         if (placing == type)
@@ -1082,7 +1111,9 @@ public class RTSGameplayScreen : GameScreen
             placing = null;
             return;
         }
-        if (selectedUnits.Any(u => u.Core is CoreVillager))
+        if (!AgeRules.IsUnlocked(type, player1.Ages.Current))
+            ShowHudMessage($"Erst ab der {AgeRules.NameOf(AgeRules.RequiredAgeOf(type))}");
+        else if (VillagerSelected())
             placing = type;
         else
             ShowHudMessage("Erst einen Dorfbewohner auswählen");
@@ -1289,6 +1320,37 @@ public class RTSGameplayScreen : GameScreen
             ShowHudMessage($"Nicht genug Nahrung ({VillagerCost[Resource.Food]})");
     }
 
+    /// <summary>
+    /// Startet im Stadtzentrum von Spieler 0 den Aufstieg ins nächste Zeitalter
+    /// (Taste A). Kosten und Dauer kommen aus AoE.Core (AgeRules), bezahlt wird
+    /// sofort. Läuft schon ein Aufstieg, ist die Imperialzeit erreicht oder
+    /// reichen die Rohstoffe nicht, erscheint ein kurzer Hinweis.
+    /// </summary>
+    private void AdvanceAge()
+    {
+        var ages = player1.Ages;
+        if (TownCenterOf(0) == null)
+            return;
+
+        if (ages.Target is { } target)
+            ShowHudMessage($"Aufstieg in die {AgeRules.NameOf(target)} läuft ({(int)(ages.Progress * 100)} %)");
+        else if (AgeRules.Next(ages.Current) is not { } next)
+            ShowHudMessage("Letztes Zeitalter erreicht");
+        else if (!ages.TryStart(player1.Resources))
+            ShowHudMessage($"{AgeRules.NameOf(next)} braucht {CostText(AgeRules.CostOf(next))}");
+    }
+
+    /// <summary>
+    /// Aufstieg beider Spieler fortschreiben. Ist er fertig, gilt das neue
+    /// Zeitalter, und die obere Leiste meldet es für Spieler 0.
+    /// </summary>
+    private void UpdateAges(float dt)
+    {
+        if (player1.Ages.Update(dt))
+            ShowHudMessage($"{AgeRules.NameOf(player1.Ages.Current)} erreicht");
+        player2.Ages.Update(dt);
+    }
+
     private void ShowHudMessage(string text)
     {
         hudMessage = text;
@@ -1305,6 +1367,9 @@ public class RTSGameplayScreen : GameScreen
         foreach (var building in tileMap.Buildings)
         {
             var player = building.OwnerId == 0 ? player1 : player2;
+            // Während des Aufstiegs forscht das Stadtzentrum und bildet nicht aus
+            if (player.Ages.IsResearching && building.Core.BuildingType == BuildingType.TownCenter)
+                continue;
             if (!building.Training.Update(dt, player.PopulationCount, player.PopulationLimit, out _))
                 continue;
 
@@ -1986,6 +2051,9 @@ public class RTSGameplayScreen : GameScreen
             case BuildingType.MiningCamp:
                 DrawMiningCamp(spriteBatch, rect, isPlayer1);
                 return;
+            case BuildingType.Tower:
+                DrawTower(spriteBatch, rect, isPlayer1);
+                return;
         }
         
         // Fundament (grün/braun)
@@ -2135,6 +2203,40 @@ public class RTSGameplayScreen : GameScreen
         // Wimpel in Spielerfarbe
         spriteDraw(spriteBatch, px, BuildingPart(rect, 104, 40, 3, 18), wood);
         spriteDraw(spriteBatch, px, BuildingPart(rect, 107, 40, 12, 7), flag);
+    }
+
+    /// <summary>
+    /// Wachturm, 2 × 2 Kacheln: ein Steinschaft mit Fugen, Schießscharte und
+    /// Tür, oben eine vorkragende Plattform mit vier Zinnen und ein Wimpel in
+    /// Spielerfarbe. Licht von links wie bei den übrigen Gebäuden.
+    /// </summary>
+    private void DrawTower(SpriteBatch spriteBatch, Rectangle rect, bool isPlayer1)
+    {
+        Color wood = isPlayer1 ? new Color(100, 80, 55) : new Color(110, 75, 55);
+        Color flag = isPlayer1 ? new Color(70, 110, 210) : new Color(200, 60, 50);
+        var stone = new Color(150, 148, 140);
+        var stoneDark = new Color(118, 116, 110);
+        var stoneLight = new Color(175, 172, 162);
+
+        // Grund
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 24, 106, 80, 16), new Color(140, 125, 90));
+        // Schaft mit Steinfugen, links Licht, rechts Schatten
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 40, 36, 48, 80), stone);
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 40, 36, 6, 80), stoneLight);
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 80, 36, 8, 80), stoneDark);
+        for (int fy = 48; fy < 116; fy += 12)
+            spriteDraw(spriteBatch, px, BuildingPart(rect, 40, fy, 48, 2), stoneDark);
+        // Schießscharte und Tür
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 61, 54, 6, 18), new Color(40, 35, 30));
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 56, 94, 16, 22), new Color(60, 45, 30));
+        // Plattform, vorkragend, mit vier Zinnen
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 32, 24, 64, 14), stone);
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 32, 36, 64, 3), stoneDark);
+        foreach (int zx in new[] { 32, 50, 68, 86 })
+            spriteDraw(spriteBatch, px, BuildingPart(rect, zx, 14, 10, 10), stone);
+        // Wimpel in Spielerfarbe
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 63, 0, 3, 14), wood);
+        spriteDraw(spriteBatch, px, BuildingPart(rect, 66, 0, 12, 7), flag);
     }
 
     /// <summary>
@@ -2356,7 +2458,7 @@ public class RTSGameplayScreen : GameScreen
 
         // Bevölkerung und Zeitalter
         var popText = $"Bev. {player1.PopulationCount}/{player1.PopulationLimit}";
-        var ageText = player1.CurrentAge.ToString();
+        var ageText = AgeRules.NameOf(player1.Ages.Current);
         var popSize = ScreenManager.Font.MeasureString(popText);
         var ageSize = ScreenManager.Font.MeasureString(ageText);
         var textX = screenBounds.Width - 10 - popSize.X - ageSize.X - 10;
@@ -2373,6 +2475,13 @@ public class RTSGameplayScreen : GameScreen
         {
             centerText = hudMessage;
             centerColor = Color.Orange;
+        }
+        else if (player1.Ages.Target is { } ageTarget)
+        {
+            // Aufstieg im Stadtzentrum - die Ausbildung wartet so lange
+            centerText = $"Aufstieg in die {AgeRules.NameOf(ageTarget)} {(int)(player1.Ages.Progress * 100)} %";
+            if (townCenter != null && townCenter.Training.Count > 0)
+                centerText += $"  (Dorfbewohner warten: {townCenter.Training.Count})";
         }
         else if (townCenter != null && townCenter.Training.Count > 0)
         {
@@ -2432,7 +2541,7 @@ public class RTSGameplayScreen : GameScreen
         }
         else
         {
-            infoLine = "Links: bewegen/sammeln/bauen   Rechts: auswählen   Ziehen: Karte   Q/H/M/F/B/G: Befehle oben   .: untätig";
+            infoLine = "Links: bewegen/sammeln/bauen   Rechts: auswählen   Ziehen: Karte   Q/H/M/F/B/G/T: Befehle oben   A: Zeitalter   .: untätig";
         }
         // Im kleinsten Fenster ist der Platz schmaler als der Hilfetext - dann
         // bricht er an den Dreifach-Leerzeichen um, statt unter die Minimap zu laufen
@@ -2476,18 +2585,32 @@ public class RTSGameplayScreen : GameScreen
     private void LayoutButtons()
     {
         // Neu anlegen, wenn sich die Fensterhöhe geändert hat - sonst blieben
-        // die Tasten nach dem Vergrößern an der alten Stelle über der Karte
-        if (_buttons.Count > 0 && _buttonsLayoutHeight == screenBounds.Height)
+        // die Tasten nach dem Vergrößern an der alten Stelle über der Karte -
+        // oder die Auswahl: die Bautasten gibt es nur, solange ein Dorfbewohner
+        // ausgewählt ist. Q (Stadtzentrum) und „." brauchen keine Auswahl.
+        // Ebenso beim Zeitalter: es schaltet Gebäude frei, und A (Aufstieg)
+        // gibt es nur, solange ein nächstes Zeitalter folgt.
+        bool builders = VillagerSelected();
+        var age = player1.Ages.Current;
+        if (_buttons.Count > 0 && _buttonsLayoutHeight == screenBounds.Height
+            && _buttonsLayoutBuilders == builders && _buttonsLayoutAge == age)
             return;
         _buttons.Clear();
         _buttonsLayoutHeight = screenBounds.Height;
+        _buttonsLayoutBuilders = builders;
+        _buttonsLayoutAge = age;
         int size = 46, gap = 6;
         int x = 10, y = screenBounds.Height - HUD_BOTTOM_HEIGHT + 14;
         AddButton(ref x, size, gap, y, "Q", "Dorf.", "25 Nahrung / 25 s", TrainVillager);
-        foreach (var e in BuildMenu)
-            AddButton(ref x, size, gap, y, e.Key.ToString().ToUpperInvariant(),
-                      e.Name, CostText(BuildingRules.CostOf(e.Type)), e.Type,
-                      () => TogglePlacing(e.Type));
+        if (AgeRules.Next(age) is { } next)
+            AddButton(ref x, size, gap, y, "A", "Zeit.", CostText(AgeRules.CostOf(next)), AdvanceAge);
+        if (builders)
+        {
+            foreach (var e in BuildMenu.Where(e => AgeRules.IsUnlocked(e.Type, age)))
+                AddButton(ref x, size, gap, y, e.Key.ToString().ToUpperInvariant(),
+                          e.Name, CostText(BuildingRules.CostOf(e.Type)), e.Type,
+                          () => TogglePlacing(e.Type));
+        }
         AddButton(ref x, size, gap, y, ".", "Untätig", "Kamera springt",
                   SelectNextIdleVillager);
     }
@@ -2501,13 +2624,18 @@ public class RTSGameplayScreen : GameScreen
     private void AddButton(ref int x, int size, int gap, int y, string label, string name,
                            string hint, BuildingType? type, Action action)
     {
+        // Breit genug für den Namen unter der Kennung: „Bergbaulager" oder
+        // „Untätig" sind breiter als die 46 px einer quadratischen Taste und
+        // liefen sonst in die Nachbartaste. Ohne Schrift (tools/spielablauf)
+        // bleibt die Taste quadratisch.
+        int width = Math.Max(size, (int)(ScreenManager?.Font?.MeasureString(name).X ?? 0f) + 8);
         _buttons.Add(new CommandButton
         {
-            Rect = new Rectangle(x, y, size, size),
+            Rect = new Rectangle(x, y, width, size),
             Label = label, Name = name, Hint = hint,
             Type = type, Action = action,
         });
-        x += size + gap;
+        x += width + gap;
     }
 
     private void DrawCommandButton(SpriteBatch sb, CommandButton b, Point cursor)
@@ -2528,9 +2656,11 @@ public class RTSGameplayScreen : GameScreen
         sb.DrawString(ScreenManager.Font, b.Label,
             new Vector2(r.Left + (r.Width - labelSize.X) / 2f, r.Top + 4),
             active ? new Color(255, 228, 120) : Color.White);
+        // Unterkante des Namens auf die Unterkante der Taste - mit festen
+        // 13 px ragte die gut 20 px hohe Schrift unten hinaus
         var nameSize = ScreenManager.Font.MeasureString(b.Name);
         sb.DrawString(ScreenManager.Font, b.Name,
-            new Vector2(r.Left + (r.Width - nameSize.X) / 2f, r.Bottom - 13),
+            new Vector2(r.Left + (r.Width - nameSize.X) / 2f, r.Bottom - nameSize.Y),
             active ? new Color(240, 210, 140) : new Color(214, 200, 170));
     }
 
@@ -2548,44 +2678,42 @@ public class RTSGameplayScreen : GameScreen
     }
 
     // --- Minimap (C6) -----------------------------------------------------------
-    // 2:1-Isometrie wie in AoE II: der Kartenpunkt (x, y) in Kacheln liegt im
-    // Feld r (Breite W, Höhe W/2) bei
-    //     px = r.Left + (x - y + mapH) * k ,  py = r.Top + (x + y) * k / 2
-    // mit k = W / (mapW + mapH). Die Raute füllt r genau aus: oben die Ecke
-    // (0, 0), rechts (mapW, 0), unten (mapW, mapH), links (0, mapH).
+    // Dieselbe Ansicht wie die Spielkarte - Draufsicht, Norden oben: der
+    // Kartenpunkt (x, y) in Kacheln liegt im Feld r bei
+    //     px = r.Left + x * r.Width / mapW ,  py = r.Top + y * r.Height / mapH
+    // Oben links die Ecke (0, 0), unten rechts (mapW, mapH).
 
     /// <summary>
-    /// Feld der Minimap rechts in der unteren Leiste, senkrecht mittig. Die
-    /// Breite wächst mit dem Fenster von MINIMAP_MIN_WIDTH bis MINIMAP_MAX_WIDTH.
+    /// Ganze Pixel je Kachel, so viele, wie in die Leiste passen - bei 200 px
+    /// Leistenhöhe und 64 Kacheln 3 px, die Minimap also 192 × 192 px. Ganze
+    /// Pixel halten alle Kacheln gleich groß.
     /// </summary>
+    private int MinimapTilePixels()
+        => Math.Max(1, (HUD_BOTTOM_HEIGHT - 2 * MINIMAP_MARGIN) / Math.Max(tileMap.Width, tileMap.Height));
+
+    /// <summary>Feld der Minimap rechts in der unteren Leiste, senkrecht mittig.</summary>
     private Rectangle MinimapRect()
     {
-        int w = Math.Clamp(screenBounds.Width / 6, MINIMAP_MIN_WIDTH, MINIMAP_MAX_WIDTH);
-        int h = w / 2;
+        int k = MinimapTilePixels();
+        int w = tileMap.Width * k, h = tileMap.Height * k;
         int barY = screenBounds.Height - HUD_BOTTOM_HEIGHT;
         return new Rectangle(screenBounds.Width - w - 12, barY + (HUD_BOTTOM_HEIGHT - h) / 2, w, h);
     }
 
     /// <summary>Kartenpunkt (Kacheln) → Bildschirmkoordinaten innerhalb der Minimap.</summary>
     private Vector2 MinimapPoint(float x, float y, Rectangle r)
-    {
-        float k = r.Width / (float)(tileMap.Width + tileMap.Height);
-        return new Vector2(r.Left + (x - y + tileMap.Height) * k,
-                           r.Top + (x + y) * k / 2f);
-    }
+        => new Vector2(r.Left + x * r.Width / tileMap.Width,
+                       r.Top + y * r.Height / tileMap.Height);
 
     /// <summary>
     /// Klick in die Minimap: die Kamera mittig über den angeklickten Kartenpunkt.
-    /// Umkehrung von MinimapPoint über a = x - y und b = x + y.
+    /// Umkehrung von MinimapPoint.
     /// </summary>
     private void CenterCameraOnMinimapPoint(Point cursor)
     {
         var r = _minimapRect;
-        float k = r.Width / (float)(tileMap.Width + tileMap.Height);
-        float a = (cursor.X - r.Left) / k - tileMap.Height;
-        float b = (cursor.Y - r.Top) * 2f / k;
-        float gx = MathHelper.Clamp((a + b) / 2f, 0f, tileMap.Width);
-        float gy = MathHelper.Clamp((b - a) / 2f, 0f, tileMap.Height);
+        float gx = MathHelper.Clamp((cursor.X - r.Left) * (float)tileMap.Width / r.Width, 0f, tileMap.Width);
+        float gy = MathHelper.Clamp((cursor.Y - r.Top) * (float)tileMap.Height / r.Height, 0f, tileMap.Height);
         var world = new Vector2(gx, gy) * tileMap.TileSize;
         cameraPosition = new Vector2(screenBounds.Width / (2f * cameraZoom),
                                      screenBounds.Height / (2f * cameraZoom)) - world;
@@ -2594,7 +2722,7 @@ public class RTSGameplayScreen : GameScreen
 
     /// <summary>
     /// Zeichnet die Minimap: dunkler Grund, erkundetes Gelände, eigene Einheiten
-    /// weiß, fremde rot (nur in Sicht), Kameraausschnitt als weiße Raute.
+    /// weiß, fremde rot (nur in Sicht), Kameraausschnitt als weißer Rahmen.
     /// </summary>
     private void DrawMinimap(SpriteBatch sb, Rectangle r)
     {
@@ -2603,11 +2731,6 @@ public class RTSGameplayScreen : GameScreen
         sb.Draw(px, r, new Color(12, 12, 12));
 
         int mapW = tileMap.Width, mapH = tileMap.Height;
-        // Eine Kachel ist auf der Minimap eine Raute von 2k × k Pixeln. Ein
-        // Quadrat von gut k Pixeln um ihre Mitte schließt lückenlos an die
-        // Nachbarn an - die Reihen liegen k/2 übereinander und k versetzt.
-        float k = r.Width / (float)(mapW + mapH);
-        int dot = (int)MathF.Ceiling(k) + 1;
         for (int y = 0; y < mapH; y++)
         {
             for (int x = 0; x < mapW; x++)
@@ -2622,8 +2745,10 @@ public class RTSGameplayScreen : GameScreen
                     c = IsoFarm;
                 if (!tileMap.IsTileVisible(x, y, 0))
                     c = new Color(c.R * 96 / 255, c.G * 96 / 255, c.B * 96 / 255);
-                var p = MinimapPoint(x + 0.5f, y + 0.5f, r);
-                sb.Draw(px, new Rectangle((int)(p.X - dot / 2f), (int)(p.Y - dot / 2f), dot, dot), c);
+                // Aus den Eckpunkten der Kachel - schließt lückenlos an die Nachbarn an
+                var a = MinimapPoint(x, y, r);
+                var b = MinimapPoint(x + 1, y + 1, r);
+                sb.Draw(px, new Rectangle((int)a.X, (int)a.Y, (int)b.X - (int)a.X, (int)b.Y - (int)a.Y), c);
             }
         }
 
@@ -2645,32 +2770,22 @@ public class RTSGameplayScreen : GameScreen
         float gx1 = MathHelper.Clamp((-cameraPosition.X + screenBounds.Width / cameraZoom) / ts, 0f, mapW);
         float gy0 = MathHelper.Clamp((-cameraPosition.Y + HUD_TOP_HEIGHT / cameraZoom) / ts, 0f, mapH);
         float gy1 = MathHelper.Clamp((-cameraPosition.Y + (screenBounds.Height - HUD_BOTTOM_HEIGHT) / cameraZoom) / ts, 0f, mapH);
-        var top = MinimapPoint(gx0, gy0, r);
-        var right = MinimapPoint(gx1, gy0, r);
-        var bottom = MinimapPoint(gx1, gy1, r);
-        var left = MinimapPoint(gx0, gy1, r);
-        DrawMinimapLine(sb, top, right, Color.White);
-        DrawMinimapLine(sb, right, bottom, Color.White);
-        DrawMinimapLine(sb, bottom, left, Color.White);
-        DrawMinimapLine(sb, left, top, Color.White);
+        var topLeft = MinimapPoint(gx0, gy0, r);
+        var bottomRight = MinimapPoint(gx1, gy1, r);
+        DrawMinimapFrame(sb, new Rectangle((int)topLeft.X, (int)topLeft.Y,
+                                           (int)bottomRight.X - (int)topLeft.X,
+                                           (int)bottomRight.Y - (int)topLeft.Y), Color.White);
 
         _minimapRect = r;
     }
 
-    /// <summary>
-    /// Linie von a nach b, 1 px breit: das 1×1-Pixel auf die Länge gestreckt und
-    /// gedreht. Ein achsenparalleles Rechteck zwischen den Endpunkten wäre bei
-    /// schrägen Kanten eine gefüllte Fläche - so verdeckte die erste Fassung
-    /// die ganze Minimap.
-    /// </summary>
-    private void DrawMinimapLine(SpriteBatch sb, Vector2 a, Vector2 b, Color color)
+    /// <summary>Rahmen aus vier 1-px-Linien, innen am Rechteck entlang.</summary>
+    private void DrawMinimapFrame(SpriteBatch sb, Rectangle f, Color color)
     {
-        var d = b - a;
-        float length = d.Length();
-        if (length < 0.5f)
-            return;
-        sb.Draw(px, a, null, color, MathF.Atan2(d.Y, d.X), Vector2.Zero,
-                new Vector2(length, 1f), SpriteEffects.None, 0f);
+        sb.Draw(px, new Rectangle(f.Left, f.Top, f.Width, 1), color);
+        sb.Draw(px, new Rectangle(f.Left, f.Bottom - 1, f.Width, 1), color);
+        sb.Draw(px, new Rectangle(f.Left, f.Top, 1, f.Height), color);
+        sb.Draw(px, new Rectangle(f.Right - 1, f.Top, 1, f.Height), color);
     }
 
     // --- Ende Minimap ------------------------------------------------------------

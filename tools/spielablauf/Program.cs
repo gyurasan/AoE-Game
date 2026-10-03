@@ -1,6 +1,6 @@
 // Spielablauf: stellt Abläufe aus RTSGameplayScreen ohne Grafik nach und prüft sie.
 //
-//   dotnet run --project tools/spielablauf -- bauen weiterbauen linksklick farm schafe bewegen minimap zoom
+//   dotnet run --project tools/spielablauf -- bauen weiterbauen linksklick farm schafe bewegen minimap zoom leiste zeitalter turm menue
 //
 // Jede genannte Gruppe läuft auf drei frisch erzeugten Karten. Die Spielschleife
 // läuft Bild für Bild (60 je Sekunde) mit denselben Methoden, die Update() im Spiel
@@ -16,10 +16,13 @@ using System.Reflection;
 using AgeOfEvolutions.Core.Data;
 using AgeOfEvolutions.Core.Screens;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Input;
 using BuildingType = AoE.Core.Entities.BuildingType;
 using CoreVillager = AoE.Core.Entities.Villager;
 using Resource = AoE.Core.Entities.Resource;
 using UnitState = AoE.Core.Entities.UnitState;
+using Age = AoE.Core.Economy.Age;
+using AgeProgress = AoE.Core.Economy.AgeProgress;
 
 const int KARTEN = 3;
 var gruppen = new HashSet<string>(args.Where(a => !a.StartsWith("-")).Select(a => a.ToLowerInvariant()));
@@ -62,6 +65,16 @@ for (int karte = 1; karte <= KARTEN; karte++)
         Pruefe("Minimap", () => Minimap(verstoesse));
     if (gruppen.Contains("zoom") && karte == 1)
         Pruefe("Zoom", () => Zoom(verstoesse));
+    if (gruppen.Contains("leiste"))
+        Pruefe($"Karte {karte}, Leiste", () => Leiste(karte, verstoesse));
+    // Der Aufstieg dauert über acht Spielminuten - eine Karte genügt
+    if (gruppen.Contains("zeitalter") && karte == 1)
+        Pruefe("Zeitalter", () => Zeitalter(verstoesse));
+    if (gruppen.Contains("turm"))
+        Pruefe($"Karte {karte}, Wachturm", () => Turm(karte, verstoesse));
+    // Das Hauptmenü braucht keine Karte
+    if (gruppen.Contains("menue") && karte == 1)
+        Pruefe("Hauptmenü", () => Hauptmenue(verstoesse));
 }
 
 if (verstoesse.Count > 0)
@@ -596,17 +609,20 @@ static void NichtDurchWasser(int karte, List<string> verstoesse)
     }
 }
 
-// Minimap rechts in der unteren Leiste, als 2:1-Raute, mit dem Fenster wachsend
-// (210 px im kleinsten, gut 80 % mehr in großen Fenstern); ein Klick in die
-// Minimap stellt die Kamera mittig über den angeklickten Punkt.
+// Minimap rechts in der unteren Leiste, in derselben Ansicht wie die Spielkarte
+// (Draufsicht, Norden oben), mit ganzen Pixeln je Kachel und so groß, wie die
+// Leiste es zulässt; ein Klick in die Minimap stellt die Kamera mittig über den
+// angeklickten Punkt.
 // Entstanden am 2026-10-03: die Minimap saß links, ragte unten aus dem Fenster
-// und war von weißen Rechtecken verdeckt.
+// und war von weißen Rechtecken verdeckt. Danach war sie kurz eine 2:1-Raute wie
+// in AoE II - der Nutzer will sie aber in der Form der Spielkarte (C6d).
 static void Minimap(List<string> verstoesse)
 {
     const int leiste = 200;       // HUD_BOTTOM_HEIGHT
     const float zoom = 4f;        // Ausschnitt kleiner als die Karte, sonst zentriert ClampCamera
     var w = new Welt();
     int vorher = verstoesse.Count;
+    int mapW = w.Map.Width, mapH = w.Map.Height;
     foreach (var (bw, bh) in new[] { (1280, 768), (2406, 1353), (4812, 2707) })
     {
         string wer = $"Minimap {bw}x{bh}";
@@ -616,19 +632,24 @@ static void Minimap(List<string> verstoesse)
             verstoesse.Add($"{wer}: Feld {r} sitzt nicht rechts in der Leiste");
         if (r.Top < bh - leiste || r.Bottom > bh)
             verstoesse.Add($"{wer}: Feld {r} ragt aus der unteren Leiste (ab y = {bh - leiste})");
-        int mindestens = bw >= 2300 ? 370 : 210;
-        if (r.Width < mindestens)
-            verstoesse.Add($"{wer}: Minimap {r.Width} px breit, erwartet mindestens {mindestens}");
+        if (Math.Max(r.Width, r.Height) < leiste - 20)
+            verstoesse.Add($"{wer}: Minimap nur {r.Width}x{r.Height} px - die Leiste fasst {leiste} px");
+        if (r.Width % mapW != 0 || r.Height % mapH != 0 || r.Width / mapW != r.Height / mapH)
+            verstoesse.Add($"{wer}: Feld {r.Width}x{r.Height} px ergibt keine gleich großen Kacheln aus ganzen Pixeln");
 
-        // Die vier Kartenecken liegen im Feld, die Raute ist doppelt so breit wie hoch
-        var ecken = new[] { (0f, 0f), (64f, 0f), (64f, 64f), (0f, 64f) }
-            .Select(e => (Vector2)w.Call("MinimapPoint", e.Item1, e.Item2, r)).ToList();
-        if (ecken.Any(p => p.X < r.Left - 1 || p.X > r.Right + 1 || p.Y < r.Top - 1 || p.Y > r.Bottom + 1))
-            verstoesse.Add($"{wer}: Kartenecken {string.Join(" ", ecken)} nicht alle im Feld {r}");
-        float breite = ecken.Max(p => p.X) - ecken.Min(p => p.X);
-        float hoehe = ecken.Max(p => p.Y) - ecken.Min(p => p.Y);
-        if (Math.Abs(hoehe * 2 - breite) > 2)
-            verstoesse.Add($"{wer}: Raute {breite:0}x{hoehe:0} statt 2:1");
+        // Draufsicht wie die Spielkarte: Kartenecken auf den Feldecken, Norden oben
+        foreach (var (ecke, soll) in new[]
+                 {
+                     (new Vector2(0, 0), new Vector2(r.Left, r.Top)),
+                     (new Vector2(mapW, 0), new Vector2(r.Right, r.Top)),
+                     (new Vector2(mapW, mapH), new Vector2(r.Right, r.Bottom)),
+                     (new Vector2(0, mapH), new Vector2(r.Left, r.Bottom)),
+                 })
+        {
+            var ist = (Vector2)w.Call("MinimapPoint", ecke.X, ecke.Y, r);
+            if (Vector2.Distance(ist, soll) > 1f)
+                verstoesse.Add($"{wer}: Kartenecke {ecke} liegt bei {ist}, in Draufsicht gehört sie nach {soll}");
+        }
 
         // Klick in die Minimap: die angeklickte Kachel steht danach in der Bildmitte
         w.Set("cameraZoom", zoom);
@@ -645,7 +666,7 @@ static void Minimap(List<string> verstoesse)
         w.Set("cameraZoom", 1f);
     }
     if (verstoesse.Count == vorher)
-        Console.WriteLine("  ok  Minimap: rechts in der Leiste, 2:1, wächst mit dem Fenster, Klick zentriert");
+        Console.WriteLine("  ok  Minimap: rechts in der Leiste, Draufsicht wie die Spielkarte, Klick zentriert");
 }
 
 // Zoomgrenzen relativ zur Fensterhöhe: ganz hineingezoomt zeigt jedes Fenster ab
@@ -694,6 +715,271 @@ static void Zoom(List<string> verstoesse)
         Console.WriteLine("  ok  Zoom: Grenzen wachsen mit der Fensterhöhe, Zeigerpunkt bleibt stehen");
 }
 
+// Befehlstasten und Minimap in der unteren Leiste, bedient mit nachgestellten
+// Mausklicks durch HandleRtsInput: ohne ausgewählten Dorfbewohner nur Q, A und „.",
+// mit Dorfbewohner auch die Bautasten; Q bildet aus, H schaltet den Setzmodus
+// ein, ein Klick in die Minimap rückt die Kamera.
+// Entstanden am 2026-10-03: kein Klick in die Leiste kam an - das Loslassen
+// wurde nur ausgewertet, wenn auf der Karte ein Ziehen begonnen hatte.
+static void Leiste(int karte, List<string> verstoesse)
+{
+    const int bw = 2406, bh = 1353;
+    string wer = $"Karte {karte}, Leiste";
+    var w = new Welt();
+    int vorher = verstoesse.Count;
+    w.Set("screenBounds", new Rectangle(0, 0, bw, bh));
+    w.P1.Resources.Add(Resource.Food, 100);
+
+    w.Waehle(new List<Unit>());
+    w.Call("LayoutButtons");
+    var ohne = w.Tasten().Select(t => t.Label).ToList();
+    if (!ohne.SequenceEqual(new[] { "Q", "A", "." }))
+        verstoesse.Add($"{wer}: ohne Auswahl Tasten [{string.Join(" ", ohne)}], erwartet nur Q, A und .");
+
+    int nahrung = w.P1.Resources[Resource.Food];
+    w.Klick(w.Tasten().First(t => t.Label == "Q").Rect.Center);
+    if (w.P1.Resources[Resource.Food] != nahrung - 25)
+        verstoesse.Add($"{wer}: Klick auf Q - Nahrung {nahrung} -> {w.P1.Resources[Resource.Food]}, erwartet 25 weniger");
+
+    w.Waehle(new List<Unit> { w.Dorfbewohner().First() });
+    w.Call("LayoutButtons");
+    var mit = w.Tasten().Select(t => t.Label).ToList();
+    foreach (var soll in new[] { "Q", "A", "H", "M", "F", "B", "G", "." })
+        if (!mit.Contains(soll))
+            verstoesse.Add($"{wer}: mit Dorfbewohner fehlt die Taste {soll} (da: {string.Join(" ", mit)})");
+    if (mit.Contains("H"))
+    {
+        w.Klick(w.Tasten().First(t => t.Label == "H").Rect.Center);
+        if (!Equals(w.Get("placing"), BuildingType.House))
+            verstoesse.Add($"{wer}: Klick auf H - Setzmodus {w.Get("placing") ?? "aus"}, erwartet House");
+        w.Set("placing", null);
+    }
+
+    // Minimap: Klick in die Mitte stellt die Kartenmitte in die Bildmitte. Senkrecht
+    // prüfbar - waagrecht ist die Karte bei Zoom 1 schmaler als das Fenster und zentriert.
+    var r = (Rectangle)w.Call("MinimapRect");
+    w.Set("_minimapRect", r);            // setzt sonst DrawMinimap
+    w.Set("cameraZoom", 1f);
+    w.Set("cameraPosition", Vector2.Zero);
+    w.Klick(r.Center);
+    var kamera = (Vector2)w.Get("cameraPosition");
+    float mitteY = (bh / 2f - kamera.Y) / w.Map.TileSize;
+    if (Math.Abs(mitteY - w.Map.Height / 2f) > 1f)
+        verstoesse.Add($"{wer}: Klick in die Minimap-Mitte - Bildmitte auf Kachelreihe {mitteY:0.0}, erwartet {w.Map.Height / 2f}");
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: ohne Auswahl Q, A und ., mit Dorfbewohner alle Tasten; Q, H und Minimap per Klick");
+}
+
+// Zeitalter (C4): die Taste „A" in der Leiste startet im Stadtzentrum den
+// Aufstieg und bezahlt sofort; solange er läuft, bildet das Stadtzentrum nicht
+// aus, danach wieder. Nach 130 s gilt die Feudalzeit; ab der Imperialzeit gibt es
+// die Taste nicht mehr.
+static void Zeitalter(List<string> verstoesse)
+{
+    const string wer = "Zeitalter";
+    var w = new Welt();
+    int vorher = verstoesse.Count;
+    w.Set("screenBounds", new Rectangle(0, 0, 2406, 1353));
+    w.Call("UpdateAges", 0f);   // bricht mit klarer Meldung ab, wenn es sie nicht gibt
+    var ages = (AgeProgress)(typeof(Player).GetProperty("Ages")?.GetValue(w.P1)
+        ?? throw new InvalidOperationException("Player.Ages nicht gefunden"));
+    w.P1.Resources.Add(Resource.Food, 600);      // 800: Aufstieg (500) und ein Dorfbewohner
+
+    w.Waehle(new List<Unit>());
+    w.Call("LayoutButtons");
+    var a = w.Tasten().FirstOrDefault(t => t.Label == "A");
+    if (a.Label == null)
+    {
+        verstoesse.Add($"{wer}: keine Taste A in der Leiste");
+        return;
+    }
+    int nahrung = w.P1.Resources[Resource.Food];
+    w.Klick(a.Rect.Center);
+    if (ages.Target != Age.Feudal)
+        verstoesse.Add($"{wer}: Klick auf A - kein Aufstieg in die Feudalzeit (Ziel {ages.Target?.ToString() ?? "keins"})");
+    if (w.P1.Resources[Resource.Food] != nahrung - 500)
+        verstoesse.Add($"{wer}: Nahrung {nahrung} -> {w.P1.Resources[Resource.Food]}, erwartet 500 weniger");
+
+    // Während des Aufstiegs wartet die Ausbildung
+    int dorf = w.Dorfbewohner().Count();
+    w.Call("TrainVillager");
+    w.LaufeBis(() => false, 60f);
+    if (w.Dorfbewohner().Count() != dorf)
+        verstoesse.Add($"{wer}: das Stadtzentrum bildet während des Aufstiegs aus");
+    if (ages.Current != Age.Dark)
+        verstoesse.Add($"{wer}: nach 60 s schon {ages.Current} - der Aufstieg dauert 130 s");
+
+    w.LaufeBis(() => ages.Current == Age.Feudal, 80f);
+    if (ages.Current != Age.Feudal)
+        verstoesse.Add($"{wer}: nach 140 s nicht in der Feudalzeit ({ages.Progress:P0})");
+    w.LaufeBis(() => w.Dorfbewohner().Count() > dorf, 30f);
+    if (w.Dorfbewohner().Count() <= dorf)
+        verstoesse.Add($"{wer}: nach dem Aufstieg bildet das Stadtzentrum nicht weiter aus");
+
+    // Weiter bis zur Imperialzeit - danach gibt es die Taste A nicht mehr
+    w.P1.Resources.Add(Resource.Food, 2000);
+    w.P1.Resources.Add(Resource.Gold, 1000);
+    foreach (var (ziel, sekunden) in new[] { (Age.Castle, 160f), (Age.Imperial, 190f) })
+    {
+        w.Call("AdvanceAge");
+        w.LaufeBis(() => ages.Current == ziel, sekunden + 1f);
+        if (ages.Current != ziel)
+            verstoesse.Add($"{wer}: nach {sekunden} s nicht in {ziel} (jetzt {ages.Current})");
+    }
+    w.Call("LayoutButtons");
+    if (w.Tasten().Any(t => t.Label == "A"))
+        verstoesse.Add($"{wer}: Taste A auch nach der Imperialzeit");
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: A bezahlt und forscht, Ausbildung wartet, Feudal- bis Imperialzeit, danach keine Taste A");
+}
+
+// Wachturm (C4c), das erste Gebäude der Feudalzeit: in der Dunklen Zeit weder
+// Taste T noch Setzmodus, danach beides. Er kostet 50 Holz und 125 Stein und
+// sieht fertig gebaut eine Kachel, die weder ein Dorfbewohner (3 Kacheln) noch
+// ein anderes Gebäude (Stadtzentrum 5, Haus und Lager 3) sehen kann.
+static void Turm(int karte, List<string> verstoesse)
+{
+    string wer = $"Karte {karte}, Wachturm";
+    var w = new Welt();
+    int vorher = verstoesse.Count;
+    w.Set("screenBounds", new Rectangle(0, 0, 2406, 1353));
+    var ages = (AgeProgress)(typeof(Player).GetProperty("Ages")?.GetValue(w.P1)
+        ?? throw new InvalidOperationException("Player.Ages nicht gefunden"));
+    var arbeiter = w.Dorfbewohner().Take(2).ToList();
+    w.Waehle(arbeiter);
+
+    w.Call("LayoutButtons");
+    if (w.Tasten().Any(t => t.Label == "T"))
+        verstoesse.Add($"{wer}: Taste T schon in der Dunklen Zeit");
+    w.Call("TogglePlacing", BuildingType.Tower);
+    if (w.Get("placing") != null)
+        verstoesse.Add($"{wer}: Setzmodus {w.Get("placing")} schon in der Dunklen Zeit");
+    w.Set("placing", null);
+
+    w.P1.Resources.Add(Resource.Food, 300);
+    ages.TryStart(w.P1.Resources);
+    ages.Update(130f);
+    w.Call("LayoutButtons");
+    if (!w.Tasten().Any(t => t.Label == "T"))
+        verstoesse.Add($"{wer}: keine Taste T in der Feudalzeit (da: {string.Join(" ", w.Tasten().Select(t => t.Label))})");
+    w.Call("TogglePlacing", BuildingType.Tower);
+    if (!Equals(w.Get("placing"), BuildingType.Tower))
+        verstoesse.Add($"{wer}: kein Setzmodus Wachturm in der Feudalzeit");
+    w.Set("placing", null);
+
+    int holz = w.P1.Resources[Resource.Wood], stein = w.P1.Resources[Resource.Stone];
+    var platz = w.Bauplatz(BuildingType.Tower, arbeiter[0], 5);
+    w.Call("PlaceBuilding", BuildingType.Tower, platz);
+    var turm = w.Map.Buildings.Last();
+    if (turm.Core.BuildingType != BuildingType.Tower)
+    {
+        verstoesse.Add($"{wer}: kein Wachturm gesetzt (zuletzt {turm.Core.BuildingType})");
+        return;
+    }
+    if (w.P1.Resources[Resource.Wood] != holz - 50 || w.P1.Resources[Resource.Stone] != stein - 125)
+        verstoesse.Add($"{wer}: Holz {holz} -> {w.P1.Resources[Resource.Wood]}, Stein {stein} -> "
+                       + $"{w.P1.Resources[Resource.Stone]} - erwartet 50 Holz und 125 Stein");
+    float bauzeit = w.LaufeBis(() => turm.IsComplete, 90f);
+    if (!turm.IsComplete)
+    {
+        verstoesse.Add($"{wer}: nach 90 s nicht fertig ({turm.Construction.Progress * 100:0} %)");
+        return;
+    }
+
+    // Prüfkachel 7 bis 9 Kacheln von der Turmmitte, außer Sicht von allem anderen
+    w.Map.UpdateFogOfWarForPlayer(0, w.Map.Units);
+    var mitte = new Vector2(turm.Core.Position.X, turm.Core.Position.Y);
+    var andere = w.Map.Buildings.Where(b => b != turm && b.OwnerId == 0)
+        .Select(b => (Ort: new Vector2(b.Core.Position.X, b.Core.Position.Y), Weit: b.Core.Stats.VisionRange + 1.5f)).ToList();
+    var einheiten = w.Dorfbewohner().Select(u => w.Map.WorldToGrid(u.Position)).ToList();
+    var probe = Enumerable.Range(0, w.Map.Width).SelectMany(x => Enumerable.Range(0, w.Map.Height).Select(y => new Vector2(x, y)))
+        .Where(c => Vector2.Distance(c, mitte) is >= 7f and <= 9f
+                    && einheiten.All(e => Vector2.Distance(c, e) > 5f)
+                    && andere.All(b => Vector2.Distance(c, b.Ort) > b.Weit))
+        .Cast<Vector2?>().FirstOrDefault();
+    if (probe == null)
+        Console.WriteLine($"      {wer}: keine Prüfkachel außer Sicht der übrigen - Sichttest übersprungen");
+    else if (!w.Map.IsTileVisible((int)probe.Value.X, (int)probe.Value.Y, 0))
+        verstoesse.Add($"{wer}: Kachel {probe.Value} ({Vector2.Distance(probe.Value, mitte):0.0} vom Turm) nicht in Sicht");
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: erst ab der Feudalzeit, 50 Holz + 125 Stein, fertig nach {bauzeit:0} s, sieht {(probe == null ? "-" : Vector2.Distance(probe.Value, mitte).ToString("0.0"))} Kacheln weit");
+}
+
+// Hauptmenü (E12): die Einträge stehen mittig, wachsen mit dem Fenster und
+// überlappen nicht; die Maus wählt beim Zeigen und startet beim Loslassen über
+// einem aktiven Eintrag, eine ruhende Maus überstimmt die Tastatur nicht, und
+// der gesperrte Eintrag „Spiel laden" lässt sich weder zeigen noch klicken noch
+// mit den Pfeiltasten erreichen. Ohne Grafik: EntryRect und EvaluateMouse
+// rechnen nur, MoveSelection spielt höchstens einen Ton, den es hier nicht gibt.
+// Entstanden am 2026-10-03: das Menü wertete die Maus gar nicht aus.
+static void Hauptmenue(List<string> verstoesse)
+{
+    const BindingFlags F = BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
+    var typ = typeof(MainMenuScreen);
+    MethodInfo Methode(string name) => typ.GetMethod(name, F)
+        ?? throw new InvalidOperationException($"Methode MainMenuScreen.{name} nicht gefunden - umbenannt?");
+    var auswahl = typ.GetField("selectedIndex", F)
+        ?? throw new InvalidOperationException("Feld MainMenuScreen.selectedIndex nicht gefunden");
+    var menue = new MainMenuScreen();
+    const string wer = "Hauptmenü";
+    int vorher = verstoesse.Count;
+
+    MouseState Maus(Point p, bool gedrueckt) => new MouseState(p.X, p.Y, 0,
+        gedrueckt ? ButtonState.Pressed : ButtonState.Released, ButtonState.Released,
+        ButtonState.Released, ButtonState.Released, ButtonState.Released);
+
+    foreach (var (bw, bh) in new[] { (1280, 768), (2406, 1353), (4812, 2707) })
+    {
+        string fenster = $"{wer} {bw}x{bh}";
+        Rectangle Platte(int i) => (Rectangle)Methode("EntryRect").Invoke(null, new object[] { i, bw, bh });
+        (int, bool) Maus2(MouseState jetzt, MouseState zuvor)
+            => ((int, bool))Methode("EvaluateMouse").Invoke(menue, new object[] { jetzt, zuvor, bw, bh });
+
+        var platten = Enumerable.Range(0, 4).Select(Platte).ToList();
+        for (int i = 0; i < platten.Count; i++)
+        {
+            var r = platten[i];
+            if (Math.Abs(r.Center.X - bw / 2) > 1)
+                verstoesse.Add($"{fenster}: Eintrag {i} nicht mittig ({r})");
+            if (r.Top < 0 || r.Bottom > bh)
+                verstoesse.Add($"{fenster}: Eintrag {i} ragt aus dem Fenster ({r})");
+            if (r.Height < bh * 0.05f)
+                verstoesse.Add($"{fenster}: Eintrag {i} nur {r.Height} px hoch - bei {bh} px Fensterhöhe zu klein");
+            if (i > 0 && r.Top < platten[i - 1].Bottom)
+                verstoesse.Add($"{fenster}: Eintrag {i} überlappt Eintrag {i - 1}");
+        }
+
+        var abseits = new Point(2, 2);
+        auswahl.SetValue(menue, 0);
+        if (Maus2(Maus(platten[2].Center, false), Maus(abseits, false)) != (2, false))
+            verstoesse.Add($"{fenster}: Zeigen auf „Einstellungen“ wählt sie nicht aus");
+        if (Maus2(Maus(platten[2].Center, false), Maus(platten[2].Center, false)) != (0, false))
+            verstoesse.Add($"{fenster}: ruhende Maus überstimmt die Tastaturauswahl");
+        if (Maus2(Maus(platten[3].Center, false), Maus(platten[3].Center, true)) != (3, true))
+            verstoesse.Add($"{fenster}: Klick auf „Beenden“ startet ihn nicht");
+        if (Maus2(Maus(platten[0].Center, false), Maus(platten[0].Center, true)) != (0, true))
+            verstoesse.Add($"{fenster}: Klick auf „Neues Spiel“ startet es nicht");
+        if (Maus2(Maus(platten[1].Center, false), Maus(platten[1].Center, true)) != (0, false))
+            verstoesse.Add($"{fenster}: der gesperrte Eintrag „Spiel laden“ reagiert auf die Maus");
+        if (Maus2(Maus(abseits, false), Maus(abseits, true)) != (0, false))
+            verstoesse.Add($"{fenster}: Klick neben das Menü startet etwas");
+    }
+
+    auswahl.SetValue(menue, 0);
+    Methode("MoveSelection").Invoke(menue, new object[] { 1 });
+    if ((int)auswahl.GetValue(menue) != 2)
+        verstoesse.Add($"{wer}: Pfeil nach unten von „Neues Spiel“ landet auf {auswahl.GetValue(menue)}, erwartet 2 (über das gesperrte „Spiel laden“ hinweg)");
+    Methode("MoveSelection").Invoke(menue, new object[] { -1 });
+    if ((int)auswahl.GetValue(menue) != 0)
+        verstoesse.Add($"{wer}: Pfeil nach oben von „Einstellungen“ landet auf {auswahl.GetValue(menue)}, erwartet 0");
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: mittig, wächst mit dem Fenster, Zeigen wählt, Klick startet, „Spiel laden“ gesperrt");
+}
+
 /// <summary>Eine Spielwelt: echte Karte, zwei Spieler, der Bildschirm ohne Grafik.</summary>
 class Welt
 {
@@ -720,12 +1006,36 @@ class Welt
         Call("UpdatePopulationLimits");
     }
 
+    // Seit C4b; fehlt sie, laufen die übrigen Gruppen trotzdem - die Gruppe
+    // zeitalter verlangt sie ausdrücklich
+    static readonly MethodInfo UpdateAges = T.GetMethod("UpdateAges", F);
+
     static FieldInfo Feld(string name) => T.GetField(name, F)
         ?? throw new InvalidOperationException($"Feld RTSGameplayScreen.{name} nicht gefunden - umbenannt?");
 
     public void Set(string name, object wert) => Feld(name).SetValue(_screen, wert);
 
     public object Get(string name) => Feld(name).GetValue(_screen);
+
+    /// <summary>Die Befehlstasten, wie LayoutButtons sie zuletzt angelegt hat.</summary>
+    public List<(string Label, Rectangle Rect)> Tasten()
+        => ((System.Collections.IEnumerable)Get("_buttons")).Cast<object>()
+            .Select(b => ((string)b.GetType().GetField("Label").GetValue(b),
+                          (Rectangle)b.GetType().GetField("Rect").GetValue(b)))
+            .ToList();
+
+    /// <summary>
+    /// Linksklick auf einen Bildschirmpunkt, so wie das Spiel ihn sieht: ein Bild
+    /// mit gedrückter, eines mit losgelassener Taste durch HandleRtsInput.
+    /// </summary>
+    public void Klick(Point p)
+    {
+        var gt = new GameTime(TimeSpan.FromSeconds(_zeit), TimeSpan.FromSeconds(1.0 / 60));
+        foreach (var taste in new[] { ButtonState.Pressed, ButtonState.Released })
+            Call("HandleRtsInput", gt, new KeyboardState(),
+                 new MouseState(p.X, p.Y, 0, taste, ButtonState.Released, ButtonState.Released,
+                                ButtonState.Released, ButtonState.Released));
+    }
 
     public object Call(string name, params object[] args)
     {
@@ -818,6 +1128,7 @@ class Welt
             Call("UpdateUnits", gt);
             Call("UpdatePopulationLimits");
             Call("UpdateTraining", dt);
+            UpdateAges?.Invoke(_screen, new object[] { dt });
             Call("UpdateConstruction", dt);
             Call("UpdateSheepClaims");
             Map.RegrowCrop(dt);

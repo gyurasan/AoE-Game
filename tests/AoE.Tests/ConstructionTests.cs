@@ -25,6 +25,8 @@ public class ConstructionTests
         Assert.Equal(new Dictionary<Resource, int> { [Resource.Wood] = 175 }, BuildingRules.CostOf(BuildingType.Barracks));
         Assert.Equal(new Dictionary<Resource, int> { [Resource.Wood] = 275, [Resource.Stone] = 100 },
                      BuildingRules.CostOf(BuildingType.TownCenter));
+        Assert.Equal(new Dictionary<Resource, int> { [Resource.Wood] = 50, [Resource.Stone] = 125 },
+                     BuildingRules.CostOf(BuildingType.Tower));
     }
 
     [Fact]
@@ -50,6 +52,7 @@ public class ConstructionTests
     [InlineData(BuildingType.Farm, 15f)]
     [InlineData(BuildingType.Barracks, 50f)]
     [InlineData(BuildingType.TownCenter, 150f)]
+    [InlineData(BuildingType.Tower, 80f)]
     [InlineData(BuildingType.Wonder, 60f)]
     public void Bauzeit_MitEinemArbeiter(BuildingType typ, float sekunden)
     {
@@ -64,12 +67,24 @@ public class ConstructionTests
     [InlineData(BuildingType.Mill, 2)]
     [InlineData(BuildingType.LumberCamp, 2)]
     [InlineData(BuildingType.MiningCamp, 2)]
+    [InlineData(BuildingType.Tower, 2)]
     public void Groesse_InKacheln(BuildingType typ, int kanten)
     {
         Assert.Equal(kanten, BuildingRules.SizeOf(typ));
     }
 
     // --- Abnehmender Ertrag -------------------------------------------------
+
+    [Fact]
+    public void Wachturm_SiehtZehnKachelnWeit()
+    {
+        // Das erste Gebäude der Feudalzeit; seine Stärke vor dem Kampf ist die
+        // Sicht - doppelt so weit wie das Stadtzentrum (5)
+        var turm = BuildingEntity.CreateTower(0, new Position(10, 10));
+        Assert.Equal(BuildingType.Tower, turm.BuildingType);
+        Assert.Equal(10, turm.Stats.VisionRange);
+        Assert.Equal(new Position(10, 10), turm.Position);
+    }
 
     [Theory]
     [InlineData(-1, 0f)]

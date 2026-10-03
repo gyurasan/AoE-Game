@@ -242,6 +242,25 @@ public sealed class BuildingEntity : UnitEntity
         };
         return new BuildingEntity(BuildingType.Barracks, ownerId, position, stats);
     }
+
+    /// <summary>
+    /// Wachturm, das erste Gebäude der Feudalzeit. Er sieht 10 Kacheln weit -
+    /// doppelt so weit wie das Stadtzentrum -, Angriff und Reichweite sind für
+    /// die spätere Kampfschleife hinterlegt. Werte aus AoE II.
+    /// </summary>
+    public static BuildingEntity CreateTower(int ownerId, Position position)
+    {
+        var stats = new UnitStats
+        {
+            HitPoints = 1020,
+            BaseAttack = 5,
+            BaseArmor = 1,
+            Range = 8,
+            Speed = 0,
+            VisionRange = 10
+        };
+        return new BuildingEntity(BuildingType.Tower, ownerId, position, stats);
+    }
 }
 
 /// <summary>

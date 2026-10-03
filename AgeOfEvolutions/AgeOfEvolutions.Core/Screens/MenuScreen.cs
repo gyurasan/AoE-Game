@@ -142,8 +142,13 @@ abstract class MenuScreen : GameScreen
     {
         for (int i = 0; i < menuEntries.Count; i++)
         {
+            // MenuEntry.Draw setzt die Zeile mit ihrer Mitte auf Position.Y
+            // (Ursprung LineSpacing / 2) - die Klickfläche beginnt deshalb eine
+            // halbe Zeile darüber, sonst traf nur die untere Hälfte des Texts
             var textSize = ScreenManager.Font.MeasureString(menuEntries[i].Text);
-            var entryBounds = new Rectangle((int)menuEntries[i].Position.X, (int)menuEntries[i].Position.Y, (int)textSize.X, (int)textSize.Y);
+            var entryBounds = new Rectangle((int)menuEntries[i].Position.X,
+                                            (int)(menuEntries[i].Position.Y - ScreenManager.Font.LineSpacing / 2f),
+                                            (int)textSize.X, (int)textSize.Y);
 
             if (entryBounds.Contains(touchLocation))
             {

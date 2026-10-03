@@ -11,8 +11,8 @@ public static class BuildingRules
     /// <summary>
     /// Kosten laut Spezifikation, bei jedem Aufruf ein neues Wörterbuch:
     /// Stadtzentrum 275 Holz und 100 Stein, Haus 25 Holz, Mühle, Holzfällerlager
-    /// und Bergbaulager je 100 Holz, Farm 60 Holz, Kaserne 175 Holz. Für alle
-    /// anderen Typen ein leeres Wörterbuch.
+    /// und Bergbaulager je 100 Holz, Farm 60 Holz, Kaserne 175 Holz, Wachturm
+    /// 50 Holz und 125 Stein. Für alle anderen Typen ein leeres Wörterbuch.
     /// </summary>
     public static Dictionary<Resource, int> CostOf(BuildingType type) => type switch
     {
@@ -21,13 +21,14 @@ public static class BuildingRules
         BuildingType.Mill or BuildingType.LumberCamp or BuildingType.MiningCamp => new Dictionary<Resource, int> { [Resource.Wood] = 100 },
         BuildingType.Farm => new Dictionary<Resource, int> { [Resource.Wood] = 60 },
         BuildingType.Barracks => new Dictionary<Resource, int> { [Resource.Wood] = 175 },
+        BuildingType.Tower => new Dictionary<Resource, int> { [Resource.Wood] = 50, [Resource.Stone] = 125 },
         _ => new Dictionary<Resource, int>()
     };
 
     /// <summary>
     /// Bauzeit in Sekunden mit einem einzigen Bauarbeiter: Haus 25, Mühle,
     /// Holzfällerlager und Bergbaulager je 35, Farm 15, Kaserne 50,
-    /// Stadtzentrum 150. Für alle anderen Typen 60.
+    /// Wachturm 80, Stadtzentrum 150. Für alle anderen Typen 60.
     /// </summary>
     public static float BuildSecondsOf(BuildingType type) => type switch
     {
@@ -35,6 +36,7 @@ public static class BuildingRules
         BuildingType.Mill or BuildingType.LumberCamp or BuildingType.MiningCamp => 35f,
         BuildingType.Farm => 15f,
         BuildingType.Barracks => 50f,
+        BuildingType.Tower => 80f,
         BuildingType.TownCenter => 150f,
         _ => 60f
     };

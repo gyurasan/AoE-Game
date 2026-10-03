@@ -602,7 +602,7 @@ Ein breites Holz-/Pergament-Panel über die volle Breite, dreigeteilt:
 |---|---|
 | **links** | Raster aus Aktions-Icons — was die aktuelle Auswahl tun kann (Gebäude bauen, Einheiten ausbilden, Technologien, Haltung, Abbrechen) |
 | **mitte** | Info zur Auswahl: Name, Portrait, HP-Balken, Angriff/Rüstung, bei Gebäuden die Produktionswarteschlange |
-| **rechts** | **Minimap** als Rautenform, mit Geländefarben, eigenen (blau) und gegnerischen (rot) Einheiten und dem aktuellen Sichtausschnitt als weißes Rechteck |
+| **rechts** | **Minimap** in derselben Ansicht wie die Spielkarte (im Spiel zurzeit Draufsicht, Norden oben), mit Geländefarben, eigenen (blau) und gegnerischen (rot) Einheiten und dem aktuellen Sichtausschnitt als weißes Rechteck |
 
 ### Auswahl in der Spielwelt
 

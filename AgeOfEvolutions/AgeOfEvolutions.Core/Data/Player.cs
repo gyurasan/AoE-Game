@@ -32,8 +32,8 @@ public class Player
     // Town center location
     public Vector2 TownCenterPosition { get; set; }
     
-    // Age
-    public string CurrentAge { get; set; } = "Dunkle Zeit";
+    // Zeitalter und Aufstieg - Regeln und Ablauf aus AoE.Core (AgeRules, AgeProgress)
+    public AgeProgress Ages { get; } = new AgeProgress();
     
     // Units owned
     public List<Unit> Units { get; set; } = new List<Unit>();
@@ -106,41 +106,5 @@ public class Player
     {
         PopulationCount--;
         Units.Remove(unit);
-    }
-    
-    // Age progression
-    public Dictionary<Resource, int> GetAgeUpCost(string fromAge, string toAge)
-    {
-        return toAge.ToLower() switch
-        {
-            "feudalzeit" => new Dictionary<Resource, int>
-            {
-                { Resource.Food, 500 },
-                { Resource.Wood, 200 }
-            },
-            "ritterzeit" => new Dictionary<Resource, int>
-            {
-                { Resource.Food, 800 },
-                { Resource.Wood, 600 },
-                { Resource.Stone, 200 }
-            },
-            "imperialzeit" => new Dictionary<Resource, int>
-            {
-                { Resource.Food, 1000 },
-                { Resource.Wood, 800 },
-                { Resource.Gold, 400 }
-            },
-            _ => new Dictionary<Resource, int>()
-        };
-    }
-    
-    public bool IsAgeUpAvailable(string toAge)
-    {
-        return GetAgeUpCost(CurrentAge, toAge).Count > 0;
-    }
-    
-    public void AdvanceAge(string newAge)
-    {
-        CurrentAge = newAge;
     }
 }

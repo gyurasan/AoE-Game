@@ -9,14 +9,34 @@ using Microsoft.Xna.Framework.Input;
 namespace AgeOfEvolutions.Core.Screens;
 
 /// <summary>
-/// Main menu screen for the Age of Evolutions RTS game
+/// Hauptmenü: Titel und Einträge auf einer Tafel in der Bildmitte, bedienbar
+/// mit der Maus (Zeigen wählt, Klick startet) und mit der Tastatur
+/// (Pfeiltasten, Enter). Alle Maße sind für 1080 px Fensterhöhe entworfen und
+/// wachsen mit dem Fenster - vorher standen sie in festen Pixeln und
+/// schrumpften bei hoher Auflösung zu einem Fleck oben in der Mitte, und die
+/// Maus wurde gar nicht ausgewertet.
 /// </summary>
 public class MainMenuScreen : GameScreen
 {
+    // Entwurfshöhe der Maße unten; UiScale rechnet sie auf das Fenster um
+    private const float DESIGN_HEIGHT = 1080f;
+    private const int PANEL_WIDTH = 560, PANEL_TOP = 170;
+    private const int ENTRY_WIDTH = 440, ENTRY_HEIGHT = 64, ENTRY_STEP = 84, ENTRY_TOP = 330;
+
     Texture2D menuBackground;
     Texture2D menuButton;
+    SpriteFont menuFont;
     SoundEffect soundButton;
-    string[] menuOptions = { "Neues Spiel", "Spiel laden", "Einstellungen", "Beenden" };
+
+    // „Spiel laden" gibt es noch nicht: grau und nicht wählbar statt eines
+    // Eintrags, der beim Klick nichts tut
+    readonly (string Text, bool Enabled)[] menuOptions =
+    {
+        ("Neues Spiel", true),
+        ("Spiel laden", false),
+        ("Einstellungen", true),
+        ("Beenden", true),
+    };
     int selectedIndex = 0;
 
     public MainMenuScreen()
@@ -36,6 +56,10 @@ public class MainMenuScreen : GameScreen
         // parchment look rather than taking the whole game down on startup.
         menuBackground = TryLoad<Texture2D>(content, "Backgrounds/menu");
         soundButton = TryLoad<SoundEffect>(content, "Sounds/PlayerGemCollected");
+
+        // Eigene, große Schrift: die HUD-Schrift (14 pt) würde auf Menügröße
+        // gestreckt unscharf. Fehlt sie, tut es die HUD-Schrift.
+        menuFont = TryLoad<SpriteFont>(content, "Fonts/Menu") ?? ScreenManager.Font;
 
         // 1x1 white texture, tinted per draw call for panels, plates and bars.
         menuButton = new Texture2D(ScreenManager.GraphicsDevice, 1, 1);
@@ -65,22 +89,29 @@ public class MainMenuScreen : GameScreen
     {
         var keyboard = inputState.CurrentKeyboardStates[0];
         var prevKeyboard = inputState.LastKeyboardStates[0];
+        var buffer = ScreenManager.GraphicsDevice.PresentationParameters;
 
-        // Navigate menu
-        if (WasPressed(keyboard, prevKeyboard, Keys.Down))
+        // Maus: Zeigen wählt, Loslassen über einem Eintrag startet ihn
+        var (selected, activate) = EvaluateMouse(inputState.CurrentMouseState, inputState.LastMouseState,
+                                                 buffer.BackBufferWidth, buffer.BackBufferHeight);
+        if (selected != selectedIndex)
         {
-            selectedIndex = (selectedIndex + 1) % menuOptions.Length;
+            selectedIndex = selected;
             soundButton?.Play();
         }
-        else if (WasPressed(keyboard, prevKeyboard, Keys.Up))
-        {
-            selectedIndex = (selectedIndex - 1 + menuOptions.Length) % menuOptions.Length;
-            soundButton?.Play();
-        }
-        else if (WasPressed(keyboard, prevKeyboard, Keys.Enter) || WasPressed(keyboard, prevKeyboard, Keys.Space))
+        if (activate)
         {
             HandleMenuSelect();
+            return;
         }
+
+        // Tastatur
+        if (WasPressed(keyboard, prevKeyboard, Keys.Down))
+            MoveSelection(1);
+        else if (WasPressed(keyboard, prevKeyboard, Keys.Up))
+            MoveSelection(-1);
+        else if (WasPressed(keyboard, prevKeyboard, Keys.Enter) || WasPressed(keyboard, prevKeyboard, Keys.Space))
+            HandleMenuSelect();
     }
 
     private static bool WasPressed(KeyboardState current, KeyboardState previous, Keys key)
@@ -88,8 +119,57 @@ public class MainMenuScreen : GameScreen
         return current.IsKeyDown(key) && previous.IsKeyUp(key);
     }
 
+    /// <summary>Auswahl um <paramref name="step"/> weiter, über gesperrte Einträge hinweg.</summary>
+    private void MoveSelection(int step)
+    {
+        do
+            selectedIndex = (selectedIndex + step + menuOptions.Length) % menuOptions.Length;
+        while (!menuOptions[selectedIndex].Enabled);
+        soundButton?.Play();
+    }
+
+    /// <summary>
+    /// Auswertung der Maus für ein Bild, ohne Nebenwirkung - tools/spielablauf
+    /// prüft sie direkt. Über einem aktiven Eintrag wählt eine Bewegung ihn aus,
+    /// das Loslassen der linken Taste startet ihn; eine ruhende Maus überstimmt
+    /// die Tastaturauswahl nicht. Rückgabe: die neue Auswahl und ob sie
+    /// gestartet wird.
+    /// </summary>
+    private (int Selected, bool Activate) EvaluateMouse(MouseState current, MouseState last, int width, int height)
+    {
+        int hit = EntryAt(current.Position, width, height);
+        if (hit < 0 || !menuOptions[hit].Enabled)
+            return (selectedIndex, false);
+        bool moved = current.Position != last.Position;
+        bool released = current.LeftButton == ButtonState.Released && last.LeftButton == ButtonState.Pressed;
+        return (moved || released ? hit : selectedIndex, released);
+    }
+
+    /// <summary>Der Eintrag unter dem Bildschirmpunkt, oder -1.</summary>
+    private int EntryAt(Point p, int width, int height)
+    {
+        for (int i = 0; i < menuOptions.Length; i++)
+        {
+            if (EntryRect(i, width, height).Contains(p))
+                return i;
+        }
+        return -1;
+    }
+
+    private static float UiScale(int height) => height / DESIGN_HEIGHT;
+
+    /// <summary>Platte eines Eintrags im Fenster - dieselbe zum Zeichnen und Klicken.</summary>
+    private static Rectangle EntryRect(int index, int width, int height)
+    {
+        float ui = UiScale(height);
+        int w = (int)(ENTRY_WIDTH * ui), h = (int)(ENTRY_HEIGHT * ui);
+        return new Rectangle((width - w) / 2, (int)((ENTRY_TOP + index * ENTRY_STEP) * ui), w, h);
+    }
+
     private void HandleMenuSelect()
     {
+        if (!menuOptions[selectedIndex].Enabled)
+            return;
         soundButton?.Play();
 
         switch (selectedIndex)
@@ -97,9 +177,6 @@ public class MainMenuScreen : GameScreen
             case 0: // New Game
                 // Via LoadingScreen so the menu transitions off before the map is built.
                 LoadingScreen.Load(ScreenManager, true, ControllingPlayer, new RTSGameplayScreen());
-                break;
-            case 1: // Load Game
-                // TODO: Load game functionality
                 break;
             case 2: // Settings
                 ScreenManager.AddScreen(new SettingsScreen(), ControllingPlayer);
@@ -113,67 +190,73 @@ public class MainMenuScreen : GameScreen
     public override void Draw(GameTime gameTime)
     {
         var spriteBatch = ScreenManager.SpriteBatch;
-        var font = ScreenManager.Font;
         var width = ScreenManager.GraphicsDevice.PresentationParameters.BackBufferWidth;
         var height = ScreenManager.GraphicsDevice.PresentationParameters.BackBufferHeight;
+        float ui = UiScale(height);
+        int shadow = Math.Max(1, (int)(2 * ui));
 
         spriteBatch.Begin();
 
         DrawBackground(spriteBatch, width, height);
 
-        // Draw title with golden texture effect
-        var title = "Age of Evolutions";
-        var titlePosition = new Vector2(
-            width / 2f - font.MeasureString(title).X / 2f,
-            60f);
-        spriteBatch.DrawString(font, title, titlePosition + new Vector2(3, 3), Color.Black);
-        spriteBatch.DrawString(font, title, titlePosition, new Color(255, 215, 0));
+        // Die Hintergrundgrafik malt eigene Schaltflächen - abgedunkelt drängen
+        // sie sich nicht mehr vor das echte Menü
+        spriteBatch.Draw(menuButton, new Rectangle(0, 0, width, height), Color.Black * 0.45f);
 
-        // Draw age indicator
-        var ageText = "Zeitalter: Dunkle Zeit";
-        var agePosition = new Vector2(
-            width / 2f - font.MeasureString(ageText).X / 2f,
-            110f);
-        spriteBatch.DrawString(font, ageText, agePosition + new Vector2(2, 2), Color.Black);
-        spriteBatch.DrawString(font, ageText, agePosition, Color.Gray);
+        // Tafel hinter Titel und Einträgen
+        int panelWidth = (int)(PANEL_WIDTH * ui);
+        int panelTop = (int)(PANEL_TOP * ui);
+        int panelBottom = EntryRect(menuOptions.Length - 1, width, height).Bottom + (int)(36 * ui);
+        var panel = new Rectangle((width - panelWidth) / 2, panelTop, panelWidth, panelBottom - panelTop);
+        spriteBatch.Draw(menuButton, panel, new Color(30, 20, 10) * 0.88f);
+        DrawBorder(spriteBatch, panel, Math.Max(2, (int)(3 * ui)), new Color(180, 140, 60));
 
-        // Draw menu options
-        var menuY = 220f;
+        DrawCentered(spriteBatch, "Age of Evolutions", new Vector2(width / 2f, panelTop + 78 * ui),
+                     72 * ui, new Color(255, 215, 0), Math.Max(2, (int)(3 * ui)));
+
         for (int i = 0; i < menuOptions.Length; i++)
         {
-            var text = menuOptions[i];
-            var textSize = font.MeasureString(text);
-            var position = new Vector2(width / 2f - textSize.X / 2f, menuY + i * 45f);
+            var (text, enabled) = menuOptions[i];
+            var plate = EntryRect(i, width, height);
+            bool selected = i == selectedIndex;
 
-            // Every entry gets a plate so the text stays readable over the artwork;
-            // the selected one is lighter and gets a golden border.
-            var plate = new Rectangle((int)position.X - 20, (int)position.Y - 10,
-                                      (int)textSize.X + 40, 45);
-            spriteBatch.Draw(menuButton, plate, i == selectedIndex
-                ? new Color(100, 60, 30) * 0.9f
-                : new Color(30, 20, 10) * 0.75f);
+            spriteBatch.Draw(menuButton, plate, selected
+                ? new Color(100, 60, 30) * 0.95f
+                : new Color(55, 38, 20) * 0.9f);
+            if (selected)
+                DrawBorder(spriteBatch, plate, Math.Max(2, (int)(2 * ui)), new Color(255, 215, 0));
 
-            if (i == selectedIndex)
-                DrawBorder(spriteBatch, plate, 2, new Color(255, 215, 0));
-
-            // Draw text
-            var color = i == selectedIndex ? new Color(255, 215, 0) : Color.LightGray;
-            spriteBatch.DrawString(font, text, position + new Vector2(1, 1), Color.Black);
-            spriteBatch.DrawString(font, text, position, color);
+            var color = !enabled ? new Color(120, 110, 95)
+                      : selected ? new Color(255, 215, 0)
+                                 : Color.LightGray;
+            DrawCentered(spriteBatch, text, plate.Center.ToVector2(), 40 * ui, color, shadow);
         }
 
-        // Draw footer with controls info
-        var footer = "Pfeiltasten (Auswahl) | ENTER (ausfuehren) | ESC (zurueck)";
-        var footerPosition = new Vector2(
-            width / 2f - font.MeasureString(footer).X / 2f,
-            height - 35f);
-        spriteBatch.DrawString(font, footer, footerPosition, new Color(200, 200, 200));
+        DrawCentered(spriteBatch, "Maus oder Pfeiltasten: wählen   Klick oder Enter: starten",
+                     new Vector2(width / 2f, height - 36 * ui), 24 * ui, new Color(220, 210, 190), shadow);
 
         spriteBatch.End();
 
         // Fade the screen in/out while transitioning.
         if (TransitionPosition > 0)
             ScreenManager.FadeBackBufferToBlack(1f - TransitionAlpha);
+    }
+
+    /// <summary>
+    /// Text mit Schatten, mittig auf <paramref name="center"/> und
+    /// <paramref name="pixelHeight"/> Pixel hoch - die Schrift wird dafür
+    /// skaliert, gleich ob die Menü- oder die HUD-Schrift geladen ist.
+    /// </summary>
+    private void DrawCentered(SpriteBatch spriteBatch, string text, Vector2 center, float pixelHeight,
+                              Color color, int shadow)
+    {
+        float scale = pixelHeight / menuFont.LineSpacing;
+        var size = menuFont.MeasureString(text) * scale;
+        var position = center - size / 2f;
+        spriteBatch.DrawString(menuFont, text, position + new Vector2(shadow, shadow), Color.Black,
+                               0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+        spriteBatch.DrawString(menuFont, text, position, color,
+                               0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
     }
 
     /// <summary>

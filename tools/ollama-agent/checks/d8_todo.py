@@ -52,8 +52,12 @@ if teil == "a":
     for pflicht in ("GatherJob", "TileMapGatherWorld", "Untätig", "Sichtprüfung", "E5", "E6", "125"):
         da(re.escape(pflicht), "Wiederaufnahme nennt den neuen Stand", wieder)
     weg(r"\*\*C1 Dorfbewohner-Loop\*\* — der Punkt mit der größten Wirkung", "C1 ist erledigt", wieder)
-    da(r"2026-09-30[^\n]*\n?[^\n]*(unversioniert|nicht committet|im Arbeitsbaum)",
-       "Hinweis, dass der Stand vom 2026-09-30 nicht committet ist", wieder)
+    # Bis 2026-10-03 hieß das „Stand vom 2026-09-30 nicht committet" - seit den
+    # Commits des Nutzers falsch. Verlangt wird nur noch, dass die Wiederaufnahme
+    # den Versionsstand nennt: committet mit Hash, oder ausdrücklich nicht.
+    da(r"(committet[^\n]*\n?[^\n]*`[0-9a-f]{7}`|`[0-9a-f]{7}`[^\n]*\n?[^\n]*committet"
+       r"|unversioniert|nicht committet|im Arbeitsbaum)",
+       "Hinweis auf den Versionsstand (Commit-Hash oder 'nicht committet')", wieder)
     da(r"qwen3\.8:27b", "Modell der lokalen Agents")
     da(rf"{n} Unit-Tests", "Erledigt-Liste", block(r"# Erledigt"))
     da(r"Dorfbewohner-Loop \(C1\)", "Erledigt-Liste", block(r"# Erledigt"))

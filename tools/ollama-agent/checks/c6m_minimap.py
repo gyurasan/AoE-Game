@@ -1,4 +1,5 @@
-"""Abnahme C6m: die Minimap ist im laufenden Spiel rechts unten zu sehen.
+"""Abnahme C6m/C6d: die Minimap ist im laufenden Spiel rechts unten zu sehen,
+in derselben Ansicht wie die Spielkarte.
 
 Bis 2026-10-03 sass sie links und war von weissen Rechtecken verdeckt: die
 schraegen Kanten des Kameraausschnitts wurden als gefuellte Rechtecke
@@ -7,9 +8,11 @@ zwischen ihren Endpunkten gezeichnet. Lage, Groesse und Klick rechnet
 landet, sieht nur ein Bildschirmfoto - deshalb startet diese Abnahme die
 DesktopGL-Fassung mit --rts und zaehlt Pixel in der unteren Leiste:
 
-- der dunkle Minimap-Grund (12, 12, 12) liegt rechts, ist bei mindestens 2300 px
-  Fensterbreite mindestens 370 px breit und doppelt so breit wie hoch,
-- darin ist erkundetes Gelaende zu sehen (Grasland in der Minimap-Farbe),
+- der dunkle Minimap-Grund (12, 12, 12) liegt rechts, ist so hoch, wie die Leiste
+  es zulaesst, und quadratisch wie die 64x64-Karte (C6d: Draufsicht statt Raute),
+- darin ist erkundetes Gelaende zu sehen (Grasland in der Minimap-Farbe), und
+  zwar oben links - dort liegt das Startgebiet (Kachel 3, 3) auch auf der
+  Spielkarte; in der frueheren Raute lag es oben in der Mitte,
 - und hoechstens ein kleiner Teil ist weiss (Kamerarahmen und Einheiten).
 
 Vorher muss DesktopGL gebaut sein (verify-Schritt davor). Fuer einige Sekunden
@@ -78,17 +81,25 @@ breite, hoehe = rechts - links + 1, tief - hoch + 1
 
 if links < W // 2 or W - rechts > 40:
     fehler.append(f"Minimap liegt bei x = {links}..{rechts}, nicht rechts im {W} px breiten Fenster")
-mindestens = 370 if W >= 2300 else 205
-if breite < mindestens:
-    fehler.append(f"Minimap {breite} px breit, erwartet mindestens {mindestens} (Fenster {W} px)")
-if not 0.4 <= hoehe / breite <= 0.6:
-    fehler.append(f"Minimap-Feld {breite}x{hoehe} - erwartet doppelt so breit wie hoch")
+if hoehe < LEISTE - 20:
+    fehler.append(f"Minimap nur {hoehe} px hoch - die Leiste fasst {LEISTE} px")
+if not 0.95 <= hoehe / breite <= 1.05:
+    fehler.append(f"Minimap-Feld {breite}x{hoehe} - erwartet quadratisch wie die 64x64-Karte")
 
 feld = [pixel(x, y) for y in range(hoch, tief + 1) for x in range(links, rechts + 1)]
-gras = sum(1 for p in feld if p in (GRAS, GRAS_DUNKEL))
+gras_orte = [(x, y) for y in range(hoch, tief + 1) for x in range(links, rechts + 1)
+             if pixel(x, y) in (GRAS, GRAS_DUNKEL)]
+gras = len(gras_orte)
 weiss = sum(1 for p in feld if p == WEISS)
 if gras < 50:
     fehler.append(f"kein erkundetes Gelaende auf der Minimap zu sehen ({gras} Gras-Pixel)")
+else:
+    # Startgebiet oben links wie auf der Spielkarte - Schwerpunkt im linken oberen Viertel
+    sx = (sum(x for x, _ in gras_orte) / gras - links) / breite
+    sy = (sum(y for _, y in gras_orte) / gras - hoch) / hoehe
+    if sx > 0.25 or sy > 0.25:
+        fehler.append(f"Startgebiet liegt bei {sx:.0%}/{sy:.0%} der Minimap, auf der Spielkarte "
+                      "oben links - nicht dieselbe Ansicht")
 if weiss > len(feld) * 0.15:
     fehler.append(f"Minimap zu {100 * weiss / len(feld):.0f} % weiss verdeckt")
 

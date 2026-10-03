@@ -1,17 +1,29 @@
 # AoE-Clone — TODO / Meilensteine
 
-**Stand:** 2026-10-01 · verifiziert durch Build + Testlauf, nicht aus Doku übernommen.
+**Stand:** 2026-10-03 · verifiziert durch Build + Testlauf, nicht aus Doku übernommen.
 
 ## Wiederaufnahme — hier weitermachen
 
 Alles baut und läuft: `dotnet build AgeOfEmpire.slnx` (0 Fehler, 0 Warnungen),
-`dotnet test tests/AoE.Tests` → **108/108 grün**.
+`dotnet test tests/AoE.Tests` → **157/157 grün**.
 
-Der Stand vom 2026-09-23 ist mit `4cb57d4` committet; alles vom 2026-09-30 und
-2026-10-01 liegt noch unversioniert im Arbeitsbaum. Commits macht der Nutzer selbst.
+Der Stand vom 2026-09-23 ist mit `4cb57d4` committet, alles bis zur Zoom-Anpassung
+C10z mit `4ec4b3b` (2026-10-03). Commits macht der Nutzer selbst.
 
 Zuletzt fertiggestellt:
 
+- **2026-10-03** — die DX-Fassung startet wieder (E11, Grafikprofil HiDef); die Minimap
+  sitzt rechts unten in derselben Draufsicht wie die Spielkarte, ein Klick rückt die
+  Kamera (C6m, C6d); die Zoomgrenzen wachsen mit der Fensterhöhe (C10z); die
+  Befehlstasten reagieren auf Klicks, Bautasten gibt es nur mit ausgewähltem
+  Dorfbewohner, und jede Taste ist so breit wie ihr Name (C8c, C8d)
+- **C4 Zeitalter** — Taste A steigt im Stadtzentrum auf: Feudalzeit 500 Nahrung, 130 s;
+  Ritterzeit 800 Nahrung + 200 Gold, 160 s; Imperialzeit 1000 Nahrung + 800 Gold, 190 s.
+  Solange der Aufstieg läuft, bildet das Stadtzentrum nicht aus. Erstes Gebäude der
+  Feudalzeit ist der **Wachturm** (Taste T, 50 Holz + 125 Stein, sieht 10 Kacheln weit).
+  Logik als `AgeRules` und `AgeProgress` in AoE.Core (`Economy/Ages.cs`, 46 Tests);
+  neue Gruppen `minimap`, `zoom`, `leiste`, `zeitalter` und `turm` in `tools/spielablauf`,
+  dazu ein Bildschirmfoto-Test (`checks/c6m_minimap.py` mit `checks/_fenster.ps1`)
 - **C1 Dorfbewohner-Loop** — Linksklick auf eine Ressource schickt Dorfbewohner
   sammeln: Traglast 10, Abgabe am Stadtzentrum, selbstständig zurück, bei
   erschöpfter Quelle zur nächsten gleichen. Logik als `GatherJob` in AoE.Core
@@ -99,7 +111,9 @@ Nächste sinnvolle Schritte, in dieser Reihenfolge:
    Bestätigt sind Wald, Stein, Gold, die Maussteuerung, Ausbildung mit Q, die rote
    Bevölkerungsanzeige, das Holzfällerlager und die Baustellen-Grafik (Screenshots vom
    2026-10-01).
-2. **C4 Zeitalter** als Gate für weitere Gebäude.
+2. **Weitere Gebäude der Feudalzeit** — die Zeitalter (C4) stehen, freigeschaltet ist
+   bisher nur der Wachturm. Schießstand und Stall brauchen die Kampfschleife, der Markt
+   den Handel.
 3. **Kampfschleife** — `Unit.Attack()` existiert seit B2 und wird nirgends aufgerufen.
    Auf Wunsch des Nutzers zurückgestellt (2026-09-30).
 
@@ -134,7 +148,7 @@ benennt jemand eine Methode um, meldet es das, statt still falsch zu prüfen.
 | Projekt | Framework | Build | Bemerkung |
 |---|---|---|---|
 | `src/AoE.Core` | net10.0 | OK, 0 Fehler | Reine Logik, keine MonoGame-Abhängigkeit |
-| `tests/AoE.Tests` | net10.0 | **108/108 grün** | Einheiten und Ressourcen (15), Sammelauftrag (21), Ausbildung und Bevölkerung (22), Bauen (36), Konter-Dreieck (5), Wegfindung (3), Nebel (6) |
+| `tests/AoE.Tests` | net10.0 | **157/157 grün** | Einheiten und Ressourcen (15), Sammelauftrag (21), Ausbildung und Bevölkerung (22), Bauen (39), Zeitalter (46), Konter-Dreieck (5), Wegfindung (3), Nebel (6) |
 | `demo/DemoApp` | net10.0 | OK | referenziert AoE.Core |
 | `AgeOfEvolutions.Core` | net10.0 | OK, 0 Fehler | Dateiname seit H2 kanonisch |
 | `AgeOfEvolutions.DesktopGL` | net10.0 | OK, 0 Fehler / 0 Warnungen | startbar |
@@ -350,6 +364,30 @@ Deko-Felsen, die wie Stein aussahen, aber nie etwas hergaben.
 - [x] Deko-Felsen entfernt *(Agent E10)*
 - [x] Abnahme: `tools/kartenpruefung` — alle Stein-, Gold- und Waldkacheln abbaubar
 
+### E11 · DX-Fassung stürzte beim Start ab [L] — behoben
+
+`CreateSwapChain` meldete `E_INVALIDARG`: Mit dem Standardprofil Reach legt MonoGame unter
+DirectX ein Gerät mit Feature Level 9_3 an, dessen Bildpuffer höchstens 4096 Pixel breit sein
+darf. Mit der Windows-Einstellung „Hohe DPI-Skalierung überschreiben: Anwendung" rechnet die
+DX-Fassung in physischen Pixeln, und 80 % des 6K-Bildschirms sind 4812.
+
+- [x] Grafikprofil HiDef (Feature Level 11_0, bis 16384 Pixel) *(Agent E11)*; die Abnahme
+      `checks/e11_dx_start.py` startet die DX-Fassung mit `__COMPAT_LAYER=HIGHDPIAWARE`
+
+### E12 · Hauptmenü nur mit Enter bedienbar [R] — behoben
+
+Screenshot `docs/Menu noch Fehlerhaft.png`: `MainMenuScreen` wertete nur die Tastatur aus,
+und Titel und Einträge standen in festen Pixeln — bei hoher Auflösung ein kleiner Fleck oben
+in der Mitte, über einer Hintergrundgrafik mit eigenen, nur aufgemalten Schaltflächen.
+
+- [x] Maus: Zeigen wählt, Klick startet; Tafel in der Bildmitte, für 1080 px entworfen und
+      mit der Fensterhöhe skaliert, Hintergrund abgedunkelt; eigene Menüschrift (40 pt);
+      „Spiel laden" grau, bis es das gibt *(Agent E12)*
+- [x] Einstellungen und Pause (`MenuScreen`): die Klickfläche lag eine halbe Zeile unter
+      dem Text *(Agent E12)*
+- [ ] Neue Hintergrundgrafik — die jetzige enthält fremde Logos (Age of Empires IV, Xbox
+      Game Studios, Relic, MSN Games); der Nutzer erzeugt eine eigene per KI
+
 ### Kein Fehler, nur zur Beruhigung
 
 Die grünen Textfragmente am linken Bildrand der ersten beiden Screenshots waren
@@ -508,9 +546,15 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
 
 ### C4 · Zeitalter als Gate [X]
 
-- [ ] Stadtzentrum: Upgrade nach Feudal-/Ritter-/Imperialzeit
-- [ ] Kosten 500N · 800N+200G · 1000N+800G, je rund 2 Minuten
-- [ ] Jedes Zeitalter schaltet Gebäude und Einheiten frei
+- [x] Stadtzentrum: Upgrade nach Feudal-/Ritter-/Imperialzeit — Taste A oder „Zeit." in der
+      Leiste; solange der Aufstieg läuft, bildet das Stadtzentrum nicht aus *(Agent C4b)*
+- [x] Kosten 500N · 800N+200G · 1000N+800G, Dauer 130 / 160 / 190 s — `AgeRules` und
+      `AgeProgress` in AoE.Core (`Economy/Ages.cs`, 46 Tests) *(Agent C4a)*
+- [ ] Jedes Zeitalter schaltet Gebäude und Einheiten frei — die Regel steht
+      (`AgeRules.RequiredAgeOf`, Baumenü und Tasten richten sich danach). Erstes
+      Gebäude der Feudalzeit: **Wachturm** (Taste T, 50 Holz + 125 Stein, 80 s, sieht
+      10 Kacheln weit) *(Agent C4c)*. Offen: weitere Gebäude und die Einheiten — die
+      brauchen die zurückgestellte Kampfschleife
 
 ### C5 · Bauen [X] — erledigt
 
@@ -542,10 +586,11 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
 - [ ] Ressourcenleiste oben: `[Holz] [Nahrung] [Gold] [Stein] [Bev. 37/45] « Feudalzeit »`
 - [x] Bevölkerung rot bei erreichtem Limit *(Agent C2b)*
 - [ ] Kommandoleiste unten: Aktionssymbole – Einheiteninfo – Minimap
-- [ ] Minimap: kleine Karte rechts unten in der Kommandoleiste, isometrisch (Rhombus) wie im
-      AoE-II-HUD — Referenzbild `docs/overview.jpg`: Grün Land, Braun Wald, Blau
-      Wasser, weiße Punkte eigene Einheiten, dunkler Rahmen. Geländefarben, eigene
-      grün / Feinde rot, Kameraausschnitt als Rechteck
+- [ ] Minimap: kleine Karte rechts unten in der Kommandoleiste, in derselben Ansicht wie
+      die Spielkarte (zurzeit Draufsicht, Norden oben; Entscheidung 2026-10-03, statt
+      der Raute aus dem AoE-II-HUD) — Farben nach dem Referenzbild `docs/overview.jpg`:
+      Grün Land, Braun Wald, Blau Wasser, weiße Punkte eigene Einheiten, dunkler Rahmen.
+      Feinde rot, Kameraausschnitt als Rechteck *(Agent C6m, C6d)*
 
 ### C7 · Terrain-Rendering vervollständigen [R]
 
@@ -589,6 +634,11 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
       verschiebt die Karte, kurzer Linksklick befiehlt *(Agent C8a)*
 - [x] Ein Linksklick auf eine eigene Einheit wählt sie aus, statt sie wegzuschicken —
       vorher zog ein Klick zum Auswählen einen Bauarbeiter vom Bau ab *(Agent C8b)*
+- [x] Befehlstasten und Minimap reagieren auf Klicks — vorher kam kein Klick in die
+      untere Leiste an. Bautasten nur, solange ein Dorfbewohner ausgewählt ist; Q und
+      „." immer *(Agent C8c)*
+- [x] Befehlstasten so breit wie ihr Name, der Name sitzt in der Taste — „Bergbaulager" und
+      „Untätig" liefen in die Nachbartaste, alle Namen unten aus der Taste *(Agent C8d)*
 
 ### C9 · Basis-KI [X]
 
@@ -639,7 +689,7 @@ Enthält reines Azure-Boilerplate ohne jeden Bezug zum Projekt.
 - [x] .NET-10-Migration: AoE.Core, Tests, Demo, Spiel-Core, DesktopGL, WindowsDX
 - [x] Build läuft fehlerfrei durch (AoE.Core + DesktopGL, 0 Warnungen)
 - [x] AoE.Core als Projektverweis eingebunden *(seit Block B im Spiel genutzt)*
-- [x] 108 Unit-Tests grün
+- [x] 157 Unit-Tests grün
 - [x] Kartengenerierung `TileMap.cs`: Seen mit Falloff, Beeren, Schafe, Wildschweine,
       Stein/Gold, PvP-Startpositionen
 - [x] Wasser-Animation

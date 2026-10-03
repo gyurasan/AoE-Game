@@ -26,6 +26,7 @@ public static class CoreBuildings
         "Holzfällerlager" => BuildingEntity.CreateLumberCamp(ownerId, center),
         "Bergbaulager" => BuildingEntity.CreateMiningCamp(ownerId, center),
         "Kaserne" => BuildingEntity.CreateBarracks(ownerId, center),
+        "Wachturm" => BuildingEntity.CreateTower(ownerId, center),
         _ => throw new ArgumentOutOfRangeException(nameof(buildingType), buildingType,
                  "Für diesen Gebäudetyp gibt es noch kein Core-Gebäude."),
     };
