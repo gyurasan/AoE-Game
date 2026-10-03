@@ -165,7 +165,18 @@ public class RTSGameplayScreen : GameScreen
         public string Hint;      // Kosten/Status-Zeile im Tooltip/Bereich
         public BuildingType? Type; // gesetzt, gold, solange dieses Gebäude platziert wird
             public Action Action;
+        public Texture2D Icon;     // Symbol aus Content/Icons, oder null
     }
+
+    // Symbol je Befehlstaste - erzeugt mit Qwen-Image (tools/bilder/bilder.json,
+    // Gruppe icons), verkleinert auf 128 px in Content/Icons
+    private static readonly (string Label, string Asset)[] ButtonIcons =
+    {
+        ("Q", "Icons/dorfbewohner"), ("A", "Icons/zeitalter"), ("H", "Icons/haus"),
+        ("M", "Icons/muehle"), ("F", "Icons/holzfaellerlager"), ("B", "Icons/bergbaulager"),
+        ("G", "Icons/farm"), ("T", "Icons/wachturm"), (".", "Icons/untaetig"),
+    };
+    private readonly Dictionary<string, Texture2D> _buttonIcons = new();
     private List<CommandButton> _buttons = new();
     private int _buttonsLayoutHeight;    // Fensterhöhe, für die _buttons angelegt sind
     private bool _buttonsLayoutBuilders; // ob dabei ein Dorfbewohner ausgewählt war
@@ -231,6 +242,19 @@ public class RTSGameplayScreen : GameScreen
         // Create placeholder textures
         tileTexture = CreateTexture(graphicsDevice, 32, 32, Color.Green);
         BuildAoETextures();
+
+        // Symbole der Befehlstasten; fehlt eines, zeigt die Taste wie bisher
+        // ihren Namen
+        foreach (var (label, asset) in ButtonIcons)
+        {
+            try
+            {
+                _buttonIcons[label] = ScreenManager.Game.Content.Load<Texture2D>(asset);
+            }
+            catch (Microsoft.Xna.Framework.Content.ContentLoadException)
+            {
+            }
+        }
 
         // Start the camera on player 1's town center instead of the map corner.
         // Startzoom wie die Zoomgrenzen an der Fensterhöhe ausgerichtet; die
@@ -2521,9 +2545,14 @@ public class RTSGameplayScreen : GameScreen
         foreach (var b in _buttons)
             DrawCommandButton(spriteBatch, b, cursor);
 
-        // Einheiteninfo in der Mitte, zwischen Tasten und Minimap
+        // Einheiteninfo in der Mitte, zwischen Tasten und Minimap. Zeigt die
+        // Maus auf eine Befehlstaste, steht hier ihr Name mit Kürzel und Kosten -
+        // die Tasten selbst tragen nur Symbol und Buchstaben
+        var hovered = _buttons.FirstOrDefault(b => b.Rect.Contains(cursor));
         string infoLine;
-        if (selectedUnits.Count > 1)
+        if (hovered.Name != null)
+            infoLine = $"{hovered.Name} ({hovered.Label}): {hovered.Hint}";
+        else if (selectedUnits.Count > 1)
             infoLine = $"{selectedUnits.Count} Einheiten ausgewählt";
         else if (selectedUnits.Count == 1)
         {
@@ -2599,11 +2628,12 @@ public class RTSGameplayScreen : GameScreen
         _buttonsLayoutHeight = screenBounds.Height;
         _buttonsLayoutBuilders = builders;
         _buttonsLayoutAge = age;
-        int size = 46, gap = 6;
+        int size = 60, gap = 6;
         int x = 10, y = screenBounds.Height - HUD_BOTTOM_HEIGHT + 14;
-        AddButton(ref x, size, gap, y, "Q", "Dorf.", "25 Nahrung / 25 s", TrainVillager);
+        AddButton(ref x, size, gap, y, "Q", "Dorfbewohner", "25 Nahrung, 25 s", TrainVillager);
         if (AgeRules.Next(age) is { } next)
-            AddButton(ref x, size, gap, y, "A", "Zeit.", CostText(AgeRules.CostOf(next)), AdvanceAge);
+            AddButton(ref x, size, gap, y, "A", "Zeitalter",
+                      $"{AgeRules.NameOf(next)}, {CostText(AgeRules.CostOf(next))}", AdvanceAge);
         if (builders)
         {
             foreach (var e in BuildMenu.Where(e => AgeRules.IsUnlocked(e.Type, age)))
@@ -2611,7 +2641,7 @@ public class RTSGameplayScreen : GameScreen
                           e.Name, CostText(BuildingRules.CostOf(e.Type)), e.Type,
                           () => TogglePlacing(e.Type));
         }
-        AddButton(ref x, size, gap, y, ".", "Untätig", "Kamera springt",
+        AddButton(ref x, size, gap, y, ".", "Untätig", "nächster untätiger Dorfbewohner",
                   SelectNextIdleVillager);
     }
 
@@ -2624,16 +2654,18 @@ public class RTSGameplayScreen : GameScreen
     private void AddButton(ref int x, int size, int gap, int y, string label, string name,
                            string hint, BuildingType? type, Action action)
     {
-        // Breit genug für den Namen unter der Kennung: „Bergbaulager" oder
-        // „Untätig" sind breiter als die 46 px einer quadratischen Taste und
-        // liefen sonst in die Nachbartaste. Ohne Schrift (tools/spielablauf)
-        // bleibt die Taste quadratisch.
-        int width = Math.Max(size, (int)(ScreenManager?.Font?.MeasureString(name).X ?? 0f) + 8);
+        // Mit Symbol quadratisch - Name und Kosten nennt die Leiste beim Zeigen.
+        // Ohne Symbol (Datei fehlt, tools/spielablauf) so breit wie der Name:
+        // „Bergbaulager" ist breiter als eine quadratische Taste
+        _buttonIcons.TryGetValue(label, out var icon);
+        int width = icon != null
+            ? size
+            : Math.Max(size, (int)(ScreenManager?.Font?.MeasureString(name).X ?? 0f) + 8);
         _buttons.Add(new CommandButton
         {
             Rect = new Rectangle(x, y, width, size),
             Label = label, Name = name, Hint = hint,
-            Type = type, Action = action,
+            Type = type, Action = action, Icon = icon,
         });
         x += width + gap;
     }
@@ -2652,6 +2684,28 @@ public class RTSGameplayScreen : GameScreen
             : hover   ? new Color(140, 116, 76)
                       : new Color(118, 94, 58);
         sb.Draw(px, r, face);
+        if (b.Icon != null)
+        {
+            // Symbol bis auf einen schmalen Rand; beim Zeigen heller, gedrückt dunkler
+            var inner = new Rectangle(r.Left + 3, r.Top + 3, r.Width - 6, r.Height - 6);
+            sb.Draw(b.Icon, inner, pressed ? new Color(170, 170, 170)
+                                 : hover || active ? Color.White
+                                                   : new Color(222, 222, 222));
+            // Tastenbuchstabe oben links, mit Schatten lesbar auf dem Bild
+            var at = new Vector2(r.Left + 5, r.Top + 2);
+            sb.DrawString(ScreenManager.Font, b.Label, at + new Vector2(1, 1), Color.Black);
+            sb.DrawString(ScreenManager.Font, b.Label, at, active ? new Color(255, 228, 120) : Color.White);
+            if (active)
+            {
+                // Setzmodus: goldener Rahmen um die Taste
+                var gold = new Color(255, 215, 0);
+                sb.Draw(px, new Rectangle(r.Left, r.Top, r.Width, 2), gold);
+                sb.Draw(px, new Rectangle(r.Left, r.Bottom - 2, r.Width, 2), gold);
+                sb.Draw(px, new Rectangle(r.Left, r.Top, 2, r.Height), gold);
+                sb.Draw(px, new Rectangle(r.Right - 2, r.Top, 2, r.Height), gold);
+            }
+            return;
+        }
         var labelSize = ScreenManager.Font.MeasureString(b.Label);
         sb.DrawString(ScreenManager.Font, b.Label,
             new Vector2(r.Left + (r.Width - labelSize.X) / 2f, r.Top + 4),

@@ -51,7 +51,7 @@ public class MainMenuScreen : GameScreen
 
         var content = ScreenManager.Game.Content;
 
-        // Menu art, converted from menu.webp to Content/Backgrounds/menu.png.
+        // Menübild aus tools/bilder (Qwen-Image, bilder.json: menu/hintergrund).
         // Everything is loaded defensively: a missing asset degrades to the plain
         // parchment look rather than taking the whole game down on startup.
         menuBackground = TryLoad<Texture2D>(content, "Backgrounds/menu");
@@ -199,9 +199,8 @@ public class MainMenuScreen : GameScreen
 
         DrawBackground(spriteBatch, width, height);
 
-        // Die Hintergrundgrafik malt eigene Schaltflächen - abgedunkelt drängen
-        // sie sich nicht mehr vor das echte Menü
-        spriteBatch.Draw(menuButton, new Rectangle(0, 0, width, height), Color.Black * 0.45f);
+        // Leicht abgedunkelt, damit Tafel und Schrift sich vom Bild abheben
+        spriteBatch.Draw(menuButton, new Rectangle(0, 0, width, height), Color.Black * 0.3f);
 
         // Tafel hinter Titel und Einträgen
         int panelWidth = (int)(PANEL_WIDTH * ui);
@@ -260,8 +259,9 @@ public class MainMenuScreen : GameScreen
     }
 
     /// <summary>
-    /// Draws the menu art letterboxed so the 4:3 original keeps its aspect ratio
-    /// on the 16:10 window instead of being stretched.
+    /// Zeichnet das Menübild (16:9) fensterfüllend im eigenen Seitenverhältnis:
+    /// was über den Rand ragt, wird abgeschnitten - die Mitte mit dem Dorfplatz
+    /// bleibt immer sichtbar, und es gibt keine leeren Balken.
     /// </summary>
     private void DrawBackground(SpriteBatch spriteBatch, int width, int height)
     {
@@ -271,7 +271,7 @@ public class MainMenuScreen : GameScreen
         if (menuBackground == null)
             return;
 
-        float scale = Math.Min((float)width / menuBackground.Width,
+        float scale = Math.Max((float)width / menuBackground.Width,
                                (float)height / menuBackground.Height);
         int w = (int)(menuBackground.Width * scale);
         int h = (int)(menuBackground.Height * scale);

@@ -19,13 +19,13 @@ Vorher muss DesktopGL gebaut sein (verify-Schritt davor). Fuer einige Sekunden
 erscheint das Spielfenster.
 """
 
-import struct
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _bild import lies_bmp  # noqa: E402
 from _cs import melde  # noqa: E402
 
 EXE = Path("AgeOfEvolutions/AgeOfEvolutions.DesktopGL/bin/Debug/net10.0/AgeOfEvolutions.exe").resolve()
@@ -35,25 +35,6 @@ GRUND = (12, 12, 12)               # Minimap-Grund
 GRAS = (104, 148, 68)              # IsoCol Grasland
 GRAS_DUNKEL = tuple(c * 96 // 255 for c in GRAS)   # erkundet, nicht in Sicht
 WEISS = (255, 255, 255)
-
-
-def lies_bmp(pfad: Path):
-    """Breite, Hoehe und eine Funktion pixel(x, y) -> (r, g, b) fuer 24/32-Bit-BMP."""
-    daten = pfad.read_bytes()
-    start = struct.unpack_from("<I", daten, 10)[0]
-    breite, hoehe = struct.unpack_from("<ii", daten, 18)
-    bpp = struct.unpack_from("<H", daten, 28)[0]
-    schritt = bpp // 8
-    zeile = (breite * bpp + 31) // 32 * 4
-    von_unten = hoehe > 0
-    hoehe = abs(hoehe)
-
-    def pixel(x, y):
-        z = (hoehe - 1 - y) if von_unten else y
-        i = start + z * zeile + x * schritt
-        return daten[i + 2], daten[i + 1], daten[i]
-
-    return breite, hoehe, pixel
 
 
 fehler = []

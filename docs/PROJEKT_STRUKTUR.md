@@ -26,6 +26,7 @@ tests/AoE.Tests/ - net10.0, xUnit, 157 Tests, alle grün
 demo/DemoApp.csproj - net10.0, kleine Konsolen-Testapp
 tools/ollama-agent/ - Harness, der TODO-Punkte an ein lokales Ollama-Modell verteilt
 tools/kartenpruefung/ - prüft Regeln des Kartengenerators über 50 erzeugte Karten
+tools/bilder/ - erzeugt Spielgrafiken mit Qwen-Image über ComfyUI; Prompts und Seeds in bilder.json
 tools/spielablauf/ - lässt die Spielschleife ohne Grafik laufen und prüft Abläufe (Bauen, Weiterbauen, Linksklick, Farm, Schafe, Bewegen, Minimap, Zoom, Leiste, Zeitalter, Wachturm)
 ```
 
@@ -51,7 +52,7 @@ tools/spielablauf/ - lässt die Spielschleife ohne Grafik laufen und prüft Abl�
 | Unit.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/Unit.cs | 199 Zeilen, Spieleinheit; hält über `Unit.Core` eine `UnitEntity` aus AoE.Core und reicht Kampfwerte, Lebenspunkte und Zustand durch; hält den Sammelauftrag (`Job`) und die Baustelle (`BuildSite`) |
 | CoreUnits.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/CoreUnits.cs | 101 Zeilen, bildet alle 17 Einheitentypen des Spiels auf Klassen aus AoE.Core ab |
 | CoreBuildings.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/CoreBuildings.cs | 33 Zeilen, bildet die Gebäudetypen des Spiels auf BuildingEntity aus AoE.Core ab |
-| RTSGameplayScreen.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs | 2960 Zeilen, prozedurale Texturen und Spielschleife; Ausbildung (Taste Q), Zeitalter (A), Baumenü (H, M, F, B, G, T), Baustellen, Minimap und die Klick-Entscheidung (`LeftClick`) |
+| RTSGameplayScreen.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs | 3014 Zeilen, prozedurale Texturen und Spielschleife; Ausbildung (Taste Q), Zeitalter (A), Baumenü (H, M, F, B, G, T), Baustellen, Minimap und die Klick-Entscheidung (`LeftClick`) |
 
 ## Build-Status
 

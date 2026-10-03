@@ -385,8 +385,8 @@ in der Mitte, über einer Hintergrundgrafik mit eigenen, nur aufgemalten Schaltf
       „Spiel laden" grau, bis es das gibt *(Agent E12)*
 - [x] Einstellungen und Pause (`MenuScreen`): die Klickfläche lag eine halbe Zeile unter
       dem Text *(Agent E12)*
-- [ ] Neue Hintergrundgrafik — die jetzige enthält fremde Logos (Age of Empires IV, Xbox
-      Game Studios, Relic, MSN Games); der Nutzer erzeugt eine eigene per KI
+- [x] Neue Hintergrundgrafik, erzeugt mit Qwen-Image (`tools/bilder`) — die alte enthielt
+      fremde Logos (Age of Empires IV, Xbox Game Studios, Relic, MSN Games) *(Agent C6i)*
 
 ### Kein Fehler, nur zur Beruhigung
 
@@ -586,6 +586,8 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
 - [ ] Ressourcenleiste oben: `[Holz] [Nahrung] [Gold] [Stein] [Bev. 37/45] « Feudalzeit »`
 - [x] Bevölkerung rot bei erreichtem Limit *(Agent C2b)*
 - [ ] Kommandoleiste unten: Aktionssymbole – Einheiteninfo – Minimap
+- [x] Befehlstasten mit Symbolen (Qwen-Image, `tools/bilder`); Name, Kürzel und Kosten
+      nennt die Leiste, solange die Maus auf einer Taste steht *(Agent C6i)*
 - [ ] Minimap: kleine Karte rechts unten in der Kommandoleiste, in derselben Ansicht wie
       die Spielkarte (zurzeit Draufsicht, Norden oben; Entscheidung 2026-10-03, statt
       der Raute aus dem AoE-II-HUD) — Farben nach dem Referenzbild `docs/overview.jpg`:
