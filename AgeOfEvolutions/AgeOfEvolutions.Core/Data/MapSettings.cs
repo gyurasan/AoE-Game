@@ -75,9 +75,10 @@ public class MapSettings
     /// <summary>Nahrung, die ein einzelnes Reh trägt — wertvoller als ein Schaf.</summary>
     public int DeerFood { get; set; } = 150;
     /// <summary>Sekunden bis ein unreserviertes Reh die Kachel wechselt (Min/Max).</summary>
-    public float DeerWanderSecondsMin { get; set; } = 2.0f;
-    public float DeerWanderSecondsMax { get; set; } = 5.0f;
-    /// <summary>Kacheln, in denen ein Reh maximal wandern darf (1 = nur Nachbarn).</summary>
+    /// <remarks>Rehe sind rastloser als Schafe — kürzerer Takt, häufigere Sprünge.</remarks>
+    public float DeerWanderSecondsMin { get; set; } = 1.0f;
+    public float DeerWanderSecondsMax { get; set; } = 2.5f;
+    /// <summary>Kacheln, in denen ein Reh maximal wandern darf (Rehe: 2 Sprünge weit).</summary>
     public int DeerWanderRadius { get; set; } = 1;
 
     /// <summary>Die reichere Standardausstattung.</summary>
