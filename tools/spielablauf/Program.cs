@@ -1,6 +1,6 @@
 // Spielablauf: stellt Abläufe aus RTSGameplayScreen ohne Grafik nach und prüft sie.
 //
-//   dotnet run --project tools/spielablauf -- bauen weiterbauen linksklick farm schafe bewegen minimap
+//   dotnet run --project tools/spielablauf -- bauen weiterbauen linksklick farm schafe bewegen minimap zoom
 //
 // Jede genannte Gruppe läuft auf drei frisch erzeugten Karten. Die Spielschleife
 // läuft Bild für Bild (60 je Sekunde) mit denselben Methoden, die Update() im Spiel
@@ -57,9 +57,11 @@ for (int karte = 1; karte <= KARTEN; karte++)
         Pruefe($"Karte {karte}, nicht durch Gebäude", () => NichtDurchGebaeude(karte, verstoesse));
         Pruefe($"Karte {karte}, nicht durch Wasser", () => NichtDurchWasser(karte, verstoesse));
     }
-    // Lage und Umrechnung der Minimap hängen nicht von der Karte ab
+    // Lage und Umrechnung der Minimap hängen nicht von der Karte ab, der Zoom auch nicht
     if (gruppen.Contains("minimap") && karte == 1)
         Pruefe("Minimap", () => Minimap(verstoesse));
+    if (gruppen.Contains("zoom") && karte == 1)
+        Pruefe("Zoom", () => Zoom(verstoesse));
 }
 
 if (verstoesse.Count > 0)
@@ -644,6 +646,52 @@ static void Minimap(List<string> verstoesse)
     }
     if (verstoesse.Count == vorher)
         Console.WriteLine("  ok  Minimap: rechts in der Leiste, 2:1, wächst mit dem Fenster, Klick zentriert");
+}
+
+// Zoomgrenzen relativ zur Fensterhöhe: ganz hineingezoomt zeigt jedes Fenster ab
+// 1080 px Höhe gleich viele Kacheln übereinander, ganz herausgezoomt die ganze
+// Karte; kleinere Fenster behalten MAX_ZOOM 2. Der Weltpunkt unter dem
+// Mauszeiger bleibt beim Zoomen stehen.
+// Entstanden am 2026-10-03: in der DX-Fassung (2707 px hoch) kam man nur halb so
+// nah heran wie in DesktopGL (1353 px).
+static void Zoom(List<string> verstoesse)
+{
+    var w = new Welt();
+    int vorher = verstoesse.Count;
+    float ts = w.Map.TileSize;
+    var nah = new Dictionary<int, float>();   // Fensterhöhe -> Kacheln übereinander, ganz nah
+    foreach (var (bw, bh) in new[] { (1280, 768), (2406, 1353), (4812, 2707) })
+    {
+        string wer = $"Zoom {bw}x{bh}";
+        w.Set("screenBounds", new Rectangle(0, 0, bw, bh));
+        w.Set("cameraZoom", 1f);
+        w.Set("cameraPosition", new Vector2(-600, -600));
+        var zeiger = new Vector2(bw * 0.3f, bh * 0.4f);
+        var vorZoom = (Vector2)w.Call("ScreenToWorld", zeiger);
+        for (int i = 0; i < 60; i++)
+            w.Call("ZoomAt", zeiger, 1.12f);
+        float zoomNah = (float)w.Get("cameraZoom");
+        var nachZoom = (Vector2)w.Call("ScreenToWorld", zeiger);
+        if (Vector2.Distance(vorZoom, nachZoom) > 0.5f)
+            verstoesse.Add($"{wer}: Weltpunkt unter dem Zeiger wanderte von {vorZoom} nach {nachZoom}");
+        nah[bh] = bh / (ts * zoomNah);
+
+        for (int i = 0; i < 120; i++)
+            w.Call("ZoomAt", zeiger, 1f / 1.12f);
+        float zoomFern = (float)w.Get("cameraZoom");
+        float fern = bh / (ts * zoomFern);
+        if (bh >= 1080 && fern < w.Map.Height)
+            verstoesse.Add($"{wer}: ganz herausgezoomt nur {fern:0} von {w.Map.Height} Kacheln übereinander");
+        Console.WriteLine($"      {wer}: Zoom {zoomFern:0.00} bis {zoomNah:0.00}, ganz nah {nah[bh]:0.0} Kacheln übereinander");
+    }
+    float klein = 768 / (ts * 2f);
+    if (Math.Abs(nah[768] - klein) > 0.1f)
+        verstoesse.Add($"Zoom 1280x768: ganz nah {nah[768]:0.0} Kacheln übereinander, erwartet {klein:0.0} (MAX_ZOOM 2 bleibt)");
+    if (Math.Abs(nah[2707] - nah[1353]) > 0.5f)
+        verstoesse.Add($"Zoom: ganz nah {nah[2707]:0.0} Kacheln übereinander bei 2707 px Höhe, {nah[1353]:0.0} bei 1353 px - "
+                       + "die hohe Auflösung kommt nicht gleich nah heran");
+    if (verstoesse.Count == vorher)
+        Console.WriteLine("  ok  Zoom: Grenzen wachsen mit der Fensterhöhe, Zeigerpunkt bleibt stehen");
 }
 
 /// <summary>Eine Spielwelt: echte Karte, zwei Spieler, der Bildschirm ohne Grafik.</summary>

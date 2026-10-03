@@ -36,6 +36,18 @@ public class RTSGameplayScreen : GameScreen
     private const float MIN_ZOOM = 0.5f;
     private const float MAX_ZOOM = 2.0f;
 
+    // Bezugshöhe der Zoomgrenzen. Bis 1080 px Fensterhöhe gelten MIN_ZOOM und
+    // MAX_ZOOM wie angegeben, darüber wachsen beide und der Startzoom mit. So
+    // zeigt der nächste Zoom immer rund 17 Kacheln über die Fensterhöhe - auch
+    // in der DX-Fassung, die mit DPI-Überschreibung in physischen Pixeln
+    // zeichnet (2707 px hoch). Mit festen Grenzen kam man dort nur halb so nah.
+    private const float ZOOM_REFERENCE_HEIGHT = 1080f;
+
+    /// <summary>Faktor für Zoomgrenzen und Startzoom: 1 bis 1080 px Fensterhöhe, darüber proportional.</summary>
+    private float ZoomScale => Math.Max(1f, screenBounds.Height / ZOOM_REFERENCE_HEIGHT);
+    private float MinZoom => MIN_ZOOM * ZoomScale;
+    private float MaxZoom => MAX_ZOOM * ZoomScale;
+
     // Ein Schritt je Rastung des Mausrads. Multiplikativ, damit sich das
     // Zoomen über den ganzen Bereich gleich schnell anfühlt — additiv wäre
     // es nah an MIN_ZOOM viel grober als nah an MAX_ZOOM.
@@ -217,9 +229,12 @@ public class RTSGameplayScreen : GameScreen
         BuildAoETextures();
 
         // Start the camera on player 1's town center instead of the map corner.
+        // Startzoom wie die Zoomgrenzen an der Fensterhöhe ausgerichtet; die
+        // Bildmitte liegt in Weltkoordinaten bei bildschirm / (2 * zoom).
+        cameraZoom = ZoomScale;
         var start = tileMap.GridToWorld(new Vector2(3, 3));
-        cameraPosition = new Vector2(-start.X + screenBounds.Width / 2f,
-                                     -start.Y + screenBounds.Height / 2f);
+        cameraPosition = new Vector2(screenBounds.Width / (2f * cameraZoom),
+                                     screenBounds.Height / (2f * cameraZoom)) - start;
         ClampCamera();
 
         // Sicht gleich zu Beginn rechnen, sonst wäre der erste Frame schwarz
@@ -819,9 +834,9 @@ public class RTSGameplayScreen : GameScreen
         
         // Zoom
         if (keyboard.IsKeyDown(Keys.OemPlus))
-            cameraZoom = Math.Min(cameraZoom + 0.1f, MAX_ZOOM);
+            cameraZoom = Math.Min(cameraZoom + 0.1f, MaxZoom);
         if (keyboard.IsKeyDown(Keys.OemMinus))
-            cameraZoom = Math.Max(cameraZoom - 0.1f, MIN_ZOOM);
+            cameraZoom = Math.Max(cameraZoom - 0.1f, MinZoom);
 
         // Zoom mit dem Mausrad — auf den Cursor zu, nicht auf die Bildmitte.
         // Der Weltpunkt unter dem Zeiger bleibt dabei an Ort und Stelle, so
@@ -836,23 +851,10 @@ public class RTSGameplayScreen : GameScreen
         previousScrollWheel = mouse.ScrollWheelValue;
 
         if (wheelDelta != 0)
-        {
-            var cursor = new Vector2(mouse.X, mouse.Y);
-            var worldUnderCursor = ScreenToWorld(cursor);
+            ZoomAt(new Vector2(mouse.X, mouse.Y), wheelDelta > 0 ? ZOOM_STEP : 1f / ZOOM_STEP);
 
-            float factor = wheelDelta > 0 ? ZOOM_STEP : 1f / ZOOM_STEP;
-            float newZoom = MathHelper.Clamp(cameraZoom * factor, MIN_ZOOM, MAX_ZOOM);
-
-            if (newZoom != cameraZoom)
-            {
-                cameraZoom = newZoom;
-
-                // Kamera so nachführen, dass derselbe Weltpunkt wieder unter
-                // dem Cursor liegt. Umkehrung von ScreenToWorld:
-                //   welt = bildschirm / zoom - kamera
-                cameraPosition = cursor / cameraZoom - worldUnderCursor;
-            }
-        }
+        // Nach einer Änderung der Fenstergröße können die Grenzen enger sein
+        cameraZoom = MathHelper.Clamp(cameraZoom, MinZoom, MaxZoom);
 
         // Egal ob per Tastatur geschwenkt, per Tastatur oder Mausrad gezoomt:
         // danach darf der Ausschnitt nicht über den Kartenrand hinausragen.
@@ -2790,6 +2792,25 @@ public class RTSGameplayScreen : GameScreen
         cameraPosition.Y = viewHeight >= mapHeight
             ? (viewHeight - mapHeight) / 2f
             : MathHelper.Clamp(cameraPosition.Y, viewHeight - mapHeight, 0f);
+    }
+
+    /// <summary>
+    /// Zoomt um <paramref name="factor"/> auf den Bildschirmpunkt
+    /// <paramref name="cursor"/> zu, innerhalb von MinZoom und MaxZoom. Der
+    /// Weltpunkt unter dem Zeiger bleibt dabei an Ort und Stelle.
+    /// </summary>
+    private void ZoomAt(Vector2 cursor, float factor)
+    {
+        var worldUnderCursor = ScreenToWorld(cursor);
+        float newZoom = MathHelper.Clamp(cameraZoom * factor, MinZoom, MaxZoom);
+        if (newZoom == cameraZoom)
+            return;
+        cameraZoom = newZoom;
+
+        // Kamera so nachführen, dass derselbe Weltpunkt wieder unter dem
+        // Cursor liegt. Umkehrung von ScreenToWorld:
+        //   welt = bildschirm / zoom - kamera
+        cameraPosition = cursor / cameraZoom - worldUnderCursor;
     }
 
     private Vector2 ScreenToWorld(Vector2 screenPos)

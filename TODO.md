@@ -564,7 +564,8 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
 ### C10 · Kamera [R]
 
 - [x] Zoomen mit dem Mausrad, **auf den Cursor zu** statt auf die Bildmitte
-      (RTSGameplayScreen, multiplikativer Schritt 1,12; Grenzen MIN_ZOOM 0,5 / MAX_ZOOM 2,0)
+      (RTSGameplayScreen, multiplikativer Schritt 1,12; Grenzen MIN_ZOOM 0,5 / MAX_ZOOM 2,0
+      bis 1080 px Fensterhöhe, darüber wachsen sie und der Startzoom mit *(Agent C10z)*)
 - [x] Falle umgangen: ``ScrollWheelValue`` zählt seit Programmstart kumuliert —
       ohne Startwert springt der erste Frame auf Maximalzoom
 - [x] Kamera an den Kartenrand geklemmt (`ClampCamera()`) — vorher zeigte der
