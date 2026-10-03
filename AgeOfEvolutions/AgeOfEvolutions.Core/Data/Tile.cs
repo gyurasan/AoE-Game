@@ -23,7 +23,7 @@ public enum TileType
 /// <summary>
 /// Art der Nahrungsquelle auf einer Kachel – bestimmt, wie sie gezeichnet wird
 /// </summary>
-public enum FoodSource { None, Sheep, Berries, Fish, Farm }
+public enum FoodSource { None, Sheep, Berries, Fish, Farm, Deer }
 
 /// <summary>
 /// Represents a single tile on the game map

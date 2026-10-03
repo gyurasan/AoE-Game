@@ -57,9 +57,9 @@ public sealed class TileMapGatherWorld : IGatherWorld
 
     /// <summary>
     /// Nächste Kachel mit dieser Ressource nach Luftlinie, an der ein
-    /// Dorfbewohner arbeiten kann (<see cref="IsWorkable"/>). Reservierte
-    /// Schafe (ein anderer Dörfler erntet sie gerade) werden übersprungen —
-    /// sonst laufen zwei Dörfler auf dasselbe Schaf.
+    /// Dorfbewohner arbeiten kann (<see cref="IsWorkable"/>). Reserviertes
+    /// Wild (Schaf oder Reh — ein anderer Dörfler erntet bzw. jagt es gerade)
+    /// wird übersprungen — sonst laufen zwei Dörfler auf dasselbe Tier.
     /// </summary>
     public CorePosition? FindNearestSource(CorePosition from, Resource resource, int maxDistance)
     {
@@ -76,8 +76,9 @@ public sealed class TileMapGatherWorld : IGatherWorld
                     continue;
                 if (AmountAt(cell, resource) <= 0 || !IsWorkable(x, y))
                     continue;
-                // Reserviertes Schaf überspringen — es gehört bereits jemandem
-                if (resource == Resource.Food && _map.GetTile(x, y)?.Food == FoodSource.Sheep
+                // Reserviertes Wild überspringen — es gehört bereits jemandem
+                var food = _map.GetTile(x, y)?.Food;
+                if (resource == Resource.Food && food is FoodSource.Sheep or FoodSource.Deer
                     && _map.IsClaimed(x, y))
                     continue;
 

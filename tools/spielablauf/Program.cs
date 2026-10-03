@@ -57,6 +57,11 @@ for (int karte = 1; karte <= KARTEN; karte++)
         Pruefe($"Karte {karte}, Schaf-Reservierung", () => SchafReservierung(karte, verstoesse));
         Pruefe($"Karte {karte}, Schaf-Wanderung", () => SchafWanderung(karte, verstoesse));
     }
+    if (gruppen.Contains("wild"))
+    {
+        Pruefe($"Karte {karte}, Reh-Reservierung", () => RehReservierung(karte, verstoesse));
+        Pruefe($"Karte {karte}, Reh-Wanderung", () => RehWanderung(karte, verstoesse));
+    }
     if (gruppen.Contains("bewegen"))
     {
         Pruefe($"Karte {karte}, nicht durch Gebäude", () => NichtDurchGebaeude(karte, verstoesse));
@@ -435,6 +440,72 @@ static void SchafWanderung(int karte, List<string> verstoesse)
         verstoesse.Add($"{wer}: nach 60 s kein Schaf gewandert (alle {vor} an ihrem Startplatz)");
     else
         Console.WriteLine($"  ok  {wer}: {schafe.Count} → {nach.Count} Schafe auf der Karte, mindestens eines gewandert");
+}
+
+// Wie SchafReservierung, aber für ein Reh (FoodSource.Deer): während ein
+// Dorfbewohner jagt, bleibt das Reh reserviert und am Platz.
+static void RehReservierung(int karte, List<string> verstoesse)
+{
+    var w = new Welt();
+    string wer = $"Karte {karte}, Reh-Reservierung";
+    int rehX = -1, rehY = -1;
+    for (int tx = 0; tx < w.Map.Width && rehX < 0; tx++)
+        for (int ty = 0; ty < w.Map.Height && rehX < 0; ty++)
+            if (w.Map.GetTile(tx, ty)?.Food == FoodSource.Deer)
+                { rehX = tx; rehY = ty; }
+    if (rehX < 0)
+    {
+        verstoesse.Add($"{wer}: kein Reh auf der Karte gefunden");
+        return;
+    }
+    var v = w.Dorfbewohner().First();
+    int vor = w.Map.GetTile(rehX, rehY)!.ResourceAmount;
+    var job = new AoE.Core.Economy.GatherJob(0, Resource.Food,
+        new AoE.Core.Entities.Position(rehX, rehY));
+    v.State = AoE.Core.Entities.UnitState.Gathering;
+    v.Job = job;
+    w.LaufeBis(() => false, 2f);
+    bool reserviert = w.Map.IsClaimed(rehX, rehY);
+    bool rehAmPlatz = w.Map.GetTile(rehX, rehY)?.Food == FoodSource.Deer;
+    if (!reserviert)
+    {
+        verstoesse.Add($"{wer}: Reh nicht reserviert, während der Dörfler es jagt (Phase={v.Job?.Phase})");
+        return;
+    }
+    if (!rehAmPlatz)
+    {
+        verstoesse.Add($"{wer}: reserviertes Reh ist zwischenzeitlich gewandert");
+        return;
+    }
+    Console.WriteLine($"  ok  {wer}: während der Jagd reserviert (vor={vor}, Reh am Platz)");
+}
+
+// Wie SchafWanderung, aber für die Rehe.
+static void RehWanderung(int karte, List<string> verstoesse)
+{
+    var w = new Welt();
+    string wer = $"Karte {karte}, Reh-Wanderung";
+    var rehe = new HashSet<(int x, int y)>();
+    for (int x = 0; x < w.Map.Width; x++)
+        for (int y = 0; y < w.Map.Height; y++)
+            if (w.Map.GetTile(x, y)?.Food == FoodSource.Deer)
+                rehe.Add((x, y));
+    if (rehe.Count == 0)
+    {
+        verstoesse.Add($"{wer}: keine Rehe auf der Karte");
+        return;
+    }
+    int vor = rehe.Count;
+    w.LaufeBis(() => false, 60f);
+    var nach = new HashSet<(int x, int y)>();
+    for (int x = 0; x < w.Map.Width; x++)
+        for (int y = 0; y < w.Map.Height; y++)
+            if (w.Map.GetTile(x, y)?.Food == FoodSource.Deer)
+                nach.Add((x, y));
+    if (rehe.SetEquals(nach))
+        verstoesse.Add($"{wer}: nach 60 s kein Reh gewandert (alle {vor} an ihrem Startplatz)");
+    else
+        Console.WriteLine($"  ok  {wer}: {rehe.Count} → {nach.Count} Rehe auf der Karte, mindestens eines gewandert");
 }
 
 // Ein Dorfbewohner läuft zu einem Ziel, das hinter einem 4×4-Gebäude liegt.
@@ -1364,6 +1435,7 @@ class Welt
             Call("UpdateSheepClaims");
             Map.RegrowCrop(dt);
             Map.UpdateSheep(dt);
+            Map.UpdateDeer(dt);
             _nebel -= dt;
             if (_nebel <= 0)
             {

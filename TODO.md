@@ -1,10 +1,16 @@
 # AoE-Clone — TODO / Meilensteine
 
-**Stand:** 2026-10-03 · verifiziert durch Build + Testlauf, nicht aus Doku übernommen.
+**Stand:** 2026-10-04 · verifiziert durch Build + Testlauf, nicht aus Doku übernommen.
 
 ## Wiederaufnahme — hier weitermachen
 
-Alles baut und läuft: `dotnet build AgeOfEmpire.slnx` (0 Fehler, 0 Warnungen),
+Zuletzt angefasst: **Rehe (Wild)** — der Code steht uncommittet im Arbeitsbaum
+(7 Dateien geändert), noch nicht committet, nicht gesehen. Core-Projekt baut
+fehlerfrei, **157/157 Tests grün**; der ganze Solution-Build war blockiert, weil das
+Spiel zu dem Zeitpunkt lief und die Exe sperrte (Vorgang AgeOfEvolutions).
+Der offene Rest steht unter Punkt 7 von „Nächste sinnvolle Schritte".
+
+Alles baut und läuft: `dotnet build AgeOfEvolutions.slnx` (0 Fehler, 0 Warnungen),
 `dotnet test tests/AoE.Tests` → **157/157 grün**.
 
 Der Stand vom 2026-09-23 ist mit `4cb57d4` committet, alles bis zu den Gebäude-Sprites
@@ -136,6 +142,29 @@ Nächste sinnvolle Schritte, in dieser Reihenfolge:
 6. **Veraltete Abnahmen** — `c1n`, `c1c` und `c8a` prüfen Schreibweisen von früher (die
    Schaf-Nahrung als Zahl, „Untätig" in `DrawUI`, „Links ziehen" im Hilfetext) und sind
    deshalb rot, obwohl das Verhalten stimmt; auf Verhalten umstellen.
+7. **Wild (z. B. Rehe) als zusätzliche Nahrungsquelle, die gejagt werden kann** —
+   **fast fertig, uncommittet im Arbeitsbaum (2026-10-04):** `FoodSource.Deer`
+   (`Tile.cs`), `PlaceDeer` (2–4 Herden je 2–4 Rehe, 150 Nahrung/Reh) und die
+   gemeinsame Wanderung `UpdateDeer`/`UpdateWild` getrennt von
+   `UpdateSheep` (`TileMap.cs`), Reservierung für Schaf und Reh über
+   `SyncSheepClaims`, `FindNearestSource` überspringt reserviertes Wild,
+   `ClearResourceAndRemoveSheep` entfernt auch Rehe
+   (`TileMapGatherWorld.cs`); `MapSettings` mit `DeerHerdsMin/Max`,
+   `DeerPerHerdMin/Max`, `DeerFood`, `DeerWanderSecondsMin/Max`,
+   `DeerWanderRadius`. Grafisch: AI-Sprites `Rohstoffe/reh`- und `reh2`
+   (Gruppe `wild` in `tools/bilder/bilder.json`) gezeichnet wie Haufen in der
+   Zeilenschicht; Fallback `BuildDeerTexture` zeichnerisch. **Gestimmt
+   (2026-10-04):** `wild`-Gruppe in `tools/spielablauf`
+   (Reh-Reservierung + Reh-Wanderung), der Ablauf-Loop ruft jetzt auch
+   `UpdateDeer` auf (fehlte, daher wanderten Rehe im Harness nicht);
+   `dotnet run --project tools/spielablauf -- wild schafe` → alle gruen auf
+   3 Karten. **Offen:** Reh-Sprites generieren (ComfyUI-Server noch nicht
+   gestartet; Gruppe `wild`, dann `uebernehmen.ps1`), danach
+   `Rohstoffe/reh.png`-/`reh2.png`-Eintraege in
+   `AgeOfEvolutions.Core/Content/AgeOfEvolutions.mgcb` (analog stein/gold,
+   erst wenn die PNGs existieren — sonst bricht der Content-Build);
+   Sichtpruefung im laufenden Spiel (Reh als Sprite sehen, zwei Dörfler nicht
+   auf dasselbe Reh). **Commit macht der Nutzer selbst.**
 
 Farm (C5f) ist fertig: Dorfbewohner wählen, Taste G (Getreide) drücken, Bauplatz
 anklicken — 3×3-Feld von 175 Nahrung. Die ausgewählten Dorfbewohner ernten die

@@ -272,8 +272,9 @@ public class TileMap
         PlaceStartResources(3, 3, 1, 1);
         PlaceStartResources(Width - 4, Height - 4, -1, -1);
 
-        // Nahrung: Schafherden auf der Wiese + Beerenbüsche in Lichtungen
+        // Nahrung: Schafherden auf der Wiese + Rehe als Wild + Beerenbüsche
         PlaceSheep(woodCenters);
+        PlaceDeer(woodCenters);
         PlaceBerryBushes(woodCenters);
     }
 
@@ -370,7 +371,34 @@ public class TileMap
             }
         }
         if (_sheepCoords.Count > 0)
-            _sheepWanderTimer = _RandomRange(_sheepRng, Settings.SheepWanderSecondsMin, Settings.SheepWanderSecondsMax);
+            _sheepWanderTimer = _RandomRange(_wildRng, Settings.SheepWanderSecondsMin, Settings.SheepWanderSecondsMax);
+    }
+
+    // Rehe: 2–4 Herden je 2–4 Rehe, nur auf Gras - seltener und wertvoller
+    // (150 Nahrung) als Schafe. Die Aufstellung verteilt eine Herde über ein
+    // 3×3-Feld, ein Reh pro Kachel; die Wanderung (UpdateDeer) bewegt diese.
+    private void PlaceDeer(List<(int x, int y)> woodCenters)
+    {
+        int herds = _random.Next(Settings.DeerHerdsMin, Settings.DeerHerdsMax + 1);
+        var herdCenters = PlaceClusterCenters(herds, 2);
+        foreach (var (cx, cy) in herdCenters)
+        {
+            int count = _random.Next(Settings.DeerPerHerdMin, Settings.DeerPerHerdMax + 1);
+            for (int i = 0; i < count; i++)
+            {
+                int sx = cx + _random.Next(-1, 2);
+                int sy = cy + _random.Next(-1, 2);
+                var t = GetTile(sx, sy);
+                if (t == null || t.Type != TileType.Grassland) continue;
+                if (t.Food != FoodSource.None) continue;   // keine Stelle doppelt besetzen
+                t.ResourceType = Resource.Food;
+                t.ResourceAmount = Settings.DeerFood;
+                t.Food = FoodSource.Deer;
+                _deerCoords.Add((sx, sy));
+            }
+        }
+        if (_deerCoords.Count > 0)
+            _deerWanderTimer = _RandomRange(_wildRng, Settings.DeerWanderSecondsMin, Settings.DeerWanderSecondsMax);
     }
     
     // Beerenbüsche: ein paar einzelne Büsche nah an Waldlichtungen — die
@@ -557,13 +585,13 @@ public class TileMap
     }
 
     /// <summary>
-    /// Ein geleertes Schaf verlässt den Wander-Bestand, damit es nicht als
-    /// „leere" Kachel weiterwandert. Reservierungen bleiben an der Kachel
-    /// hängen, hindern aber nichts mehr — sie wird ohnehin übersprungen.
+    /// Ein geleertes Schaf oder Reh verlässt den Wander-Bestand, damit es
+    /// nicht als „leere" Kachel weiterwandert. Reservierungen bleiben an der
+    /// Kachel hängen, hindern aber nichts mehr — sie wird ohnehin übersprungen.
     /// </summary>
     public void ClearResourceAndRemoveSheep(Tile tile)
     {
-        if (tile.Food == FoodSource.Sheep)
+        if (tile.Food is FoodSource.Sheep or FoodSource.Deer)
             RemoveSheep(tile.X, tile.Y);
         ClearResource(tile);
     }
@@ -635,29 +663,36 @@ public class TileMap
     }
 
     // -----------------------------------------------------------------
-    // Schaf-Wanderung
+    // Schaf- und Reh-Wanderung (Wild)
     // -----------------------------------------------------------------
-    // Schafe sind Nahrungskacheln (FoodSource.Sheep, 100 Nahrung). Sie sind
-    // in <c>_sheepCoords</c> registriert; Unreservierte wandern nach jedem
-    // Takt auf eine freie Wiesen-Kachel im Wander-Radius. Reserviert sind
-    // sie, wenn ein Dorfbewohner sie gerade erntet (SyncSheepClaims) — dann
-    // bleiben sie stehen, damit der Dorfbewohner sie nicht im Stich lässt.
+    // Schafe (FoodSource.Sheep, 100 Nahrung) und Rehe (FoodSource.Deer,
+    // 150 Nahrung) sind Nahrungskacheln, die über die Wiese wandern. Jede
+    // Tierart hat ihre eigene Koordinatenliste und ihren Takt; beide teilen
+    // sich die Reservierung _claimed — ist eine Kachel reserviert (ein
+    // Dorfbewohner erntet bzw. jagt gerade), bleibt das Tier stehen, damit
+    // der Dorfbewohner es nicht im Stich lässt.
     private readonly List<(int x, int y)> _sheepCoords = new List<(int, int)>();
+    private readonly List<(int x, int y)> _deerCoords = new List<(int, int)>();
     private readonly HashSet<(int x, int y)> _claimed = new HashSet<(int, int)>();
     private float _sheepWanderTimer;
-    private readonly Random _sheepRng = new Random();
+    private float _deerWanderTimer;
+    private readonly Random _wildRng = new Random();
 
     /// <summary>Anzahl der Schafe auf dieser Karte (auch reservierte).</summary>
     public int SheepCount => _sheepCoords.Count;
 
-    /// <summary>Ob <c>(x, y)</c> eine reservierte Schaf-Kachel ist.</summary>
+    /// <summary>Anzahl der Rehe auf dieser Karte (auch reservierte).</summary>
+    public int DeerCount => _deerCoords.Count;
+
+    /// <summary>Ob <c>(x, y)</c> eine reservierte Wild-Kachel ist.</summary>
     public bool IsClaimed(int x, int y) => _claimed.Contains((x, y));
 
     /// <summary>
-    /// Synchronisiert die Reservierung mit der Realität: <paramref name="aktiv"/>
-    /// sind die Schaf-Kacheln, die gerade ein Dorfbewohner erntet (Phase
-    /// Gathering). Genau die bleiben stehen; alle anderen Reservierungen
-    /// verfallen, damit die freierlaufenden Schafe wieder wandern dürfen.
+    /// Synchronisiert die Reservierungen mit der Realität: <paramref name="aktiv"/>
+    /// sind die Schaf- und Reh-Kacheln, die gerade ein Dorfbewohner erntet bzw.
+    /// jagt (Phase Gathering). Genau die bleiben stehen; alle anderen
+    /// Reservierungen verfallen, damit die freilaufenden Tiere wieder wandern
+    /// dürfen.
     /// </summary>
     public void SyncSheepClaims(HashSet<(int x, int y)> aktiv)
     {
@@ -674,45 +709,65 @@ public class TileMap
     /// </summary>
     public void UpdateSheep(float dt)
     {
-        if (_sheepCoords.Count == 0) return;
-        _sheepWanderTimer -= dt;
-        while (_sheepWanderTimer <= 0f && _sheepCoords.Count > 0)
+        UpdateWild(_sheepCoords, ref _sheepWanderTimer, dt, Settings.SheepWanderSecondsMin,
+                   Settings.SheepWanderSecondsMax, Settings.SheepWanderRadius, FoodSource.Sheep);
+    }
+
+    /// <summary>
+    /// Taktet die Reh-Wanderung — gleicher Takt wie die Schafe, eigene
+    /// Herde und eigene Geschwindigkeit.
+    /// </summary>
+    public void UpdateDeer(float dt)
+    {
+        UpdateWild(_deerCoords, ref _deerWanderTimer, dt, Settings.DeerWanderSecondsMin,
+                   Settings.DeerWanderSecondsMax, Settings.DeerWanderRadius, FoodSource.Deer);
+    }
+
+    /// <summary>
+    /// Der gemeinsame Wander-Takt: solange das Timer läuft, wird versucht,
+    /// eines der Tiere der Liste zu verschieben. Tierart und Menge kommen
+    /// aus den Settings; die Regeln bleiben die gleichen.
+    /// </summary>
+    private void UpdateWild(List<(int x, int y)> coords, ref float timer, float dt, float min, float max, int radius,
+                            FoodSource source)
+    {
+        if (coords.Count == 0) return;
+        timer -= dt;
+        while (timer <= 0f && coords.Count > 0)
         {
-            _sheepWanderTimer += _RandomRange(_sheepRng, Settings.SheepWanderSecondsMin, Settings.SheepWanderSecondsMax);
-            if (!WanderOneSheep())
+            timer += _RandomRange(_wildRng, min, max);
+            if (!WanderOneWild(coords, radius, source))
                 break;
         }
     }
 
     /// <summary>
-    /// Verschiebt ein freies Schaf auf eine freie, benachbarte Wiesen-Kachel.
-    /// Reservierte Schafe (ein Dörfler erntet sie gerade) bleiben stehen.
-    /// Pro Takt wird so oft versucht, bis ein Schaf gewandert ist; gibt true
-    /// zurück, wenn mindestens eines gewandert ist.
+    /// Verschiebt ein freies Tier auf eine freie, benachbarte Wiesen-Kachel.
+    /// Reservierte Tiere (ein Dörfler erntet bzw. jagt es gerade) bleiben
+    /// stehen. Pro Takt wird so oft versucht, bis eines gewandert ist.
     /// </summary>
-    private bool WanderOneSheep()
+    private bool WanderOneWild(List<(int x, int y)> coords, int radius, FoodSource source)
     {
-        int radius = Settings.SheepWanderRadius;
-        for (int i = _sheepCoords.Count - 1; i >= 0; i--)
+        for (int i = coords.Count - 1; i >= 0; i--)
         {
-            var (sx, sy) = _sheepCoords[i];
+            var (sx, sy) = coords[i];
             var t = GetTile(sx, sy);
-            if (t == null || t.Food != FoodSource.Sheep)
+            if (t == null || t.Food != source)
             {
-                _sheepCoords.RemoveAt(i);
+                coords.RemoveAt(i);
                 continue;
             }
             if (_claimed.Contains((sx, sy)))
                 continue;   // reserviert: gehört gerade einem Dörfler
             if (t.ResourceAmount <= 0)
-                continue;   // leer (inzwischen geerntet)
+                continue;   // leer (inzwischen erntet bzw. gejagt)
 
-            // Ein freies Schaf: versuche, es zu verschieben. Gelingt es nicht,
-            // geht es zum nächsten Schaf (dieses wartet bis zum nächsten Takt).
+            // Ein freies Tier: versuche, es zu verschieben. Gelingt es nicht,
+            // geht es zum nächsten (dieses wartet bis zum nächsten Takt).
             for (int attempt = 0; attempt < 12; attempt++)
             {
-                int dx = _sheepRng.Next(-radius, radius + 1);
-                int dy = _sheepRng.Next(-radius, radius + 1);
+                int dx = _wildRng.Next(-radius, radius + 1);
+                int dy = _wildRng.Next(-radius, radius + 1);
                 if (dx == 0 && dy == 0) continue;
                 int nx = sx + dx, ny = sy + dy;
                 var target = GetTile(nx, ny);
@@ -721,32 +776,33 @@ public class TileMap
                 if (!string.IsNullOrEmpty(target.Building)) continue;
                 if (target.Farm) continue;
                 if (target.ResourceType != null && target.ResourceAmount > 0) continue;
-                if (target.Food != FoodSource.None) continue;   // kein anderer dort
+                if (target.Food != FoodSource.None) continue;   // kein anderes Tier dort
 
-                // Das Schaf wandert: Inhalt kopieren, alte Kachel wird Wiese.
+                // Das Tier wandert: Inhalt kopieren, alte Kachel wird Wiese.
                 int amount = t.ResourceAmount;
-                target.Food = FoodSource.Sheep;
+                target.Food = source;
                 target.ResourceType = Resource.Food;
                 target.ResourceAmount = amount;
                 t.Food = FoodSource.None;
                 t.ResourceType = null;
                 t.ResourceAmount = 0;
-                _sheepCoords[i] = (nx, ny);
+                coords[i] = (nx, ny);
                 return true;
             }
-            // Kein passendes Ziel für dieses Schaf — das nächste versuchen.
+            // Kein passendes Ziel für dieses Tier — das nächste versuchen.
         }
-        return false;   // kein Schaf hat ein Ziel gefunden
+        return false;   // kein Tier hat ein Ziel gefunden
     }
 
     /// <summary>
-    /// Entfernt ein Schaf endgültig — es wurde leer gesammelt oder getötet.
+    /// Entfernt ein Wild endgültig — es wurde leer gesammelt bzw. gejagt.
     /// Wird von <see cref="ClearResource"/> aufgerufen, wenn die Kachel leer
-    /// ist und FoodSource.Sheep trägt.
+    /// ist und Schaf oder Reh trägt.
     /// </summary>
     public void RemoveSheep(int x, int y)
     {
         _sheepCoords.Remove((x, y));
+        _deerCoords.Remove((x, y));
     }
 
     /// <summary>Zufallszahl in [min, max) mit gegebenem Generator.</summary>

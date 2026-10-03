@@ -65,6 +65,21 @@ public class MapSettings
     /// </summary>
     public int SheepWanderRadius { get; set; } = 1;
 
+    // --- Wild (Rehe) ----------------------------------------------------
+    /// <summary>Anzahl der Reherden auf der Karte (Min/Max, inclusive).</summary>
+    public int DeerHerdsMin { get; set; } = 2;
+    public int DeerHerdsMax { get; set; } = 4;
+    /// <summary>Rehe je Herde (Min/Max, inclusive) — seltener als Schafe.</summary>
+    public int DeerPerHerdMin { get; set; } = 2;
+    public int DeerPerHerdMax { get; set; } = 4;
+    /// <summary>Nahrung, die ein einzelnes Reh trägt — wertvoller als ein Schaf.</summary>
+    public int DeerFood { get; set; } = 150;
+    /// <summary>Sekunden bis ein unreserviertes Reh die Kachel wechselt (Min/Max).</summary>
+    public float DeerWanderSecondsMin { get; set; } = 2.0f;
+    public float DeerWanderSecondsMax { get; set; } = 5.0f;
+    /// <summary>Kacheln, in denen ein Reh maximal wandern darf (1 = nur Nachbarn).</summary>
+    public int DeerWanderRadius { get; set; } = 1;
+
     /// <summary>Die reichere Standardausstattung.</summary>
     public static MapSettings Default => new();
 }

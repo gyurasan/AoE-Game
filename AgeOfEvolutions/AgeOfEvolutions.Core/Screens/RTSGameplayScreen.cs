@@ -227,6 +227,7 @@ public class RTSGameplayScreen : GameScreen
         { "Baeume/laubbaum", "Baeume/laubbaum2", "Baeume/nadelbaum", "Baeume/nadelbaum2", "Baeume/buschbaum" };
     private static readonly string[] StoneAssets = { "Rohstoffe/stein", "Rohstoffe/stein2" };
     private static readonly string[] GoldAssets = { "Rohstoffe/gold", "Rohstoffe/gold2" };
+    private static readonly string[] DeerAssets = { "Rohstoffe/reh", "Rohstoffe/reh2" };
     private Texture2D _grassTex;
     private Texture2D _sandTex;
     private Texture2D _waterGroundTex;    // Wasserbild; waterTex sind die gezeichneten Wasserkacheln
@@ -235,6 +236,7 @@ public class RTSGameplayScreen : GameScreen
     private Texture2D[] _treeSprites = Array.Empty<Texture2D>();
     private Texture2D[] _stoneSprites = Array.Empty<Texture2D>();
     private Texture2D[] _goldSprites = Array.Empty<Texture2D>();
+    private Texture2D[] _deerSprites = Array.Empty<Texture2D>();
     private const int GROUND_TEXELS = 4;   // Bildpixel der Bodenbilder je Welteinheit
 
     // Bewegung je Einheit, aus der Lage zwischen zwei Updates abgeleitet - die
@@ -356,6 +358,7 @@ public class RTSGameplayScreen : GameScreen
         _treeSprites = TreeAssets.Select(LoadOptional).Where(t => t != null).ToArray();
         _stoneSprites = StoneAssets.Select(LoadOptional).Where(t => t != null).ToArray();
         _goldSprites = GoldAssets.Select(LoadOptional).Where(t => t != null).ToArray();
+        _deerSprites = DeerAssets.Select(LoadOptional).Where(t => t != null).ToArray();
 
         // Gebäude-Sprites je Spielerfarbe; fehlt eines, zeichnet DrawBuilding
         // das Gebäude wie bisher selbst
@@ -438,6 +441,7 @@ public class RTSGameplayScreen : GameScreen
         tileMap.RegrowCrop((float)gameTime.ElapsedGameTime.TotalSeconds);
         UpdateSheepClaims();    // Reservierung = der einzige Dorfbewohner, der gerade erntet
         tileMap.UpdateSheep((float)gameTime.ElapsedGameTime.TotalSeconds);
+        tileMap.UpdateDeer((float)gameTime.ElapsedGameTime.TotalSeconds);
 
         if (hudMessageTimer > 0f)
             hudMessageTimer -= (float)gameTime.ElapsedGameTime.TotalSeconds;
@@ -798,6 +802,64 @@ public class RTSGameplayScreen : GameScreen
         b.FillRect(26, 17, 3, 2, schnauze);
         b.Set(24, 13, dunkel);            // Ohr
         b.Set(25, 15, new Color(35, 30, 28)); // Auge
+        return b.Build(gd);
+    }
+
+    private Texture2D BuildDeerTexture(GraphicsDevice gd)
+    {
+        // Rothirsch: rostbrauner Körper, helle Färbung auf dem Bauch, ein
+        // Paar geweihte Antler, schlankes Profil mit Schwanz.
+        var b = new TextureBuilder(32, 32);
+        var felle = new Color(150, 99, 62);
+        var felleHell = new Color(188, 146, 105);
+        var bein = new Color(92, 62, 40);
+        var antler = new Color(122, 92, 58);
+        var weisse = new Color(230, 220, 205);
+
+        // Weicher Schatten auf dem Gras (zweireihig, in der Mitte breiter)
+        for (int x = 8; x <= 24; x++)
+            b.Set(x, 25, new Color(56, 106, 38, 110));
+        for (int x = 10; x <= 22; x++)
+            b.Set(x, 26, new Color(56, 106, 38, 60));
+
+        // Vier lange, schlanke Beine
+        foreach (var lx in new[] { 10, 12, 19, 21 })
+            for (int y = 19; y <= 24; y++)
+                b.Set(lx, y, bein);
+
+        // Körper (dünner als ein Schaf, in der Mitte leicht gesenkt)
+        b.FillCircle(12, 14, 4, felle);
+        b.FillCircle(16, 13, 5, felle);
+        b.FillCircle(20, 14, 4, felle);
+        b.FillCircle(14, 16, 3, felle);
+        b.FillCircle(18, 16, 3, felle);
+
+        // Helle Färbung auf Bauch und Hinterbein (Rothirsch)
+        b.FillCircle(16, 17, 3, felleHell);
+        b.FillCircle(20, 16, 2, felleHell);
+
+        // Kopf schräg nach rechts unten; Schnauze etwas abgemager
+        b.FillCircle(25, 15, 3, felle);
+        b.FillRect(27, 16, 2, 2, new Color(88, 56, 36));   // dunkle Schnauze
+        b.Set(26, 14, new Color(30, 22, 18));               // Auge
+
+        // Geweihte Antler: ein Paar mit zwei Asteln (einfach, aber erkennbar)
+        // Stange rechts
+        for (int y = 8; y <= 14; y++)
+            b.Set(24, y, antler);
+        // Astel oben rechts
+        b.Set(25, 10, antler);
+        b.Set(26, 9, antler);
+        b.Set(27, 9, antler);
+        // Astel oben links
+        b.Set(23, 10, antler);
+        // Spitze
+        b.Set(24, 7, antler);
+
+        // Schwanz: kleiner weißer Fleck (Kennzeichen der Rothirsche)
+        b.Set(23, 17, weisse);
+        b.Set(24, 17, weisse);
+        b.Set(23, 18, weisse);
         return b.Build(gd);
     }
 
@@ -1892,18 +1954,18 @@ public class RTSGameplayScreen : GameScreen
     /// der Weg abgelaufen ist.
     /// </summary>
     /// <summary>
-    /// Synchronisiert die Schaf-Reservierungen mit der Realität: ein Schaf
-    /// bleibt reserviert, nur solange ein eigener Dorfbewohner es gerade
-    /// erntet (Phase <c>Gathering</c>); sonst wird es frei, damit es wieder
-    /// wandern kann.
+    /// Synchronisiert die Wild-Reservierungen mit der Realität: ein Schaf
+    /// bzw. Reh bleibt reserviert, nur solange ein eigener Dorfbewohner es
+    /// gerade erntet bzw. jagt (Phase <c>Gathering</c>); sonst wird es frei,
+    /// damit es wieder wandern kann.
     /// </summary>
     private void UpdateSheepClaims()
     {
-        // Schafe, die gerade ein eigener Dorfbewohner erntet — das ist die
-        // einzige Reservierung, die zählen soll. Ein Schaf gehört für die
-        // ganze Zeit zu einem Auftrag, in dem es die Quelle ist (ToSource
-        // hinlaufen, Gathering sammeln, ToDropOff abliefern) — nicht nur,
-        // wenn der Dörfler gerade am Schaf steht.
+        // Schafe und Rehe, die gerade ein eigener Dorfbewohner erntet bzw.
+        // jagt — das ist die einzige Reservierung, die zählen soll. Ein Tier
+        // gehört für die ganze Zeit zu einem Auftrag, in dem es die Quelle
+        // ist (ToSource hinlaufen, Gathering sammeln, ToDropOff abliefern) —
+        // nicht nur, wenn der Dörfler gerade am Tier steht.
         var aktiv = new HashSet<(int x, int y)>();
         foreach (var u in units)
         {
@@ -1911,7 +1973,8 @@ public class RTSGameplayScreen : GameScreen
             if (job == null) continue;
             if (job.Phase == GatherPhase.Done) continue;
             if (job.Resource != Resource.Food) continue;
-            if (tileMap.GetTile(job.Source.X, job.Source.Y)?.Food != FoodSource.Sheep) continue;
+            var food = tileMap.GetTile(job.Source.X, job.Source.Y)?.Food;
+            if (food is not (FoodSource.Sheep or FoodSource.Deer)) continue;
             aktiv.Add((job.Source.X, job.Source.Y));
         }
         tileMap.SyncSheepClaims(aktiv);
@@ -2058,8 +2121,11 @@ public class RTSGameplayScreen : GameScreen
                 // Eine Farm hat ihren eigenen Erdfleck; darunter nur ein neutraler
                 // dunkler Grund, damit die Halme absetzen.
                 bool isFish = tile.Food == FoodSource.Fish;
+                bool isDeer = tile.Food == FoodSource.Deer;
                 if (isFarm && _soilTex != null && _wheatTex != null)
                     continue;
+                // Rehe stehen in der Zeilenschicht (DrawDeer) — hier nur den
+                // Gras-Grund darunter malen, kein Kleinsprite.
                 if (isFarm)
                     spriteBatch.Draw(px, rect, new Color(70, 55, 30));
                 else if (!isFish && _grassTex != null)
@@ -2067,6 +2133,7 @@ public class RTSGameplayScreen : GameScreen
                 else if (!isFish && tileTex.TryGetValue(TileType.Grassland, out var grass))
                     spriteBatch.Draw(grass, rect, Color.White);
 
+                if (isDeer) continue;   // Reh wird in der Zeilenschicht gezeichnet
                 bool isSheep = tile.Food == FoodSource.Sheep;
                 var objTex = isFarm ? BuildFarmTextureCached()
                            : isFish ? BuildFishTextureCached()
@@ -2100,6 +2167,8 @@ public class RTSGameplayScreen : GameScreen
                     DrawCrowns(spriteBatch, x, y);
                 else if (PileSprites(tile.Type).Length > 0)
                     DrawPile(spriteBatch, x, y, PileSprites(tile.Type));
+                else if (tile.Food == FoodSource.Deer)
+                    DrawDeer(spriteBatch, x, y);
             }
         }
 
@@ -2252,6 +2321,45 @@ public class RTSGameplayScreen : GameScreen
     }
 
     /// <summary>
+    /// Ein Reh, als freigestelltes AI-Sprite (Rohstoffe/reh*), gezeichnet wie
+    /// Bäume und Haufen — überdeckt es wie die Haufen mehrere Kacheln.
+    /// Variante und Lage hängen von einem Kachellagen-Hash ab, damit das Reh
+    /// von Frame zu Frame nicht zappelt. Fehlt das AI-Bild, fällt DrawDeer
+    /// auf das prozedurale Rehsprite (BuildDeerTexture) zurück — gleicher
+    /// Zeilenschicht- und Zielrechteck-Aufbau.
+    /// </summary>
+    private void DrawDeer(SpriteBatch spriteBatch, int x, int y)
+    {
+        var tileRect = TileScreenRect(x, y);
+        int hash = unchecked(x * 73856093 ^ y * 19349663) & 0x7FFFFFFF;
+        // Rehe sind rund 1.6× so breit wie eine Kachel — wie die Haufen
+        int width = tileRect.Width * (150 + (hash >> 20) % 30) / 100;
+
+        if (_deerSprites.Length > 0)
+        {
+            var tex = _deerSprites[(hash >> 16) % _deerSprites.Length];
+            int height = width * tex.Height / tex.Width;
+            int jx = ((hash >> 4) % 9 - 4) * tileRect.Width / 32;
+            int jy = ((hash >> 8) % 6 - 3) * tileRect.Width / 32;
+            var target = new Rectangle(tileRect.Center.X - width / 2 + jx,
+                                       tileRect.Bottom - tileRect.Height / 5 - height + jy, width, height);
+            if (target.Intersects(screenBounds))
+                spriteBatch.Draw(tex, target, Color.White);
+            return;
+        }
+        // Fallback: prozedurales Reh-Texture
+        var objTex = BuildDeerTextureCached();
+        if (objTex != null)
+        {
+            int height = width * objTex.Height / objTex.Width;
+            var target = new Rectangle(tileRect.Center.X - width / 2,
+                                       tileRect.Bottom - tileRect.Height / 5 - height, width, height);
+            if (target.Intersects(screenBounds))
+                spriteBatch.Draw(objTex, target, Color.White);
+        }
+    }
+
+    /// <summary>
     /// Drei Bäume je Waldkachel - als Sprite mit Stamm, wenn geladen, sonst als
     /// gezeichnete Krone. Lage und Variante kommen fest aus dem Ortshash der
     /// Kachel – sonst zappelten die Bäume von Frame zu Frame.
@@ -2317,7 +2425,13 @@ public class RTSGameplayScreen : GameScreen
     private Texture2D _berryTex;
     private Texture2D _fishTex;
     private Texture2D _farmTex;
+    private Texture2D _deerTex;
     
+    private Texture2D BuildDeerTextureCached()
+    {
+        if (_deerTex == null) _deerTex = BuildDeerTexture(graphicsDevice);
+        return _deerTex;
+    }
     private Texture2D BuildSheepTextureCached()
     {
         if (_sheepTex == null) _sheepTex = BuildSheepTexture(graphicsDevice);
