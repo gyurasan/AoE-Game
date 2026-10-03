@@ -1,6 +1,6 @@
 // Spielablauf: stellt Abläufe aus RTSGameplayScreen ohne Grafik nach und prüft sie.
 //
-//   dotnet run --project tools/spielablauf -- bauen weiterbauen linksklick farm schafe bewegen minimap zoom leiste zeitalter turm menue
+//   dotnet run --project tools/spielablauf -- bauen weiterbauen linksklick farm schafe bewegen minimap zoom leiste zeitalter turm menue animation fenster
 //
 // Jede genannte Gruppe läuft auf drei frisch erzeugten Karten. Die Spielschleife
 // läuft Bild für Bild (60 je Sekunde) mit denselben Methoden, die Update() im Spiel
@@ -72,6 +72,10 @@ for (int karte = 1; karte <= KARTEN; karte++)
         Pruefe("Zeitalter", () => Zeitalter(verstoesse));
     if (gruppen.Contains("turm"))
         Pruefe($"Karte {karte}, Wachturm", () => Turm(karte, verstoesse));
+    if (gruppen.Contains("fenster") && karte == 1)
+        Pruefe("Fenster", () => Fenster(verstoesse));
+    if (gruppen.Contains("animation") && karte == 1)
+        Pruefe("Animation", () => Animation(verstoesse));
     // Das Hauptmenü braucht keine Karte
     if (gruppen.Contains("menue") && karte == 1)
         Pruefe("Hauptmenü", () => Hauptmenue(verstoesse));
@@ -978,6 +982,83 @@ static void Hauptmenue(List<string> verstoesse)
 
     if (verstoesse.Count == vorher)
         Console.WriteLine($"  ok  {wer}: mittig, wächst mit dem Fenster, Zeigen wählt, Klick startet, „Spiel laden“ gesperrt");
+}
+
+// Bewegung der Figuren (C6v): UpdateUnitMotion erkennt, ob eine Einheit läuft
+// und wohin sie blickt; nach kurzem Stillstand gilt sie wieder als stehend und
+// behält ihre Blickrichtung. DrawVillager wählt danach Gehen, Arbeiten oder Stehen.
+static void Animation(List<string> verstoesse)
+{
+    const string wer = "Animation";
+    const float bild = 1f / 60f;
+    var w = new Welt();
+    int vorher = verstoesse.Count;
+    var dorf = w.Dorfbewohner().First();
+    var start = dorf.Position;
+
+    object Bewegung() => ((System.Collections.IDictionary)w.Get("_unitMotion"))[dorf]
+        ?? throw new InvalidOperationException("keine Bewegung zum Dorfbewohner gemerkt");
+    float LaeuftNoch() => (float)Bewegung().GetType().GetField("MovingFor").GetValue(Bewegung());
+    bool Links() => (bool)Bewegung().GetType().GetField("FacingLeft").GetValue(Bewegung());
+
+    w.Call("UpdateUnitMotion", bild);              // erster Aufruf merkt die Ausgangslage
+    dorf.Position = start + new Vector2(-2, 0);
+    w.Call("UpdateUnitMotion", bild);
+    if (LaeuftNoch() <= 0f)
+        verstoesse.Add($"{wer}: nach einem Schritt gilt der Dorfbewohner nicht als laufend");
+    if (!Links())
+        verstoesse.Add($"{wer}: nach einem Schritt nach links blickt er nicht nach links");
+
+    dorf.Position = start + new Vector2(1, 0);
+    w.Call("UpdateUnitMotion", bild);
+    if (Links())
+        verstoesse.Add($"{wer}: nach einem Schritt nach rechts blickt er noch nach links");
+
+    for (int i = 0; i < 20; i++)                    // 1/3 Sekunde Stillstand
+        w.Call("UpdateUnitMotion", bild);
+    if (LaeuftNoch() > 0f)
+        verstoesse.Add($"{wer}: nach einer Drittelsekunde Stillstand gilt er noch als laufend");
+    if (Links())
+        verstoesse.Add($"{wer}: im Stand hat er die Blickrichtung gewechselt");
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: läuft, blickt in Laufrichtung, steht nach kurzem Stillstand und behält die Richtung");
+}
+
+// Fenstergröße und Zoom (C10s): ändert sich die Fensterhöhe, ändert sich der
+// Zoom im selben Verhältnis wie ZoomScale - der sichtbare Ausschnitt bleibt gleich
+// groß. Nachgestellt wird der Start, bei dem DesktopGL das Fenster erst nach
+// LoadContent vergrößert: geladen bei 768 px Höhe (Zoom 1), dann 1353 px.
+// Entstanden am 2026-10-03: das Spiel begann mal mit Zoom 1, mal mit 1,25.
+static void Fenster(List<string> verstoesse)
+{
+    const string wer = "Fenster";
+    var w = new Welt();
+    int vorher = verstoesse.Count;
+    float Zoom() => (float)w.Get("cameraZoom");
+
+    w.Set("screenBounds", new Rectangle(0, 0, 1280, 768));
+    w.Set("cameraZoom", 1f);
+    w.Set("_appliedZoomScale", 1f);
+    w.Set("screenBounds", new Rectangle(0, 0, 2406, 1353));
+    w.Call("SyncZoomToWindow");
+    if (Math.Abs(Zoom() - 1353f / 1080f) > 0.01f)
+        verstoesse.Add($"{wer}: nach dem Vergrößern auf 1353 px Zoom {Zoom():0.000}, erwartet {1353f / 1080f:0.000}");
+
+    // Selbst gezoomt, dann das Fenster verdoppelt: der Zoom verdoppelt sich mit
+    w.Set("cameraZoom", 2f);
+    w.Set("screenBounds", new Rectangle(0, 0, 4812, 2706));
+    w.Call("SyncZoomToWindow");
+    if (Math.Abs(Zoom() - 4f) > 0.01f)
+        verstoesse.Add($"{wer}: Zoom 2 bei 1353 px wird bei 2706 px {Zoom():0.000}, erwartet 4");
+
+    // Ohne Größenänderung bleibt der Zoom, wie er ist
+    w.Call("SyncZoomToWindow");
+    if (Math.Abs(Zoom() - 4f) > 0.01f)
+        verstoesse.Add($"{wer}: ohne Größenänderung wandert der Zoom auf {Zoom():0.000}");
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: der Zoom folgt der Fensterhöhe, der Ausschnitt bleibt gleich groß");
 }
 
 /// <summary>Eine Spielwelt: echte Karte, zwei Spieler, der Bildschirm ohne Grafik.</summary>

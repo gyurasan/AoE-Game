@@ -156,9 +156,73 @@
     "bilder": [
       {
         "name": "dorfbewohner",
-        "seed": 4001,
+        "seed": 4002,
         "ziel": "Einheiten/dorfbewohner.png",
         "prompt": "A medieval peasant villager in a bright blue tunic with a brown belt, brown trousers, leather shoes and a straw hat, carrying a wooden hoe over the shoulder, friendly face, walking pose turned slightly to the right."
+      }
+    ]
+  },
+  "boden": {
+    "groesse": [
+      1024,
+      1024
+    ],
+    "schritte": 30,
+    "cfg": 3.0,
+    "stil": "Seamless ground texture for a top-down 2D strategy game, seen straight from above, 16-bit pixel art, crisp pixels, even soft lighting, subtle low contrast, uniform pattern filling the whole image edge to edge, no objects, no paths, no shadows, no horizon, no text.",
+    "negativ": "text, letters, logo, watermark, frame, border, perspective, horizon, sky, trees, rocks, flowers in clusters, path, objects, high contrast, vignette, blurry, photo",
+    "bilder": [
+      {
+        "name": "gras",
+        "seed": 5002,
+        "ziel": "Boden/gras.png",
+        "prompt": "Short lush green meadow grass with small tufts in a few shades of green and a very few tiny yellow and white flowers scattered evenly."
+      }
+    ],
+    "kachelbar": true
+  },
+  "baeume": {
+    "groesse": [
+      1024,
+      1024
+    ],
+    "schritte": 30,
+    "cfg": 3.0,
+    "freistellen": true,
+    "zuschneiden": true,
+    "zielbreite": 128,
+    "stil": "Game sprite for a top-down 2D strategy game, three-quarter top-down view from the south, detailed 16-bit pixel art, crisp pixels, natural greens, soft light from the upper left. One single tree centered, fully visible from the top of the crown down to the roots, isolated on a plain white background, no ground plate, no shadow on the background, no text.",
+    "negativ": "text, letters, logo, watermark, frame, border, multiple trees, forest, grass ground, landscape, scenery, sky, cut off, cropped, blurry, photo, 3d render",
+    "bilder": [
+      {
+        "name": "laubbaum",
+        "seed": 6001,
+        "ziel": "Baeume/laubbaum.png",
+        "prompt": "A round, full, leafy deciduous oak tree with a dense dark green crown and a short thick brown trunk."
+      },
+      {
+        "name": "laubbaum2",
+        "seed": 6002,
+        "ziel": "Baeume/laubbaum2.png",
+        "prompt": "A round, full, leafy deciduous oak tree with a dense dark green crown and a short thick brown trunk."
+      },
+      {
+        "name": "nadelbaum",
+        "seed": 6101,
+        "ziel": "Baeume/nadelbaum.png",
+        "prompt": "A tall slim conifer pine tree with layered dark green needle branches and a short brown trunk."
+      },
+      {
+        "name": "nadelbaum2",
+        "seed": 6102,
+        "ziel": "Baeume/nadelbaum2.png",
+        "prompt": "A tall slim conifer pine tree with layered dark green needle branches and a short brown trunk."
+      },
+      {
+        "name": "buschbaum",
+        "seed": 6201,
+        "ziel": "Baeume/buschbaum.png",
+        "prompt": "A bushy broadleaf tree with a wide light green crown made of several leaf clumps and a short brown trunk."
       }
     ]
   }

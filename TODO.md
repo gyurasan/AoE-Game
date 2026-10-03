@@ -7,11 +7,18 @@
 Alles baut und läuft: `dotnet build AgeOfEmpire.slnx` (0 Fehler, 0 Warnungen),
 `dotnet test tests/AoE.Tests` → **157/157 grün**.
 
-Der Stand vom 2026-09-23 ist mit `4cb57d4` committet, alles bis zur Zoom-Anpassung
-C10z mit `4ec4b3b` (2026-10-03). Commits macht der Nutzer selbst.
+Der Stand vom 2026-09-23 ist mit `4cb57d4` committet, alles bis zu den Gebäude-Sprites
+mit `4f85314` (2026-10-03). Commits macht der Nutzer selbst.
 
 Zuletzt fertiggestellt:
 
+- **Grafik aus dem Bildgenerator (2026-10-03)** — ComfyUI mit Qwen-Image-2512 läuft lokal
+  unter `D:\Apps\ComfyUI`; `tools/bilder` erzeugt daraus die Spielgrafik (Prompts und Seeds
+  in `bilder.json`, wiederholbar) und bereitet sie für `Content/` auf. Neu: Menübild,
+  Symbole der Befehlstasten, Gebäude als Sprites in Spielerfarbe (C6i, C6g), Dorfbewohner
+  als Sprite mit Bewegung aus dem Code (C6v), kachelbares Gras und fünf Baumarten (C7g).
+  Das Hauptmenü ist mit der Maus bedienbar und wächst mit dem Fenster (E12), der Zoom
+  folgt der Fensterhöhe (C10s). Bilder des Spiels in `docs/bilder/` und im README
 - **2026-10-03** — die DX-Fassung startet wieder (E11, Grafikprofil HiDef); die Minimap
   sitzt rechts unten in derselben Draufsicht wie die Spielkarte, ein Klick rückt die
   Kamera (C6m, C6d); die Zoomgrenzen wachsen mit der Fensterhöhe (C10z); die
@@ -105,17 +112,29 @@ Linksklick, der hier ein Befehl ist, oder per neuem Bauauftrag. Die Nachstellung
 
 Nächste sinnvolle Schritte, in dieser Reihenfolge:
 
-1. **Sichtprüfung im Spiel** — offen: Weiterbauen an liegengebliebenen Baustellen (C5d),
-   Linksklick-Auswahl (C8b), Bauen von Mühle und Bergbaulager, dazu Wasser, Fischen und
-   Kantenscrollen. C5d, C8b und die Farm prüft `tools/spielablauf` bereits ohne Grafik.
-   Bestätigt sind Wald, Stein, Gold, die Maussteuerung, Ausbildung mit Q, die rote
-   Bevölkerungsanzeige, das Holzfällerlager und die Baustellen-Grafik (Screenshots vom
-   2026-10-01).
-2. **Weitere Gebäude der Feudalzeit** — die Zeitalter (C4) stehen, freigeschaltet ist
+1. **Sichtprüfung im Spiel** — offen: Aufstieg in die Feudalzeit und Bau eines Wachturms,
+   Bauen von Mühle und Bergbaulager, Fischen, Kantenscrollen, die Hinweise beim Zeigen
+   auf eine Befehlstaste und der Klick in die Minimap. C5d, C8b, die Farm, die Leiste und
+   die Zeitalter prüft `tools/spielablauf` bereits ohne Grafik. Bestätigt sind Wald, Stein,
+   Gold, die Maussteuerung, Ausbildung mit Q, die rote Bevölkerungsanzeige, das
+   Holzfällerlager und die Baustellen-Grafik (Screenshots vom 2026-10-01), dazu per
+   Bildschirmfoto Menü, Leiste mit Symbolen, Minimap, Gebäude, Dorfbewohner, Gras und
+   Wald (2026-10-03).
+2. **Restliche Grafik im neuen Stil** — Fels, Gold, Sand, Wasser, Schafe, Beerenbüsche,
+   Baustelle und Farm zeichnet noch der Code; neben den Sprites wirken sie flach. Echte
+   Laufbilder für die Dorfbewohner bräuchten Qwen-Image-Edit (dieselbe Figur in mehreren
+   Posen).
+3. **Bedienoberfläche mit der Auflösung skalieren** — Leisten, Schrift, Tasten und Minimap
+   haben feste Pixelmaße und wirken in der DX-Fassung (2707 px hoch) halb so groß; dazu
+   ein Infokästchen am Mauszeiger statt des Hinweises in der Leistenmitte.
+4. **Weitere Gebäude der Feudalzeit** — die Zeitalter (C4) stehen, freigeschaltet ist
    bisher nur der Wachturm. Schießstand und Stall brauchen die Kampfschleife, der Markt
    den Handel.
-3. **Kampfschleife** — `Unit.Attack()` existiert seit B2 und wird nirgends aufgerufen.
+5. **Kampfschleife** — `Unit.Attack()` existiert seit B2 und wird nirgends aufgerufen.
    Auf Wunsch des Nutzers zurückgestellt (2026-09-30).
+6. **Veraltete Abnahmen** — `c1n`, `c1c` und `c8a` prüfen Schreibweisen von früher (die
+   Schaf-Nahrung als Zahl, „Untätig" in `DrawUI`, „Links ziehen" im Hilfetext) und sind
+   deshalb rot, obwohl das Verhalten stimmt; auf Verhalten umstellen.
 
 Farm (C5f) ist fertig: Dorfbewohner wählen, Taste G (Getreide) drücken, Bauplatz
 anklicken — 3×3-Feld von 175 Nahrung. Die ausgewählten Dorfbewohner ernten die
@@ -132,6 +151,15 @@ Claude, die Implementierung von `GatherJob`, `Population`, `TrainingQueue` und
 `Construction` vom lokalen Modell.
 Die 256K stehen seit 2026-10-01 als `num_ctx` im Modell selbst; das unveränderte
 Original liegt als `qwen3.8:27b-orig` daneben.
+
+Spielgrafik: `py tools/bilder/qwen_image.py <gruppe>` erzeugt Bilder über ComfyUI (Server
+starten mit `D:\Apps\ComfyUI\ComfyUI_windows_portable\run_nvidia_gpu.bat`; Modelle
+Qwen-Image-2512 fp8, Qwen2.5-VL-7B als Text-Encoder, BiRefNet zum Freistellen), und
+`pwsh -File tools/bilder/uebernehmen.ps1` übernimmt die in `bilder.json` gewählten Seeds
+nach `Content/` (zuschneiden, Spielerfarben Blau/Rot, kachelbar). ComfyUI und das
+Ollama-Modell passen nicht zugleich in die 32 GB der Grafikkarte: vor einem Agent-Lauf
+`POST /free` an ComfyUI, vor Bildern `ollama stop qwen3.8:27b`. Fehlt eine Grafik,
+zeichnet das Spiel wie früher selbst.
 
 Kartenfehler sehen die Unit-Tests nicht – sie kennen das Spielprojekt nicht. Dafür gibt
 es `tools/kartenpruefung`: `dotnet run --project tools/kartenpruefung -- rohstoffe start fisch`
@@ -605,6 +633,13 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
 - [x] Stadtzentrum skaliert im Ganzen mit dem Zoom *(Agent E9)*
 - [x] Gebäude als Sprites aus Qwen-Image (`tools/bilder`, freigestellt mit BiRefNet), Fahnen
       und Banner in Spielerfarbe; Baustellen und die Farm zeichnet weiter der Code *(Agent C6g)*
+- [x] Dorfbewohner als Sprite (Qwen-Image) mit Bewegung aus dem Code: wippt beim Gehen, holt
+      beim Sammeln und Bauen aus, atmet im Stehen, blickt in Laufrichtung, Schatten und
+      Traglast-Bündel *(Agent C6v)*
+- [x] Gras aus einem großen, kachelbar gemachten Grasbild (Qwen-Image), vier Bildpixel je
+      Welteinheit, wiederholt alle acht Kacheln; Schaf und Beerenbusch auf durchsichtigem
+      Grund darüber; Wald mit fünf Baumarten als Sprites mit Stamm statt runder
+      Kronen *(Agent C7g)*
 - [x] Wald als Blätterdach: dunkler Boden als Kachel, Baumkronen als eigene Figuren
       über Kachelgrenzen hinweg *(Agent G1, G3)*
 - [x] Wasser: zwei überlagerte Wellen in drei Varianten, festes Rauschen ohne Flimmern,
@@ -615,6 +650,9 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
 - [x] Zoomen mit dem Mausrad, **auf den Cursor zu** statt auf die Bildmitte
       (RTSGameplayScreen, multiplikativer Schritt 1,12; Grenzen MIN_ZOOM 0,5 / MAX_ZOOM 2,0
       bis 1080 px Fensterhöhe, darüber wachsen sie und der Startzoom mit *(Agent C10z)*)
+- [x] Der Zoom folgt der Fensterhöhe, der Ausschnitt bleibt gleich groß — vorher begann das
+      Spiel mitunter mit Zoom 1 statt 1,25, wenn das Fenster seine Größe erst nach dem
+      Laden bekam *(Agent C10s)*
 - [x] Falle umgangen: ``ScrollWheelValue`` zählt seit Programmstart kumuliert —
       ohne Startwert springt der erste Frame auf Maximalzoom
 - [x] Kamera an den Kartenrand geklemmt (`ClampCamera()`) — vorher zeigte der

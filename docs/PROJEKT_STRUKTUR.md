@@ -19,6 +19,7 @@ src/AoE.Core/ - net10.0, MonoGame-unabhängige Spiellogik:
     Pathfinding/Pathfinding.cs (316) - A-Stern und Formationsbewegung
 AgeOfEvolutions/ - das MonoGame-Spiel:
     AgeOfEvolutions.Core/ (net10.0) mit Data/, Screens/, Effects/, Inputs/, ScreenManagers/, Localization/, Settings/, Content/
+        Content/ - Backgrounds/menu.png, Icons/, Gebaeude/, Einheiten/, Boden/, Baeume/ (aus tools/bilder), Fonts/Hud und Fonts/Menu
     AgeOfEvolutions.DesktopGL/ (net10.0) - Windows, macOS, Linux; RuntimeIdentifiers win-x64, osx-x64, osx-arm64, linux-x64
     AgeOfEvolutions.WindowsDX/ (net10.0-windows) - nur Windows
 tests/AoE.Tests/ - net10.0, xUnit, 157 Tests, alle grün
@@ -26,8 +27,8 @@ tests/AoE.Tests/ - net10.0, xUnit, 157 Tests, alle grün
 demo/DemoApp.csproj - net10.0, kleine Konsolen-Testapp
 tools/ollama-agent/ - Harness, der TODO-Punkte an ein lokales Ollama-Modell verteilt
 tools/kartenpruefung/ - prüft Regeln des Kartengenerators über 50 erzeugte Karten
-tools/bilder/ - erzeugt Spielgrafiken mit Qwen-Image über ComfyUI; Prompts und Seeds in bilder.json
-tools/spielablauf/ - lässt die Spielschleife ohne Grafik laufen und prüft Abläufe (Bauen, Weiterbauen, Linksklick, Farm, Schafe, Bewegen, Minimap, Zoom, Leiste, Zeitalter, Wachturm)
+tools/bilder/ - erzeugt Spielgrafiken mit Qwen-Image über ComfyUI; Prompts und Seeds in bilder.json, uebernehmen.ps1 bereitet die gewählten Bilder für Content/ auf
+tools/spielablauf/ - lässt die Spielschleife ohne Grafik laufen und prüft Abläufe (Bauen, Weiterbauen, Linksklick, Farm, Schafe, Bewegen, Minimap, Zoom, Leiste, Zeitalter, Wachturm, Hauptmenü, Animation, Fenster)
 ```
 
 ## Wichtige Dateien
@@ -52,7 +53,19 @@ tools/spielablauf/ - lässt die Spielschleife ohne Grafik laufen und prüft Abl�
 | Unit.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/Unit.cs | 199 Zeilen, Spieleinheit; hält über `Unit.Core` eine `UnitEntity` aus AoE.Core und reicht Kampfwerte, Lebenspunkte und Zustand durch; hält den Sammelauftrag (`Job`) und die Baustelle (`BuildSite`) |
 | CoreUnits.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/CoreUnits.cs | 101 Zeilen, bildet alle 17 Einheitentypen des Spiels auf Klassen aus AoE.Core ab |
 | CoreBuildings.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/CoreBuildings.cs | 33 Zeilen, bildet die Gebäudetypen des Spiels auf BuildingEntity aus AoE.Core ab |
-| RTSGameplayScreen.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs | 3053 Zeilen, prozedurale Texturen und Spielschleife; Ausbildung (Taste Q), Zeitalter (A), Baumenü (H, M, F, B, G, T), Baustellen, Minimap und die Klick-Entscheidung (`LeftClick`) |
+| RTSGameplayScreen.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs | 3299 Zeilen, prozedurale Texturen und Spielschleife; Ausbildung (Taste Q), Zeitalter (A), Baumenü (H, M, F, B, G, T), Baustellen, Minimap und die Klick-Entscheidung (`LeftClick`) |
+
+## Grafik
+
+Menübild, Tastensymbole, Gebäude, Dorfbewohner, Gras und Bäume kommen aus Qwen-Image
+(Qwen-Image-2512, fp8) über ComfyUI unter `D:\Apps\ComfyUI`. `tools/bilder/bilder.json` hält
+je Bild Prompt, Seed und Ziel; `qwen_image.py` erzeugt die Bilder und stellt sie mit
+BiRefNet frei, `uebernehmen.ps1` schneidet zu, färbt Fahnen, Banner und Kittel für
+Spieler 2 rot und macht Bodenbilder kachelbar. Die Ergebnisse liegen in
+`AgeOfEvolutions.Core/Content/` und sind in `AgeOfEvolutions.mgcb` eingetragen. Die
+Bewegung der Dorfbewohner (Gehen, Arbeiten, Stehen) rechnet das Spiel selbst
+(`RTSGameplayScreen.DrawVillager`). Fehlt eine Grafik, zeichnet das Spiel wie früher
+prozedural. Bilder des Spiels liegen in `docs/bilder/`.
 
 ## Build-Status
 

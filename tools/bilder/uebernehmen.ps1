@@ -9,6 +9,9 @@
 #   zielgroesse   [b, h]  auf genau diese Größe verkleinern (Icons)
 #   zuschneiden   true    auf den sichtbaren Bereich (Alpha) beschneiden
 #   zielbreite    b       auf diese Breite verkleinern, Höhe im Seitenverhältnis
+#   kachelbar     true    nahtlos kachelbar machen: um eine halbe Breite verschieben
+#                         (die Außenkanten passen dann), die Naht in der Mitte mit
+#                         einem weichen Kreuz aus dem unverschobenen Bild überdecken
 #   spielerfarben true    zwei Dateien: <ziel>_blau.png wie erzeugt, <ziel>_rot.png
 #                         mit kräftigem Blau (Fahnen, Banner) in Rot umgefärbt
 #
@@ -76,6 +79,31 @@ public static class Nachbearbeitung
         return ziel;
     }
 
+    /// Nahtlos kachelbar: S ist das Bild um eine halbe Breite und Höhe versetzt
+    /// (seine Außenkanten stoßen nahtlos aneinander, die Naht liegt im Mittelkreuz).
+    /// Ergebnis = S * (1 - m) + Original * m, m = 1 auf dem Mittelkreuz und auf
+    /// "breite" Pixel weich auf 0 abfallend - am Rand bleibt S, also kachelbar.
+    public static Bitmap Kachelbar(Bitmap quelle, int breite)
+    {
+        var b = new Bitmap(quelle);
+        BitmapData d; var px = Lesen(b, out d);
+        int w = b.Width, h = b.Height;
+        var neu = new byte[px.Length];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                int sx = (x + w / 2) % w, sy = (y + h / 2) % h;
+                double mx = Math.Max(0, 1 - Math.Abs(x - w / 2.0) / breite);
+                double my = Math.Max(0, 1 - Math.Abs(y - h / 2.0) / breite);
+                double m = Math.Max(mx * mx * (3 - 2 * mx), my * my * (3 - 2 * my));
+                int i = y * d.Stride + x * 4, j = sy * d.Stride + sx * 4;
+                for (int k = 0; k < 4; k++)
+                    neu[i + k] = (byte)Math.Round(px[j + k] * (1 - m) + px[i + k] * m);
+            }
+        Schreiben(b, d, neu);
+        return b;
+    }
+
     /// Kräftiges Blau (Farbton 190-260 Grad, Sättigung ab 0,3) wird Rot: der
     /// Bereich wird um 225 Grad verschoben und gestaucht, Helligkeit bleibt.
     public static Bitmap BlauZuRot(Bitmap quelle)
@@ -137,6 +165,9 @@ foreach ($g in $katalog.PSObject.Properties) {
                 $gr.DrawImage($bild, 0, 0, $w, $h)
                 $gr.Dispose()
                 $bild.Dispose(); $bild = $klein
+            }
+            if (Wert $e $g.Value "kachelbar") {
+                $neu = [Nachbearbeitung]::Kachelbar($bild, [int]($bild.Width / 8)); $bild.Dispose(); $bild = $neu
             }
             if (Wert $e $g.Value "zuschneiden") {
                 $neu = [Nachbearbeitung]::Zuschneiden($bild, 8); $bild.Dispose(); $bild = $neu

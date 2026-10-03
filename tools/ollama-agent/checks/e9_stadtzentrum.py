@@ -29,7 +29,11 @@ if len(re.findall(r"BuildingPart\s*\(", gebaeude)) < 9:
     fehler.append("DrawBuilding zeichnet nicht alle Teile ueber BuildingPart")
 if re.search(r"\bhouse\.", gebaeude):
     fehler.append("DrawBuilding rechnet noch mit festen Pixeln relativ zu 'house'")
-if len(re.findall(r"new\s+Rectangle\s*\(", gebaeude)) > 1:
+# Feste Pixelmasse gab es in der selbst gezeichneten Fassung hinter dem switch.
+# Davor stehen seit C6g der Sichtbereich und das Sprite-Rechteck - beide aus der
+# Grundflaeche gerechnet; bis dahin durfte hier nur ein new Rectangle stehen.
+gezeichnet = gebaeude.split("switch (b.Core.BuildingType)", 1)[-1]
+if re.search(r"new\s+Rectangle\s*\(", gezeichnet):
     fehler.append("DrawBuilding legt noch Rechtecke mit festen Pixelmassen an")
 if "path.Height" in gebaeude:
     fehler.append("die tote Pfad-Bedingung (negative Hoehe) ist noch da")

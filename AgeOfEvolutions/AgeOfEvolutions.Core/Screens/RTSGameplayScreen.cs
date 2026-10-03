@@ -50,6 +50,9 @@ public class RTSGameplayScreen : GameScreen
     private float MinZoom => MIN_ZOOM * ZoomScale;
     private float MaxZoom => MAX_ZOOM * ZoomScale;
 
+    // ZoomScale, auf die cameraZoom zuletzt abgestimmt wurde (SyncZoomToWindow)
+    private float _appliedZoomScale = 1f;
+
     // Ein Schritt je Rastung des Mausrads. Multiplikativ, damit sich das
     // Zoomen über den ganzen Bereich gleich schnell anfühlt — additiv wäre
     // es nah an MIN_ZOOM viel grober als nah an MAX_ZOOM.
@@ -188,6 +191,31 @@ public class RTSGameplayScreen : GameScreen
         ("Bergbaulager", "Gebaeude/bergbaulager"), ("Wachturm", "Gebaeude/wachturm"),
     };
     private readonly Dictionary<(string Type, int Owner), Texture2D> _buildingSprites = new();
+
+    // Dorfbewohner als Sprite (tools/bilder, Gruppe einheiten), je Spieler blau
+    // oder rot; die Bewegung kommt aus dem Code, siehe DrawVillager
+    private readonly Dictionary<int, Texture2D> _villagerSprites = new();
+    private Texture2D _shadowTex;          // weicher Schatten unter den Füßen
+
+    // Boden und Wald aus tools/bilder (Gruppen boden und baeume): ein großes
+    // Grasbild und freigestellte Bäume mit Stamm.
+    // Fehlen sie, zeichnet der Code Gras und Baumkronen wie bisher selbst.
+    private static readonly string[] TreeAssets =
+        { "Baeume/laubbaum", "Baeume/laubbaum2", "Baeume/nadelbaum", "Baeume/nadelbaum2", "Baeume/buschbaum" };
+    private Texture2D _grassTex;
+    private Texture2D[] _treeSprites = Array.Empty<Texture2D>();
+    private const int GRASS_TEXELS = 4;   // Bildpixel des Grasbilds je Welteinheit
+
+    // Bewegung je Einheit, aus der Lage zwischen zwei Updates abgeleitet - die
+    // Einheit selbst speichert weder Blickrichtung noch Tempo
+    private struct UnitMotion
+    {
+        public Vector2 Last;       // Lage im letzten Update
+        public bool FacingLeft;    // zuletzt nach links gelaufen
+        public float MovingFor;    // gilt noch so viele Sekunden als in Bewegung
+    }
+    private readonly Dictionary<Unit, UnitMotion> _unitMotion = new();
+    private float animationTime;   // Sekunden seit Spielbeginn, Takt der Animation
     private List<CommandButton> _buttons = new();
     private int _buttonsLayoutHeight;    // Fensterhöhe, für die _buttons angelegt sind
     private bool _buttonsLayoutBuilders; // ob dabei ein Dorfbewohner ausgewählt war
@@ -267,6 +295,40 @@ public class RTSGameplayScreen : GameScreen
             }
         }
 
+        // Dorfbewohner-Sprites je Spielerfarbe und ihr Schatten; fehlt das
+        // Sprite, zeichnet DrawUnits die Figur wie bisher selbst
+        foreach (var (owner, colour) in new[] { (0, "_blau"), (1, "_rot") })
+        {
+            try
+            {
+                _villagerSprites[owner] = ScreenManager.Game.Content.Load<Texture2D>("Einheiten/dorfbewohner" + colour);
+            }
+            catch (Microsoft.Xna.Framework.Content.ContentLoadException)
+            {
+            }
+        }
+        _shadowTex = BuildShadowTexture(graphicsDevice);
+
+        try
+        {
+            _grassTex = ScreenManager.Game.Content.Load<Texture2D>("Boden/gras");
+        }
+        catch (Microsoft.Xna.Framework.Content.ContentLoadException)
+        {
+        }
+        var trees = new List<Texture2D>();
+        foreach (var asset in TreeAssets)
+        {
+            try
+            {
+                trees.Add(ScreenManager.Game.Content.Load<Texture2D>(asset));
+            }
+            catch (Microsoft.Xna.Framework.Content.ContentLoadException)
+            {
+            }
+        }
+        _treeSprites = trees.ToArray();
+
         // Gebäude-Sprites je Spielerfarbe; fehlt eines, zeichnet DrawBuilding
         // das Gebäude wie bisher selbst
         foreach (var (type, asset) in BuildingSprites)
@@ -287,6 +349,7 @@ public class RTSGameplayScreen : GameScreen
         // Startzoom wie die Zoomgrenzen an der Fensterhöhe ausgerichtet; die
         // Bildmitte liegt in Weltkoordinaten bei bildschirm / (2 * zoom).
         cameraZoom = ZoomScale;
+        _appliedZoomScale = cameraZoom;
         var start = tileMap.GridToWorld(new Vector2(3, 3));
         cameraPosition = new Vector2(screenBounds.Width / (2f * cameraZoom),
                                      screenBounds.Height / (2f * cameraZoom)) - start;
@@ -336,8 +399,10 @@ public class RTSGameplayScreen : GameScreen
             graphicsDevice.PresentationParameters.BackBufferWidth,
             graphicsDevice.PresentationParameters.BackBufferHeight);
 
+        SyncZoomToWindow();
         HandleRtsInput(gameTime);
         UpdateUnits(gameTime);
+        UpdateUnitMotion((float)gameTime.ElapsedGameTime.TotalSeconds);
         UpdatePopulationLimits();
         UpdateTraining((float)gameTime.ElapsedGameTime.TotalSeconds);
         UpdateAges((float)gameTime.ElapsedGameTime.TotalSeconds);
@@ -632,9 +697,7 @@ public class RTSGameplayScreen : GameScreen
     private Texture2D BuildBerryTexture(GraphicsDevice gd)
     {
         var b = new TextureBuilder(32, 32);
-        // Gras-Hintergrund
-        b.FillRect(0, 0, 32, 32, new Color(76, 141, 48));
-        b.Noise(new Color(76, 141, 48), 8, _texRng, 0.4f);
+        // Durchsichtiger Grund: darunter liegt das Gras der Karte
         
         // Büsch: grüner Haufen mit roten Beeren
         int cx = 16, cy = 18;
@@ -660,9 +723,7 @@ public class RTSGameplayScreen : GameScreen
     private Texture2D BuildSheepTexture(GraphicsDevice gd)
     {
         var b = new TextureBuilder(32, 32);
-        // Gras
-        b.FillRect(0, 0, 32, 32, new Color(76, 141, 48));
-        b.Noise(new Color(76, 141, 48), 6, _texRng, 0.3f);
+        // Durchsichtiger Grund: darunter liegt das Gras der Karte
         
         // Schaf (sehr klein, pixelartig): 8×6 Pixel
         int sx = 10, sy = 12;
@@ -1884,7 +1945,9 @@ public class RTSGameplayScreen : GameScreen
                 if (rect.Intersects(screenBounds))
                 {
                     var tex = GetTileTexture(tile);
-                    if (tex != null)
+                    if (tile.Type == TileType.Grassland && _grassTex != null)
+                        DrawGrass(spriteBatch, x, y, rect);
+                    else if (tex != null)
                         spriteBatch.Draw(tex, rect, Color.White);
                     if (tile.Type == TileType.Water)
                         DrawShore(spriteBatch, x, y, rect);
@@ -1915,6 +1978,8 @@ public class RTSGameplayScreen : GameScreen
                 bool isFish = tile.Food == FoodSource.Fish;
                 if (isFarm)
                     spriteBatch.Draw(px, rect, new Color(70, 55, 30));
+                else if (!isFish && _grassTex != null)
+                    DrawGrass(spriteBatch, x, y, rect);
                 else if (!isFish && tileTex.TryGetValue(TileType.Grassland, out var grass))
                     spriteBatch.Draw(grass, rect, Color.White);
 
@@ -1959,18 +2024,41 @@ public class RTSGameplayScreen : GameScreen
     }
 
     /// <summary>
-    /// Drei Baumkronen je Waldkachel. Lage und Variante kommen fest aus dem
-    /// Ortshash der Kachel – sonst zappelten die Bäume von Frame zu Frame.
+    /// Grasboden aus dem großen Grasbild: die Kachel (x, y) zeigt ihren eigenen
+    /// Ausschnitt, GRASS_TEXELS Bildpixel je Welteinheit - das KI-Bild ist grob
+    /// gepixelt, bei einem Bildpixel je Welteinheit wurden die Halme riesig. Das
+    /// Bild ist kachelbar (tools/bilder, "kachelbar") und wiederholt sich alle
+    /// acht Kacheln. Gespiegelt statt wiederholt zeigte es an jeder Spiegelkante
+    /// einen Streifen, wo die Halmspitzen aufeinanderstießen.
+    /// </summary>
+    private void DrawGrass(SpriteBatch spriteBatch, int x, int y, Rectangle rect)
+    {
+        int ts = tileMap.TileSize * GRASS_TEXELS, size = _grassTex.Width;
+        var source = new Rectangle(x * ts % size, y * ts % size, ts, ts);
+        spriteBatch.Draw(_grassTex, rect, source, Color.White);
+    }
+
+    /// <summary>
+    /// Drei Bäume je Waldkachel - als Sprite mit Stamm, wenn geladen, sonst als
+    /// gezeichnete Krone. Lage und Variante kommen fest aus dem Ortshash der
+    /// Kachel – sonst zappelten die Bäume von Frame zu Frame.
     /// </summary>
     private void DrawCrowns(SpriteBatch spriteBatch, int x, int y)
     {
         int crownSize = (int)(CROWN_SIZE * cameraZoom);
         var tileRect = TileScreenRect(x, y);
-        // Kronen ragen bis zu einer halben Krone über die Kachel hinaus
-        var reach = new Rectangle(tileRect.X - crownSize, tileRect.Y - crownSize,
-                                  tileRect.Width + 2 * crownSize, tileRect.Height + 2 * crownSize);
+        // Kronen ragen bis zu einer halben Krone über die Kachel hinaus, Bäume
+        // mit Stamm bis zu drei Kronen nach oben
+        var reach = new Rectangle(tileRect.X - crownSize, tileRect.Y - 3 * crownSize,
+                                  tileRect.Width + 2 * crownSize, tileRect.Height + 4 * crownSize);
         if (!reach.Intersects(screenBounds))
             return;
+
+        if (_treeSprites.Length > 0)
+        {
+            DrawTrees(spriteBatch, x, y, crownSize);
+            return;
+        }
 
         int hash = unchecked(x * 73856093 ^ y * 19349663) & 0x7FFFFFFF;
         for (int k = 0; k < CrownSpots.Length; k++)
@@ -1985,6 +2073,32 @@ public class RTSGameplayScreen : GameScreen
         }
     }
     
+    /// <summary>
+    /// Bäume als Sprites an den Stellen der Kronen: anderthalb Kronen breit,
+    /// mit dem Stammfuß eine halbe Krone unter der Kronenmitte. Die Kachel wird
+    /// von oben nach unten gezeichnet - tiefer stehende Bäume überdecken höhere.
+    /// </summary>
+    private void DrawTrees(SpriteBatch spriteBatch, int x, int y, int crownSize)
+    {
+        int hash = unchecked(x * 73856093 ^ y * 19349663) & 0x7FFFFFFF;
+        var spots = new List<(Vector2 Foot, Texture2D Tex)>();
+        for (int k = 0; k < CrownSpots.Length; k++)
+        {
+            int jx = (hash >> (k * 4)) % 7 - 3;
+            int jy = (hash >> (k * 4 + 2)) % 7 - 3;
+            var center = WorldToScreen(new Vector2(x * tileMap.TileSize + CrownSpots[k].X + jx,
+                                                   y * tileMap.TileSize + CrownSpots[k].Y + jy));
+            spots.Add((center + new Vector2(0, crownSize / 2f), _treeSprites[(hash >> k) % _treeSprites.Length]));
+        }
+        foreach (var (foot, tex) in spots.OrderBy(s => s.Foot.Y))
+        {
+            int treeWidth = (int)(crownSize * 1.5f);
+            int treeHeight = treeWidth * tex.Height / tex.Width;
+            spriteBatch.Draw(tex, new Rectangle((int)foot.X - treeWidth / 2, (int)foot.Y - treeHeight,
+                                                treeWidth, treeHeight), Color.White);
+        }
+    }
+
     // Gedächtnis-Texturen für wiederkehrende Nahrungsobjekte
     private Texture2D _sheepTex;
     private Texture2D _berryTex;
@@ -2420,8 +2534,12 @@ public class RTSGameplayScreen : GameScreen
             var tex = unitTex.GetValueOrDefault(unit.Type);
             var tint = unit.OwnerId == 0 ? Color.White : new Color(255, 180, 180);
 
-            // Einheit zeichnen
-            if (tex != null)
+            // Einheit zeichnen - Dorfbewohner als bewegtes Sprite, sofern geladen
+            if (unit.Type == UnitType.Villager && _villagerSprites.TryGetValue(unit.OwnerId, out var figure))
+            {
+                DrawVillager(spriteBatch, unit, figure, screenPos, size);
+            }
+            else if (tex != null)
             {
                 spriteBatch.Draw(tex, screenPos - new Vector2(size / 2, size), null, tint, 0f, Vector2.Zero, cameraZoom, SpriteEffects.None, 0f);
             }
@@ -2455,6 +2573,119 @@ public class RTSGameplayScreen : GameScreen
                 spriteBatch.Draw(px, new Rectangle(barRect.X, barRect.Y, healthWidth, barHeight), null, Color.Green);
             }
         }
+    }
+
+    /// <summary>
+    /// Merkt sich je Einheit, ob und wohin sie sich seit dem letzten Update
+    /// bewegt hat - daraus wählt DrawVillager Gehen, Arbeiten oder Stehen und die
+    /// Blickrichtung. Die kurze Nachlaufzeit verhindert Flackern, wenn eine
+    /// Einheit ein einzelnes Bild lang stillsteht.
+    /// </summary>
+    private void UpdateUnitMotion(float dt)
+    {
+        animationTime += dt;
+        foreach (var unit in units)
+        {
+            if (!_unitMotion.TryGetValue(unit, out var motion))
+                motion.Last = unit.Position;
+            var delta = unit.Position - motion.Last;
+            if (delta.LengthSquared() > 0.0001f)
+            {
+                motion.MovingFor = 0.15f;
+                if (Math.Abs(delta.X) > 0.01f)
+                    motion.FacingLeft = delta.X < 0;
+            }
+            else
+            {
+                motion.MovingFor = Math.Max(0f, motion.MovingFor - dt);
+            }
+            motion.Last = unit.Position;
+            _unitMotion[unit] = motion;
+        }
+    }
+
+    /// <summary>
+    /// Dorfbewohner als Sprite mit Bewegung aus dem Code: beim Gehen wippt und
+    /// pendelt er, beim Sammeln und Bauen holt er im Takt mit dem Werkzeug aus,
+    /// im Stehen atmet er. Er blickt in Laufrichtung, steht mit den Füßen auf
+    /// screenPos und ist size Pixel groß wie die Auswahl- und Trefferfläche.
+    /// Was er trägt, zeigt ein Bündel in der Farbe des Rohstoffs auf dem Rücken.
+    /// </summary>
+    private void DrawVillager(SpriteBatch spriteBatch, Unit unit, Texture2D figure, Vector2 screenPos, int size)
+    {
+        var motion = _unitMotion.GetValueOrDefault(unit);
+        bool moving = motion.MovingFor > 0f;
+        bool working = !moving && (unit.Job?.Phase == GatherPhase.Gathering || unit.State == UnitState.Building);
+        // Jede Einheit im eigenen Takt, sonst wippt das ganze Dorf im Gleichschritt
+        float t = animationTime + (unit.GetHashCode() & 0xFF) / 40f;
+
+        float bob = 0f, tilt = 0f, stretch = 1f;
+        if (moving)
+        {
+            float step = t * 10f;
+            bob = MathF.Abs(MathF.Sin(step)) * 1.5f * cameraZoom;
+            tilt = MathF.Sin(step) * 0.05f;
+        }
+        else if (working)
+        {
+            // Ausholen und Zuschlagen: kräftig nach vorn, verhalten zurück
+            float swing = MathF.Sin(t * 7f);
+            tilt = (swing > 0f ? swing : swing * 0.3f) * 0.2f;
+        }
+        else
+        {
+            stretch = 1f + MathF.Sin(t * 2.2f) * 0.02f;
+        }
+
+        // Schatten unter den Füßen - er bleibt am Boden, während die Figur wippt
+        if (_shadowTex != null)
+        {
+            int shadowWidth = (int)(size * 0.7f), shadowHeight = Math.Max(2, (int)(size * 0.18f));
+            spriteBatch.Draw(_shadowTex, new Rectangle((int)screenPos.X - shadowWidth / 2,
+                (int)screenPos.Y - shadowHeight / 2, shadowWidth, shadowHeight), Color.White);
+        }
+
+        // Das Sprite blickt nach rechts; nach links gespiegelt kippt es auch gespiegelt
+        float scale = (float)size / figure.Height;
+        spriteBatch.Draw(figure, screenPos - new Vector2(0, bob), null, Color.White,
+                         motion.FacingLeft ? -tilt : tilt,
+                         new Vector2(figure.Width / 2f, figure.Height),
+                         new Vector2(scale, scale * stretch),
+                         motion.FacingLeft ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 0f);
+
+        if (unit.CarryingResource is { } carried)
+        {
+            var colour = carried switch
+            {
+                Resource.Wood => new Color(140, 92, 48),
+                Resource.Food => new Color(205, 70, 55),
+                Resource.Gold => new Color(232, 192, 60),
+                _ => new Color(160, 160, 165),   // Stein
+            };
+            int bundle = Math.Max(3, (int)(size * 0.28f));
+            float side = motion.FacingLeft ? 0.22f : -0.22f;   // auf dem Rücken, gegen die Laufrichtung
+            int bx = (int)(screenPos.X + side * size) - bundle / 2;
+            int by = (int)(screenPos.Y - size * 0.72f - bob) - bundle / 2;
+            spriteBatch.Draw(px, new Rectangle(bx - 1, by - 1, bundle + 2, bundle + 2), new Color(40, 28, 16));
+            spriteBatch.Draw(px, new Rectangle(bx, by, bundle, bundle), colour);
+        }
+    }
+
+    /// <summary>Weicher, ovaler Schatten: in der Mitte dunkel, zum Rand durchsichtig.</summary>
+    private static Texture2D BuildShadowTexture(GraphicsDevice gd)
+    {
+        var b = new TextureBuilder(32, 12);
+        for (int y = 0; y < b.H; y++)
+        {
+            for (int x = 0; x < b.W; x++)
+            {
+                float dx = (x + 0.5f - b.W / 2f) / (b.W / 2f), dy = (y + 0.5f - b.H / 2f) / (b.H / 2f);
+                float d = dx * dx + dy * dy;
+                if (d < 1f)
+                    b.Set(x, y, Color.Black * (0.35f * (1f - d)));
+            }
+        }
+        return b.Build(gd);
     }
 
     /// <summary>
@@ -3000,6 +3231,21 @@ public class RTSGameplayScreen : GameScreen
         cameraPosition.Y = viewHeight >= mapHeight
             ? (viewHeight - mapHeight) / 2f
             : MathHelper.Clamp(cameraPosition.Y, viewHeight - mapHeight, 0f);
+    }
+
+    /// <summary>
+    /// Hält den sichtbaren Ausschnitt gleich groß, wenn sich die Fensterhöhe
+    /// ändert: der Zoom wächst und schrumpft im Verhältnis von ZoomScale. Das
+    /// zählt schon beim Start - DesktopGL gibt dem Fenster seine Größe mitunter
+    /// erst nach LoadContent, dann begann das Spiel mit Zoom 1 statt 1,25.
+    /// </summary>
+    private void SyncZoomToWindow()
+    {
+        float scale = ZoomScale;
+        if (scale == _appliedZoomScale)
+            return;
+        cameraZoom *= scale / _appliedZoomScale;
+        _appliedZoomScale = scale;
     }
 
     /// <summary>
