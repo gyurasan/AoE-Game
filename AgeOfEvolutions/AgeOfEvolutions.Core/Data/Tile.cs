@@ -23,7 +23,15 @@ public enum TileType
 /// <summary>
 /// Art der Nahrungsquelle auf einer Kachel – bestimmt, wie sie gezeichnet wird
 /// </summary>
-public enum FoodSource { None, Sheep, Berries, Fish, Farm, Deer }
+public enum FoodSource { None, Sheep, Berries, Fish, Farm, Deer, Rabbit, Boar }
+
+/// <summary>Hilfen zu den Nahrungsquellen.</summary>
+public static class FoodSources
+{
+    /// <summary>Ob die Quelle ein Tier ist, das wandert, gejagt und geschlachtet wird.</summary>
+    public static bool IsWild(this FoodSource food)
+        => food is FoodSource.Sheep or FoodSource.Deer or FoodSource.Rabbit or FoodSource.Boar;
+}
 
 /// <summary>
 /// Represents a single tile on the game map

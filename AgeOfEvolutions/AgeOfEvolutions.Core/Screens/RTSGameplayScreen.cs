@@ -259,8 +259,12 @@ public class RTSGameplayScreen : GameScreen
     // Breite als Anteil an der Kachel - ein Dorfbewohner ist 24 von 32 Welteinheiten hoch
     private static readonly string[] SheepAssets = { "Tiere/schaf", "Tiere/schaf2" };
     private static readonly string[] DeerAssets = { "Tiere/reh", "Tiere/reh2" };
+    private static readonly string[] RabbitAssets = { "Tiere/kaninchen", "Tiere/kaninchen2" };
+    private static readonly string[] BoarAssets = { "Tiere/wildschwein", "Tiere/wildschwein2" };
     private const float SHEEP_WIDTH = 0.8f;
     private const float DEER_WIDTH = 0.95f;
+    private const float RABBIT_WIDTH = 0.45f;
+    private const float BOAR_WIDTH = 0.85f;
     private const int WALK_CYCLES_PER_STEP = 2;   // Doppelschritte der Beine je Kachelschritt
     private Texture2D _grassTex;
     private Texture2D _sandTex;
@@ -272,6 +276,8 @@ public class RTSGameplayScreen : GameScreen
     private Texture2D[] _goldSprites = Array.Empty<Texture2D>();
     private Texture2D[] _sheepSprites = Array.Empty<Texture2D>();
     private Texture2D[] _deerSprites = Array.Empty<Texture2D>();
+    private Texture2D[] _rabbitSprites = Array.Empty<Texture2D>();
+    private Texture2D[] _boarSprites = Array.Empty<Texture2D>();
     private Texture2D[] _deerFallback;    // das gezeichnete Reh, wenn Tiere/reh* fehlen
     // Laufbilder je Standbild (Tiere/<name>_lauf1, _lauf2), deckungsgleich mit ihm
     // zugeschnitten: Schritt, Stand, Gegenschritt, Stand
@@ -279,6 +285,8 @@ public class RTSGameplayScreen : GameScreen
     // Fleisch eines geschlachteten Tiers (Tiere/fleisch_schaf, Tiere/fleisch_reh)
     private Texture2D _sheepMeat;
     private Texture2D _deerMeat;
+    private Texture2D _rabbitMeat;
+    private Texture2D _boarMeat;
     private const int GROUND_TEXELS = 4;   // Bildpixel der Bodenbilder je Welteinheit
 
     // Bewegung je Einheit, aus der Lage zwischen zwei Updates abgeleitet - die
@@ -406,10 +414,14 @@ public class RTSGameplayScreen : GameScreen
         _goldSprites = GoldAssets.Select(LoadOptional).Where(t => t != null).ToArray();
         _sheepSprites = SheepAssets.Select(LoadOptional).Where(t => t != null).ToArray();
         _deerSprites = DeerAssets.Select(LoadOptional).Where(t => t != null).ToArray();
+        _rabbitSprites = RabbitAssets.Select(LoadOptional).Where(t => t != null).ToArray();
+        _boarSprites = BoarAssets.Select(LoadOptional).Where(t => t != null).ToArray();
         _sheepMeat = LoadOptional("Tiere/fleisch_schaf");
         _deerMeat = LoadOptional("Tiere/fleisch_reh");
+        _rabbitMeat = LoadOptional("Tiere/fleisch_kaninchen");
+        _boarMeat = LoadOptional("Tiere/fleisch_wildschwein");
         // Laufbilder nur, wenn beide da sind - sonst gleitet das Tier wie bisher
-        foreach (var asset in SheepAssets.Concat(DeerAssets))
+        foreach (var asset in SheepAssets.Concat(DeerAssets).Concat(RabbitAssets).Concat(BoarAssets))
         {
             if (LoadOptional(asset) is { } stand && LoadOptional(asset + "_lauf1") is { } lauf1
                 && LoadOptional(asset + "_lauf2") is { } lauf2)
@@ -504,6 +516,8 @@ public class RTSGameplayScreen : GameScreen
         UpdateSheepClaims();    // Reservierung = der einzige Dorfbewohner, der gerade erntet
         tileMap.UpdateSheep((float)gameTime.ElapsedGameTime.TotalSeconds);
         tileMap.UpdateDeer((float)gameTime.ElapsedGameTime.TotalSeconds);
+        tileMap.UpdateRabbits((float)gameTime.ElapsedGameTime.TotalSeconds);
+        tileMap.UpdateBoars((float)gameTime.ElapsedGameTime.TotalSeconds);
 
         if (hudMessageTimer > 0f)
             hudMessageTimer -= (float)gameTime.ElapsedGameTime.TotalSeconds;
@@ -2036,7 +2050,7 @@ public class RTSGameplayScreen : GameScreen
             if (job.Phase == GatherPhase.Done) continue;
             if (job.Resource != Resource.Food) continue;
             var food = tileMap.GetTile(job.Source.X, job.Source.Y)?.Food;
-            if (food is not (FoodSource.Sheep or FoodSource.Deer)) continue;
+            if (food is not { } wild || !wild.IsWild()) continue;
             aktiv.Add((job.Source.X, job.Source.Y));
             // Wer schon daran sammelt, hat das Tier geschlachtet: ab jetzt Fleisch
             if (job.Phase == GatherPhase.Gathering)
@@ -2349,7 +2363,7 @@ public class RTSGameplayScreen : GameScreen
     }
 
     /// <summary>
-    /// Die Bilder für Schafe und Rehe: die freigestellten Sprites aus Tiere/,
+    /// Die Bilder für Schafe, Rehe, Kaninchen und Wildschweine: die freigestellten Sprites aus Tiere/,
     /// für Rehe ohne Bild das gezeichnete Reh (BuildDeerTexture). Leer heißt:
     /// das Schaf zeichnet DrawTileMap wie bisher als Kachelbild.
     /// </summary>
@@ -2358,6 +2372,8 @@ public class RTSGameplayScreen : GameScreen
         FoodSource.Sheep => _sheepSprites,
         FoodSource.Deer => _deerSprites.Length > 0 ? _deerSprites
                          : _deerFallback ??= new[] { BuildDeerTextureCached() },
+        FoodSource.Rabbit => _rabbitSprites,
+        FoodSource.Boar => _boarSprites,
         _ => Array.Empty<Texture2D>(),
     };
 
@@ -2376,13 +2392,25 @@ public class RTSGameplayScreen : GameScreen
         var tier = tile.Animal ?? new Data.WildAnimal();
         var tileRect = TileScreenRect(x, y);
         // Geschlachtet: nur noch das Fleisch, ruhig an seiner Stelle
-        var meat = tile.Food == FoodSource.Deer ? _deerMeat : _sheepMeat;
+        var meat = tile.Food switch
+        {
+            FoodSource.Deer => _deerMeat,
+            FoodSource.Rabbit => _rabbitMeat,
+            FoodSource.Boar => _boarMeat,
+            _ => _sheepMeat,
+        };
         bool butchered = tier.Slaughtered && meat != null;
         var tex = butchered ? meat : sprites[tier.Look % sprites.Length];
         int phase = butchered ? -1 : WalkPhase(tier.Glide);
         if (phase >= 0 && _animalWalk.TryGetValue(tex, out var walk))
             tex = walk[phase];
-        int width = (int)(tileRect.Width * (tile.Food == FoodSource.Deer ? DEER_WIDTH : SHEEP_WIDTH));
+        int width = (int)(tileRect.Width * tile.Food switch
+        {
+            FoodSource.Deer => DEER_WIDTH,
+            FoodSource.Rabbit => RABBIT_WIDTH,
+            FoodSource.Boar => BOAR_WIDTH,
+            _ => SHEEP_WIDTH,
+        });
         int height = width * tex.Height / tex.Width;
 
         // Versatz in der Kachel aus dem Aussehen, dazu der Rest des Schritts

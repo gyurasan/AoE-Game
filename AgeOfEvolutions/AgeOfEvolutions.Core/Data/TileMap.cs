@@ -275,6 +275,12 @@ public class TileMap
         // Nahrung: Schafherden auf der Wiese + Rehe als Wild + Beerenbüsche
         PlaceSheep(woodCenters);
         PlaceDeer(woodCenters);
+        PlaceSmallGame(FoodSource.Rabbit, _rabbitCoords, Settings.RabbitGroupsMin, Settings.RabbitGroupsMax,
+                       Settings.RabbitsPerGroupMin, Settings.RabbitsPerGroupMax, Settings.RabbitFood,
+                       Settings.RabbitWanderSecondsMax);
+        PlaceSmallGame(FoodSource.Boar, _boarCoords, Settings.BoarGroupsMin, Settings.BoarGroupsMax,
+                       Settings.BoarsPerGroupMin, Settings.BoarsPerGroupMax, Settings.BoarFood,
+                       Settings.BoarWanderSecondsMax);
         PlaceBerryBushes(woodCenters);
     }
 
@@ -373,28 +379,100 @@ public class TileMap
         }
     }
 
-    // Rehe: 2–4 Herden je 2–4 Rehe, nur auf Gras - seltener und wertvoller
-    // (150 Nahrung) als Schafe. Die Aufstellung verteilt eine Herde über ein
-    // 3×3-Feld, ein Reh pro Kachel; die Wanderung (UpdateDeer) bewegt diese.
+    // Rehe: fast so viele wie Schafe, in Herden auf Gras über je 5×5 Kacheln, ein Reh
+    // je Kachel; die Wanderung (UpdateDeer) bewegt diese. Die ersten beiden Herden
+    // stehen je eine in Reichweite eines Stadtzentrums (DeerStartDistanceMin bis
+    // -Max Kacheln, wie die Startjagd in AoE), die übrigen irgendwo auf der Karte.
+    // Eine Herde, die keinen Platz auf Gras findet, sucht sich eine neue Stelle -
+    // vorher blieb rund jede 75. Karte ganz ohne Rehe.
     private void PlaceDeer(List<(int x, int y)> woodCenters)
     {
         int herds = _random.Next(Settings.DeerHerdsMin, Settings.DeerHerdsMax + 1);
-        var herdCenters = PlaceClusterCenters(herds, 2);
-        foreach (var (cx, cy) in herdCenters)
+        var starts = new[] { (x: 3, y: 3), (x: Width - 4, y: Height - 4) };
+        for (int h = 0; h < herds; h++)
         {
             int count = _random.Next(Settings.DeerPerHerdMin, Settings.DeerPerHerdMax + 1);
-            for (int i = 0; i < count; i++)
+            for (int attempt = 0; attempt < 40; attempt++)
             {
-                int sx = cx + _random.Next(-1, 2);
-                int sy = cy + _random.Next(-1, 2);
-                var t = GetTile(sx, sy);
-                if (t == null || t.Type != TileType.Grassland) continue;
-                if (t.Food != FoodSource.None) continue;   // keine Stelle doppelt besetzen
-                t.ResourceType = Resource.Food;
-                t.ResourceAmount = Settings.DeerFood;
-                t.Food = FoodSource.Deer;
-                t.Animal = NewAnimal(Settings.DeerWanderSecondsMax);
-                _deerCoords.Add((sx, sy));
+                var (cx, cy) = h < starts.Length ? NearStart(starts[h].x, starts[h].y)
+                                                 : (_random.Next(2, Width - 2), _random.Next(2, Height - 2));
+                if (h >= starts.Length && TooCloseToStart(cx, cy, 5)) continue;
+                if (GetTile(cx, cy)?.Type != TileType.Grassland) continue;
+                if (PlaceDeerHerd(cx, cy, count) > 0) break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Eine Stelle DeerStartDistanceMin bis -Max Kacheln (waagerecht plus
+    /// senkrecht) vom Startplatz (sx, sy) entfernt, zur Kartenmitte hin.
+    /// </summary>
+    private (int x, int y) NearStart(int sx, int sy)
+    {
+        int d = _random.Next(Settings.DeerStartDistanceMin, Settings.DeerStartDistanceMax + 1);
+        int dx = _random.Next(0, d + 1), dy = d - dx;
+        int x = sx < Width / 2 ? sx + dx : sx - dx;
+        int y = sy < Height / 2 ? sy + dy : sy - dy;
+        return (Math.Clamp(x, 2, Width - 3), Math.Clamp(y, 2, Height - 3));
+    }
+
+    /// <summary>
+    /// Stellt bis zu count Rehe auf freie Wiese im 5×5-Feld um (cx, cy), ein Reh je
+    /// Kachel; gibt zurück, wie viele es geworden sind.
+    /// </summary>
+    private int PlaceDeerHerd(int cx, int cy, int count)
+    {
+        int placed = 0;
+        for (int i = 0; i < count; i++)
+        {
+            int sx = cx + _random.Next(-2, 3);
+            int sy = cy + _random.Next(-2, 3);
+            var t = GetTile(sx, sy);
+            if (t == null || t.Type != TileType.Grassland) continue;
+            if (t.Food != FoodSource.None || !string.IsNullOrEmpty(t.Building)) continue;
+            t.ResourceType = Resource.Food;
+            t.ResourceAmount = Settings.DeerFood;
+            t.Food = FoodSource.Deer;
+            t.Animal = NewAnimal(Settings.DeerWanderSecondsMax);
+            _deerCoords.Add((sx, sy));
+            placed++;
+        }
+        return placed;
+    }
+
+    /// <summary>
+    /// Kaninchen und Wildschweine: groupsMin bis groupsMax Gruppen auf Gras, irgendwo
+    /// auf der Karte außer an den Startplätzen, je Gruppe perMin bis perMax Tiere über
+    /// 5×5 Kacheln, ein Tier je Kachel. Findet eine Gruppe keinen Platz auf Gras,
+    /// sucht sie sich eine neue Stelle.
+    /// </summary>
+    private void PlaceSmallGame(FoodSource source, List<(int x, int y)> coords, int groupsMin, int groupsMax,
+                                int perMin, int perMax, int food, float maxSeconds)
+    {
+        int groups = _random.Next(groupsMin, groupsMax + 1);
+        for (int g = 0; g < groups; g++)
+        {
+            int count = _random.Next(perMin, perMax + 1);
+            for (int attempt = 0; attempt < 40; attempt++)
+            {
+                int cx = _random.Next(2, Width - 2), cy = _random.Next(2, Height - 2);
+                if (TooCloseToStart(cx, cy, 4)) continue;
+                if (GetTile(cx, cy)?.Type != TileType.Grassland) continue;
+                int placed = 0;
+                for (int i = 0; i < count; i++)
+                {
+                    int sx = cx + _random.Next(-2, 3), sy = cy + _random.Next(-2, 3);
+                    var t = GetTile(sx, sy);
+                    if (t == null || t.Type != TileType.Grassland) continue;
+                    if (t.Food != FoodSource.None || !string.IsNullOrEmpty(t.Building)) continue;
+                    t.ResourceType = Resource.Food;
+                    t.ResourceAmount = food;
+                    t.Food = source;
+                    t.Animal = NewAnimal(maxSeconds);
+                    coords.Add((sx, sy));
+                    placed++;
+                }
+                if (placed > 0) break;
             }
         }
     }
@@ -589,7 +667,7 @@ public class TileMap
     /// </summary>
     public void ClearResourceAndRemoveSheep(Tile tile)
     {
-        if (tile.Food is FoodSource.Sheep or FoodSource.Deer)
+        if (tile.Food.IsWild())
             RemoveSheep(tile.X, tile.Y);
         tile.Animal = null;
         ClearResource(tile);
@@ -676,6 +754,8 @@ public class TileMap
     // der Dorfbewohner es nicht im Stich lässt.
     private readonly List<(int x, int y)> _sheepCoords = new List<(int, int)>();
     private readonly List<(int x, int y)> _deerCoords = new List<(int, int)>();
+    private readonly List<(int x, int y)> _rabbitCoords = new List<(int, int)>();
+    private readonly List<(int x, int y)> _boarCoords = new List<(int, int)>();
     private readonly HashSet<(int x, int y)> _claimed = new HashSet<(int, int)>();
     private readonly Random _wildRng = new Random();
 
@@ -699,6 +779,10 @@ public class TileMap
 
     /// <summary>Anzahl der Rehe auf dieser Karte (auch reservierte).</summary>
     public int DeerCount => _deerCoords.Count;
+
+    /// <summary>Anzahl der Kaninchen und der Wildschweine auf dieser Karte.</summary>
+    public int RabbitCount => _rabbitCoords.Count;
+    public int BoarCount => _boarCoords.Count;
 
     /// <summary>Ob <c>(x, y)</c> eine reservierte Wild-Kachel ist.</summary>
     public bool IsClaimed(int x, int y) => _claimed.Contains((x, y));
@@ -728,7 +812,7 @@ public class TileMap
     public void Slaughter(int x, int y)
     {
         var t = GetTile(x, y);
-        if (t == null || t.Food is not (FoodSource.Sheep or FoodSource.Deer)) return;
+        if (t == null || !t.Food.IsWild()) return;
         t.Animal ??= new WildAnimal();
         t.Animal.Slaughtered = true;
         t.Animal.Glide = 0f;
@@ -751,6 +835,20 @@ public class TileMap
     {
         UpdateWild(_deerCoords, dt, Settings.DeerWanderSecondsMin, Settings.DeerWanderSecondsMax,
                    Settings.DeerWanderRadius, FoodSource.Deer);
+    }
+
+    /// <summary>Taktet das Hoppeln der Kaninchen - flink, kurzer Takt.</summary>
+    public void UpdateRabbits(float dt)
+    {
+        UpdateWild(_rabbitCoords, dt, Settings.RabbitWanderSecondsMin, Settings.RabbitWanderSecondsMax,
+                   Settings.RabbitWanderRadius, FoodSource.Rabbit);
+    }
+
+    /// <summary>Taktet die Wanderung der Wildschweine - gemächlich, langer Takt.</summary>
+    public void UpdateBoars(float dt)
+    {
+        UpdateWild(_boarCoords, dt, Settings.BoarWanderSecondsMin, Settings.BoarWanderSecondsMax,
+                   Settings.BoarWanderRadius, FoodSource.Boar);
     }
 
     /// <summary>
@@ -831,6 +929,8 @@ public class TileMap
     {
         _sheepCoords.Remove((x, y));
         _deerCoords.Remove((x, y));
+        _rabbitCoords.Remove((x, y));
+        _boarCoords.Remove((x, y));
     }
 
     /// <summary>Zufallszahl in [min, max) mit gegebenem Generator.</summary>

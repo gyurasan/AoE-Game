@@ -150,10 +150,37 @@ Nächste sinnvolle Schritte, in dieser Reihenfolge:
 6. **Veraltete Abnahmen** — `c1n`, `c1c` und `c8a` prüfen Schreibweisen von früher (die
    Schaf-Nahrung als Zahl, „Untätig" in `DrawUI`, „Links ziehen" im Hilfetext) und sind
    deshalb rot, obwohl das Verhalten stimmt; auf Verhalten umstellen.
-7. **Wild (Rehe)** — fertig: 2–4 Herden je 2–4 Rehe, 150 Nahrung, reserviert wie die
-   Schafe, solange ein Dorfbewohner jagt (Gruppe `wild` in `tools/spielablauf`); Sprites
-   und Bewegung seit C7t. Offen nur die Sichtprüfung, dass zwei Dörfler nicht auf dasselbe
-   Reh laufen.
+7. **Wild (Rehe)** — fertig: 5–8 Herden je 5–12 Rehe, fast so viele wie
+   Schafe, je Spieler eine Herde 12–20 Kacheln vom Stadtzentrum (C7d), 150 Nahrung,
+   reserviert wie die Schafe, solange ein Dorfbewohner jagt (Gruppe `wild` in
+   `tools/spielablauf`, Bestand in `tools/kartenpruefung -- wild`); Sprites und Bewegung seit
+   C7t. Offen nur die Sichtprüfung, dass zwei Dörfler nicht auf dasselbe Reh laufen.
+   Seit C7k dazu **Kaninchen** (4–6 Gruppen je 3–6, 50 Nahrung, hoppeln flink) und
+   **Wildschweine** (3–5 Rotten je 1–3, 300 Nahrung, gemächlich) mit Stand-, Lauf- und
+   Fleischbildern; noch ohne Gegenwehr, die bräuchte die Kampfschleife.
+
+8. **Gebäude je Zeitalter** — die Gebäude sollen in jedem Zeitalter anders aussehen
+   (Vorgabe des Nutzers, 2026-10-04). Umsetzung später: je Gebäude ein Bildsatz pro
+   Zeitalter aus Qwen-Image, gewählt nach dem Zeitalter des Besitzers.
+   - **Dunkle Zeit:** Die Siedlungen wirken wie provisorische Lager oder ärmliche,
+     frühmittelalterliche Dörfer. Aussehen: klein, flach, asymmetrisch, meist unebene Formen;
+     noch keine befestigten Strassen oder Fundamente. Materialien: fast ausschliesslich
+     Holzstämme, Lehm, Flechtwerk und einfache Strohdächer.
+   - **Feudalzeit:** Die Siedlung verwandelt sich in ein organisiertes, handwerklich
+     entwickeltes Dorf. Aussehen: rechteckiger, stabiler und höher; erste kleine Holztürme
+     und Palisadenwälle. Materialien: weiterhin primär Holz, aber deutlich sauberer
+     verarbeitet (z. B. gehobelte Bretter); Dächer oft aus Holzschindeln oder dickerem Reet,
+     erste Fundamente aus Bruchstein oder Lehmziegeln.
+   - **Ritterzeit:** Das Stadtbild wandelt sich radikal in eine wehrhafte, hochmittelalterliche
+     Festung. Aussehen: deutlich grösser, oft mehrere Stockwerke, massiv; mächtige Burgen,
+     dicke Mauern und befestigte Stadttore. Materialien: grauer oder sandfarbener Stein
+     (Mauerwerk); Dächer vermehrt mit roten oder blauen Tonziegeln, Holz nur noch für
+     Dachstühle, Stege oder sekundäre Bauteile.
+   - **Imperialzeit:** Die Gebäude erreichen die Stufe einer prachtvollen, spätmittelalterlichen
+     oder frühneuzeitlichen Metropole. Aussehen: elegant und repräsentativ; Zierelemente, hohe
+     Bögen, filigrane Fensterkonstruktionen und monumentale Ausmasse (wie das Weltwunder).
+     Materialien: hochwertiger, feiner Haustein und Marmor; Dächer in kräftigen Farben
+     (Schiefer- oder Kupferstrukturen), Metallelemente, Flaggen und edle Verzierungen.
 
 Farm (C5f) ist fertig: Dorfbewohner wählen, Taste G (Getreide) drücken, Bauplatz
 anklicken — 3×3-Feld von 175 Nahrung. Die ausgewählten Dorfbewohner ernten die

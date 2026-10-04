@@ -78,7 +78,7 @@ public sealed class TileMapGatherWorld : IGatherWorld
                     continue;
                 // Reserviertes Wild überspringen — es gehört bereits jemandem
                 var food = _map.GetTile(x, y)?.Food;
-                if (resource == Resource.Food && food is FoodSource.Sheep or FoodSource.Deer
+                if (resource == Resource.Food && food is { } wild && wild.IsWild()
                     && _map.IsClaimed(x, y))
                     continue;
 

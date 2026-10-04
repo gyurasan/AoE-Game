@@ -576,6 +576,34 @@
     "ziel": "Tiere/reh2.png",
     "prompt": "A slender roe deer doe without antlers, with a reddish-brown coat, a lighter belly, a white rump patch and large ears, facing right, grazing with its head lowered.",
     "figur": "reh2"
+   },
+   {
+    "name": "kaninchen",
+    "seed": 9601,
+    "ziel": "Tiere/kaninchen.png",
+    "figur": "kaninchen",
+    "prompt": "A small wild brown rabbit with long upright ears, a white fluffy tail and big dark eyes, facing right, crouching alert on all four paws."
+   },
+   {
+    "name": "kaninchen2",
+    "seed": 9612,
+    "ziel": "Tiere/kaninchen2.png",
+    "figur": "kaninchen2",
+    "prompt": "A small wild brown rabbit with long ears laid back, a white fluffy tail, facing right, nibbling grass with its head lowered, on all four paws."
+   },
+   {
+    "name": "wildschwein",
+    "seed": 9701,
+    "ziel": "Tiere/wildschwein.png",
+    "figur": "wildschwein",
+    "prompt": "A sturdy wild boar with coarse dark brown bristly fur, a ridge of bristles along its back, a long snout and small curved white tusks, facing right, standing on all four short legs."
+   },
+   {
+    "name": "wildschwein2",
+    "seed": 9712,
+    "ziel": "Tiere/wildschwein2.png",
+    "figur": "wildschwein2",
+    "prompt": "A sturdy wild boar with coarse dark brown bristly fur, a ridge of bristles along its back and small curved white tusks, facing right, rooting in the ground with its snout lowered, on all four short legs."
    }
   ]
  },
@@ -783,6 +811,210 @@
      ]
     },
     "prompt": "A slender roe deer doe without antlers, with a reddish-brown coat, a lighter belly, a white rump patch and large ears, facing right, its head lowered to graze while it slowly walks to the right. Its legs pass each other under the body: one front leg is lifted with the knee bent and one hind leg swings forward under the belly, the other legs carry the weight."
+   },
+   {
+    "name": "kaninchen_lauf1",
+    "seed": 9801,
+    "ziel": "Tiere/kaninchen_lauf1.png",
+    "figur": "kaninchen",
+    "vorlage": "../tiere/kaninchen_9601_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       180,
+       600,
+       240,
+       180
+      ],
+      [
+       520,
+       690,
+       260,
+       200
+      ]
+     ]
+    },
+    "prompt": "A small wild brown rabbit with long upright ears, a white fluffy tail and big dark eyes, facing right, hopping to the right. It is in mid-leap: its long hind legs are stretched far back and its front paws reach forward off the ground."
+   },
+   {
+    "name": "kaninchen_lauf2",
+    "seed": 9811,
+    "ziel": "Tiere/kaninchen_lauf2.png",
+    "figur": "kaninchen",
+    "vorlage": "../tiere/kaninchen_9601_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       180,
+       600,
+       240,
+       180
+      ],
+      [
+       520,
+       690,
+       260,
+       200
+      ]
+     ]
+    },
+    "prompt": "A small wild brown rabbit with long upright ears, a white fluffy tail and big dark eyes, facing right, hopping to the right. It is landing after a hop: its hind legs are tucked forward under its body and its front paws touch the ground together."
+   },
+   {
+    "name": "kaninchen2_lauf1",
+    "seed": 9832,
+    "ziel": "Tiere/kaninchen2_lauf1.png",
+    "figur": "kaninchen2",
+    "vorlage": "../tiere/kaninchen2_9612_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       220,
+       560,
+       220,
+       170
+      ],
+      [
+       540,
+       680,
+       160,
+       120
+      ]
+     ]
+    },
+    "prompt": "A small wild brown rabbit with long ears laid back and a white fluffy tail, facing right, its head lowered, hopping slowly to the right. It is landing after a hop: its hind legs are tucked forward under its body and its front paws touch the ground together."
+   },
+   {
+    "name": "kaninchen2_lauf2",
+    "seed": 9831,
+    "ziel": "Tiere/kaninchen2_lauf2.png",
+    "figur": "kaninchen2",
+    "vorlage": "../tiere/kaninchen2_9612_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       220,
+       560,
+       220,
+       170
+      ],
+      [
+       540,
+       680,
+       160,
+       120
+      ]
+     ]
+    },
+    "prompt": "A small wild brown rabbit with long ears laid back and a white fluffy tail, facing right, its head lowered, hopping slowly to the right. It is landing after a hop: its hind legs are tucked forward under its body and its front paws touch the ground together."
+   },
+   {
+    "name": "wildschwein_lauf1",
+    "seed": 9841,
+    "ziel": "Tiere/wildschwein_lauf1.png",
+    "figur": "wildschwein",
+    "vorlage": "../tiere/wildschwein_9701_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       90,
+       520,
+       310,
+       260
+      ],
+      [
+       440,
+       680,
+       170,
+       260
+      ],
+      [
+       610,
+       740,
+       130,
+       140
+      ]
+     ]
+    },
+    "prompt": "A sturdy wild boar with coarse dark brown bristly fur, a ridge of bristles along its back, a long snout and small curved white tusks, facing right, trotting to the right. Its short legs are in mid-stride: the front legs spread apart, one reaching forward, the hind legs spread the other way."
+   },
+   {
+    "name": "wildschwein_lauf2",
+    "seed": 9851,
+    "ziel": "Tiere/wildschwein_lauf2.png",
+    "figur": "wildschwein",
+    "vorlage": "../tiere/wildschwein_9701_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       90,
+       520,
+       310,
+       260
+      ],
+      [
+       440,
+       680,
+       170,
+       260
+      ],
+      [
+       610,
+       740,
+       130,
+       140
+      ]
+     ]
+    },
+    "prompt": "A sturdy wild boar with coarse dark brown bristly fur, a ridge of bristles along its back, a long snout and small curved white tusks, facing right, trotting to the right. Its short legs pass each other under the body: one front leg is lifted with the hoof bent, one hind leg swings forward."
+   },
+   {
+    "name": "wildschwein2_lauf1",
+    "seed": 9861,
+    "ziel": "Tiere/wildschwein2_lauf1.png",
+    "figur": "wildschwein2",
+    "vorlage": "../tiere/wildschwein2_9712_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       100,
+       510,
+       300,
+       260
+      ],
+      [
+       450,
+       650,
+       150,
+       250
+      ]
+     ]
+    },
+    "prompt": "A sturdy wild boar with coarse dark brown bristly fur and small curved white tusks, facing right, its snout lowered, trotting slowly to the right. Its short legs are in mid-stride: the front legs spread apart, one reaching forward, the hind legs spread the other way."
+   },
+   {
+    "name": "wildschwein2_lauf2",
+    "seed": 9871,
+    "ziel": "Tiere/wildschwein2_lauf2.png",
+    "figur": "wildschwein2",
+    "vorlage": "../tiere/wildschwein2_9712_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       100,
+       510,
+       300,
+       260
+      ],
+      [
+       450,
+       650,
+       150,
+       250
+      ]
+     ]
+    },
+    "prompt": "A sturdy wild boar with coarse dark brown bristly fur and small curved white tusks, facing right, its snout lowered, trotting slowly to the right. Its short legs pass each other under the body: one front leg is lifted with the hoof bent, one hind leg swings forward."
    }
   ]
  },
@@ -810,6 +1042,19 @@
     "seed": 9532,
     "ziel": "Tiere/fleisch_reh.png",
     "prompt": "Butchered deer meat: a small neat pile of fresh raw venison - a haunch, a rack of ribs and two dark red steaks - lying directly on the ground, nothing underneath."
+   },
+   {
+    "name": "fleisch_kaninchen",
+    "seed": 9921,
+    "ziel": "Tiere/fleisch_kaninchen.png",
+    "prompt": "Butchered rabbit meat: a very small neat pile of a few fresh raw pink meat pieces - two small drumsticks and a few small cutlets - lying directly on the ground, nothing underneath.",
+    "negativ": "whole animal, carcass, body, ears, head, eyes, paws, fur"
+   },
+   {
+    "name": "fleisch_wildschwein",
+    "seed": 9913,
+    "ziel": "Tiere/fleisch_wildschwein.png",
+    "prompt": "Butchered wild boar meat: a small neat pile of fresh raw dark pink pork - a big ham, a rack of pork ribs and two thick steaks with a rim of white fat - lying directly on the ground, nothing underneath."
    }
   ]
  },

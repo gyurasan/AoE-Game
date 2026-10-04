@@ -546,8 +546,11 @@ static void HerdeZieht(int karte, List<string> verstoesse)
     }
     var schafe = Bestand(FoodSource.Sheep);
     var rehe = Bestand(FoodSource.Deer);
+    var kaninchen = Bestand(FoodSource.Rabbit);
+    var wildschweine = Bestand(FoodSource.Boar);
     w.LaufeBis(() => false, 60f);
-    foreach (var (art, quelle, vor) in new[] { ("Schafe", FoodSource.Sheep, schafe), ("Rehe", FoodSource.Deer, rehe) })
+    foreach (var (art, quelle, vor) in new[] { ("Schafe", FoodSource.Sheep, schafe), ("Rehe", FoodSource.Deer, rehe),
+                                               ("Kaninchen", FoodSource.Rabbit, kaninchen), ("Wildschweine", FoodSource.Boar, wildschweine) })
     {
         if (vor.Count == 0)
         {
@@ -583,7 +586,7 @@ static void TierSchritt(int karte, List<string> verstoesse)
             for (int y = 0; y < w.Map.Height; y++)
             {
                 var t = w.Map.GetTile(x, y)!;
-                if (t.Animal != null && t.Food is (FoodSource.Sheep or FoodSource.Deer) && t.Animal.Glide > schritt - 0.02f)
+                if (t.Animal != null && t.Food.IsWild() && t.Animal.Glide > schritt - 0.02f)
                     return (t, t.Animal);
             }
         return null;
@@ -702,7 +705,8 @@ static void Schlachten(int karte, List<string> verstoesse)
 {
     string wer = $"Karte {karte}, Schlachten";
     int vorher = verstoesse.Count;
-    foreach (var (art, name) in new[] { (FoodSource.Sheep, "Schaf"), (FoodSource.Deer, "Reh") })
+    foreach (var (art, name) in new[] { (FoodSource.Sheep, "Schaf"), (FoodSource.Deer, "Reh"),
+                                        (FoodSource.Rabbit, "Kaninchen"), (FoodSource.Boar, "Wildschwein") })
     {
         var w = new Welt();
         Tile kachel = null;
@@ -1713,6 +1717,8 @@ class Welt
             Map.RegrowCrop(dt);
             Map.UpdateSheep(dt);
             Map.UpdateDeer(dt);
+            Map.UpdateRabbits(dt);
+            Map.UpdateBoars(dt);
             _nebel -= dt;
             if (_nebel <= 0)
             {

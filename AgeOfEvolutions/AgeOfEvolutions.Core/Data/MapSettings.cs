@@ -66,12 +66,21 @@ public class MapSettings
     public int SheepWanderRadius { get; set; } = 1;
 
     // --- Wild (Rehe) ----------------------------------------------------
-    /// <summary>Anzahl der Reherden auf der Karte (Min/Max, inclusive).</summary>
-    public int DeerHerdsMin { get; set; } = 2;
-    public int DeerHerdsMax { get; set; } = 4;
-    /// <summary>Rehe je Herde (Min/Max, inclusive) — seltener als Schafe.</summary>
-    public int DeerPerHerdMin { get; set; } = 2;
-    public int DeerPerHerdMax { get; set; } = 4;
+    /// <summary>
+    /// Anzahl der Reherden auf der Karte (Min/Max, inclusive). Die ersten beiden
+    /// stehen je eine in Reichweite eines Stadtzentrums, siehe DeerStartDistanceMin.
+    /// </summary>
+    public int DeerHerdsMin { get; set; } = 5;
+    public int DeerHerdsMax { get; set; } = 8;
+    /// <summary>Rehe je Herde (Min/Max, inclusive) — zusammen fast so viele wie Schafe.</summary>
+    public int DeerPerHerdMin { get; set; } = 5;
+    public int DeerPerHerdMax { get; set; } = 12;
+    /// <summary>
+    /// Abstand der Startherde jedes Spielers zu seinem Stadtzentrum (Kacheln,
+    /// waagerecht plus senkrecht) - in Reichweite, wie die Startjagd in AoE.
+    /// </summary>
+    public int DeerStartDistanceMin { get; set; } = 12;
+    public int DeerStartDistanceMax { get; set; } = 20;
     /// <summary>Nahrung, die ein einzelnes Reh trägt — wertvoller als ein Schaf.</summary>
     public int DeerFood { get; set; } = 150;
     /// <summary>Sekunden bis ein unreserviertes Reh die Kachel wechselt (Min/Max).</summary>
@@ -80,6 +89,30 @@ public class MapSettings
     public float DeerWanderSecondsMax { get; set; } = 2.5f;
     /// <summary>Kacheln, in denen ein Reh maximal wandern darf (Rehe: 2 Sprünge weit).</summary>
     public int DeerWanderRadius { get; set; } = 1;
+
+    // --- Kaninchen und Wildschweine --------------------------------------
+    /// <summary>Kaninchengruppen auf der Karte und Kaninchen je Gruppe (Min/Max, inclusive).</summary>
+    public int RabbitGroupsMin { get; set; } = 4;
+    public int RabbitGroupsMax { get; set; } = 6;
+    public int RabbitsPerGroupMin { get; set; } = 3;
+    public int RabbitsPerGroupMax { get; set; } = 6;
+    /// <summary>Nahrung je Kaninchen — wenig, dafür viele und flink.</summary>
+    public int RabbitFood { get; set; } = 50;
+    /// <summary>Sekunden bis ein Kaninchen weiterhoppelt (Min/Max).</summary>
+    public float RabbitWanderSecondsMin { get; set; } = 0.6f;
+    public float RabbitWanderSecondsMax { get; set; } = 1.8f;
+    public int RabbitWanderRadius { get; set; } = 1;
+    /// <summary>Wildschwein-Rotten auf der Karte und Tiere je Rotte (Min/Max, inclusive).</summary>
+    public int BoarGroupsMin { get; set; } = 3;
+    public int BoarGroupsMax { get; set; } = 5;
+    public int BoarsPerGroupMin { get; set; } = 1;
+    public int BoarsPerGroupMax { get; set; } = 3;
+    /// <summary>Nahrung je Wildschwein — das ergiebigste Wild.</summary>
+    public int BoarFood { get; set; } = 300;
+    /// <summary>Sekunden bis ein Wildschwein weiterzieht (Min/Max) — gemächlich.</summary>
+    public float BoarWanderSecondsMin { get; set; } = 2.0f;
+    public float BoarWanderSecondsMax { get; set; } = 5.0f;
+    public int BoarWanderRadius { get; set; } = 1;
 
     /// <summary>Die reichere Standardausstattung.</summary>
     public static MapSettings Default => new();

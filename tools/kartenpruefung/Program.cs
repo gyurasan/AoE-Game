@@ -1,6 +1,6 @@
 // Kartenprüfung: erzeugt viele Karten und prüft Regeln des Kartengenerators.
 //
-//   dotnet run --project tools/kartenpruefung -- rohstoffe start
+//   dotnet run --project tools/kartenpruefung -- rohstoffe start wild
 //
 // Jede genannte Regelgruppe wird geprüft; ohne Angabe nur die Statistik.
 // Exit-Code 1, sobald eine Regel auf irgendeiner Karte verletzt ist – damit
@@ -23,6 +23,8 @@ var abbaubar = new Dictionary<TileType, int>();
 var anzahl = new Dictionary<TileType, int>();
 var naechster = new Dictionary<(int Spieler, Resource Art), List<int>>();
 int fische = 0, kartenMitFisch = 0;
+int reheGesamt = 0, schafeGesamt = 0, ohneReh = 0, kaninchenGesamt = 0, schweineGesamt = 0;
+var startJagd = new List<int>();   // Abstand der nächsten Rehe zu jedem Stadtzentrum
 
 for (int k = 0; k < KARTEN; k++)
 {
@@ -76,6 +78,40 @@ for (int k = 0; k < KARTEN; k++)
                 verstoesse.Add($"Karte {k}: Spieler {b.OwnerId} hat {art} erst in {(best == int.MaxValue ? "keiner" : best.ToString())} Kacheln Entfernung (erlaubt: 14)");
         }
     }
+
+    // Wild (C7d): fast so viele Rehe wie Schafe, auf jeder Karte welche, und jeder
+    // Spieler hat eine Rehherde in Reichweite seines Stadtzentrums
+    int rehe = 0, schafe = 0, kaninchen = 0, schweine = 0;
+    for (int x = 0; x < map.Width; x++)
+    for (int y = 0; y < map.Height; y++)
+    {
+        var futter = map.GetTile(x, y).Food;
+        if (futter == FoodSource.Deer) rehe++;
+        else if (futter == FoodSource.Sheep) schafe++;
+        else if (futter == FoodSource.Rabbit) kaninchen++;
+        else if (futter == FoodSource.Boar) schweine++;
+    }
+    reheGesamt += rehe;
+    schafeGesamt += schafe;
+    if (rehe == 0) ohneReh++;
+    if (gruppen.Contains("wild") && rehe == 0)
+        verstoesse.Add($"Karte {k}: kein einziges Reh");
+    kaninchenGesamt += kaninchen;
+    schweineGesamt += schweine;
+    if (gruppen.Contains("wild") && (kaninchen == 0 || schweine == 0))
+        verstoesse.Add($"Karte {k}: {kaninchen} Kaninchen und {schweine} Wildschweine - beide Arten gehören auf jede Karte");
+    int reichweite = MapSettings.Default.DeerStartDistanceMax + 4;   // dazu die Herde: 2 Kacheln je Richtung
+    foreach (var b in map.Buildings.Where(b => b.Type == "Stadtzentrum"))
+    {
+        int best = int.MaxValue;
+        for (int x = 0; x < map.Width; x++)
+        for (int y = 0; y < map.Height; y++)
+            if (map.GetTile(x, y).Food == FoodSource.Deer)
+                best = Math.Min(best, Math.Abs(x - b.X) + Math.Abs(y - b.Y));
+        startJagd.Add(best);
+        if (gruppen.Contains("wild") && best > reichweite)
+            verstoesse.Add($"Karte {k}: Spieler {b.OwnerId} hat das nächste Reh erst in {(best == int.MaxValue ? "keiner" : best.ToString())} Kacheln Entfernung (erlaubt: {reichweite})");
+    }
 }
 
 Console.WriteLine($"{KARTEN} Karten, 64 x 64");
@@ -91,6 +127,13 @@ Console.WriteLine($"  Fisch: {fische} Schwaerme, auf {kartenMitFisch}/{KARTEN} K
 // die Mehrheit ohne Fisch hiesse: es wird keiner gesetzt.
 if (gruppen.Contains("fisch") && kartenMitFisch < KARTEN * 9 / 10)
     verstoesse.Add($"nur {kartenMitFisch} von {KARTEN} Karten haben Fisch (erwartet: mindestens 90 %)");
+float verhaeltnis = schafeGesamt > 0 ? reheGesamt / (float)schafeGesamt : 0f;
+Console.WriteLine($"  Wild: {reheGesamt / (float)KARTEN:0.0} Rehe und {schafeGesamt / (float)KARTEN:0.0} Schafe je Karte " +
+                  $"(Rehe = {verhaeltnis:P0} der Schafe), {ohneReh} Karten ohne Reh, " +
+                  $"nächstes Reh im Schnitt {startJagd.Where(d => d != int.MaxValue).DefaultIfEmpty(0).Average():0.0} Kacheln vom Stadtzentrum");
+Console.WriteLine($"  Kleinwild: {kaninchenGesamt / (float)KARTEN:0.0} Kaninchen und {schweineGesamt / (float)KARTEN:0.0} Wildschweine je Karte");
+if (gruppen.Contains("wild") && (verhaeltnis < 0.7f || verhaeltnis > 1.0f))
+    verstoesse.Add($"Rehe sind {verhaeltnis:P0} der Schafe - erwartet: fast so viele (70 bis 100 %)");
 int felsen = anzahl.GetValueOrDefault(TileType.Rock);
 Console.WriteLine($"  Deko-Felsen (Rock): {felsen}");
 if (gruppen.Contains("rohstoffe") && felsen > 0)

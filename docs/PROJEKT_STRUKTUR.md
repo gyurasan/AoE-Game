@@ -48,12 +48,12 @@ tools/spielablauf/ - lässt die Spielschleife ohne Grafik laufen und prüft Abl�
 | Resource.cs | src/AoE.Core/Entities/Resource.cs | 32 Zeilen |
 | VisibilitySystem.cs | src/AoE.Core/Map/VisibilitySystem.cs | 412 Zeilen, enthält AUCH MapGrid; Gebäude spenden Sicht wie Einheiten |
 | Pathfinding.cs | src/AoE.Core/Pathfinding/Pathfinding.cs | 316 Zeilen, A-Stern und Formationsbewegung |
-| TileMap.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/TileMap.cs | 1047 Zeilen, Kartengenerierung mit Seen, Ressourcenklumpen, PvP-Startpositionen; Gebäude beliebiger Kantenlänge und `CanPlaceBuilding` |
+| TileMap.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/TileMap.cs | 1147 Zeilen, Kartengenerierung mit Seen, Ressourcenklumpen, PvP-Startpositionen; Gebäude beliebiger Kantenlänge und `CanPlaceBuilding` |
 | TileMapGatherWorld.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/TileMapGatherWorld.cs | 144 Zeilen, setzt IGatherWorld auf die Kachelkarte um: Quellen, Abgabestellen am Gebäuderand, nur fertig gebaute |
 | Unit.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/Unit.cs | 199 Zeilen, Spieleinheit; hält über `Unit.Core` eine `UnitEntity` aus AoE.Core und reicht Kampfwerte, Lebenspunkte und Zustand durch; hält den Sammelauftrag (`Job`) und die Baustelle (`BuildSite`) |
 | CoreUnits.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/CoreUnits.cs | 101 Zeilen, bildet alle 17 Einheitentypen des Spiels auf Klassen aus AoE.Core ab |
 | CoreBuildings.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/CoreBuildings.cs | 33 Zeilen, bildet die Gebäudetypen des Spiels auf BuildingEntity aus AoE.Core ab |
-| RTSGameplayScreen.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs | 3863 Zeilen, prozedurale Texturen und Spielschleife; Ausbildung (Taste Q), Zeitalter (A), Baumenü (H, M, F, B, G, T), Baustellen, Minimap und die Klick-Entscheidung (`LeftClick`) |
+| RTSGameplayScreen.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs | 3891 Zeilen, prozedurale Texturen und Spielschleife; Ausbildung (Taste Q), Zeitalter (A), Baumenü (H, M, F, B, G, T), Baustellen, Minimap und die Klick-Entscheidung (`LeftClick`) |
 
 ## Grafik
 
