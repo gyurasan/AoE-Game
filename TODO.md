@@ -10,13 +10,23 @@ Dorfbewohner kleiden sich nach dem Zeitalter; beides wechselt, sobald der Besitz
 Uncommittet im Arbeitsbaum; Commit macht der Nutzer.
 
 Alles baut und läuft: `dotnet build AgeOfEvolutions.slnx` (0 Fehler, 0 Warnungen),
-`dotnet test tests/AoE.Tests` → **157/157 grün**.
+`dotnet test tests/AoE.Tests` → **159/159 grün**.
 
 Der Stand vom 2026-09-23 ist mit `4cb57d4` committet, alles bis zu den Gebäude-Sprites
 mit `4f85314` (2026-10-03). Commits macht der Nutzer selbst.
 
 Zuletzt fertiggestellt:
 
+- **README-Bilder (2026-10-04)** — Hauptmenü, Spielszene und Karte neu aufgenommen, dazu
+  `docs/bilder/zeitalter.jpg`: dieselbe Siedlung in allen vier Zeitaltern. Aufgenommen im
+  Fenstermodus - im Vollbild liefert `checks/_fenster.ps1` nur ein eingefrorenes, fast
+  schwarzes erstes Bild *(D23)*
+- **Baustellen ohne Sicht (2026-10-04)** — eine Baustelle deckte den Nebel sofort mit der
+  vollen Sichtweite des fertigen Gebäudes auf, ein Wachturm-Fundament also 10 Kacheln weit
+  (Hinweis des Nutzers). Jetzt spendet erst das fertige Gebäude Sicht:
+  `BuildingEntity.IsUnderConstruction` in AoE.Core, abgeglichen vor jeder Sichtrechnung
+  (`TileMap.UpdateFogOfWarForPlayer`). Zwei Tests in `FogOfWarTests`, dazu prüft die Gruppe
+  `turm` in `tools/spielablauf` den halb gebauten Turm *(C7b)*
 - **Dorfbewohner je Zeitalter (2026-10-04)** — dieselbe Figur, je Zeitalter umgekleidet:
   Kittel und Strohhut, dann Tunika mit Lederwams, Gürteltasche und Filzkappe, dann
   gepolstertes Wams mit grauer Gugel, zuletzt Wams mit Puffärmeln, weißem Kragen und
@@ -249,7 +259,7 @@ benennt jemand eine Methode um, meldet es das, statt still falsch zu prüfen.
 | Projekt | Framework | Build | Bemerkung |
 |---|---|---|---|
 | `src/AoE.Core` | net10.0 | OK, 0 Fehler | Reine Logik, keine MonoGame-Abhängigkeit |
-| `tests/AoE.Tests` | net10.0 | **157/157 grün** | Einheiten und Ressourcen (15), Sammelauftrag (21), Ausbildung und Bevölkerung (22), Bauen (39), Zeitalter (46), Konter-Dreieck (5), Wegfindung (3), Nebel (6) |
+| `tests/AoE.Tests` | net10.0 | **159/159 grün** | Einheiten und Ressourcen (15), Sammelauftrag (21), Ausbildung und Bevölkerung (22), Bauen (39), Zeitalter (46), Konter-Dreieck (5), Wegfindung (3), Nebel (8) |
 | `demo/DemoApp` | net10.0 | OK | referenziert AoE.Core |
 | `AgeOfEvolutions.Core` | net10.0 | OK, 0 Fehler | Dateiname seit H2 kanonisch |
 | `AgeOfEvolutions.DesktopGL` | net10.0 | OK, 0 Fehler / 0 Warnungen | startbar |
@@ -707,6 +717,8 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
 
 - [x] Nebel des Krieges: unerforscht schwarz, erforscht abgedunkelt, fremde Einheiten
       nur in Sicht; ein Klick in den Nebel ist ein Laufbefehl *(Agent C7n)*
+- [x] Baustellen decken keinen Nebel auf, Sicht spendet erst das fertige Gebäude
+      (`BuildingEntity.IsUnderConstruction`) *(Agent C7b)*
 - [x] Bäume als prozedurale Pixel-Art — bestand schon (`BuildForestTexture`, `DrawTree`)
 - [x] Beeren, Stein, Goldminen als Textur statt Farbfläche — bestand schon
       (`BuildBerryTexture`, `BuildMountainTexture`, `BuildGoldTexture`)
@@ -848,7 +860,7 @@ Enthält reines Azure-Boilerplate ohne jeden Bezug zum Projekt.
 - [x] .NET-10-Migration: AoE.Core, Tests, Demo, Spiel-Core, DesktopGL, WindowsDX
 - [x] Build läuft fehlerfrei durch (AoE.Core + DesktopGL, 0 Warnungen)
 - [x] AoE.Core als Projektverweis eingebunden *(seit Block B im Spiel genutzt)*
-- [x] 157 Unit-Tests grün
+- [x] 159 Unit-Tests grün
 - [x] Kartengenerierung `TileMap.cs`: Seen mit Falloff, Beeren, Schafe, Wildschweine,
       Stein/Gold, PvP-Startpositionen
 - [x] Wasser-Animation

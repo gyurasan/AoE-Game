@@ -108,6 +108,40 @@ public class FogOfWarTests
     }
 
     [Fact]
+    public void Baustelle_SpendetNochKeineSicht()
+    {
+        var map = Karte();
+        var sicht = new VisibilitySystem(map);
+
+        // Die Baustelle steht schon auf der Karte und sperrt ihre Kacheln,
+        // deckt aber nichts auf - auch nicht ihre eigene Kachel
+        var zentrum = BuildingEntity.CreateTownCenter(0, new Position(10, 10));
+        zentrum.IsUnderConstruction = true;
+        map.AddBuilding(zentrum);
+        sicht.UpdateVisibility(playerId: 0);
+
+        Assert.Equal(TileVisibility.Unexplored, map.GetTile(10, 10)!.GetVisibility(0));
+        Assert.Equal(TileVisibility.Unexplored, map.GetTile(15, 10)!.GetVisibility(0));
+    }
+
+    [Fact]
+    public void FertigGebauteBaustelle_SpendetSicht()
+    {
+        var map = Karte();
+        var sicht = new VisibilitySystem(map);
+        var zentrum = BuildingEntity.CreateTownCenter(0, new Position(10, 10));
+        zentrum.IsUnderConstruction = true;
+        map.AddBuilding(zentrum);
+        sicht.UpdateVisibility(playerId: 0);
+
+        zentrum.IsUnderConstruction = false;
+        sicht.UpdateVisibility(playerId: 0);
+
+        Assert.Equal(TileVisibility.Visible, map.GetTile(10, 10)!.GetVisibility(0));
+        Assert.Equal(TileVisibility.Visible, map.GetTile(15, 10)!.GetVisibility(0));
+    }
+
+    [Fact]
     public void SichtIstProSpielerGetrennt()
     {
         var map = Karte();

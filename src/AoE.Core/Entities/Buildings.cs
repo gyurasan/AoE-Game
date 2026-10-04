@@ -137,6 +137,13 @@ public sealed class BuildingEntity : UnitEntity
     /// Ist das Gebäude beschäftigt?
     /// </summary>
     public bool IsBusy { get; set; }
+
+    /// <summary>
+    /// Noch Baustelle: das Gebäude steht schon auf der Karte und sperrt seine
+    /// Kacheln, sieht aber nichts - Sicht spendet es erst fertig gebaut
+    /// (<see cref="AoE.Core.Map.VisibilitySystem"/>).
+    /// </summary>
+    public bool IsUnderConstruction { get; set; }
     
     public BuildingEntity(
         BuildingType type, 

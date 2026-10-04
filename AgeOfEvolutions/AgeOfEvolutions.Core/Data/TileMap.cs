@@ -1082,6 +1082,11 @@ public class TileMap
             _registeredUnits.Add(unit.Core);
         }
 
+        // Baustellen sehen noch nichts. AoE.Core kennt die Baustelle selbst nicht,
+        // nur ob das Gebäude im Bau ist - das wird vor jeder Sichtrechnung abgeglichen
+        foreach (var building in Buildings)
+            building.Core.IsUnderConstruction = !building.IsComplete;
+
         _visibility.UpdateVisibility(playerId);
     }
 

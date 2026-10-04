@@ -1691,6 +1691,51 @@
         "py tools/ollama-agent/checks/c4g_zeitalter.py",
         "py tools/ollama-agent/checks/d9_projekt_struktur.py"
       ]
+    },
+    {
+      "id": "C7b",
+      "title": "Baustellen ohne Sicht",
+      "auto": false,
+      "max_turns": 30,
+      "prompt": "Aufgabe C7b: Eine Baustelle deckt den Nebel des Krieges noch nicht auf; Sicht spendet erst das fertige Gebäude. AoE.Core bekommt dafür BuildingEntity.IsUnderConstruction, die Sichtrechnung überspringt solche Gebäude, und die Karte gleicht das Feld vor jeder Sichtrechnung mit Building.IsComplete ab. Die Tests stehen schon in tests/AoE.Tests/FogOfWarTests.cs; es fehlen Code und Doku.\n\nFühre genau die folgenden Schritte aus, wörtlich, nichts sonst. Ersetzungen mit replace_in_file; Zeilenenden gleicht replace_in_file selbst an; Leerzeilen im ERSATZ haben keine Einrückung. Ein leerer ERSATZ heißt: den SUCHTEXT löschen. Nach dem letzten Schritt sofort finish aufrufen, ohne die Dateien noch einmal zu lesen: die Abnahme baut und prüft selbst, und erneutes Lesen großer Dateien sprengt das Kontextfenster.\n\n=== 1. src/AoE.Core/Entities/Buildings.cs ===\nSUCHTEXT:\n    public bool IsBusy { get; set; }\n\nERSATZ:\n    public bool IsBusy { get; set; }\n\n    /// <summary>\n    /// Noch Baustelle: das Gebäude steht schon auf der Karte und sperrt seine\n    /// Kacheln, sieht aber nichts - Sicht spendet es erst fertig gebaut\n    /// (<see cref=\"AoE.Core.Map.VisibilitySystem\"/>).\n    /// </summary>\n    public bool IsUnderConstruction { get; set; }\n\n\n=== 2. src/AoE.Core/Map/VisibilitySystem.cs ===\nSUCHTEXT:\n        // Gebäude sehen ihre Umgebung wie Einheiten. Ohne das läge das eigene\n        // Stadtzentrum im Nebel, sobald kein Dorfbewohner daneben steht.\n        foreach (var building in _map.GetBuildings())\n        {\n            if (building.OwnerId == playerId && building.IsAlive)\n\nERSATZ:\n        // Gebäude sehen ihre Umgebung wie Einheiten. Ohne das läge das eigene\n        // Stadtzentrum im Nebel, sobald kein Dorfbewohner daneben steht.\n        // Baustellen sehen noch nichts - erst das fertige Gebäude deckt auf.\n        foreach (var building in _map.GetBuildings())\n        {\n            if (building.OwnerId == playerId && building.IsAlive && !building.IsUnderConstruction)\n\n\n=== 3. AgeOfEvolutions/AgeOfEvolutions.Core/Data/TileMap.cs ===\nSUCHTEXT:\n        _visibility.UpdateVisibility(playerId);\n\nERSATZ:\n        // Baustellen sehen noch nichts. AoE.Core kennt die Baustelle selbst nicht,\n        // nur ob das Gebäude im Bau ist - das wird vor jeder Sichtrechnung abgeglichen\n        foreach (var building in Buildings)\n            building.Core.IsUnderConstruction = !building.IsComplete;\n\n        _visibility.UpdateVisibility(playerId);\n\n\n=== 4. docs/PROJEKT_STRUKTUR.md ===\nSUCHTEXT:\ntests/AoE.Tests/ - net10.0, xUnit, 157 Tests, alle grün\nERSATZ:\ntests/AoE.Tests/ - net10.0, xUnit, 159 Tests, alle grün\n\n=== 5. docs/PROJEKT_STRUKTUR.md ===\nSUCHTEXT:\nFogOfWarTests.cs (6)\nERSATZ:\nFogOfWarTests.cs (8)\n\n=== 6. docs/PROJEKT_STRUKTUR.md ===\nSUCHTEXT:\nEntities/Buildings.cs (466)\nERSATZ:\nEntities/Buildings.cs (473)\n\n=== 7. docs/PROJEKT_STRUKTUR.md ===\nSUCHTEXT:\n| 466 Zeilen, Gebäudetypen und Fabriken; Holzfäller- und Bergbaulager seit C5, Wachturm seit C4c |\nERSATZ:\n| 473 Zeilen, Gebäudetypen und Fabriken; Holzfäller- und Bergbaulager seit C5, Wachturm seit C4c; Baustellen ohne Sicht seit C7b |\n\n=== 8. docs/PROJEKT_STRUKTUR.md ===\nSUCHTEXT:\n| 412 Zeilen, enthält AUCH MapGrid; Gebäude spenden Sicht wie Einheiten |\nERSATZ:\n| 413 Zeilen, enthält AUCH MapGrid; Gebäude spenden Sicht wie Einheiten, Baustellen noch nicht |\n\n=== 9. docs/PROJEKT_STRUKTUR.md ===\nSUCHTEXT:\n| 1147 Zeilen, Kartengenerierung\nERSATZ:\n| 1152 Zeilen, Kartengenerierung\n\n=== 10. docs/PROJEKT_STRUKTUR.md ===\nSUCHTEXT:\n| AoE.Tests | net10.0 | 157/157 grün |\nERSATZ:\n| AoE.Tests | net10.0 | 159/159 grün |\n\n=== 11. TODO.md ===\nSUCHTEXT:\n`dotnet test tests/AoE.Tests` → **157/157 grün**.\nERSATZ:\n`dotnet test tests/AoE.Tests` → **159/159 grün**.\n\n=== 12. TODO.md ===\nSUCHTEXT:\n- **Dorfbewohner je Zeitalter (2026-10-04)** — dieselbe Figur\nERSATZ:\n- **Baustellen ohne Sicht (2026-10-04)** — eine Baustelle deckte den Nebel sofort mit der\n  vollen Sichtweite des fertigen Gebäudes auf, ein Wachturm-Fundament also 10 Kacheln weit\n  (Hinweis des Nutzers). Jetzt spendet erst das fertige Gebäude Sicht:\n  `BuildingEntity.IsUnderConstruction` in AoE.Core, abgeglichen vor jeder Sichtrechnung\n  (`TileMap.UpdateFogOfWarForPlayer`). Zwei Tests in `FogOfWarTests`, dazu prüft die Gruppe\n  `turm` in `tools/spielablauf` den halb gebauten Turm *(C7b)*\n- **Dorfbewohner je Zeitalter (2026-10-04)** — dieselbe Figur\n\n=== 13. TODO.md ===\nSUCHTEXT:\n| **157/157 grün** |\nERSATZ:\n| **159/159 grün** |\n\n=== 14. TODO.md ===\nSUCHTEXT:\nKonter-Dreieck (5), Wegfindung (3), Nebel (6) |\nERSATZ:\nKonter-Dreieck (5), Wegfindung (3), Nebel (8) |\n\n=== 15. TODO.md ===\nSUCHTEXT:\n- [x] Nebel des Krieges: unerforscht schwarz, erforscht abgedunkelt, fremde Einheiten\n      nur in Sicht; ein Klick in den Nebel ist ein Laufbefehl *(Agent C7n)*\n\nERSATZ:\n- [x] Nebel des Krieges: unerforscht schwarz, erforscht abgedunkelt, fremde Einheiten\n      nur in Sicht; ein Klick in den Nebel ist ein Laufbefehl *(Agent C7n)*\n- [x] Baustellen decken keinen Nebel auf, Sicht spendet erst das fertige Gebäude\n      (`BuildingEntity.IsUnderConstruction`) *(Agent C7b)*\n\n\n=== 16. TODO.md ===\nSUCHTEXT:\n- [x] 157 Unit-Tests grün\nERSATZ:\n- [x] 159 Unit-Tests grün",
+      "context_files": [],
+      "allow_write": [
+        "src/AoE.Core/Entities/Buildings.cs",
+        "src/AoE.Core/Map/VisibilitySystem.cs",
+        "AgeOfEvolutions/AgeOfEvolutions.Core/Data/TileMap.cs",
+        "docs/PROJEKT_STRUKTUR.md",
+        "TODO.md"
+      ],
+      "verify": [
+        "dotnet build AgeOfEvolutions/AgeOfEvolutions.DesktopGL/AgeOfEvolutions.DesktopGL.csproj -v q --nologo",
+        "dotnet test tests/AoE.Tests -v q --nologo",
+        "dotnet run --project tools/spielablauf -v q --nologo -- turm bauen",
+        "py tools/ollama-agent/checks/d9_projekt_struktur.py",
+        "py tools/ollama-agent/checks/d5_todo_fakten.py",
+        "py tools/ollama-agent/checks/d8_todo.py a",
+        "py tools/ollama-agent/checks/d8_todo.py b",
+        "py tools/ollama-agent/checks/d11_doku.py a",
+        "py tools/ollama-agent/checks/d11_doku.py b",
+        "py tools/ollama-agent/checks/d14_doku.py",
+        "py tools/ollama-agent/checks/d15_doku.py"
+      ]
+    },
+    {
+      "id": "D23",
+      "title": "README: neue Aufnahmen und die vier Zeitalter",
+      "auto": false,
+      "max_turns": 10,
+      "prompt": "Die README-Bilder docs/bilder/hauptmenue.jpg, spielszene.jpg und karte.jpg sind neu aufgenommen, docs/bilder/zeitalter.jpg zeigt neu dieselbe Siedlung in allen vier Zeitaltern. README.md und TODO.md ziehen nach.\n\nFühre genau die folgenden Schritte aus, wörtlich, nichts sonst. Ersetzungen mit replace_in_file; Zeilenenden gleicht replace_in_file selbst an; Leerzeilen im ERSATZ haben keine Einrückung. Ein leerer ERSATZ heißt: den SUCHTEXT löschen. Nach dem letzten Schritt sofort finish aufrufen, ohne die Dateien noch einmal zu lesen: die Abnahme baut und prüft selbst, und erneutes Lesen großer Dateien sprengt das Kontextfenster.\n\n=== 1. README.md ===\nSUCHTEXT:\n![Am Stadtzentrum: ein Feld mit Weizen, ein Dorfbewohner bei der Ernte, Schafe und ein Reh](docs/bilder/spielszene.jpg)\n\n*Am Stadtzentrum: ein Dorfbewohner erntet das Feld, eine abgeerntete Kachel wächst schon grün nach;\ndaneben grasen Schafe und ein Reh, rundherum noch Nebel.*\n\nERSATZ:\n![Am Stadtzentrum der Dunklen Zeit: ein Feld mit Weizen, ein Dorfbewohner bei der Ernte, Mühle, Haus und Lager, Schafe und Rehe](docs/bilder/spielszene.jpg)\n\n*In der Dunklen Zeit ist das Stadtzentrum ein strohgedecktes Langhaus: ein Dorfbewohner erntet das Feld,\ndaneben stehen Mühle, Haus, Holzfäller- und Bergbaulager; Schafe und Rehe grasen, rundherum noch Nebel.*\n\n\n=== 2. README.md ===\nSUCHTEXT:\n*Ein Kartenausschnitt, für die Aufnahme ohne Nebel: Wald, zwei Seen mit Strand, Steinbrüche, Goldadern\nund Schafe auf der Wiese.*\n\nERSATZ:\n*Ein Kartenausschnitt, für die Aufnahme ohne Nebel: Wald, zwei Seen mit Strand, Steinbrüche, Goldadern\nund Schafe auf der Wiese.*\n\n![Dieselbe Siedlung in den vier Zeitaltern](docs/bilder/zeitalter.jpg)\n\n*Dieselbe Siedlung in allen vier Zeitaltern: Gebäude und Kleidung der Dorfbewohner wechseln mit dem\nAufstieg — vom Langhaus mit Strohdach über Holzbau und Burg bis zum Rathaus aus hellem Haustein.*\n\n\n=== 3. README.md ===\nSUCHTEXT:\n- Zeitalter: Feudal-, Ritter- und Imperialzeit, je mit Kosten und Forschungszeit\n\nERSATZ:\n- Zeitalter: Feudal-, Ritter- und Imperialzeit, je mit Kosten und Forschungszeit; Gebäude und Dorfbewohner\n  sehen in jedem Zeitalter anders aus\n\n\n=== 4. README.md ===\nSUCHTEXT:\nMenübild, Tastensymbole, Gebäude, Dorfbewohner, Boden, Felder, Bäume, Stein, Gold, Schafe und Rehe sind\nmit Qwen-Image erzeugt,\nERSATZ:\nMenübild, Tastensymbole, Gebäude und Dorfbewohner je Zeitalter, Boden, Felder, Bäume, Stein, Gold und die\nTiere sind mit Qwen-Image erzeugt,\n\n=== 5. TODO.md ===\nSUCHTEXT:\n- **Baustellen ohne Sicht (2026-10-04)** —\nERSATZ:\n- **README-Bilder (2026-10-04)** — Hauptmenü, Spielszene und Karte neu aufgenommen, dazu\n  `docs/bilder/zeitalter.jpg`: dieselbe Siedlung in allen vier Zeitaltern. Aufgenommen im\n  Fenstermodus - im Vollbild liefert `checks/_fenster.ps1` nur ein eingefrorenes, fast\n  schwarzes erstes Bild *(D23)*\n- **Baustellen ohne Sicht (2026-10-04)** —",
+      "context_files": [],
+      "allow_write": [
+        "README.md",
+        "TODO.md"
+      ],
+      "verify": [
+        "py tools/ollama-agent/checks/d19_readme.py",
+        "py tools/ollama-agent/checks/d22_readme_bilder.py",
+        "py tools/ollama-agent/checks/d23_readme_zeitalter.py"
+      ]
     }
   ]
 }

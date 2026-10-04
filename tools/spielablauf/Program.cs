@@ -1197,7 +1197,8 @@ static void Zeitalter(List<string> verstoesse)
 // Wachturm (C4c), das erste Gebäude der Feudalzeit: in der Dunklen Zeit weder
 // Taste T noch Setzmodus, danach beides. Er kostet 50 Holz und 125 Stein und
 // sieht fertig gebaut eine Kachel, die weder ein Dorfbewohner (3 Kacheln) noch
-// ein anderes Gebäude (Stadtzentrum 5, Haus und Lager 3) sehen kann.
+// ein anderes Gebäude (Stadtzentrum 5, Haus und Lager 3) sehen kann - halb gebaut
+// noch nicht: eine Baustelle deckt keinen Nebel auf (C7b).
 static void Turm(int karte, List<string> verstoesse)
 {
     string wer = $"Karte {karte}, Wachturm";
@@ -1240,6 +1241,28 @@ static void Turm(int karte, List<string> verstoesse)
     if (w.P1.Resources[Resource.Wood] != holz - 50 || w.P1.Resources[Resource.Stone] != stein - 125)
         verstoesse.Add($"{wer}: Holz {holz} -> {w.P1.Resources[Resource.Wood]}, Stein {stein} -> "
                        + $"{w.P1.Resources[Resource.Stone]} - erwartet 50 Holz und 125 Stein");
+    // Prüfkachel 7 bis 9 Kacheln von der Turmmitte, außer Sicht von allem anderen
+    var mitte = new Vector2(turm.Core.Position.X, turm.Core.Position.Y);
+    Vector2? Pruefkachel()
+    {
+        var andere = w.Map.Buildings.Where(b => b != turm && b.OwnerId == 0)
+            .Select(b => (Ort: new Vector2(b.Core.Position.X, b.Core.Position.Y), Weit: b.Core.Stats.VisionRange + 1.5f)).ToList();
+        var einheiten = w.Dorfbewohner().Select(u => w.Map.WorldToGrid(u.Position)).ToList();
+        return Enumerable.Range(0, w.Map.Width).SelectMany(x => Enumerable.Range(0, w.Map.Height).Select(y => new Vector2(x, y)))
+            .Where(c => Vector2.Distance(c, mitte) is >= 7f and <= 9f
+                        && einheiten.All(e => Vector2.Distance(c, e) > 5f)
+                        && andere.All(b => Vector2.Distance(c, b.Ort) > b.Weit))
+            .Cast<Vector2?>().FirstOrDefault();
+    }
+
+    // Halb gebaut sieht der Turm noch nichts
+    w.LaufeBis(() => turm.Construction.Progress >= 0.5f, 90f);
+    w.Map.UpdateFogOfWarForPlayer(0, w.Map.Units);
+    var halb = Pruefkachel();
+    if (halb != null && w.Map.IsTileVisible((int)halb.Value.X, (int)halb.Value.Y, 0))
+        verstoesse.Add($"{wer}: Baustelle bei {turm.Construction.Progress * 100:0} % deckt schon Kachel {halb.Value} "
+                       + $"({Vector2.Distance(halb.Value, mitte):0.0} vom Turm) auf - Sicht erst fertig gebaut");
+
     float bauzeit = w.LaufeBis(() => turm.IsComplete, 90f);
     if (!turm.IsComplete)
     {
@@ -1247,24 +1270,17 @@ static void Turm(int karte, List<string> verstoesse)
         return;
     }
 
-    // Prüfkachel 7 bis 9 Kacheln von der Turmmitte, außer Sicht von allem anderen
     w.Map.UpdateFogOfWarForPlayer(0, w.Map.Units);
-    var mitte = new Vector2(turm.Core.Position.X, turm.Core.Position.Y);
-    var andere = w.Map.Buildings.Where(b => b != turm && b.OwnerId == 0)
-        .Select(b => (Ort: new Vector2(b.Core.Position.X, b.Core.Position.Y), Weit: b.Core.Stats.VisionRange + 1.5f)).ToList();
-    var einheiten = w.Dorfbewohner().Select(u => w.Map.WorldToGrid(u.Position)).ToList();
-    var probe = Enumerable.Range(0, w.Map.Width).SelectMany(x => Enumerable.Range(0, w.Map.Height).Select(y => new Vector2(x, y)))
-        .Where(c => Vector2.Distance(c, mitte) is >= 7f and <= 9f
-                    && einheiten.All(e => Vector2.Distance(c, e) > 5f)
-                    && andere.All(b => Vector2.Distance(c, b.Ort) > b.Weit))
-        .Cast<Vector2?>().FirstOrDefault();
+    var probe = Pruefkachel();
     if (probe == null)
         Console.WriteLine($"      {wer}: keine Prüfkachel außer Sicht der übrigen - Sichttest übersprungen");
     else if (!w.Map.IsTileVisible((int)probe.Value.X, (int)probe.Value.Y, 0))
         verstoesse.Add($"{wer}: Kachel {probe.Value} ({Vector2.Distance(probe.Value, mitte):0.0} vom Turm) nicht in Sicht");
 
     if (verstoesse.Count == vorher)
-        Console.WriteLine($"  ok  {wer}: erst ab der Feudalzeit, 50 Holz + 125 Stein, fertig nach {bauzeit:0} s, sieht {(probe == null ? "-" : Vector2.Distance(probe.Value, mitte).ToString("0.0"))} Kacheln weit");
+        Console.WriteLine($"  ok  {wer}: erst ab der Feudalzeit, 50 Holz + 125 Stein, halb gebaut ohne Sicht"
+                          + $"{(halb == null ? " (ungeprüft)" : "")}, fertig nach {bauzeit:0} s, sieht "
+                          + $"{(probe == null ? "-" : Vector2.Distance(probe.Value, mitte).ToString("0.0"))} Kacheln weit");
 }
 
 // Kartengrößen (C11): Standard 64, Groß 90, Maximal 128 Kacheln Seitenlänge; beide

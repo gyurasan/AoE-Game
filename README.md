@@ -4,15 +4,20 @@ Ein Age-of-Empires-I-artiges Echtzeitstrategiespiel, implementiert in C# mit Mon
 
 ![Hauptmenü](docs/bilder/hauptmenue.jpg)
 
-![Am Stadtzentrum: ein Feld mit Weizen, ein Dorfbewohner bei der Ernte, Schafe und ein Reh](docs/bilder/spielszene.jpg)
+![Am Stadtzentrum der Dunklen Zeit: ein Feld mit Weizen, ein Dorfbewohner bei der Ernte, Mühle, Haus und Lager, Schafe und Rehe](docs/bilder/spielszene.jpg)
 
-*Am Stadtzentrum: ein Dorfbewohner erntet das Feld, eine abgeerntete Kachel wächst schon grün nach;
-daneben grasen Schafe und ein Reh, rundherum noch Nebel.*
+*In der Dunklen Zeit ist das Stadtzentrum ein strohgedecktes Langhaus: ein Dorfbewohner erntet das Feld,
+daneben stehen Mühle, Haus, Holzfäller- und Bergbaulager; Schafe und Rehe grasen, rundherum noch Nebel.*
 
 ![Kartenausschnitt ohne Nebel](docs/bilder/karte.jpg)
 
 *Ein Kartenausschnitt, für die Aufnahme ohne Nebel: Wald, zwei Seen mit Strand, Steinbrüche, Goldadern
 und Schafe auf der Wiese.*
+
+![Dieselbe Siedlung in den vier Zeitaltern](docs/bilder/zeitalter.jpg)
+
+*Dieselbe Siedlung in allen vier Zeitaltern: Gebäude und Kleidung der Dorfbewohner wechseln mit dem
+Aufstieg — vom Langhaus mit Strohdach über Holzbau und Burg bis zum Rathaus aus hellem Haustein.*
 
 ## Spielstand
 
@@ -21,7 +26,8 @@ Spielbar ist die Wirtschaft der Dunklen Zeit und der Aufstieg durch die Zeitalte
 - Dorfbewohner sammeln Nahrung, Holz, Gold und Stein und liefern selbstständig ab
 - Bauen: Haus, Mühle, Holzfällerlager, Bergbaulager, Farm; ab der Feudalzeit der Wachturm
 - Ausbildung im Stadtzentrum, Bevölkerungsgrenze aus den Gebäuden
-- Zeitalter: Feudal-, Ritter- und Imperialzeit, je mit Kosten und Forschungszeit
+- Zeitalter: Feudal-, Ritter- und Imperialzeit, je mit Kosten und Forschungszeit; Gebäude und Dorfbewohner
+  sehen in jedem Zeitalter anders aus
 - Nebel des Krieges, Minimap, Zoom und Kamera
 - Drei Kartengrößen, im Hauptmenü wählbar: Standard (64×64), Groß (90×90), Maximal (128×128)
 
@@ -83,8 +89,8 @@ dotnet test tests/AoE.Tests/AoE.Tests.csproj
 
 ## Grafik
 
-Menübild, Tastensymbole, Gebäude, Dorfbewohner, Boden, Felder, Bäume, Stein, Gold, Schafe und Rehe sind
-mit Qwen-Image erzeugt,
+Menübild, Tastensymbole, Gebäude und Dorfbewohner je Zeitalter, Boden, Felder, Bäume, Stein, Gold, Schafe,
+Rehe, Kaninchen und Wildschweine sind mit Qwen-Image erzeugt,
 lokal über ComfyUI. Prompts, Seeds und die Werkzeuge dafür liegen in `tools/bilder`, jedes
 Bild lässt sich damit genau so wieder erzeugen; Einzelheiten in der
 [Projektstruktur](docs/PROJEKT_STRUKTUR.md#grafik).

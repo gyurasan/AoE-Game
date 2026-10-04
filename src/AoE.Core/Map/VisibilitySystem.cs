@@ -169,9 +169,10 @@ public sealed class VisibilitySystem
 
         // Gebäude sehen ihre Umgebung wie Einheiten. Ohne das läge das eigene
         // Stadtzentrum im Nebel, sobald kein Dorfbewohner daneben steht.
+        // Baustellen sehen noch nichts - erst das fertige Gebäude deckt auf.
         foreach (var building in _map.GetBuildings())
         {
-            if (building.OwnerId == playerId && building.IsAlive)
+            if (building.OwnerId == playerId && building.IsAlive && !building.IsUnderConstruction)
                 MarkVisible(visible, building.Position, building.Stats.VisionRange);
         }
         
