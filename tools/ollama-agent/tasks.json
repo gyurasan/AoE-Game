@@ -1603,6 +1603,22 @@
         "py tools/ollama-agent/checks/c7w_gehen.py",
         "py tools/ollama-agent/checks/d9_projekt_struktur.py"
       ]
+    },
+    {
+      "id": "E13",
+      "title": "Anzeigemodus: Start nach Einstellung, Menü zeigt den echten Zustand",
+      "auto": false,
+      "max_turns": 12,
+      "prompt": "Unter Einstellungen zeigte 'Anzeigemodus' Vollbild, obwohl das Spiel im Fenster startete: der Start setzte auf dem Desktop fest IsFullScreen = false und las die gespeicherte Einstellung nie, und die Einstellungsseite schrieb den gespeicherten Wert in gdm.IsFullScreen, ohne ihn anzuwenden. Jetzt übernimmt der Start die Einstellung (randloses Vollbild, HardwareModeSwitch = false), und die Einstellungsseite zeigt nur noch den echten Zustand.\n\nFühre genau die folgenden Schritte aus, wörtlich, nichts sonst. Ersetzungen mit replace_in_file; Zeilenenden gleicht replace_in_file selbst an; Leerzeilen im ERSATZ haben keine Einrückung. Ein leerer ERSATZ heißt: den SUCHTEXT löschen. Nach dem letzten Schritt sofort finish aufrufen, ohne die Dateien noch einmal zu lesen: die Abnahme baut und prüft selbst, und erneutes Lesen großer Dateien sprengt das Kontextfenster.\n\n=== 1. AgeOfEvolutions/AgeOfEvolutions.Core/AgeOfEvolutionsGame.cs ===\nSUCHTEXT:\n            settingsManager = new SettingsManager<AgeOfEvolutionsSettings>(storage);\n            Services.AddService(typeof(SettingsManager<AgeOfEvolutionsSettings>), settingsManager);\n\nERSATZ:\n            settingsManager = new SettingsManager<AgeOfEvolutionsSettings>(storage);\n            Services.AddService(typeof(SettingsManager<AgeOfEvolutionsSettings>), settingsManager);\n\n            // Auf dem Desktop startet das Spiel so, wie es zuletzt eingestellt war: im\n            // Fenster oder randlos im Vollbild auf der Auflösung des Bildschirms, ohne\n            // dessen Modus umzuschalten. Vorher galt die gespeicherte Einstellung beim\n            // Start nicht, und das Menü zeigte \"Vollbild\", obwohl das Spiel im Fenster lief.\n            if (IsDesktop)\n            {\n                graphicsDeviceManager.HardwareModeSwitch = false;\n                graphicsDeviceManager.IsFullScreen = settingsManager.Settings.FullScreen;\n            }\n\n\n=== 2. AgeOfEvolutions/AgeOfEvolutions.Core/Screens/SettingsScreen.cs ===\nSUCHTEXT:\n        gdm.IsFullScreen = settingsManager.Settings.FullScreen;\n\nERSATZ:\n        // Die Anzeige zeigt, wie das Spiel gerade läuft (gdm.IsFullScreen); die\n        // gespeicherte Einstellung hat der Start schon übernommen. Sie hier ohne\n        // ApplyChanges zu setzen, ließ das Menü \"Vollbild\" zeigen, während das\n        // Spiel im Fenster lief.\n",
+      "context_files": [],
+      "allow_write": [
+        "AgeOfEvolutions/AgeOfEvolutions.Core/AgeOfEvolutionsGame.cs",
+        "AgeOfEvolutions/AgeOfEvolutions.Core/Screens/SettingsScreen.cs"
+      ],
+      "verify": [
+        "dotnet build AgeOfEvolutions/AgeOfEvolutions.Core/AgeOfEvolutions.Core.csproj -v q --nologo",
+        "py tools/ollama-agent/checks/e13_anzeigemodus.py"
+      ]
     }
   ]
 }

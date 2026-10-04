@@ -110,6 +110,16 @@ namespace AgeOfEvolutions.Core
             settingsManager = new SettingsManager<AgeOfEvolutionsSettings>(storage);
             Services.AddService(typeof(SettingsManager<AgeOfEvolutionsSettings>), settingsManager);
 
+            // Auf dem Desktop startet das Spiel so, wie es zuletzt eingestellt war: im
+            // Fenster oder randlos im Vollbild auf der Auflösung des Bildschirms, ohne
+            // dessen Modus umzuschalten. Vorher galt die gespeicherte Einstellung beim
+            // Start nicht, und das Menü zeigte "Vollbild", obwohl das Spiel im Fenster lief.
+            if (IsDesktop)
+            {
+                graphicsDeviceManager.HardwareModeSwitch = false;
+                graphicsDeviceManager.IsFullScreen = settingsManager.Settings.FullScreen;
+            }
+
             leaderboardManager = new SettingsManager<AgeOfEvolutionsLeaderboard>(storage);
             Services.AddService(typeof(SettingsManager<AgeOfEvolutionsLeaderboard>), leaderboardManager);
 

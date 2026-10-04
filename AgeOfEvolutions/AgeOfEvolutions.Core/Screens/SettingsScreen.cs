@@ -87,7 +87,10 @@ class SettingsScreen : MenuScreen
 
         currentLanguage = settingsManager.Settings.Language;
         currentParticleEffect = settingsManager.Settings.ParticleEffect;
-        gdm.IsFullScreen = settingsManager.Settings.FullScreen;
+        // Die Anzeige zeigt, wie das Spiel gerade läuft (gdm.IsFullScreen); die
+        // gespeicherte Einstellung hat der Start schon übernommen. Sie hier ohne
+        // ApplyChanges zu setzen, ließ das Menü "Vollbild" zeigen, während das
+        // Spiel im Fenster lief.
 
         SetLanguageText();
 
