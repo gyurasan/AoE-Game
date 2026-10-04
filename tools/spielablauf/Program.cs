@@ -1,6 +1,6 @@
 // Spielablauf: stellt Abläufe aus RTSGameplayScreen ohne Grafik nach und prüft sie.
 //
-//   dotnet run --project tools/spielablauf -- bauen weiterbauen linksklick farm schafe wild herde bewegen minimap zoom leiste zeitalter turm menue animation fenster werkzeug feld
+//   dotnet run --project tools/spielablauf -- bauen weiterbauen linksklick farm schafe wild herde bewegen minimap zoom leiste zeitalter turm menue animation fenster werkzeug feld fahne gehen
 //
 // Jede genannte Gruppe läuft auf drei frisch erzeugten Karten. Die Spielschleife
 // läuft Bild für Bild (60 je Sekunde) mit denselben Methoden, die Update() im Spiel
@@ -62,12 +62,15 @@ for (int karte = 1; karte <= KARTEN; karte++)
         Pruefe($"Karte {karte}, Reh-Reservierung", () => RehReservierung(karte, verstoesse));
         Pruefe($"Karte {karte}, Reh-Wanderung", () => RehWanderung(karte, verstoesse));
     }
+    if (gruppen.Contains("fahne") && karte == 1)
+        Pruefe("Fahne und Windrad", () => FahneUndWindrad(verstoesse));
     if (gruppen.Contains("herde"))
     {
         Pruefe($"Karte {karte}, Herde zieht", () => HerdeZieht(karte, verstoesse));
         Pruefe($"Karte {karte}, Tierschritt", () => TierSchritt(karte, verstoesse));
         if (karte == 1)
             Pruefe("Gangbild", () => Gangbild(verstoesse));
+        Pruefe($"Karte {karte}, Schlachten", () => Schlachten(karte, verstoesse));
     }
     if (gruppen.Contains("bewegen"))
     {
@@ -94,6 +97,8 @@ for (int karte = 1; karte <= KARTEN; karte++)
         Pruefe("Feld", () => Feld(verstoesse));
     if (gruppen.Contains("animation") && karte == 1)
         Pruefe("Animation", () => Animation(verstoesse));
+    if (gruppen.Contains("gehen") && karte == 1)
+        Pruefe("Gehen", () => Gehen(verstoesse));
     // Das Hauptmenü braucht keine Karte
     if (gruppen.Contains("menue") && karte == 1)
         Pruefe("Hauptmenü", () => Hauptmenue(verstoesse));
@@ -612,6 +617,134 @@ static void TierSchritt(int karte, List<string> verstoesse)
 
     if (verstoesse.Count == vorher)
         Console.WriteLine($"  ok  {wer}: Schritt um ({-vonX}, {-vonY}) in {schritt:0.0} s, das Tier blickt in Laufrichtung");
+}
+
+// Gehen (C7v): ein gehender Dorfbewohner wechselt die Laufbilder in der Folge
+// Schritt, Stand, Gegenschritt, Stand; gespreizt, wenn er beim Wippen unten ist,
+// im Stand, wenn er oben ist.
+static void Gehen(List<string> verstoesse)
+{
+    const string wer = "Gehen";
+    int vorher = verstoesse.Count;
+    var w = new Welt();
+    float takt = (float)typeof(RTSGameplayScreen).GetField("VILLAGER_STEP_RATE", BindingFlags.NonPublic | BindingFlags.Static)!.GetValue(null)!;
+    int Phase(float t) => (int)w.Call("VillagerWalkPhase", t);
+    var folge = new List<int>();
+    float umlauf = MathHelper.TwoPi / takt;   // ein Doppelschritt: Schritt, Stand, Gegenschritt, Stand
+    for (float t = 0.001f; t < 2f * umlauf; t += umlauf / 200f)
+    {
+        int p = Phase(t);
+        if (p < 0 || p > 3)
+        {
+            verstoesse.Add($"{wer}: Laufbild {p} außerhalb 0 bis 3");
+            break;
+        }
+        if (folge.Count == 0 || folge[^1] != p) folge.Add(p);
+        float wippen = MathF.Abs(MathF.Sin(t * takt));
+        bool gespreizt = p is 0 or 2;
+        if (gespreizt && wippen > 0.75f || !gespreizt && wippen < 0.65f)
+        {
+            verstoesse.Add($"{wer}: bei t={t:0.000} Laufbild {p}, die Figur wippt aber auf {wippen:0.00} - Beine und Wippen passen nicht zusammen");
+            break;
+        }
+    }
+    var erwartet = new List<int> { 0, 1, 2, 3, 0, 1, 2, 3, 0 };
+    if (!folge.SequenceEqual(erwartet.Take(folge.Count)) || folge.Count < 8)
+        verstoesse.Add($"{wer}: Laufbilder {string.Join(",", folge)} statt 0,1,2,3,0,1,2,3");
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: Schritt, Stand, Gegenschritt, Stand im Takt des Wippens ({takt:0} rad/s)");
+}
+
+// Fahne und Windrad (C6a): das Fahnentuch steht am Mast fest und schlägt zum freien
+// Ende hin aus, höchstens eine Ausschlagbreite, und es bewegt sich mit der Zeit;
+// das Windrad dreht sich gleichmäßig mit MILL_SAIL_SPEED.
+static void FahneUndWindrad(List<string> verstoesse)
+{
+    const string wer = "Fahne und Windrad";
+    int vorher = verstoesse.Count;
+    var w = new Welt();
+    float Welle(float frei, float zeit) => (float)w.Call("FlagWave", frei, zeit);
+    float Winkel(float zeit) => (float)w.Call("MillSailAngle", zeit);
+    float amMast = 0f, amEnde = 0f, mitte = 0f;
+    for (float t = 0f; t < 3f; t += 0.02f)
+    {
+        amMast = Math.Max(amMast, Math.Abs(Welle(0f, t)));
+        amEnde = Math.Max(amEnde, Math.Abs(Welle(1f, t)));
+        mitte = Math.Max(mitte, Math.Abs(Welle(0.5f, t)));
+    }
+    if (amMast > 0.001f)
+        verstoesse.Add($"{wer}: das Tuch bewegt sich am Mast ({amMast:0.000})");
+    if (amEnde < 0.95f || amEnde > 1.001f)
+        verstoesse.Add($"{wer}: das freie Ende schlägt bis {amEnde:0.00} aus statt bis 1");
+    if (!(mitte > amMast && mitte < amEnde))
+        verstoesse.Add($"{wer}: zur Tuchmitte hin wächst der Ausschlag nicht ({amMast:0.00} < {mitte:0.00} < {amEnde:0.00})");
+    if (Math.Abs(Welle(1f, 0f) - Welle(1f, 0.1f)) < 0.05f)
+        verstoesse.Add($"{wer}: die Fahne steht still ({Welle(1f, 0f):0.00} -> {Welle(1f, 0.1f):0.00} in 0,1 s)");
+    float speed = (float)typeof(RTSGameplayScreen).GetField("MILL_SAIL_SPEED", BindingFlags.NonPublic | BindingFlags.Static)!.GetValue(null)!;
+    float a0 = Winkel(1f), a1 = Winkel(2f);
+    float schritt = (a1 - a0 + MathHelper.TwoPi) % MathHelper.TwoPi;
+    if (speed <= 0f || Math.Abs(schritt - speed % MathHelper.TwoPi) > 0.001f)
+        verstoesse.Add($"{wer}: das Windrad dreht sich in 1 s um {schritt:0.000} statt {speed:0.000}");
+    for (float t = 0f; t < 60f; t += 0.7f)
+        if (Winkel(t) < 0f || Winkel(t) >= MathHelper.TwoPi)
+        {
+            verstoesse.Add($"{wer}: Drehwinkel {Winkel(t):0.00} außerhalb 0 bis 2π");
+            break;
+        }
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: Tuch am Mast fest, am Ende bis {amEnde:0.00} Ausschlag, Windrad {speed:0.0} rad/s");
+}
+
+// Schlachten (C7s): sobald ein Dorfbewohner an einem Schaf bzw. Reh sammelt, ist
+// es geschlachtet - es bleibt liegen, auch wenn er abgezogen wird, und wandert
+// nie mehr weiter. Ein Tier, an dem noch niemand sammelt, ist nicht geschlachtet.
+static void Schlachten(int karte, List<string> verstoesse)
+{
+    string wer = $"Karte {karte}, Schlachten";
+    int vorher = verstoesse.Count;
+    foreach (var (art, name) in new[] { (FoodSource.Sheep, "Schaf"), (FoodSource.Deer, "Reh") })
+    {
+        var w = new Welt();
+        Tile kachel = null;
+        for (int x = 0; x < w.Map.Width && kachel == null; x++)
+            for (int y = 0; y < w.Map.Height && kachel == null; y++)
+                if (w.Map.GetTile(x, y) is { Animal: not null } t && t.Food == art)
+                    kachel = t;
+        if (kachel == null)
+        {
+            Console.WriteLine($"  --  {wer}: kein {name} auf dieser Karte, übersprungen");
+            continue;
+        }
+        var tier = kachel.Animal;
+        if (tier.Slaughtered)
+            verstoesse.Add($"{wer}: ein {name}, an dem niemand sammelt, ist schon geschlachtet");
+        var v = w.Dorfbewohner().First();
+        v.Position = w.Map.GridToWorld(new Vector2(kachel.X, kachel.Y));
+        v.Job = new GatherJob(0, Resource.Food, new CorePosition(kachel.X, kachel.Y));
+        w.Call("FollowJob", v);
+        w.LaufeBis(() => v.Job?.Phase == AoE.Core.Economy.GatherPhase.Gathering, 20f);
+        w.LaufeBis(() => false, 0.5f);
+        if (v.Job?.Phase != AoE.Core.Economy.GatherPhase.Gathering && !tier.Slaughtered)
+        {
+            verstoesse.Add($"{wer}: Voraussetzung fehlt - der Dorfbewohner sammelt nicht am {name} (Phase {v.Job?.Phase})");
+            continue;
+        }
+        if (!tier.Slaughtered)
+        {
+            verstoesse.Add($"{wer}: der Dorfbewohner sammelt am {name}, es ist aber nicht geschlachtet");
+            continue;
+        }
+        // Dorfbewohner abziehen: das Fleisch bleibt liegen
+        v.Job = null;
+        v.State = UnitState.Idle;
+        w.LaufeBis(() => false, 30f);
+        if (kachel.Animal != tier || kachel.Food != art)
+            verstoesse.Add($"{wer}: das geschlachtete {name} ist weitergewandert, nachdem der Dorfbewohner abgezogen wurde");
+        else if (!tier.Slaughtered || tier.Glide > 0f)
+            verstoesse.Add($"{wer}: das {name} läuft nach dem Abziehen wieder (geschlachtet={tier.Slaughtered}, Schritt {tier.Glide:0.00} s)");
+    }
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: geschlachtet, sobald gesammelt wird; das Fleisch bleibt liegen, auch ohne Dorfbewohner");
 }
 
 // Gangbild (C7w): solange ein Tier unterwegs ist, wechseln die Laufbilder in der

@@ -147,6 +147,12 @@ public class WildAnimal
     public int FromX { get; set; }
     public int FromY { get; set; }
     public float Glide { get; set; }
+
+    /// <summary>
+    /// Geschlachtet: ein Dorfbewohner hat angefangen, das Tier abzubauen. Ab da
+    /// liegt es als Fleisch an seiner Stelle und wandert nie mehr weiter.
+    /// </summary>
+    public bool Slaughtered { get; set; }
 }
 
 /// <summary>

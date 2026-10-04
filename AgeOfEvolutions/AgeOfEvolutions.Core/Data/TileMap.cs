@@ -720,6 +720,21 @@ public class TileMap
     }
 
     /// <summary>
+    /// Schlachtet das Schaf bzw. Reh auf (x, y): ein Dorfbewohner hat angefangen,
+    /// es abzubauen. Es bleibt sofort stehen, auch mitten im Schritt, und wandert
+    /// nie mehr weiter - auch nicht, wenn der Dorfbewohner abliefert oder
+    /// abgezogen wird.
+    /// </summary>
+    public void Slaughter(int x, int y)
+    {
+        var t = GetTile(x, y);
+        if (t == null || t.Food is not (FoodSource.Sheep or FoodSource.Deer)) return;
+        t.Animal ??= new WildAnimal();
+        t.Animal.Slaughtered = true;
+        t.Animal.Glide = 0f;
+    }
+
+    /// <summary>
     /// Taktet die Schaf-Wanderung. Aufruf: jedes Frame mit
     /// <c>gameTime.ElapsedGameTime.TotalSeconds</c>.
     /// </summary>
@@ -756,8 +771,8 @@ public class TileMap
             t.Animal ??= NewAnimal(max);
             var tier = t.Animal;
             tier.Glide = Math.Max(0f, tier.Glide - dt);
-            if (_claimed.Contains((sx, sy)) || t.ResourceAmount <= 0)
-                continue;   // reserviert bzw. leer: bleibt stehen
+            if (tier.Slaughtered || _claimed.Contains((sx, sy)) || t.ResourceAmount <= 0)
+                continue;   // geschlachtet, reserviert bzw. leer: bleibt stehen
             tier.WanderTimer -= dt;
             if (tier.WanderTimer > 0f || tier.Glide > 0f)
                 continue;

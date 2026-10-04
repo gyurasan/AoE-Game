@@ -192,9 +192,37 @@ public class RTSGameplayScreen : GameScreen
     };
     private readonly Dictionary<(string Type, int Owner), Texture2D> _buildingSprites = new();
 
+    // Windrad der Mühle: Gebaeude/muehle_ohne_* ist die Mühle ohne gemalte Flügel,
+    // Gebaeude/muehle_fluegel das Flügelkreuz von vorn. Die Nabe als Anteil am
+    // Mühlenbild (am Bild gemessen), der Durchmesser als Anteil an seiner Breite,
+    // die Drehung in Bogenmaß je Sekunde
+    private static readonly Vector2 MillHub = new(0.566f, 0.396f);
+    private const float MILL_SAIL_SIZE = 1.0f;
+    private const float MILL_SAIL_SPEED = 0.6f;
+    private readonly Dictionary<int, Texture2D> _millBare = new();   // je Spieler
+    private Texture2D _millSails;
+
+    // Fahnen auf den Gebäuden: das Fahnentuch im Gebäudebild (Mast links), am Bild
+    // gemessen und um die Kontur erweitert. DrawWavingFlag lässt es wehen: Ausschlag
+    // als Anteil an der Tuchhöhe, Welle in Bogenmaß je Sekunde
+    private static readonly Dictionary<string, Rectangle> FlagCloth = new()
+    {
+        ["Haus"] = new(64, 12, 48, 36),
+        ["Mühle"] = new(168, 5, 37, 21),
+        ["Wachturm"] = new(131, 12, 50, 40),
+        ["Bergbaulager"] = new(236, 130, 20, 22),
+        ["Holzfällerlager"] = new(208, 190, 21, 18),
+    };
+    private const float FLAG_WAVE = 0.18f;
+    private const float FLAG_SPEED = 5f;
+
     // Dorfbewohner als Sprite (tools/bilder, Gruppe einheiten), je Spieler blau
     // oder rot; die Bewegung kommt aus dem Code, siehe DrawVillager
     private readonly Dictionary<int, Texture2D> _villagerSprites = new();
+    // Laufbilder je Spieler (Einheiten/dorfbewohner_lauf1, _lauf2), deckungsgleich mit
+    // dem Standbild zugeschnitten: Schritt, Stand, Gegenschritt, Stand
+    private readonly Dictionary<int, Texture2D[]> _villagerWalk = new();
+    private const float VILLAGER_STEP_RATE = 10f;   // Schritttakt beim Gehen, Bogenmaß je Sekunde
     private Texture2D _shadowTex;          // weicher Schatten unter den Füßen
 
     // Werkzeuge der Dorfbewohner (tools/bilder, Gruppe werkzeuge): waagerecht,
@@ -248,6 +276,9 @@ public class RTSGameplayScreen : GameScreen
     // Laufbilder je Standbild (Tiere/<name>_lauf1, _lauf2), deckungsgleich mit ihm
     // zugeschnitten: Schritt, Stand, Gegenschritt, Stand
     private readonly Dictionary<Texture2D, Texture2D[]> _animalWalk = new();
+    // Fleisch eines geschlachteten Tiers (Tiere/fleisch_schaf, Tiere/fleisch_reh)
+    private Texture2D _sheepMeat;
+    private Texture2D _deerMeat;
     private const int GROUND_TEXELS = 4;   // Bildpixel der Bodenbilder je Welteinheit
 
     // Bewegung je Einheit, aus der Lage zwischen zwei Updates abgeleitet - die
@@ -350,6 +381,10 @@ public class RTSGameplayScreen : GameScreen
             catch (Microsoft.Xna.Framework.Content.ContentLoadException)
             {
             }
+            if (_villagerSprites.TryGetValue(owner, out var stand)
+                && LoadOptional("Einheiten/dorfbewohner_lauf1" + colour) is { } lauf1
+                && LoadOptional("Einheiten/dorfbewohner_lauf2" + colour) is { } lauf2)
+                _villagerWalk[owner] = new[] { lauf1, stand, lauf2, stand };
         }
         _shadowTex = BuildShadowTexture(graphicsDevice);
         foreach (var (tool, style) in ToolStyles)
@@ -371,6 +406,8 @@ public class RTSGameplayScreen : GameScreen
         _goldSprites = GoldAssets.Select(LoadOptional).Where(t => t != null).ToArray();
         _sheepSprites = SheepAssets.Select(LoadOptional).Where(t => t != null).ToArray();
         _deerSprites = DeerAssets.Select(LoadOptional).Where(t => t != null).ToArray();
+        _sheepMeat = LoadOptional("Tiere/fleisch_schaf");
+        _deerMeat = LoadOptional("Tiere/fleisch_reh");
         // Laufbilder nur, wenn beide da sind - sonst gleitet das Tier wie bisher
         foreach (var asset in SheepAssets.Concat(DeerAssets))
         {
@@ -394,6 +431,12 @@ public class RTSGameplayScreen : GameScreen
                 }
             }
         }
+        foreach (var (owner, colour) in new[] { (0, "_blau"), (1, "_rot") })
+        {
+            if (LoadOptional("Gebaeude/muehle_ohne" + colour) is { } bare)
+                _millBare[owner] = bare;
+        }
+        _millSails = LoadOptional("Gebaeude/muehle_fluegel");
 
         // Start the camera on player 1's town center instead of the map corner.
         // Startzoom wie die Zoomgrenzen an der Fensterhöhe ausgerichtet; die
@@ -1995,6 +2038,9 @@ public class RTSGameplayScreen : GameScreen
             var food = tileMap.GetTile(job.Source.X, job.Source.Y)?.Food;
             if (food is not (FoodSource.Sheep or FoodSource.Deer)) continue;
             aktiv.Add((job.Source.X, job.Source.Y));
+            // Wer schon daran sammelt, hat das Tier geschlachtet: ab jetzt Fleisch
+            if (job.Phase == GatherPhase.Gathering)
+                tileMap.Slaughter(job.Source.X, job.Source.Y);
         }
         tileMap.SyncSheepClaims(aktiv);
     }
@@ -2322,14 +2368,18 @@ public class RTSGameplayScreen : GameScreen
     /// Laufrichtung (die Bilder sind nach rechts gemalt und werden gespiegelt)
     /// und läuft jeden Schritt sichtbar von der alten zur neuen Kachel: es
     /// setzt dabei die Beine (Laufbilder im Wechsel, WalkPhase) und wippt
-    /// leicht. Ein weicher Schatten verankert es auf dem Gras.
+    /// leicht. Ein weicher Schatten verankert es auf dem Gras. Ein
+    /// geschlachtetes Tier (WildAnimal.Slaughtered) zeigt nur noch sein Fleisch.
     /// </summary>
     private void DrawAnimal(SpriteBatch spriteBatch, Data.Tile tile, int x, int y, Texture2D[] sprites)
     {
         var tier = tile.Animal ?? new Data.WildAnimal();
         var tileRect = TileScreenRect(x, y);
-        var tex = sprites[tier.Look % sprites.Length];
-        int phase = WalkPhase(tier.Glide);
+        // Geschlachtet: nur noch das Fleisch, ruhig an seiner Stelle
+        var meat = tile.Food == FoodSource.Deer ? _deerMeat : _sheepMeat;
+        bool butchered = tier.Slaughtered && meat != null;
+        var tex = butchered ? meat : sprites[tier.Look % sprites.Length];
+        int phase = butchered ? -1 : WalkPhase(tier.Glide);
         if (phase >= 0 && _animalWalk.TryGetValue(tex, out var walk))
             tex = walk[phase];
         int width = (int)(tileRect.Width * (tile.Food == FoodSource.Deer ? DEER_WIDTH : SHEEP_WIDTH));
@@ -2355,6 +2405,65 @@ public class RTSGameplayScreen : GameScreen
         spriteBatch.Draw(tex, target, null, Color.White, 0f, Vector2.Zero,
                          tier.FacingLeft ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 0f);
     }
+
+    /// <summary>
+    /// Ein Gebäudebild mit wehender Fahne: alles außer dem Fahnentuch wird wie
+    /// gemalt gezeichnet (vier Teile rund um das Tuch), das Tuch in senkrechten
+    /// Streifen, die eine Welle hebt und senkt - am Mast fest, zum freien Ende
+    /// hin stärker (FlagWave). Alle Teile runden ihre Bildkoordinaten gleich, damit
+    /// keine Fugen entstehen; jeder Streifen ist mindestens einen Bildschirmpixel breit.
+    /// </summary>
+    private void DrawWavingFlag(SpriteBatch spriteBatch, Texture2D sprite, Rectangle area, Rectangle cloth, float phase)
+    {
+        float scale = area.Width / (float)sprite.Width;
+        int X(int sx) => area.X + (int)MathF.Round(sx * scale);
+        int Y(int sy) => area.Y + (int)MathF.Round(sy * scale);
+        void Part(Rectangle src, int dy)
+        {
+            if (src.Width <= 0 || src.Height <= 0) return;
+            var dest = new Rectangle(X(src.Left), Y(src.Top) + dy, X(src.Right) - X(src.Left), Y(src.Bottom) - Y(src.Top));
+            if (dest.Width > 0 && dest.Height > 0)
+                spriteBatch.Draw(sprite, dest, src, Color.White);
+        }
+
+        Part(new Rectangle(0, 0, sprite.Width, cloth.Top), 0);
+        Part(new Rectangle(0, cloth.Bottom, sprite.Width, sprite.Height - cloth.Bottom), 0);
+        Part(new Rectangle(0, cloth.Top, cloth.Left, cloth.Height), 0);
+        Part(new Rectangle(cloth.Right, cloth.Top, sprite.Width - cloth.Right, cloth.Height), 0);
+
+        int strip = Math.Max(1, (int)MathF.Ceiling(1f / scale));
+        float amplitude = cloth.Height * FLAG_WAVE * scale;
+        for (int sx = 0; sx < cloth.Width; sx += strip)
+        {
+            float frei = (sx + strip / 2f) / cloth.Width;
+            int dy = (int)MathF.Round(FlagWave(frei, animationTime + phase) * amplitude);
+            Part(new Rectangle(cloth.Left + sx, cloth.Top, Math.Min(strip, cloth.Width - sx), cloth.Height), dy);
+        }
+    }
+
+    /// <summary>
+    /// Wie weit das Fahnentuch an der Stelle frei (0 am Mast, 1 am freien Ende) zur
+    /// Zeit time ausschlägt, als Anteil an FLAG_WAVE Tuchhöhen: eine Welle läuft vom
+    /// Mast zum Ende, am Mast steht das Tuch fest, am Ende schlägt es am weitesten aus.
+    /// </summary>
+    private float FlagWave(float frei, float time)
+        => MathF.Sin(time * FLAG_SPEED - frei * MathF.PI * 2f) * frei;
+
+    /// <summary>
+    /// Das Flügelkreuz der Mühle dreht sich vor dem Mühlenbild um die Nabe
+    /// (MillHub, am Bild gemessen), MILL_SAIL_SIZE Mühlenbreiten groß.
+    /// </summary>
+    private void DrawMillSails(SpriteBatch spriteBatch, Rectangle area, float phase)
+    {
+        var hub = new Vector2(area.X + area.Width * MillHub.X, area.Y + area.Height * MillHub.Y);
+        float scale = area.Width * MILL_SAIL_SIZE / _millSails.Width;
+        var origin = new Vector2(_millSails.Width / 2f, _millSails.Height / 2f);
+        spriteBatch.Draw(_millSails, hub, null, Color.White, MillSailAngle(animationTime + phase), origin, scale,
+                         SpriteEffects.None, 0f);
+    }
+
+    /// <summary>Drehwinkel des Windrads zur Zeit time: MILL_SAIL_SPEED Bogenmaß je Sekunde, 0 bis 2π.</summary>
+    private float MillSailAngle(float time) => (time * MILL_SAIL_SPEED) % MathHelper.TwoPi;
 
     /// <summary>
     /// Welches Laufbild ein Tier zeigt, das noch glide Sekunden unterwegs ist:
@@ -2547,9 +2656,20 @@ public class RTSGameplayScreen : GameScreen
         // Gebäude wie Turm und Mühle ragen über die Kacheln dahinter hinaus
         if (_buildingSprites.TryGetValue((b.Type, b.OwnerId), out var sprite))
         {
+            // Die Mühle ohne gemalte Flügel, wenn das Flügelkreuz da ist - es dreht sich davor
+            Texture2D bare = null;
+            bool windmill = b.Type == "Mühle" && _millSails != null && _millBare.TryGetValue(b.OwnerId, out bare);
+            if (windmill)
+                sprite = bare;
             int spriteHeight = rect.Width * sprite.Height / sprite.Width;
-            spriteBatch.Draw(sprite, new Rectangle(rect.X, rect.Bottom - spriteHeight, rect.Width, spriteHeight),
-                             Color.White);
+            var area = new Rectangle(rect.X, rect.Bottom - spriteHeight, rect.Width, spriteHeight);
+            float phase = (b.X * 7 + b.Y * 13) * 0.37f;   // jedes Gebäude im eigenen Takt
+            if (FlagCloth.TryGetValue(b.Type, out var cloth))
+                DrawWavingFlag(spriteBatch, sprite, area, cloth, phase);
+            else
+                spriteBatch.Draw(sprite, area, Color.White);
+            if (windmill)
+                DrawMillSails(spriteBatch, area, phase);
             return;
         }
         switch (b.Core.BuildingType)
@@ -2962,7 +3082,7 @@ public class RTSGameplayScreen : GameScreen
         float bob = 0f, tilt = 0f, stretch = 1f;
         if (moving)
         {
-            float step = t * 10f;
+            float step = t * VILLAGER_STEP_RATE;
             bob = MathF.Abs(MathF.Sin(step)) * 1.5f * cameraZoom;
             tilt = MathF.Sin(step) * 0.05f;
         }
@@ -2976,6 +3096,10 @@ public class RTSGameplayScreen : GameScreen
         {
             stretch = 1f + MathF.Sin(t * 2.2f) * 0.02f;
         }
+
+        // Beim Gehen setzt er die Beine, im Takt des Wippens: gespreizt unten, im Stand oben
+        if (moving && _villagerWalk.TryGetValue(unit.OwnerId, out var walk))
+            figure = walk[VillagerWalkPhase(t)];
 
         // Schatten unter den Füßen - er bleibt am Boden, während die Figur wippt
         if (_shadowTex != null)
@@ -3020,6 +3144,15 @@ public class RTSGameplayScreen : GameScreen
             spriteBatch.Draw(px, new Rectangle(bx, by, bundle, bundle), colour);
         }
     }
+
+    /// <summary>
+    /// Welches Laufbild ein gehender Dorfbewohner zur Zeit t zeigt: 0 bis 3 für
+    /// Schritt, Stand, Gegenschritt, Stand. Ein Schritt dauert eine halbe Welle des
+    /// Wippens (VILLAGER_STEP_RATE): gespreizt, wenn die Figur unten ist, im Stand,
+    /// wenn sie oben ist.
+    /// </summary>
+    private int VillagerWalkPhase(float t)
+        => (int)MathF.Floor((t * VILLAGER_STEP_RATE + MathF.PI / 4f) / (MathF.PI / 2f)) % 4;
 
     /// <summary>
     /// Das Werkzeug zur Arbeit: Hammer am Bau, Axt im Wald, Spitzhacke an Stein

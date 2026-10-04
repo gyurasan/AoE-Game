@@ -656,9 +656,18 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
 - [x] Stadtzentrum skaliert im Ganzen mit dem Zoom *(Agent E9)*
 - [x] Gebäude als Sprites aus Qwen-Image (`tools/bilder`, freigestellt mit BiRefNet), Fahnen
       und Banner in Spielerfarbe; Baustellen und die Farm zeichnet weiter der Code *(Agent C6g)*
+- [x] Gebäude bewegen sich: das Windrad der Mühle dreht sich (Qwen-Image hat die gemalten
+      Flügel aus dem Mühlenbild entfernt, Gebaeude/muehle_ohne, das Flügelkreuz
+      Gebaeude/muehle_fluegel dreht der Code um die Nabe), und die Fahnen auf Haus, Mühle,
+      Wachturm und den Lagern wehen - das Tuch in Streifen, die eine Welle hebt und
+      senkt (DrawWavingFlag, FlagWave) *(Agent C6a)*
 - [x] Dorfbewohner als Sprite (Qwen-Image) mit Bewegung aus dem Code: wippt beim Gehen, holt
       beim Sammeln und Bauen aus, atmet im Stehen, blickt in Laufrichtung, Schatten und
       Traglast-Bündel *(Agent C6v)*
+- [x] Dorfbewohner gehen: zwei Laufbilder je Spielerfarbe (Einheiten/dorfbewohner_lauf1,
+      _lauf2), für die Qwen-Image nur die Beine neu gemalt hat - Rumpf und Faust bleiben, das
+      Werkzeug sitzt weiter richtig; im Takt des Wippens Schritt, Stand, Gegenschritt,
+      Stand (VillagerWalkPhase) *(Agent C7v)*
 - [x] Werkzeuge als eigene Sprites in der Faust: Axt, Spitzhacke, Hammer, Sichel, Hacke und
       Angel je nach Arbeit; beim Arbeiten holt das Werkzeug aus und schlägt zu, die Figur
       steht still. Die Hacke hat Qwen-Image per Inpainting aus dem Dorfbewohner-Bild
@@ -686,6 +695,10 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
       nur die Beine neu gemalt hat; uebernehmen.ps1 schneidet alle Bilder einer Figur auf
       dasselbe Rechteck (Feld "figur"), und solange ein Schritt läuft, wechseln Schritt,
       Stand, Gegenschritt, Stand (WalkPhase) *(Agent C7u, C7w)*
+- [x] Geschlachtete Tiere: sobald ein Dorfbewohner an einem Schaf oder Reh sammelt, ist es
+      geschlachtet (WildAnimal.Slaughtered) - es zeigt nur noch sein Fleisch
+      (Tiere/fleisch_schaf, fleisch_reh) und bleibt liegen, auch wenn der Dorfbewohner
+      abliefert oder abgezogen wird *(Agent C7s)*
 - [x] Wald als Blätterdach: dunkler Boden als Kachel, Baumkronen als eigene Figuren
       über Kachelgrenzen hinweg *(Agent G1, G3)*
 - [x] Wasser: zwei überlagerte Wellen in drei Varianten, festes Rauschen ohne Flimmern,

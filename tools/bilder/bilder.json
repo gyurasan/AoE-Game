@@ -115,7 +115,8 @@
     "name": "muehle",
     "seed": 3003,
     "prompt": "A medieval windmill with four white canvas sails on a round stone tower with a thatched roof and a small blue flag.",
-    "ziel": "Gebaeude/muehle.png"
+    "ziel": "Gebaeude/muehle.png",
+    "figur": "muehle"
    },
    {
     "name": "holzfaellerlager",
@@ -134,6 +135,71 @@
     "seed": 3006,
     "prompt": "A tall medieval stone watchtower with battlements on top, a small arched door and a blue flag on the top.",
     "ziel": "Gebaeude/wachturm.png"
+   },
+   {
+    "name": "muehle_ohne",
+    "seed": 3324,
+    "vorlage": "muehle_3003_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       0,
+       0,
+       410,
+       200
+      ],
+      [
+       0,
+       200,
+       720,
+       824
+      ]
+     ]
+    },
+    "prompt": "A round medieval stone mill tower with a small arched wooden door and a small window, a conical thatched roof with a small blue flag on top, a short round wooden axle stub sticking out of the front of the roof toward the viewer, its round end facing the viewer. The tower has no sails, no blades and no arms at all.",
+    "negativ": "sails, blades, windmill arms, spokes, lattice, canvas, propeller, ladder, beams, poles"
+   },
+   {
+    "name": "muehle_ohne2",
+    "seed": 3331,
+    "vorlage": "muehle_ohne_3324_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       690,
+       200,
+       150,
+       290
+      ],
+      [
+       290,
+       100,
+       170,
+       150
+      ]
+     ]
+    },
+    "prompt": "A round medieval stone mill tower with a small arched wooden door and a small window, a conical thatched roof with a small blue flag on top, a short round wooden axle stub sticking out of the front of the roof toward the viewer, its round end facing the viewer. The tower has no sails, no blades and no arms at all.",
+    "negativ": "sails, blades, windmill arms, spokes, lattice, canvas, propeller, ladder, beams, poles, white cloth, white triangle"
+   },
+   {
+    "name": "muehle_ohne3",
+    "seed": 3352,
+    "ziel": "Gebaeude/muehle_ohne.png",
+    "figur": "muehle",
+    "vorlage": "muehle_ohne2_3331_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       240,
+       110,
+       255,
+       160
+      ]
+     ]
+    },
+    "prompt": "A round medieval stone mill tower with a small arched wooden door and a small window, a conical thatched roof with a small blue flag on top, a short round wooden axle stub sticking out of the front of the roof toward the viewer, its round end facing the viewer. The tower has no sails, no blades and no arms at all. The conical thatched roof has a smooth round outline, evenly sloped on both sides.",
+    "negativ": "sails, blades, windmill arms, spokes, lattice, canvas, propeller, ladder, beams, poles, white cloth, white triangle, spike, peak, tuft, horn, second pole, second flag, chimney, stick, antenna"
    }
   ],
   "zuschneiden": true,
@@ -210,7 +276,8 @@
      ]
     },
     "prompt": "A medieval peasant villager in a bright blue tunic with a brown belt, brown trousers, leather shoes and a straw hat, friendly face, walking pose turned slightly to the right, his right hand raised to the shoulder and clenched into an empty fist, holding nothing.",
-    "negativ": "hoe, tool, stick, handle, staff, pole, rod, weapon, object in hand"
+    "negativ": "hoe, tool, stick, handle, staff, pole, rod, weapon, object in hand",
+    "figur": "dorfbewohner"
    }
   ]
  },
@@ -716,6 +783,106 @@
      ]
     },
     "prompt": "A slender roe deer doe without antlers, with a reddish-brown coat, a lighter belly, a white rump patch and large ears, facing right, its head lowered to graze while it slowly walks to the right. Its legs pass each other under the body: one front leg is lifted with the knee bent and one hind leg swings forward under the belly, the other legs carry the weight."
+   }
+  ]
+ },
+ "fleisch": {
+  "groesse": [
+   1024,
+   1024
+  ],
+  "schritte": 30,
+  "cfg": 3.0,
+  "freistellen": true,
+  "zuschneiden": true,
+  "zielbreite": 128,
+  "stil": "Game item sprite for a top-down 2D strategy game, seen from above at a three-quarter angle from the south, detailed 16-bit pixel art, crisp pixels, warm natural colors, soft light from the upper left. One single small low pile lying flat on the ground, centered and fully visible, isolated on a plain flat solid green background like a green screen, no grass, no shadow, no text.",
+  "negativ": "text, letters, logo, watermark, frame, border, living animal, head, eyes, face, legs standing, blood splatter, gore, knife, people, table, plate, basket, grass, ground, shadow, blurry, photo, 3d render, fur, fleece, sheepskin, hide, pelt, rug, cloth, mat, plate",
+  "bilder": [
+   {
+    "name": "fleisch_schaf",
+    "seed": 9522,
+    "ziel": "Tiere/fleisch_schaf.png",
+    "prompt": "Butchered sheep meat: a small neat pile of fresh raw mutton - a leg of lamb, a rack of ribs and two red steaks - lying directly on the ground, nothing underneath."
+   },
+   {
+    "name": "fleisch_reh",
+    "seed": 9532,
+    "ziel": "Tiere/fleisch_reh.png",
+    "prompt": "Butchered deer meat: a small neat pile of fresh raw venison - a haunch, a rack of ribs and two dark red steaks - lying directly on the ground, nothing underneath."
+   }
+  ]
+ },
+ "fluegel": {
+  "groesse": [
+   1024,
+   1024
+  ],
+  "schritte": 30,
+  "cfg": 3.0,
+  "freistellen": true,
+  "zuschneiden": true,
+  "zielbreite": 320,
+  "stil": "Game sprite for a 2D strategy game, seen straight from the front, detailed 16-bit pixel art, crisp pixels, warm medieval colors, soft light from the upper left. One single object centered and fully visible, isolated on a plain white background, no shadow, no text.",
+  "negativ": "text, letters, logo, watermark, frame, border, tower, building, roof, house, landscape, sky, ground, perspective, tilted, asymmetric, cut off, cropped, blurry, photo, 3d render",
+  "bilder": [
+   {
+    "name": "muehle_fluegel",
+    "seed": 3401,
+    "ziel": "Gebaeude/muehle_fluegel.png",
+    "prompt": "The sails of a windmill seen straight from the front, forming a perfect plus sign: four equally long straight wooden lattice arms pointing up, down, left and right, each covered on one side with white canvas, joined at a round wooden hub in the exact center of the image, perfectly symmetric."
+   }
+  ]
+ },
+ "einheiten_lauf": {
+  "groesse": [
+   1024,
+   1024
+  ],
+  "schritte": 30,
+  "cfg": 3.0,
+  "freistellen": true,
+  "zuschneiden": true,
+  "zielbreite": 128,
+  "spielerfarben": true,
+  "stil": "Game character sprite for a top-down 2D strategy game, three-quarter view from the front, full body from head to feet, walking, detailed 16-bit pixel art, crisp pixels, warm medieval colors, soft light from the upper left. One single character centered, fully visible, isolated on a plain white background, no shadow on the background, no text.",
+  "negativ": "text, letters, logo, watermark, frame, border, multiple characters, crowd, building, landscape, scenery, cut off feet, cropped, blurry, photo, 3d render, hoe, tool, stick, extra legs, three legs, missing leg",
+  "bilder": [
+   {
+    "name": "dorfbewohner_lauf1",
+    "seed": 4201,
+    "ziel": "Einheiten/dorfbewohner_lauf1.png",
+    "figur": "dorfbewohner",
+    "vorlage": "../einheiten/dorfbewohner_frei_4101_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       280,
+       660,
+       420,
+       330
+      ]
+     ]
+    },
+    "prompt": "A medieval peasant villager in a bright blue tunic with a brown belt, brown trousers, leather shoes and a straw hat, friendly face, his right hand raised to the shoulder and clenched into an empty fist, holding nothing, walking to the right. His legs are in mid-stride: the front leg steps far forward with the heel down, the back leg pushes off far behind on its toes."
+   },
+   {
+    "name": "dorfbewohner_lauf2",
+    "seed": 4211,
+    "ziel": "Einheiten/dorfbewohner_lauf2.png",
+    "figur": "dorfbewohner",
+    "vorlage": "../einheiten/dorfbewohner_frei_4101_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       280,
+       660,
+       420,
+       330
+      ]
+     ]
+    },
+    "prompt": "A medieval peasant villager in a bright blue tunic with a brown belt, brown trousers, leather shoes and a straw hat, friendly face, his right hand raised to the shoulder and clenched into an empty fist, holding nothing, walking to the right. His legs pass each other: one leg stands straight under the body carrying the weight, the other knee is bent and that foot is lifted, swinging forward."
    }
   ]
  }
