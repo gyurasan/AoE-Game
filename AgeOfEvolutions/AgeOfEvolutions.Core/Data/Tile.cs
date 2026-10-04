@@ -41,6 +41,13 @@ public class Tile
     public Resource? ResourceType { get; set; }
     public int ResourceAmount { get; set; }
     public FoodSource Food { get; set; }
+
+    /// <summary>
+    /// Das Schaf oder Reh auf dieser Kachel (Wandertakt, Blickrichtung,
+    /// Aussehen); null, wenn keines hier steht. Wandert das Tier, zieht dieses
+    /// Objekt mit ihm auf die neue Kachel.
+    /// </summary>
+    public WildAnimal Animal { get; set; }
     
     /// <summary>
     /// Ob die Kachel Teil eines angelegten Feldes ist (Farm). Jede Kachel eines
@@ -56,6 +63,17 @@ public class Tile
     /// 0 während die Kachel noch Nahrung trägt.
     /// </summary>
     public float FarmRegrow { get; set; }
+
+    /// <summary>
+    /// Lage der Kachel in ihrem Feld: Spalte und Zeile ab der linken oberen
+    /// Ecke, 0 bis <see cref="FarmSize"/> - 1. Der Spielbildschirm schneidet
+    /// daraus ihren Teil des Feldbilds, das so über das ganze Feld reicht.
+    /// </summary>
+    public int FarmCol { get; set; }
+    public int FarmRow { get; set; }
+
+    /// <summary>Seitenlänge des Felds in Kacheln; 0, solange die Kachel kein Feld ist.</summary>
+    public int FarmSize { get; set; }
 
     // Building on this tile
     public string Building { get; set; }
@@ -102,6 +120,33 @@ public class Tile
                 break;
         }
     }
+}
+
+/// <summary>
+/// Ein Schaf oder Reh, das mit seiner Kachel wandert: eigener Wandertakt,
+/// Blickrichtung und Aussehen, damit das Tier bei jedem Schritt dasselbe
+/// bleibt. Die Nahrung trägt weiter die Kachel (Food, ResourceAmount).
+/// </summary>
+public class WildAnimal
+{
+    /// <summary>Bildvariante und Versatz in der Kachel, fest ab dem Aufstellen.</summary>
+    public int Look { get; set; }
+
+    /// <summary>Blickt nach links; sonst nach rechts, wie die Sprites gemalt sind.</summary>
+    public bool FacingLeft { get; set; }
+
+    /// <summary>Sekunden bis zum nächsten Wanderschritt.</summary>
+    public float WanderTimer { get; set; }
+
+    /// <summary>
+    /// Woher der letzte Schritt kam, in Kacheln relativ zur jetzigen Kachel,
+    /// und wie viele Sekunden das Tier noch unterwegs ist. Solange
+    /// <see cref="Glide"/> über 0 liegt, zeichnet der Spielbildschirm es
+    /// zwischen alter und neuer Kachel und es beginnt keinen neuen Schritt.
+    /// </summary>
+    public int FromX { get; set; }
+    public int FromY { get; set; }
+    public float Glide { get; set; }
 }
 
 /// <summary>

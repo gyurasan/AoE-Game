@@ -4,11 +4,10 @@
 
 ## Wiederaufnahme — hier weitermachen
 
-Zuletzt angefasst: **Rehe (Wild)** — der Code steht uncommittet im Arbeitsbaum
-(7 Dateien geändert), noch nicht committet, nicht gesehen. Core-Projekt baut
-fehlerfrei, **157/157 Tests grün**; der ganze Solution-Build war blockiert, weil das
-Spiel zu dem Zeitpunkt lief und die Exe sperrte (Vorgang AgeOfEvolutions).
-Der offene Rest steht unter Punkt 7 von „Nächste sinnvolle Schritte".
+Zuletzt angefasst: **Farm und Tiere im neuen Stil** (2026-10-04) — die Farm ist ein Bild
+über das ganze Feld (C7h), Schafe und Rehe sind Sprites mit eigenem Wandertakt und
+sichtbarem Schritt (C7t), das Bildwerkzeug malt mit Rechteckmaske und Stärke aus (C7m).
+Uncommittet im Arbeitsbaum; Commit macht der Nutzer.
 
 Alles baut und läuft: `dotnet build AgeOfEvolutions.slnx` (0 Fehler, 0 Warnungen),
 `dotnet test tests/AoE.Tests` → **157/157 grün**.
@@ -18,6 +17,15 @@ mit `4f85314` (2026-10-03). Commits macht der Nutzer selbst.
 
 Zuletzt fertiggestellt:
 
+- **Farm und Tiere (2026-10-04)** — `Felder/weizen.png` zeigt das ganze 3×3-Feld mit
+  Weizenreihen und Holzzaun, `Felder/acker.png` dasselbe Feld nach der Ernte: Qwen-Image
+  hat dafür nur die Weizenreihen neu gemalt (Rechteckmaske), Furchen und Zaun blieben
+  Pixel für Pixel. Jede Kachel zeigt ihren Teil (`FieldPart`), erntet und wächst für sich.
+  Schafe und Rehe kommen als freigestellte Sprites (`Tiere/`), je zwei Varianten. Jedes
+  Tier trägt ein `WildAnimal` mit eigenem Wandertakt — vorher zog je Art immer nur das
+  letzte Tier der Liste —, läuft einen Schritt sichtbar in einer Sekunde
+  (`WILD_STEP_SECONDS`) und blickt in Laufrichtung. Neue Gruppe `herde` in
+  `tools/spielablauf`
 - **Grafik aus dem Bildgenerator (2026-10-03)** — ComfyUI mit Qwen-Image-2512 läuft lokal
   unter `D:\Apps\ComfyUI`; `tools/bilder` erzeugt daraus die Spielgrafik (Prompts und Seeds
   in `bilder.json`, wiederholbar) und bereitet sie für `Content/` auf. Neu: Menübild,
@@ -128,8 +136,8 @@ Nächste sinnvolle Schritte, in dieser Reihenfolge:
    Holzfällerlager und die Baustellen-Grafik (Screenshots vom 2026-10-01), dazu per
    Bildschirmfoto Menü, Leiste mit Symbolen, Minimap, Gebäude, Dorfbewohner, Gras und
    Wald (2026-10-03).
-2. **Restliche Grafik im neuen Stil** — Schafe, Beerenbüsche, Fische, Baustelle und Farm
-   zeichnet noch der Code; neben den Sprites wirken sie flach. Echte Laufbilder für die
+2. **Restliche Grafik im neuen Stil** — Beerenbüsche, Fische und Baustelle zeichnet noch
+   der Code; neben den Sprites wirken sie flach. Echte Laufbilder für die
    Dorfbewohner bräuchten Qwen-Image-Edit (dieselbe Figur in mehreren Posen).
 3. **Bedienoberfläche mit der Auflösung skalieren** — Leisten, Schrift, Tasten und Minimap
    haben feste Pixelmaße und wirken in der DX-Fassung (2707 px hoch) halb so groß; dazu
@@ -142,29 +150,10 @@ Nächste sinnvolle Schritte, in dieser Reihenfolge:
 6. **Veraltete Abnahmen** — `c1n`, `c1c` und `c8a` prüfen Schreibweisen von früher (die
    Schaf-Nahrung als Zahl, „Untätig" in `DrawUI`, „Links ziehen" im Hilfetext) und sind
    deshalb rot, obwohl das Verhalten stimmt; auf Verhalten umstellen.
-7. **Wild (z. B. Rehe) als zusätzliche Nahrungsquelle, die gejagt werden kann** —
-   **fast fertig, uncommittet im Arbeitsbaum (2026-10-04):** `FoodSource.Deer`
-   (`Tile.cs`), `PlaceDeer` (2–4 Herden je 2–4 Rehe, 150 Nahrung/Reh) und die
-   gemeinsame Wanderung `UpdateDeer`/`UpdateWild` getrennt von
-   `UpdateSheep` (`TileMap.cs`), Reservierung für Schaf und Reh über
-   `SyncSheepClaims`, `FindNearestSource` überspringt reserviertes Wild,
-   `ClearResourceAndRemoveSheep` entfernt auch Rehe
-   (`TileMapGatherWorld.cs`); `MapSettings` mit `DeerHerdsMin/Max`,
-   `DeerPerHerdMin/Max`, `DeerFood`, `DeerWanderSecondsMin/Max`,
-   `DeerWanderRadius`. Grafisch: AI-Sprites `Rohstoffe/reh`- und `reh2`
-   (Gruppe `wild` in `tools/bilder/bilder.json`) gezeichnet wie Haufen in der
-   Zeilenschicht; Fallback `BuildDeerTexture` zeichnerisch. **Gestimmt
-   (2026-10-04):** `wild`-Gruppe in `tools/spielablauf`
-   (Reh-Reservierung + Reh-Wanderung), der Ablauf-Loop ruft jetzt auch
-   `UpdateDeer` auf (fehlte, daher wanderten Rehe im Harness nicht);
-   `dotnet run --project tools/spielablauf -- wild schafe` → alle gruen auf
-   3 Karten. **Offen:** Reh-Sprites generieren (ComfyUI-Server noch nicht
-   gestartet; Gruppe `wild`, dann `uebernehmen.ps1`), danach
-   `Rohstoffe/reh.png`-/`reh2.png`-Eintraege in
-   `AgeOfEvolutions.Core/Content/AgeOfEvolutions.mgcb` (analog stein/gold,
-   erst wenn die PNGs existieren — sonst bricht der Content-Build);
-   Sichtpruefung im laufenden Spiel (Reh als Sprite sehen, zwei Dörfler nicht
-   auf dasselbe Reh). **Commit macht der Nutzer selbst.**
+7. **Wild (Rehe)** — fertig: 2–4 Herden je 2–4 Rehe, 150 Nahrung, reserviert wie die
+   Schafe, solange ein Dorfbewohner jagt (Gruppe `wild` in `tools/spielablauf`); Sprites
+   und Bewegung seit C7t. Offen nur die Sichtprüfung, dass zwei Dörfler nicht auf dasselbe
+   Reh laufen.
 
 Farm (C5f) ist fertig: Dorfbewohner wählen, Taste G (Getreide) drücken, Bauplatz
 anklicken — 3×3-Feld von 175 Nahrung. Die ausgewählten Dorfbewohner ernten die
@@ -686,6 +675,17 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
       (Boden/acker, Boden/weizen), die Kante des Felds als dunkler Erdstreifen, und der
       Weizen wächst sichtbar beim Nachwachsen (WheatLook aus Vorrat und FarmRegrow);
       FARM_FOOD und FARM_REGROW_SECONDS als Konstanten in TileMap *(C7f)*
+- [x] Farm als ein Bild über das ganze Feld: Weizenreihen mit Holzzaun (Felder/weizen) und
+      dasselbe Feld abgeerntet (Felder/acker, per Rechteckmaske aus dem Weizenbild
+      ausgebessert, damit Reihen und Zaun deckungsgleich bleiben); jede Kachel zeigt ihren
+      Teil (FarmCol, FarmRow, FieldPart), der Zaun ersetzt die gezeichnete Feldkante *(Agent C7h)*
+- [x] Schafe und Rehe als freigestellte Sprites (Tiere/, je zwei Varianten) in der
+      Zeilenschicht; jedes Tier mit eigenem Wandertakt (WildAnimal), einem sichtbaren
+      Schritt von Kachel zu Kachel, Blickrichtung und Schatten *(Agent C7t)*
+- [x] Tiere gehen: je Tier zwei Laufbilder (Tiere/<name>_lauf1, _lauf2), für die Qwen-Image
+      nur die Beine neu gemalt hat; uebernehmen.ps1 schneidet alle Bilder einer Figur auf
+      dasselbe Rechteck (Feld "figur"), und solange ein Schritt läuft, wechseln Schritt,
+      Stand, Gegenschritt, Stand (WalkPhase) *(Agent C7u, C7w)*
 - [x] Wald als Blätterdach: dunkler Boden als Kachel, Baumkronen als eigene Figuren
       über Kachelgrenzen hinweg *(Agent G1, G3)*
 - [x] Wasser: zwei überlagerte Wellen in drei Varianten, festes Rauschen ohne Flimmern,

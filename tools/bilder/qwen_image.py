@@ -19,8 +19,11 @@ der Nutzer.
 Ein Eintrag mit "vorlage" und "maske" malt nur einen Teil eines vorhandenen
 Bilds neu (Inpainting), etwa um der Figur ihr Werkzeug abzunehmen: "vorlage" ist
 eine Datei im Ausgabeordner der Gruppe, "maske" beschreibt die neu zu malende
-Fläche als Linien [x1, y1, x2, y2, Dicke] und Ellipsen [x, y, rx, ry] in
-Pixeln der Vorlage. Alles außerhalb der Maske bleibt Pixel für Pixel erhalten.
+Fläche als Linien [x1, y1, x2, y2, Dicke], Ellipsen [x, y, rx, ry] und
+Rechtecke [x, y, Breite, Höhe] in Pixeln der Vorlage. Alles außerhalb der Maske
+bleibt Pixel für Pixel erhalten. "staerke" (0 bis 1, sonst 1) entrauscht die
+Maske nur teilweise: Aufbau und Linien der Vorlage bleiben, Stoff und Farbe
+ändern sich - so wird aus dem reifen Feld dasselbe Feld nach der Ernte.
 
 Vor dem Lauf das Ollama-Sprachmodell entladen (ollama stop qwen3.8:27b) - es
 belegt sonst rund 27 GB Grafikspeicher.
@@ -90,12 +93,14 @@ def freistell_graph(eingabe: str, praefix: str) -> dict:
 
 
 def ausbesser_graph(prompt: str, negativ: str, vorlage: str, maske: str, seed: int,
-                    schritte: int, cfg: float, praefix: str) -> dict:
+                    schritte: int, cfg: float, praefix: str, staerke: float = 1.0) -> dict:
     """Malt die weiße Fläche der Maske in der Vorlage neu (Inpainting).
 
     SetLatentNoiseMask lässt den Sampler nur unter der Maske arbeiten; danach
     setzt ImageCompositeMasked das Ergebnis in die unveränderte Vorlage ein -
     sonst verschöbe der Weg durch das VAE auch die Pixel außerhalb ein wenig.
+    staerke unter 1 lässt dem Sampler die Vorlage als Ausgang statt reinem
+    Rauschen (denoise): Reihen und Umrisse bleiben, nur ihr Inhalt wird neu.
     """
     graph = workflow(prompt, negativ, 0, 0, seed, schritte, cfg, praefix)
     del graph["7"]
@@ -109,6 +114,7 @@ def ausbesser_graph(prompt: str, negativ: str, vorlage: str, maske: str, seed: i
                           "resize_source": False, "mask": ["12", 0]}},
     })
     graph["8"]["inputs"]["latent_image"] = ["14", 0]
+    graph["8"]["inputs"]["denoise"] = staerke
     graph["10"]["inputs"]["images"] = ["15", 0]
     return graph
 
@@ -116,7 +122,8 @@ def ausbesser_graph(prompt: str, negativ: str, vorlage: str, maske: str, seed: i
 def maske_zeichnen(form: dict, breite: int, hoehe: int, ziel: Path) -> Path:
     """Zeichnet die Inpainting-Maske als Graustufen-PNG: weiß wird neu gemalt.
 
-    Linien [x1, y1, x2, y2, Dicke] und Ellipsen [x, y, rx, ry] in Pixeln.
+    Linien [x1, y1, x2, y2, Dicke], Ellipsen [x, y, rx, ry] und Rechtecke
+    [x, y, Breite, Höhe] in Pixeln.
     Reines Python mit eigenem PNG-Schreiber - die Python-Installation für
     diese Skripte hat kein Pillow.
     """
@@ -141,6 +148,8 @@ def maske_zeichnen(form: dict, breite: int, hoehe: int, ziel: Path) -> Path:
     for cx, cy, rx, ry in form.get("ellipsen", []):
         fuellen(cx - rx, cy - ry, cx + rx, cy + ry,
                 lambda x, y, cx=cx, cy=cy, rx=rx, ry=ry: ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1)
+    for x, y, b, h in form.get("rechtecke", []):
+        fuellen(x, y, x + b - 1, y + h - 1, lambda x, y: True)
 
     def abschnitt(art: bytes, daten: bytes) -> bytes:
         return (len(daten).to_bytes(4, "big") + art + daten
@@ -216,7 +225,8 @@ def erzeuge(eintrag: dict, gruppe: dict, seed: int, ziel: Path) -> Path:
         vorlage = ziel.parent / eintrag["vorlage"]
         maske = maske_zeichnen(eintrag["maske"], breite, hoehe, ziel.parent / f"{eintrag['name']}_maske.png")
         graph = ausbesser_graph(prompt, negativ, hochladen(vorlage), hochladen(maske), seed,
-                                gruppe.get("schritte", 30), gruppe.get("cfg", 3.0), f"aoe_{eintrag['name']}")
+                                gruppe.get("schritte", 30), gruppe.get("cfg", 3.0), f"aoe_{eintrag['name']}",
+                                eintrag.get("staerke", 1.0))
     else:
         graph = workflow(prompt, negativ, breite, hoehe, seed,
                          gruppe.get("schritte", 30), gruppe.get("cfg", 3.0), f"aoe_{eintrag['name']}")

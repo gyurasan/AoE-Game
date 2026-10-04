@@ -19,7 +19,7 @@ src/AoE.Core/ - net10.0, MonoGame-unabhängige Spiellogik:
     Pathfinding/Pathfinding.cs (316) - A-Stern und Formationsbewegung
 AgeOfEvolutions/ - das MonoGame-Spiel:
     AgeOfEvolutions.Core/ (net10.0) mit Data/, Screens/, Effects/, Inputs/, ScreenManagers/, Localization/, Settings/, Content/
-        Content/ - Backgrounds/menu.png, Icons/, Gebaeude/, Einheiten/, Werkzeuge/, Boden/, Baeume/, Rohstoffe/ (aus tools/bilder), Fonts/Hud und Fonts/Menu
+        Content/ - Backgrounds/menu.png, Icons/, Gebaeude/, Einheiten/, Werkzeuge/, Boden/, Felder/, Baeume/, Rohstoffe/, Tiere/ (aus tools/bilder), Fonts/Hud und Fonts/Menu
     AgeOfEvolutions.DesktopGL/ (net10.0) - Windows, macOS, Linux; RuntimeIdentifiers win-x64, osx-x64, osx-arm64, linux-x64
     AgeOfEvolutions.WindowsDX/ (net10.0-windows) - nur Windows
 tests/AoE.Tests/ - net10.0, xUnit, 157 Tests, alle grün
@@ -48,24 +48,24 @@ tools/spielablauf/ - lässt die Spielschleife ohne Grafik laufen und prüft Abl�
 | Resource.cs | src/AoE.Core/Entities/Resource.cs | 32 Zeilen |
 | VisibilitySystem.cs | src/AoE.Core/Map/VisibilitySystem.cs | 412 Zeilen, enthält AUCH MapGrid; Gebäude spenden Sicht wie Einheiten |
 | Pathfinding.cs | src/AoE.Core/Pathfinding/Pathfinding.cs | 316 Zeilen, A-Stern und Formationsbewegung |
-| TileMap.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/TileMap.cs | 961 Zeilen, Kartengenerierung mit Seen, Ressourcenklumpen, PvP-Startpositionen; Gebäude beliebiger Kantenlänge und `CanPlaceBuilding` |
-| TileMapGatherWorld.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/TileMapGatherWorld.cs | 143 Zeilen, setzt IGatherWorld auf die Kachelkarte um: Quellen, Abgabestellen am Gebäuderand, nur fertig gebaute |
+| TileMap.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/TileMap.cs | 1032 Zeilen, Kartengenerierung mit Seen, Ressourcenklumpen, PvP-Startpositionen; Gebäude beliebiger Kantenlänge und `CanPlaceBuilding` |
+| TileMapGatherWorld.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/TileMapGatherWorld.cs | 144 Zeilen, setzt IGatherWorld auf die Kachelkarte um: Quellen, Abgabestellen am Gebäuderand, nur fertig gebaute |
 | Unit.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/Unit.cs | 199 Zeilen, Spieleinheit; hält über `Unit.Core` eine `UnitEntity` aus AoE.Core und reicht Kampfwerte, Lebenspunkte und Zustand durch; hält den Sammelauftrag (`Job`) und die Baustelle (`BuildSite`) |
 | CoreUnits.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/CoreUnits.cs | 101 Zeilen, bildet alle 17 Einheitentypen des Spiels auf Klassen aus AoE.Core ab |
 | CoreBuildings.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/CoreBuildings.cs | 33 Zeilen, bildet die Gebäudetypen des Spiels auf BuildingEntity aus AoE.Core ab |
-| RTSGameplayScreen.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs | 3591 Zeilen, prozedurale Texturen und Spielschleife; Ausbildung (Taste Q), Zeitalter (A), Baumenü (H, M, F, B, G, T), Baustellen, Minimap und die Klick-Entscheidung (`LeftClick`) |
+| RTSGameplayScreen.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs | 3730 Zeilen, prozedurale Texturen und Spielschleife; Ausbildung (Taste Q), Zeitalter (A), Baumenü (H, M, F, B, G, T), Baustellen, Minimap und die Klick-Entscheidung (`LeftClick`) |
 
 ## Grafik
 
-Menübild, Tastensymbole, Gebäude, Dorfbewohner, Boden (Gras, Sand, Wasser), Bäume sowie
-Stein- und Goldhaufen kommen aus Qwen-Image
+Menübild, Tastensymbole, Gebäude, Dorfbewohner, Boden (Gras, Sand, Wasser), Bäume, Stein-
+und Goldhaufen, die Felder sowie Schafe und Rehe kommen aus Qwen-Image
 (Qwen-Image-2512, fp8) über ComfyUI unter `D:\Apps\ComfyUI`. `tools/bilder/bilder.json` hält
 je Bild Prompt, Seed und Ziel; `qwen_image.py` erzeugt die Bilder und stellt sie mit
 BiRefNet frei, `uebernehmen.ps1` schneidet zu, färbt Fahnen, Banner und Kittel für
 Spieler 2 rot und macht Bodenbilder kachelbar. Die Ergebnisse liegen in
 `AgeOfEvolutions.Core/Content/` und sind in `AgeOfEvolutions.mgcb` eingetragen. Die
-Bewegung der Dorfbewohner (Gehen, Stehen) und den Schwung ihrer Werkzeuge rechnet das
-Spiel selbst (`RTSGameplayScreen.DrawVillager`, `DrawTool`). Fehlt eine Grafik, zeichnet das Spiel wie früher
+Bewegung der Dorfbewohner (Gehen, Stehen), den Schwung ihrer Werkzeuge und den Schritt
+der Tiere rechnet das Spiel selbst (`RTSGameplayScreen.DrawVillager`, `DrawTool`, `DrawAnimal`). Fehlt eine Grafik, zeichnet das Spiel wie früher
 prozedural. Bilder des Spiels liegen in `docs/bilder/`.
 
 ## Build-Status

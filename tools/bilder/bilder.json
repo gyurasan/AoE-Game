@@ -293,20 +293,6 @@
     "ziel": "Boden/wasser.png",
     "prompt": "Calm deep lake surface in classic 16-bit RPG style: many small curved wavy ripple lines in light cyan scattered evenly over deep blue and teal water, the little waves curve and point in different directions, the same brightness everywhere.",
     "negativ": "sun, sun glare, bright spot, light gradient, light rays, horizontal stripes, straight lines, scanlines, foam, big waves"
-   },
-   {
-    "name": "acker",
-    "seed": 5311,
-    "ziel": "Boden/acker.png",
-    "prompt": "Dark brown freshly tilled farm soil seen from straight above: loose crumbly earth with small clods and a few pebbles, evenly spread over the whole image, no rows.",
-    "negativ": "grass, flowers, path, fence, sun glare, light gradient, rows, stripes, furrows, lines, grid"
-   },
-   {
-    "name": "weizen",
-    "seed": 5411,
-    "ziel": "Boden/weizen.png",
-    "prompt": "Ripe golden wheat seen from straight above: a dense mass of wheat ears and stalks pointing in slightly different directions, evenly spread over the whole image, no rows.",
-    "negativ": "grass, flowers, path, fence, sun glare, light gradient, rows, stripes, lines, grid"
    }
   ],
   "kachelbar": true
@@ -395,28 +381,341 @@
    }
   ]
  },
- "wild": {
+ "felder": {
   "groesse": [
-   512,
-   512
+   1024,
+   1024
+  ],
+  "zielgroesse": [
+   384,
+   384
+  ],
+  "schritte": 30,
+  "cfg": 3.0,
+  "stil": "Game sprite of a farm field for a top-down 2D strategy game, seen from above at a slight angle from the south, detailed 16-bit pixel art, crisp pixels, warm natural colors, soft light from the upper left. The square field fills the whole image edge to edge, nothing around it, no text.",
+  "negativ": "text, letters, logo, watermark, frame, picture border, people, animals, buildings, barn, house, trees, scarecrow, road, path, meadow around the field, sky, horizon, vanishing point, isometric diamond, round field, blurry, photo, 3d render",
+  "bilder": [
+   {
+    "name": "weizen",
+    "seed": 9001,
+    "ziel": "Felder/weizen.png",
+    "prompt": "A square farm field of ripe golden wheat planted in straight parallel rows running from left to right, thin strips of brown soil between the rows, a low rustic wooden rail fence running exactly along all four edges of the image."
+   },
+   {
+    "name": "acker",
+    "seed": 9202,
+    "ziel": "Felder/acker.png",
+    "vorlage": "weizen_9001.png",
+    "maske": {
+     "rechtecke": [
+      [
+       58,
+       50,
+       109,
+       890
+      ],
+      [
+       182,
+       50,
+       80,
+       890
+      ],
+      [
+       285,
+       50,
+       85,
+       890
+      ],
+      [
+       389,
+       50,
+       92,
+       890
+      ],
+      [
+       503,
+       50,
+       85,
+       890
+      ],
+      [
+       609,
+       50,
+       87,
+       890
+      ],
+      [
+       718,
+       50,
+       77,
+       890
+      ],
+      [
+       816,
+       50,
+       59,
+       890
+      ],
+      [
+       894,
+       50,
+       70,
+       890
+      ]
+     ]
+    },
+    "prompt": "A harvested farm field: long straight strips of bare dark brown plowed soil with a few short pale straw stubbles, between darker furrows, a low rustic wooden rail fence along all four edges.",
+    "negativ": "wheat, wheat ears, tall wheat, golden grain, standing crops, green plants, grass"
+   }
+  ]
+ },
+ "tiere": {
+  "groesse": [
+   1024,
+   1024
   ],
   "schritte": 30,
   "cfg": 3.0,
   "freistellen": true,
-  "stil": "Game sprite for a top-down 2D strategy game, three-quarter top-down view from the south, detailed 16-bit pixel art, crisp pixels, warm tawny browns, soft light from the upper left. One single red deer (red fox-red fawn) standing, facing slightly to the right, with small light antlers on top of its head and a white tail spot at the bottom, centered and fully visible, isolated on a plain white background, no ground plate, no grass, no shadow on the background, no text.",
-  "negativ": "text, letters, logo, watermark, frame, border, multiple deer, herd, people, grass ground, landscape, scenery, sky, shadow on the background, blurry, photo, 3d render",
+  "zuschneiden": true,
+  "zielbreite": 128,
+  "stil": "Game sprite for a top-down 2D strategy game, seen from above at a three-quarter angle from the south, the body shown from the side, detailed 16-bit pixel art, crisp pixels, warm natural colors, soft light from the upper left. One single animal standing on all four legs, centered and fully visible from the ears to the hooves, isolated on a plain flat solid green background like a green screen, no ground, no grass, no shadow, no text.",
+  "negativ": "text, letters, logo, watermark, frame, border, multiple animals, herd, lamb, people, fence, grass, flowers, ground, landscape, scenery, sky, cut off, cropped, blurry, photo, 3d render",
   "bilder": [
    {
+    "name": "schaf",
+    "seed": 9201,
+    "ziel": "Tiere/schaf.png",
+    "prompt": "A fluffy domestic sheep with thick cream-white curly wool, a dark grey face, dark grey legs and small ears, facing right, grazing calmly with its head lowered.",
+    "figur": "schaf"
+   },
+   {
+    "name": "schaf2",
+    "seed": 9211,
+    "ziel": "Tiere/schaf2.png",
+    "prompt": "A fluffy domestic sheep with thick cream-white curly wool, a dark grey face, dark grey legs and small ears, facing right, standing and looking ahead with its head up.",
+    "figur": "schaf2"
+   },
+   {
     "name": "reh",
-    "seed": 6101,
-    "ziel": "Rohstoffe/reh.png",
-    "prompt": "A single red deer, ruddy brown coat, small branching light tan antlers on top of its head, a small white tail spot at the bottom, facing slightly to the right, standing upright on all four legs."
+    "seed": 9302,
+    "ziel": "Tiere/reh.png",
+    "prompt": "A slender roe deer buck with a reddish-brown coat, a lighter belly, a white rump patch, large ears and a small pair of short pointed antlers, facing right, standing alert with its head up.",
+    "figur": "reh"
    },
    {
     "name": "reh2",
-    "seed": 6102,
-    "ziel": "Rohstoffe/reh2.png",
-    "prompt": "A single red deer, ruddy brown coat with a lighter chest, small branching light tan antlers on top of its head, a small white tail spot at the bottom, facing slightly to the left, standing upright on all four legs."
+    "seed": 9312,
+    "ziel": "Tiere/reh2.png",
+    "prompt": "A slender roe deer doe without antlers, with a reddish-brown coat, a lighter belly, a white rump patch and large ears, facing right, grazing with its head lowered.",
+    "figur": "reh2"
+   }
+  ]
+ },
+ "tiere_lauf": {
+  "groesse": [
+   1024,
+   1024
+  ],
+  "schritte": 30,
+  "cfg": 3.0,
+  "freistellen": true,
+  "zuschneiden": true,
+  "zielbreite": 128,
+  "stil": "Game sprite for a top-down 2D strategy game, seen from above at a three-quarter angle from the south, the body shown from the side, detailed 16-bit pixel art, crisp pixels, warm natural colors, soft light from the upper left. One single animal walking, centered and fully visible from the ears to the hooves, isolated on a plain flat solid green background like a green screen, no ground, no grass, no shadow, no text.",
+  "negativ": "text, letters, logo, watermark, frame, border, extra legs, five legs, missing legs, multiple animals, lamb, people, fence, grass, ground, shadow, blurry, photo, 3d render",
+  "bilder": [
+   {
+    "name": "schaf_lauf1",
+    "seed": 9401,
+    "ziel": "Tiere/schaf_lauf1.png",
+    "figur": "schaf",
+    "vorlage": "../tiere/schaf_9201_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       140,
+       560,
+       260,
+       200
+      ],
+      [
+       455,
+       690,
+       140,
+       220
+      ]
+     ]
+    },
+    "prompt": "A fluffy domestic sheep with thick cream-white curly wool, a dark grey face, dark grey legs and small ears, facing right, its head lowered to graze while it slowly walks to the right. Its legs are in mid-stride, spread wide apart: the front leg reaches far forward and the other front leg pushes back, the hind legs are spread the same way."
+   },
+   {
+    "name": "schaf_lauf2",
+    "seed": 9411,
+    "ziel": "Tiere/schaf_lauf2.png",
+    "figur": "schaf",
+    "vorlage": "../tiere/schaf_9201_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       140,
+       560,
+       260,
+       200
+      ],
+      [
+       455,
+       690,
+       140,
+       220
+      ]
+     ]
+    },
+    "prompt": "A fluffy domestic sheep with thick cream-white curly wool, a dark grey face, dark grey legs and small ears, facing right, its head lowered to graze while it slowly walks to the right. Its legs pass each other under the body: one front leg is lifted with the knee bent and one hind leg swings forward under the belly, the other legs carry the weight."
+   },
+   {
+    "name": "schaf2_lauf1",
+    "seed": 9421,
+    "ziel": "Tiere/schaf2_lauf1.png",
+    "figur": "schaf2",
+    "vorlage": "../tiere/schaf2_9211_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       150,
+       540,
+       230,
+       210
+      ],
+      [
+       490,
+       690,
+       250,
+       220
+      ]
+     ]
+    },
+    "prompt": "A fluffy domestic sheep with thick cream-white curly wool, a dark grey face, dark grey legs and small ears, facing right, walking to the right with its head up. Its legs are in mid-stride, spread wide apart: the front leg reaches far forward and the other front leg pushes back, the hind legs are spread the same way."
+   },
+   {
+    "name": "schaf2_lauf2",
+    "seed": 9432,
+    "ziel": "Tiere/schaf2_lauf2.png",
+    "figur": "schaf2",
+    "vorlage": "../tiere/schaf2_9211_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       150,
+       540,
+       230,
+       210
+      ],
+      [
+       490,
+       690,
+       250,
+       220
+      ]
+     ]
+    },
+    "prompt": "A fluffy domestic sheep with thick cream-white curly wool, a dark grey face, dark grey legs and small ears, facing right, walking to the right with its head up. Its legs pass each other under the body: one front leg is lifted with the knee bent and one hind leg swings forward under the belly, the other legs carry the weight."
+   },
+   {
+    "name": "reh_lauf1",
+    "seed": 9441,
+    "ziel": "Tiere/reh_lauf1.png",
+    "figur": "reh",
+    "vorlage": "../tiere/reh_9302_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       140,
+       530,
+       300,
+       270
+      ],
+      [
+       500,
+       630,
+       230,
+       330
+      ]
+     ]
+    },
+    "prompt": "A slender roe deer buck with a reddish-brown coat, a lighter belly, a white rump patch, large ears and a small pair of short pointed antlers, facing right, walking to the right with its head up. Its legs are in mid-stride, spread wide apart: the front leg reaches far forward and the other front leg pushes back, the hind legs are spread the same way."
+   },
+   {
+    "name": "reh_lauf2",
+    "seed": 9442,
+    "ziel": "Tiere/reh_lauf2.png",
+    "figur": "reh",
+    "vorlage": "../tiere/reh_9302_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       140,
+       530,
+       300,
+       270
+      ],
+      [
+       500,
+       630,
+       230,
+       330
+      ]
+     ]
+    },
+    "prompt": "A slender roe deer buck with a reddish-brown coat, a lighter belly, a white rump patch, large ears and a small pair of short pointed antlers, facing right, walking to the right with its head up. Its legs are in mid-stride, spread wide apart: the front leg reaches far forward and the other front leg pushes back, the hind legs are spread the same way."
+   },
+   {
+    "name": "reh2_lauf1",
+    "seed": 9464,
+    "ziel": "Tiere/reh2_lauf1.png",
+    "figur": "reh2",
+    "vorlage": "../tiere/reh2_9312_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       100,
+       430,
+       330,
+       270
+      ],
+      [
+       470,
+       560,
+       205,
+       330
+      ]
+     ]
+    },
+    "prompt": "A slender roe deer doe without antlers, with a reddish-brown coat, a lighter belly, a white rump patch and large ears, facing right, its head lowered to graze while it slowly walks to the right. Its legs are in mid-stride, spread wide apart: the front leg reaches far forward and the other front leg pushes back, the hind legs are spread the same way."
+   },
+   {
+    "name": "reh2_lauf2",
+    "seed": 9472,
+    "ziel": "Tiere/reh2_lauf2.png",
+    "figur": "reh2",
+    "vorlage": "../tiere/reh2_9312_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       100,
+       430,
+       330,
+       270
+      ],
+      [
+       470,
+       560,
+       205,
+       330
+      ]
+     ]
+    },
+    "prompt": "A slender roe deer doe without antlers, with a reddish-brown coat, a lighter belly, a white rump patch and large ears, facing right, its head lowered to graze while it slowly walks to the right. Its legs pass each other under the body: one front leg is lifted with the knee bent and one hind leg swings forward under the belly, the other legs carry the weight."
    }
   ]
  }

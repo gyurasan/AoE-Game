@@ -14,6 +14,10 @@
 #                         einem weichen Kreuz aus dem unverschobenen Bild überdecken
 #   spielerfarben true    zwei Dateien: <ziel>_blau.png wie erzeugt, <ziel>_rot.png
 #                         mit kräftigem Blau (Fahnen, Banner) in Rot umgefärbt
+#   figur         name    alle Einträge mit derselben Figur, auch aus anderen Gruppen,
+#                         auf dasselbe Rechteck beschneiden: die Vereinigung ihrer
+#                         sichtbaren Flächen. So bleiben die Laufbilder eines Tiers
+#                         deckungsgleich mit seinem Standbild. Ersetzt "zuschneiden".
 #
 # Neue Ziele muss danach noch jemand in Content/AgeOfEvolutions.mgcb eintragen.
 param([string]$Gruppe = "")
@@ -41,8 +45,8 @@ public static class Nachbearbeitung
         b.UnlockBits(d);
     }
 
-    /// Auf das kleinste Rechteck mit Alpha über der Schwelle beschneiden.
-    public static Bitmap Zuschneiden(Bitmap quelle, byte schwelle)
+    /// Das kleinste Rechteck mit Alpha über der Schwelle; das ganze Bild, wenn nichts sichtbar ist.
+    public static Rectangle Sichtbar(Bitmap quelle, byte schwelle)
     {
         var b = new Bitmap(quelle);
         BitmapData d; var px = Lesen(b, out d);
@@ -54,8 +58,21 @@ public static class Nachbearbeitung
                     l = Math.Min(l, x); r = Math.Max(r, x); o = Math.Min(o, y); u = Math.Max(u, y);
                 }
         b.UnlockBits(d);
-        if (r < 0) return b;
-        var ziel = b.Clone(new Rectangle(l, o, r - l + 1, u - o + 1), PixelFormat.Format32bppArgb);
+        b.Dispose();
+        return r < 0 ? new Rectangle(0, 0, quelle.Width, quelle.Height) : new Rectangle(l, o, r - l + 1, u - o + 1);
+    }
+
+    /// Auf das kleinste Rechteck mit Alpha über der Schwelle beschneiden.
+    public static Bitmap Zuschneiden(Bitmap quelle, byte schwelle)
+    {
+        return Ausschnitt(quelle, Sichtbar(quelle, schwelle));
+    }
+
+    /// Auf ein festes Rechteck beschneiden - bei Figuren dasselbe für alle ihre Bilder.
+    public static Bitmap Ausschnitt(Bitmap quelle, Rectangle rahmen)
+    {
+        var b = new Bitmap(quelle);
+        var ziel = b.Clone(rahmen, PixelFormat.Format32bppArgb);
         b.Dispose();
         return ziel;
     }
@@ -144,6 +161,21 @@ function Wert($eintrag, $gruppe, [string]$feld) {
     return $gruppe.$feld
 }
 
+# Figuren: das gemeinsame Rechteck aller Einträge einer Figur, über alle Gruppen -
+# auch wenn nur eine Gruppe übernommen wird, sonst passten die Bilder nicht zueinander
+$figuren = @{}
+foreach ($g in $katalog.PSObject.Properties) {
+    foreach ($e in $g.Value.bilder) {
+        if (-not $e.figur -or -not $e.ziel) { continue }
+        $quelle = Join-Path $hier "ausgabe\$($g.Name)\$($e.name)_$($e.seed).png"
+        if (-not (Test-Path $quelle)) { continue }
+        $b = [System.Drawing.Bitmap]::new($quelle)
+        try { $r = [Nachbearbeitung]::Sichtbar($b, 8) } finally { $b.Dispose() }
+        if ($figuren.ContainsKey($e.figur)) { $r = [System.Drawing.Rectangle]::Union($figuren[$e.figur], $r) }
+        $figuren[$e.figur] = $r
+    }
+}
+
 foreach ($g in $katalog.PSObject.Properties) {
     if ($Gruppe -and $g.Name -ne $Gruppe) { continue }
     foreach ($e in $g.Value.bilder) {
@@ -169,7 +201,9 @@ foreach ($g in $katalog.PSObject.Properties) {
             if (Wert $e $g.Value "kachelbar") {
                 $neu = [Nachbearbeitung]::Kachelbar($bild, [int]($bild.Width / 8)); $bild.Dispose(); $bild = $neu
             }
-            if (Wert $e $g.Value "zuschneiden") {
+            if ($e.figur -and $figuren.ContainsKey($e.figur)) {
+                $neu = [Nachbearbeitung]::Ausschnitt($bild, $figuren[$e.figur]); $bild.Dispose(); $bild = $neu
+            } elseif (Wert $e $g.Value "zuschneiden") {
                 $neu = [Nachbearbeitung]::Zuschneiden($bild, 8); $bild.Dispose(); $bild = $neu
             }
             $breite = Wert $e $g.Value "zielbreite"

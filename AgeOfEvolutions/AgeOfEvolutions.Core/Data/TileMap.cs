@@ -367,11 +367,10 @@ public class TileMap
                 t.ResourceType = Resource.Food;
                 t.ResourceAmount = Settings.SheepFood;
                 t.Food = FoodSource.Sheep;
+                t.Animal = NewAnimal(Settings.SheepWanderSecondsMax);
                 _sheepCoords.Add((sx, sy));
             }
         }
-        if (_sheepCoords.Count > 0)
-            _sheepWanderTimer = _RandomRange(_wildRng, Settings.SheepWanderSecondsMin, Settings.SheepWanderSecondsMax);
     }
 
     // Rehe: 2–4 Herden je 2–4 Rehe, nur auf Gras - seltener und wertvoller
@@ -394,11 +393,10 @@ public class TileMap
                 t.ResourceType = Resource.Food;
                 t.ResourceAmount = Settings.DeerFood;
                 t.Food = FoodSource.Deer;
+                t.Animal = NewAnimal(Settings.DeerWanderSecondsMax);
                 _deerCoords.Add((sx, sy));
             }
         }
-        if (_deerCoords.Count > 0)
-            _deerWanderTimer = _RandomRange(_wildRng, Settings.DeerWanderSecondsMin, Settings.DeerWanderSecondsMax);
     }
     
     // Beerenbüsche: ein paar einzelne Büsche nah an Waldlichtungen — die
@@ -593,6 +591,7 @@ public class TileMap
     {
         if (tile.Food is FoodSource.Sheep or FoodSource.Deer)
             RemoveSheep(tile.X, tile.Y);
+        tile.Animal = null;
         ClearResource(tile);
     }
     
@@ -624,6 +623,9 @@ public class TileMap
                 if (t == null) continue;
                 t.Farm = true;
                 t.FarmRegrow = 0f;
+                t.FarmCol = bx - x;
+                t.FarmRow = by - y;
+                t.FarmSize = size;
                 t.ResourceType = AoE.Core.Entities.Resource.Food;
                 t.ResourceAmount = FARM_FOOD;
                 t.Food = FoodSource.Farm;
@@ -667,16 +669,30 @@ public class TileMap
     // -----------------------------------------------------------------
     // Schafe (FoodSource.Sheep, 100 Nahrung) und Rehe (FoodSource.Deer,
     // 150 Nahrung) sind Nahrungskacheln, die über die Wiese wandern. Jede
-    // Tierart hat ihre eigene Koordinatenliste und ihren Takt; beide teilen
+    // Tierart hat ihre eigene Koordinatenliste, jedes Tier seinen eigenen
+    // Takt (WildAnimal auf der Kachel); beide Arten teilen
     // sich die Reservierung _claimed — ist eine Kachel reserviert (ein
     // Dorfbewohner erntet bzw. jagt gerade), bleibt das Tier stehen, damit
     // der Dorfbewohner es nicht im Stich lässt.
     private readonly List<(int x, int y)> _sheepCoords = new List<(int, int)>();
     private readonly List<(int x, int y)> _deerCoords = new List<(int, int)>();
     private readonly HashSet<(int x, int y)> _claimed = new HashSet<(int, int)>();
-    private float _sheepWanderTimer;
-    private float _deerWanderTimer;
     private readonly Random _wildRng = new Random();
+
+    /// <summary>Sekunden, die ein Tier für einen Schritt auf die Nachbarkachel braucht.</summary>
+    public const float WILD_STEP_SECONDS = 1.0f;
+
+    /// <summary>
+    /// Ein frisch aufgestelltes Tier: zufälliges Aussehen und Blickrichtung, der
+    /// erste Schritt zu einer zufälligen Zeit im Takt - sonst zöge die ganze
+    /// Herde im Gleichschritt los.
+    /// </summary>
+    private WildAnimal NewAnimal(float maxSeconds) => new WildAnimal
+    {
+        Look = _wildRng.Next(int.MaxValue),
+        FacingLeft = _wildRng.Next(2) == 0,
+        WanderTimer = _RandomRange(_wildRng, 0f, maxSeconds),
+    };
 
     /// <summary>Anzahl der Schafe auf dieser Karte (auch reservierte).</summary>
     public int SheepCount => _sheepCoords.Count;
@@ -709,89 +725,86 @@ public class TileMap
     /// </summary>
     public void UpdateSheep(float dt)
     {
-        UpdateWild(_sheepCoords, ref _sheepWanderTimer, dt, Settings.SheepWanderSecondsMin,
-                   Settings.SheepWanderSecondsMax, Settings.SheepWanderRadius, FoodSource.Sheep);
+        UpdateWild(_sheepCoords, dt, Settings.SheepWanderSecondsMin, Settings.SheepWanderSecondsMax,
+                   Settings.SheepWanderRadius, FoodSource.Sheep);
     }
 
     /// <summary>
-    /// Taktet die Reh-Wanderung — gleicher Takt wie die Schafe, eigene
-    /// Herde und eigene Geschwindigkeit.
+    /// Taktet die Reh-Wanderung — eigene Herde, eigener Takt.
     /// </summary>
     public void UpdateDeer(float dt)
     {
-        UpdateWild(_deerCoords, ref _deerWanderTimer, dt, Settings.DeerWanderSecondsMin,
-                   Settings.DeerWanderSecondsMax, Settings.DeerWanderRadius, FoodSource.Deer);
+        UpdateWild(_deerCoords, dt, Settings.DeerWanderSecondsMin, Settings.DeerWanderSecondsMax,
+                   Settings.DeerWanderRadius, FoodSource.Deer);
     }
 
     /// <summary>
-    /// Der gemeinsame Wander-Takt: solange das Timer läuft, wird versucht,
-    /// eines der Tiere der Liste zu verschieben. Tierart und Menge kommen
-    /// aus den Settings; die Regeln bleiben die gleichen.
+    /// Der gemeinsame Wandertakt: jedes freie Tier hat seinen eigenen Zähler
+    /// und macht, wenn er abgelaufen und der letzte Schritt beendet ist, einen
+    /// Schritt auf eine freie Nachbarwiese; danach wartet es wieder min bis max
+    /// Sekunden. Reservierte Tiere (ein Dorfbewohner erntet bzw. jagt sie
+    /// gerade) bleiben stehen; ein laufender Schritt endet trotzdem.
     /// </summary>
-    private void UpdateWild(List<(int x, int y)> coords, ref float timer, float dt, float min, float max, int radius,
+    private void UpdateWild(List<(int x, int y)> coords, float dt, float min, float max, int radius,
                             FoodSource source)
     {
-        if (coords.Count == 0) return;
-        timer -= dt;
-        while (timer <= 0f && coords.Count > 0)
-        {
-            timer += _RandomRange(_wildRng, min, max);
-            if (!WanderOneWild(coords, radius, source))
-                break;
-        }
-    }
-
-    /// <summary>
-    /// Verschiebt ein freies Tier auf eine freie, benachbarte Wiesen-Kachel.
-    /// Reservierte Tiere (ein Dörfler erntet bzw. jagt es gerade) bleiben
-    /// stehen. Pro Takt wird so oft versucht, bis eines gewandert ist.
-    /// </summary>
-    private bool WanderOneWild(List<(int x, int y)> coords, int radius, FoodSource source)
-    {
-        for (int i = coords.Count - 1; i >= 0; i--)
+        coords.RemoveAll(c => GetTile(c.x, c.y)?.Food != source);
+        for (int i = 0; i < coords.Count; i++)
         {
             var (sx, sy) = coords[i];
             var t = GetTile(sx, sy);
-            if (t == null || t.Food != source)
-            {
-                coords.RemoveAt(i);
+            t.Animal ??= NewAnimal(max);
+            var tier = t.Animal;
+            tier.Glide = Math.Max(0f, tier.Glide - dt);
+            if (_claimed.Contains((sx, sy)) || t.ResourceAmount <= 0)
+                continue;   // reserviert bzw. leer: bleibt stehen
+            tier.WanderTimer -= dt;
+            if (tier.WanderTimer > 0f || tier.Glide > 0f)
                 continue;
-            }
-            if (_claimed.Contains((sx, sy)))
-                continue;   // reserviert: gehört gerade einem Dörfler
-            if (t.ResourceAmount <= 0)
-                continue;   // leer (inzwischen erntet bzw. gejagt)
-
-            // Ein freies Tier: versuche, es zu verschieben. Gelingt es nicht,
-            // geht es zum nächsten (dieses wartet bis zum nächsten Takt).
-            for (int attempt = 0; attempt < 12; attempt++)
-            {
-                int dx = _wildRng.Next(-radius, radius + 1);
-                int dy = _wildRng.Next(-radius, radius + 1);
-                if (dx == 0 && dy == 0) continue;
-                int nx = sx + dx, ny = sy + dy;
-                var target = GetTile(nx, ny);
-                if (target == null) continue;
-                if (target.Type != TileType.Grassland) continue;
-                if (!string.IsNullOrEmpty(target.Building)) continue;
-                if (target.Farm) continue;
-                if (target.ResourceType != null && target.ResourceAmount > 0) continue;
-                if (target.Food != FoodSource.None) continue;   // kein anderes Tier dort
-
-                // Das Tier wandert: Inhalt kopieren, alte Kachel wird Wiese.
-                int amount = t.ResourceAmount;
-                target.Food = source;
-                target.ResourceType = Resource.Food;
-                target.ResourceAmount = amount;
-                t.Food = FoodSource.None;
-                t.ResourceType = null;
-                t.ResourceAmount = 0;
-                coords[i] = (nx, ny);
-                return true;
-            }
-            // Kein passendes Ziel für dieses Tier — das nächste versuchen.
+            tier.WanderTimer = _RandomRange(_wildRng, min, max);
+            if (WanderStep(t, radius, source) is { } ziel)
+                coords[i] = ziel;
         }
-        return false;   // kein Tier hat ein Ziel gefunden
+    }
+
+    /// <summary>
+    /// Ein Schritt eines Tiers auf eine freie Wiesen-Kachel im Umkreis radius:
+    /// Nahrung und Tier ziehen um, die alte Kachel wird Wiese. Das Tier blickt
+    /// in Schrittrichtung und merkt sich, woher es kam (FromX, FromY, Glide).
+    /// Gibt die neue Kachel zurück, oder null, wenn kein Ziel frei war.
+    /// </summary>
+    private (int x, int y)? WanderStep(Tile t, int radius, FoodSource source)
+    {
+        for (int attempt = 0; attempt < 12; attempt++)
+        {
+            int dx = _wildRng.Next(-radius, radius + 1);
+            int dy = _wildRng.Next(-radius, radius + 1);
+            if (dx == 0 && dy == 0) continue;
+            int nx = t.X + dx, ny = t.Y + dy;
+            var target = GetTile(nx, ny);
+            if (target == null) continue;
+            if (target.Type != TileType.Grassland) continue;
+            if (!string.IsNullOrEmpty(target.Building)) continue;
+            if (target.Farm) continue;
+            if (target.ResourceType != null && target.ResourceAmount > 0) continue;
+            if (target.Food != FoodSource.None) continue;   // kein anderes Tier dort
+
+            var tier = t.Animal;
+            tier.FromX = -dx;
+            tier.FromY = -dy;
+            tier.Glide = WILD_STEP_SECONDS;
+            if (dx != 0) tier.FacingLeft = dx < 0;
+            target.Food = source;
+            target.ResourceType = Resource.Food;
+            target.ResourceAmount = t.ResourceAmount;
+            target.Animal = tier;
+            t.Food = FoodSource.None;
+            t.ResourceType = null;
+            t.ResourceAmount = 0;
+            t.Animal = null;
+            return (nx, ny);
+        }
+        return null;
     }
 
     /// <summary>

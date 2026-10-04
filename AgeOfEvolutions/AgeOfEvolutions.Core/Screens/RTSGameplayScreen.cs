@@ -227,16 +227,27 @@ public class RTSGameplayScreen : GameScreen
         { "Baeume/laubbaum", "Baeume/laubbaum2", "Baeume/nadelbaum", "Baeume/nadelbaum2", "Baeume/buschbaum" };
     private static readonly string[] StoneAssets = { "Rohstoffe/stein", "Rohstoffe/stein2" };
     private static readonly string[] GoldAssets = { "Rohstoffe/gold", "Rohstoffe/gold2" };
-    private static readonly string[] DeerAssets = { "Rohstoffe/reh", "Rohstoffe/reh2" };
+    // Schafe und Rehe aus tools/bilder (Gruppe tiere), nach rechts blickend. Ihre
+    // Breite als Anteil an der Kachel - ein Dorfbewohner ist 24 von 32 Welteinheiten hoch
+    private static readonly string[] SheepAssets = { "Tiere/schaf", "Tiere/schaf2" };
+    private static readonly string[] DeerAssets = { "Tiere/reh", "Tiere/reh2" };
+    private const float SHEEP_WIDTH = 0.8f;
+    private const float DEER_WIDTH = 0.95f;
+    private const int WALK_CYCLES_PER_STEP = 2;   // Doppelschritte der Beine je Kachelschritt
     private Texture2D _grassTex;
     private Texture2D _sandTex;
     private Texture2D _waterGroundTex;    // Wasserbild; waterTex sind die gezeichneten Wasserkacheln
-    private Texture2D _soilTex;           // Acker (Boden/acker)
-    private Texture2D _wheatTex;          // Weizen (Boden/weizen)
+    private Texture2D _soilTex;           // abgeerntetes Feld (Felder/acker), ein Bild je Feld
+    private Texture2D _wheatTex;          // dasselbe Feld mit reifem Weizen (Felder/weizen)
     private Texture2D[] _treeSprites = Array.Empty<Texture2D>();
     private Texture2D[] _stoneSprites = Array.Empty<Texture2D>();
     private Texture2D[] _goldSprites = Array.Empty<Texture2D>();
+    private Texture2D[] _sheepSprites = Array.Empty<Texture2D>();
     private Texture2D[] _deerSprites = Array.Empty<Texture2D>();
+    private Texture2D[] _deerFallback;    // das gezeichnete Reh, wenn Tiere/reh* fehlen
+    // Laufbilder je Standbild (Tiere/<name>_lauf1, _lauf2), deckungsgleich mit ihm
+    // zugeschnitten: Schritt, Stand, Gegenschritt, Stand
+    private readonly Dictionary<Texture2D, Texture2D[]> _animalWalk = new();
     private const int GROUND_TEXELS = 4;   // Bildpixel der Bodenbilder je Welteinheit
 
     // Bewegung je Einheit, aus der Lage zwischen zwei Updates abgeleitet - die
@@ -352,13 +363,21 @@ public class RTSGameplayScreen : GameScreen
 
         _grassTex = LoadOptional("Boden/gras");
         _sandTex = LoadOptional("Boden/sand");
-        _soilTex = LoadOptional("Boden/acker");
-        _wheatTex = LoadOptional("Boden/weizen");
+        _soilTex = LoadOptional("Felder/acker");
+        _wheatTex = LoadOptional("Felder/weizen");
         _waterGroundTex = LoadOptional("Boden/wasser");
         _treeSprites = TreeAssets.Select(LoadOptional).Where(t => t != null).ToArray();
         _stoneSprites = StoneAssets.Select(LoadOptional).Where(t => t != null).ToArray();
         _goldSprites = GoldAssets.Select(LoadOptional).Where(t => t != null).ToArray();
+        _sheepSprites = SheepAssets.Select(LoadOptional).Where(t => t != null).ToArray();
         _deerSprites = DeerAssets.Select(LoadOptional).Where(t => t != null).ToArray();
+        // Laufbilder nur, wenn beide da sind - sonst gleitet das Tier wie bisher
+        foreach (var asset in SheepAssets.Concat(DeerAssets))
+        {
+            if (LoadOptional(asset) is { } stand && LoadOptional(asset + "_lauf1") is { } lauf1
+                && LoadOptional(asset + "_lauf2") is { } lauf2)
+                _animalWalk[stand] = new[] { lauf1, stand, lauf2, stand };
+        }
 
         // Gebäude-Sprites je Spielerfarbe; fehlt eines, zeichnet DrawBuilding
         // das Gebäude wie bisher selbst
@@ -2082,8 +2101,8 @@ public class RTSGameplayScreen : GameScreen
                                   || (tile.Type == TileType.Forest && _treeSprites.Length > 0);
                 if (tile.Type == TileType.Water && _waterGroundTex != null)
                     DrawWater(spriteBatch, x, y, rect);
-                else if (tile.Farm && _soilTex != null)
-                    DrawField(spriteBatch, tile, x, y, rect);
+                else if (tile.Farm && _soilTex != null && _wheatTex != null)
+                    DrawField(spriteBatch, tile, rect);
                 else if (tile.Type == TileType.Sand && _sandTex != null)
                     DrawGroundImage(spriteBatch, _sandTex, x, y, rect);
                 else if (grassUnder && _grassTex != null)
@@ -2121,11 +2140,12 @@ public class RTSGameplayScreen : GameScreen
                 // Eine Farm hat ihren eigenen Erdfleck; darunter nur ein neutraler
                 // dunkler Grund, damit die Halme absetzen.
                 bool isFish = tile.Food == FoodSource.Fish;
-                bool isDeer = tile.Food == FoodSource.Deer;
+                bool isSheep = tile.Food == FoodSource.Sheep;
                 if (isFarm && _soilTex != null && _wheatTex != null)
                     continue;
-                // Rehe stehen in der Zeilenschicht (DrawDeer) — hier nur den
-                // Gras-Grund darunter malen, kein Kleinsprite.
+                // Schafe und Rehe mit Bild stehen in der Zeilenschicht (DrawAnimal)
+                if (AnimalSprites(tile.Food).Length > 0)
+                    continue;
                 if (isFarm)
                     spriteBatch.Draw(px, rect, new Color(70, 55, 30));
                 else if (!isFish && _grassTex != null)
@@ -2133,8 +2153,6 @@ public class RTSGameplayScreen : GameScreen
                 else if (!isFish && tileTex.TryGetValue(TileType.Grassland, out var grass))
                     spriteBatch.Draw(grass, rect, Color.White);
 
-                if (isDeer) continue;   // Reh wird in der Zeilenschicht gezeichnet
-                bool isSheep = tile.Food == FoodSource.Sheep;
                 var objTex = isFarm ? BuildFarmTextureCached()
                            : isFish ? BuildFishTextureCached()
                            : isSheep ? BuildSheepTextureCached()
@@ -2155,7 +2173,7 @@ public class RTSGameplayScreen : GameScreen
             }
         }
         
-        // Baumkronen, Stein- und Goldhaufen als eigene Figuren, zeilenweise von
+        // Baumkronen, Stein- und Goldhaufen, Schafe und Rehe als eigene Figuren, zeilenweise von
         // oben: tiefere überdecken höhere, auch über Kachelgrenzen hinweg
         for (int y = 0; y < tileMap.Height; y++)
         {
@@ -2167,8 +2185,8 @@ public class RTSGameplayScreen : GameScreen
                     DrawCrowns(spriteBatch, x, y);
                 else if (PileSprites(tile.Type).Length > 0)
                     DrawPile(spriteBatch, x, y, PileSprites(tile.Type));
-                else if (tile.Food == FoodSource.Deer)
-                    DrawDeer(spriteBatch, x, y);
+                else if (AnimalSprites(tile.Food) is { Length: > 0 } animals)
+                    DrawAnimal(spriteBatch, tile, x, y, animals);
             }
         }
 
@@ -2221,81 +2239,45 @@ public class RTSGameplayScreen : GameScreen
     };
 
     /// <summary>
-    /// Eine Farm-Kachel: der Acker liegt als Grund, der Weizen darüber mit der
-    /// Deckkraft und dem Goldton aus WheatLook. Am Feldrand (Nachbar ohne Farm)
-    /// liegt eine schmale, dunkle Erdkante - so setzt sich das Getreide ab und
-    /// die Feldgrenze ist lesbar. Geerntete Kacheln zeigen den nackten Acker;
-    /// der Weizen keimt beim Nachwachsen wieder aus, bis er wieder voll steht.
+    /// Eine Feldkachel zeigt ihren Teil des Feldbilds: Felder/weizen und
+    /// Felder/acker zeigen jedes das ganze Feld samt Zaun, mit denselben Reihen -
+    /// das Ackerbild ist aus dem Weizenbild ausgebessert. Zuerst der abgeerntete
+    /// Acker, darüber der Weizen mit Deckkraft und Ton aus WheatLook; jede Kachel
+    /// wird für sich geerntet und wächst für sich nach.
     /// </summary>
-    private void DrawField(SpriteBatch spriteBatch, Data.Tile tile, int x, int y, Rectangle rect)
+    private void DrawField(SpriteBatch spriteBatch, Data.Tile tile, Rectangle rect)
     {
-        DrawGroundImage(spriteBatch, _soilTex, x, y, rect);
-
-        // Feldkante an jeder Seite, an der keine weitere Farm-Kachel angrenzt
-        if (IsField(x, y - 1))
-            DrawFieldEdge(spriteBatch, rect, false, true);
-        if (IsField(x, y + 1))
-            DrawFieldEdge(spriteBatch, rect, false, false);
-        if (IsField(x - 1, y))
-            DrawFieldEdge(spriteBatch, rect, true, true);
-        if (IsField(x + 1, y))
-            DrawFieldEdge(spriteBatch, rect, true, false);
-
+        spriteBatch.Draw(_soilTex, rect, FieldPart(tile, _soilTex.Width, _soilTex.Height), Color.White);
         var (growth, tint) = WheatLook(tile);
-        if (growth <= 0f) return;
-        int ts = tileMap.TileSize * GROUND_TEXELS, size = _wheatTex.Width;
-        var source = new Rectangle((x * ts) % size, (y * ts) % size, ts, ts);
-        spriteBatch.Draw(_wheatTex, rect, source,
-                         new Color(tint.R / 255f, tint.G / 255f, tint.B / 255f, growth));
+        if (growth > 0f)
+            spriteBatch.Draw(_wheatTex, rect, FieldPart(tile, _wheatTex.Width, _wheatTex.Height), tint * growth);
     }
 
     /// <summary>
-    /// Die Weizendeckkraft und der Weizenton einer Farm-Kachel. Das stehende
-    /// Getreide folgt dem Vorrat: mit jeder geernteten Einheit wird das Feld
-    /// kahl (Deckkraft sinkt, Ton bleibt gold). Nach der Ernte wächst es wieder
-    /// nach (Deckkraft von 0, Ton von grün nach gold) - sichtbar über FarmRegrow,
-    /// bis bei FARM_FOOD wieder goldener Vollstand steht.
+    /// Der Ausschnitt einer Feldkachel aus einem Bild, das das ganze Feld zeigt:
+    /// Spalte FarmCol und Zeile FarmRow von FarmSize × FarmSize gleichen Teilen.
+    /// </summary>
+    private Rectangle FieldPart(Data.Tile tile, int imageWidth, int imageHeight)
+    {
+        int size = Math.Max(1, tile.FarmSize);
+        int w = imageWidth / size, h = imageHeight / size;
+        return new Rectangle(tile.FarmCol * w, tile.FarmRow * h, w, h);
+    }
+
+    /// <summary>
+    /// Die Weizendeckkraft und der Weizenton einer Feldkachel. Das stehende
+    /// Getreide folgt dem Vorrat: mit jeder geernteten Einheit wird es lichter,
+    /// bleibt aber sichtbar, bis die Kachel leer ist. Nach der Ernte wächst es
+    /// nach - erst dünn und grün, zuletzt dicht und im Ton des Feldbilds -,
+    /// sichtbar über FarmRegrow, bis bei FARM_FOOD wieder voller Weizen steht.
     /// </summary>
     private (float Growth, Color Tint) WheatLook(Data.Tile tile)
     {
-        var gold = new Color(255, 216, 120);
-        var keim = new Color(150, 190, 80);
         if (tile.ResourceType == Resource.Food && tile.ResourceAmount > 0)
-        {
-            float stand = MathHelper.Clamp(tile.ResourceAmount / (float)TileMap.FARM_FOOD, 0.2f, 1f);
-            return (stand, gold);
-        }
+            return (MathHelper.Clamp(0.3f + 0.7f * tile.ResourceAmount / TileMap.FARM_FOOD, 0f, 1f), Color.White);
         float nach = 1f - MathHelper.Clamp(tile.FarmRegrow / TileMap.FARM_REGROW_SECONDS, 0f, 1f);
         if (nach <= 0f) return (0f, Color.White);
-        return (nach, Color.Lerp(keim, gold, nach));
-    }
-
-    /// <summary>Ob an (x, y) eine nicht-Acker-Kachel oder die Kartenkante liegt.</summary>
-    private bool IsField(int x, int y)
-    {
-        var t = tileMap.GetTile(x, y);
-        return t == null || !t.Farm;
-    }
-
-    /// <summary>
-    /// Die dunkle Erdkante an einer Seite einer Ackerkachel: waagerecht =
-    /// senkrechte Kante, linksOben = obere bzw. linke Seite des Kachelfelds.
-    /// Eine 3-px-Linie in Boden-Schwarz, damit der Acker eine Kante bekommt.
-    /// </summary>
-    private void DrawFieldEdge(SpriteBatch spriteBatch, Rectangle rect, bool waagerecht, bool linksOben)
-    {
-        const int breite = 3;
-        var rand = waagerecht
-            ? new Rectangle(rect.Left, rect.Top, breite, rect.Height)
-            : new Rectangle(rect.Left, rect.Top, rect.Width, breite);
-        if (waagerecht && !linksOben)
-            rand = new Rectangle(rect.Right - breite, rect.Top, breite, rect.Height);
-        if (!waagerecht && !linksOben)
-            rand = new Rectangle(rect.Left, rect.Bottom - breite, rect.Width, breite);
-        if (px != null)
-            spriteBatch.Draw(px, rand, new Color(34, 24, 12));
-        else
-            spriteBatch.Draw(_soilTex, rand, new Color(34, 24, 12, 160));
+        return (nach, Color.Lerp(new Color(150, 200, 90), Color.White, nach));
     }
 
     /// <summary>
@@ -2321,42 +2303,69 @@ public class RTSGameplayScreen : GameScreen
     }
 
     /// <summary>
-    /// Ein Reh, als freigestelltes AI-Sprite (Rohstoffe/reh*), gezeichnet wie
-    /// Bäume und Haufen — überdeckt es wie die Haufen mehrere Kacheln.
-    /// Variante und Lage hängen von einem Kachellagen-Hash ab, damit das Reh
-    /// von Frame zu Frame nicht zappelt. Fehlt das AI-Bild, fällt DrawDeer
-    /// auf das prozedurale Rehsprite (BuildDeerTexture) zurück — gleicher
-    /// Zeilenschicht- und Zielrechteck-Aufbau.
+    /// Die Bilder für Schafe und Rehe: die freigestellten Sprites aus Tiere/,
+    /// für Rehe ohne Bild das gezeichnete Reh (BuildDeerTexture). Leer heißt:
+    /// das Schaf zeichnet DrawTileMap wie bisher als Kachelbild.
     /// </summary>
-    private void DrawDeer(SpriteBatch spriteBatch, int x, int y)
+    private Texture2D[] AnimalSprites(FoodSource food) => food switch
     {
-        var tileRect = TileScreenRect(x, y);
-        int hash = unchecked(x * 73856093 ^ y * 19349663) & 0x7FFFFFFF;
-        // Rehe sind rund 1.6× so breit wie eine Kachel — wie die Haufen
-        int width = tileRect.Width * (150 + (hash >> 20) % 30) / 100;
+        FoodSource.Sheep => _sheepSprites,
+        FoodSource.Deer => _deerSprites.Length > 0 ? _deerSprites
+                         : _deerFallback ??= new[] { BuildDeerTextureCached() },
+        _ => Array.Empty<Texture2D>(),
+    };
 
-        if (_deerSprites.Length > 0)
-        {
-            var tex = _deerSprites[(hash >> 16) % _deerSprites.Length];
-            int height = width * tex.Height / tex.Width;
-            int jx = ((hash >> 4) % 9 - 4) * tileRect.Width / 32;
-            int jy = ((hash >> 8) % 6 - 3) * tileRect.Width / 32;
-            var target = new Rectangle(tileRect.Center.X - width / 2 + jx,
-                                       tileRect.Bottom - tileRect.Height / 5 - height + jy, width, height);
-            if (target.Intersects(screenBounds))
-                spriteBatch.Draw(tex, target, Color.White);
+    /// <summary>
+    /// Ein Schaf oder Reh als Sprite in der Zeilenschicht, wie Bäume und Haufen:
+    /// es steht mit den Hufen im unteren Teil seiner Kachel, Bild und Versatz
+    /// kommen aus WildAnimal.Look und bleiben beim Wandern gleich. Es blickt in
+    /// Laufrichtung (die Bilder sind nach rechts gemalt und werden gespiegelt)
+    /// und läuft jeden Schritt sichtbar von der alten zur neuen Kachel: es
+    /// setzt dabei die Beine (Laufbilder im Wechsel, WalkPhase) und wippt
+    /// leicht. Ein weicher Schatten verankert es auf dem Gras.
+    /// </summary>
+    private void DrawAnimal(SpriteBatch spriteBatch, Data.Tile tile, int x, int y, Texture2D[] sprites)
+    {
+        var tier = tile.Animal ?? new Data.WildAnimal();
+        var tileRect = TileScreenRect(x, y);
+        var tex = sprites[tier.Look % sprites.Length];
+        int phase = WalkPhase(tier.Glide);
+        if (phase >= 0 && _animalWalk.TryGetValue(tex, out var walk))
+            tex = walk[phase];
+        int width = (int)(tileRect.Width * (tile.Food == FoodSource.Deer ? DEER_WIDTH : SHEEP_WIDTH));
+        int height = width * tex.Height / tex.Width;
+
+        // Versatz in der Kachel aus dem Aussehen, dazu der Rest des Schritts
+        int jx = ((tier.Look >> 8) % 9 - 4) * tileRect.Width / 32;
+        int jy = ((tier.Look >> 12) % 7 - 3) * tileRect.Width / 32;
+        float rest = MathHelper.Clamp(tier.Glide / TileMap.WILD_STEP_SECONDS, 0f, 1f);
+        var foot = new Vector2(tileRect.Center.X + jx + tier.FromX * rest * tileRect.Width,
+                               tileRect.Bottom - tileRect.Height / 4 + jy + tier.FromY * rest * tileRect.Height);
+        float bob = rest > 0f ? MathF.Abs(MathF.Sin(rest * MathF.PI * 2f * WALK_CYCLES_PER_STEP)) * 1.5f * cameraZoom : 0f;
+
+        var target = new Rectangle((int)(foot.X - width / 2f), (int)(foot.Y - height - bob), width, height);
+        if (!target.Intersects(screenBounds))
             return;
-        }
-        // Fallback: prozedurales Reh-Texture
-        var objTex = BuildDeerTextureCached();
-        if (objTex != null)
+        if (_shadowTex != null)
         {
-            int height = width * objTex.Height / objTex.Width;
-            var target = new Rectangle(tileRect.Center.X - width / 2,
-                                       tileRect.Bottom - tileRect.Height / 5 - height, width, height);
-            if (target.Intersects(screenBounds))
-                spriteBatch.Draw(objTex, target, Color.White);
+            int shadowWidth = (int)(width * 0.8f), shadowHeight = Math.Max(2, (int)(width * 0.22f));
+            spriteBatch.Draw(_shadowTex, new Rectangle((int)foot.X - shadowWidth / 2,
+                (int)foot.Y - height / 12 - shadowHeight / 2, shadowWidth, shadowHeight), Color.White);
         }
+        spriteBatch.Draw(tex, target, null, Color.White, 0f, Vector2.Zero,
+                         tier.FacingLeft ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 0f);
+    }
+
+    /// <summary>
+    /// Welches Laufbild ein Tier zeigt, das noch glide Sekunden unterwegs ist:
+    /// 0 bis 3 für Schritt, Stand, Gegenschritt, Stand, WALK_CYCLES_PER_STEP
+    /// Durchgänge je Kachelschritt; -1, solange es steht.
+    /// </summary>
+    private int WalkPhase(float glide)
+    {
+        if (glide <= 0f) return -1;
+        float gelaufen = 1f - MathHelper.Clamp(glide / TileMap.WILD_STEP_SECONDS, 0f, 1f);
+        return (int)(gelaufen * WALK_CYCLES_PER_STEP * 4) % 4;
     }
 
     /// <summary>

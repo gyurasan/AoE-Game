@@ -1,6 +1,6 @@
 // Spielablauf: stellt Abläufe aus RTSGameplayScreen ohne Grafik nach und prüft sie.
 //
-//   dotnet run --project tools/spielablauf -- bauen weiterbauen linksklick farm schafe bewegen minimap zoom leiste zeitalter turm menue animation fenster werkzeug feld
+//   dotnet run --project tools/spielablauf -- bauen weiterbauen linksklick farm schafe wild herde bewegen minimap zoom leiste zeitalter turm menue animation fenster werkzeug feld
 //
 // Jede genannte Gruppe läuft auf drei frisch erzeugten Karten. Die Spielschleife
 // läuft Bild für Bild (60 je Sekunde) mit denselben Methoden, die Update() im Spiel
@@ -61,6 +61,13 @@ for (int karte = 1; karte <= KARTEN; karte++)
     {
         Pruefe($"Karte {karte}, Reh-Reservierung", () => RehReservierung(karte, verstoesse));
         Pruefe($"Karte {karte}, Reh-Wanderung", () => RehWanderung(karte, verstoesse));
+    }
+    if (gruppen.Contains("herde"))
+    {
+        Pruefe($"Karte {karte}, Herde zieht", () => HerdeZieht(karte, verstoesse));
+        Pruefe($"Karte {karte}, Tierschritt", () => TierSchritt(karte, verstoesse));
+        if (karte == 1)
+            Pruefe("Gangbild", () => Gangbild(verstoesse));
     }
     if (gruppen.Contains("bewegen"))
     {
@@ -506,6 +513,130 @@ static void RehWanderung(int karte, List<string> verstoesse)
         verstoesse.Add($"{wer}: nach 60 s kein Reh gewandert (alle {vor} an ihrem Startplatz)");
     else
         Console.WriteLine($"  ok  {wer}: {rehe.Count} → {nach.Count} Rehe auf der Karte, mindestens eines gewandert");
+}
+
+// Herde (C7t): jedes freie Tier wandert in seinem eigenen Takt - in 60 s zieht
+// mindestens die Hälfte der Schafe und der Rehe weiter, nicht immer dasselbe.
+// Dabei bleibt jedes Tier dasselbe Objekt mit demselben Aussehen, und keines
+// geht verloren oder verdoppelt sich.
+static void HerdeZieht(int karte, List<string> verstoesse)
+{
+    var w = new Welt();
+    string wer = $"Karte {karte}, Herde zieht";
+    int vorher = verstoesse.Count;
+    Dictionary<WildAnimal, (int x, int y, int look)> Bestand(FoodSource art)
+    {
+        var bestand = new Dictionary<WildAnimal, (int x, int y, int look)>();
+        for (int x = 0; x < w.Map.Width; x++)
+            for (int y = 0; y < w.Map.Height; y++)
+            {
+                var t = w.Map.GetTile(x, y)!;
+                if (t.Food != art) continue;
+                if (t.Animal == null)
+                    verstoesse.Add($"{wer}: {art} auf ({x}, {y}) hat kein WildAnimal");
+                else if (!bestand.TryAdd(t.Animal, (x, y, t.Animal.Look)))
+                    verstoesse.Add($"{wer}: dasselbe Tier steht auf zwei Kacheln");
+            }
+        return bestand;
+    }
+    var schafe = Bestand(FoodSource.Sheep);
+    var rehe = Bestand(FoodSource.Deer);
+    w.LaufeBis(() => false, 60f);
+    foreach (var (art, quelle, vor) in new[] { ("Schafe", FoodSource.Sheep, schafe), ("Rehe", FoodSource.Deer, rehe) })
+    {
+        if (vor.Count == 0)
+        {
+            verstoesse.Add($"{wer}: keine {art} auf der Karte");
+            continue;
+        }
+        var nach = Bestand(quelle);
+        if (nach.Count != vor.Count || nach.Keys.Any(k => !vor.ContainsKey(k)))
+            verstoesse.Add($"{wer}: {art}: {vor.Count} vorher, {nach.Count} nachher - Tiere verloren oder neu entstanden");
+        int gezogen = vor.Count(kv => nach.TryGetValue(kv.Key, out var n) && (n.x, n.y) != (kv.Value.x, kv.Value.y));
+        if (gezogen * 2 < vor.Count)
+            verstoesse.Add($"{wer}: {art}: nur {gezogen} von {vor.Count} in 60 s weitergezogen - nicht jedes Tier hat seinen Takt");
+        if (vor.Any(kv => nach.TryGetValue(kv.Key, out var n) && n.look != kv.Value.look))
+            verstoesse.Add($"{wer}: {art}: ein Tier hat beim Wandern sein Aussehen gewechselt");
+        if (verstoesse.Count == vorher)
+            Console.WriteLine($"  ok  {wer}: {gezogen} von {vor.Count} {art} weitergezogen, jedes bleibt dasselbe Tier");
+    }
+}
+
+// Tierschritt (C7t): ein Schritt dauert TileMap.WILD_STEP_SECONDS. Direkt danach
+// zeigt das Tier zurück auf die Nachbarkachel, von der es kam, und blickt in
+// Schrittrichtung; nach der halben Schrittdauer ist es halb angekommen, und
+// solange es läuft, beginnt es keinen neuen Schritt.
+static void TierSchritt(int karte, List<string> verstoesse)
+{
+    var w = new Welt();
+    string wer = $"Karte {karte}, Tierschritt";
+    int vorher = verstoesse.Count;
+    const float schritt = TileMap.WILD_STEP_SECONDS;
+    (Tile Kachel, WildAnimal Tier)? Frisch()
+    {
+        for (int x = 0; x < w.Map.Width; x++)
+            for (int y = 0; y < w.Map.Height; y++)
+            {
+                var t = w.Map.GetTile(x, y)!;
+                if (t.Animal != null && t.Food is (FoodSource.Sheep or FoodSource.Deer) && t.Animal.Glide > schritt - 0.02f)
+                    return (t, t.Animal);
+            }
+        return null;
+    }
+    w.LaufeBis(() => Frisch() != null, 10f);
+    var frisch = Frisch();
+    if (frisch == null)
+    {
+        verstoesse.Add($"{wer}: in 10 s hat kein Tier einen Schritt begonnen");
+        return;
+    }
+    var (kachel, tier) = frisch.Value;
+    int vonX = tier.FromX, vonY = tier.FromY;
+    int radius = Math.Max(MapSettings.Default.SheepWanderRadius, MapSettings.Default.DeerWanderRadius);
+    if ((vonX, vonY) == (0, 0) || Math.Abs(vonX) > radius || Math.Abs(vonY) > radius)
+        verstoesse.Add($"{wer}: das Tier auf ({kachel.X}, {kachel.Y}) kam angeblich von ({vonX}, {vonY}) - kein Nachbar im Wanderradius");
+    var alt = w.Map.GetTile(kachel.X + vonX, kachel.Y + vonY);
+    if (alt == null || alt.Animal == tier)
+        verstoesse.Add($"{wer}: die alte Kachel ({kachel.X + vonX}, {kachel.Y + vonY}) fehlt oder trägt das Tier noch");
+    if (vonX != 0 && tier.FacingLeft != (vonX > 0))
+        verstoesse.Add($"{wer}: Schritt um ({-vonX}, {-vonY}), aber das Tier blickt nach {(tier.FacingLeft ? "links" : "rechts")}");
+
+    w.LaufeBis(() => false, schritt / 2f);
+    if (kachel.Animal != tier)
+        verstoesse.Add($"{wer}: das Tier hat mitten im Schritt einen neuen begonnen");
+    else if (Math.Abs(tier.Glide - schritt / 2f) > 0.05f)
+        verstoesse.Add($"{wer}: nach der halben Schrittdauer läuft der Schritt noch {tier.Glide:0.00} s statt {schritt / 2f:0.00} s");
+    w.LaufeBis(() => false, schritt / 2f + 0.05f);
+    if (kachel.Animal == tier && tier.Glide > 0f)
+        verstoesse.Add($"{wer}: nach {schritt:0.0} s ist der Schritt nicht zu Ende (noch {tier.Glide:0.00} s)");
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: Schritt um ({-vonX}, {-vonY}) in {schritt:0.0} s, das Tier blickt in Laufrichtung");
+}
+
+// Gangbild (C7w): solange ein Tier unterwegs ist, wechseln die Laufbilder in der
+// Folge Schritt, Stand, Gegenschritt, Stand - WALK_CYCLES_PER_STEP Durchgänge je
+// Kachelschritt -, ein stehendes Tier zeigt sein Standbild.
+static void Gangbild(List<string> verstoesse)
+{
+    const string wer = "Gangbild";
+    int vorher = verstoesse.Count;
+    var w = new Welt();
+    int Phase(float glide) => (int)w.Call("WalkPhase", glide);
+    if (Phase(0f) != -1)
+        verstoesse.Add($"{wer}: ein stehendes Tier zeigt das Laufbild {Phase(0f)} statt seines Standbilds");
+    var folge = new List<int>();
+    for (float g = TileMap.WILD_STEP_SECONDS; g > 0f; g -= 1f / 60f)
+    {
+        int p = Phase(g);
+        if (folge.Count == 0 || folge[^1] != p) folge.Add(p);
+    }
+    int zyklen = (int)typeof(RTSGameplayScreen).GetField("WALK_CYCLES_PER_STEP", BindingFlags.NonPublic | BindingFlags.Static)!.GetValue(null)!;
+    var soll = Enumerable.Range(0, 4 * zyklen).Select(i => i % 4).ToList();
+    if (zyklen < 1 || !folge.SequenceEqual(soll))
+        verstoesse.Add($"{wer}: Laufbilder im Schritt {string.Join(",", folge)} statt {string.Join(",", soll)}");
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: {zyklen} Durchgänge Schritt, Stand, Gegenschritt, Stand je Kachelschritt, im Stand das Standbild");
 }
 
 // Ein Dorfbewohner läuft zu einem Ziel, das hinter einem 4×4-Gebäude liegt.
@@ -1240,12 +1371,25 @@ static void Feld(List<string> verstoesse)
         return ((float)typ.GetField("Item1").GetValue(r), (Color)typ.GetField("Item2").GetValue(r));
     }
 
-    // Just gepflanzt: dicht und gold
+    // Just gepflanzt: dicht, im Ton des Feldbilds
     var (voll, tint) = Aussehen(kachel);
     if (voll < 0.99f)
         verstoesse.Add($"{wer}: voller Acker trägt keinen vollen Weizen (Deckung {voll:0.00})");
-    if (!(tint.R > tint.B && tint.G > tint.B))
-        verstoesse.Add($"{wer}: reifer Weizen ist nicht warmtönig (R{tint.R} G{tint.G} B{tint.B})");
+    if (tint != Color.White)
+        verstoesse.Add($"{wer}: reifer Weizen zeigt das Feldbild nicht unverfälscht (R{tint.R} G{tint.G} B{tint.B})");
+
+    // Jede Feldkachel zeigt ihren eigenen Teil des Feldbilds, zusammen genau das ganze Bild
+    var feldteile = new HashSet<Rectangle>();
+    for (int fx = 1; fx <= 3; fx++)
+        for (int fy = 1; fy <= 3; fy++)
+        {
+            var feldteil = (Rectangle)w.Call("FieldPart", w.Map.GetTile(fx, fy)!, 384, 384);
+            if (feldteil != new Rectangle((fx - 1) * 128, (fy - 1) * 128, 128, 128))
+                verstoesse.Add($"{wer}: Feldkachel ({fx}, {fy}) zeigt den Bildteil {feldteil} statt Spalte {fx - 1}, Zeile {fy - 1}");
+            feldteile.Add(feldteil);
+        }
+    if (feldteile.Count != 9)
+        verstoesse.Add($"{wer}: die neun Feldkacheln zeigen nur {feldteile.Count} verschiedene Bildteile");
 
     // Geerntet und noch nichts neu gewachsen: nackter Acker
     kachel.ResourceType = null;
