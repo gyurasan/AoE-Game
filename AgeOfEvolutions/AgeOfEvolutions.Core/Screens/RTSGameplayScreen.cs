@@ -305,9 +305,10 @@ public class RTSGameplayScreen : GameScreen
     private Age _buttonsLayoutAge;       // und welches Zeitalter galt
     private Rectangle _minimapRect;      // das gezeichnete Minimap-Feld (Klickfläche)
 
-    // Abstand der Minimap zur Ober- und Unterkante der Leiste; der 2-px-Rahmen
-    // liegt darin. Die Größe folgt aus der Leistenhöhe, siehe MinimapTilePixels.
+    // Abstand der Minimap zur Unterkante der Leiste; der 2-px-Rahmen liegt darin.
+    // Seitenlänge 80 % mehr als die frühere 192-px-Minimap, siehe MinimapRect.
     private const int MINIMAP_MARGIN = 4;
+    private const int MINIMAP_SIZE = 346;
 
     // Bauen (C5): Dorfbewohner wählen, Taste drücken, Bauplatz anklicken.
     // Kosten, Bauzeit und Größe kommen aus AoE.Core (BuildingRules); der Name
@@ -324,8 +325,11 @@ public class RTSGameplayScreen : GameScreen
     private BuildingType? placing;   // was gerade gesetzt wird, oder null
     private Vector2 mouseGridCell;
     
-    public RTSGameplayScreen()
+    private readonly MapSize _mapSize;   // Kartengröße aus dem Hauptmenü
+
+    public RTSGameplayScreen(MapSize mapSize = MapSize.Standard)
     {
+        _mapSize = mapSize;
         TransitionOnTime = TimeSpan.FromSeconds(1.5);
         TransitionOffTime = TimeSpan.FromSeconds(0.5);
     }
@@ -343,7 +347,8 @@ public class RTSGameplayScreen : GameScreen
                                           graphicsDevice.PresentationParameters.BackBufferHeight);
 
         // Initialize game
-        tileMap = new TileMap(64, 64, 32);
+        int side = MapSizes.Side(_mapSize);
+        tileMap = new TileMap(side, side, 32, MapSettings.ForSize(_mapSize));
         gatherWorld = new TileMapGatherWorld(tileMap);
         player1 = new Data.Player(0, "Player 1", "Briten");
         player2 = new Data.Player(1, "Player 2", "Azteken");
@@ -1312,7 +1317,7 @@ public class RTSGameplayScreen : GameScreen
     }
 
     private bool IsOverHud(Point p)
-        => p.Y < HUD_TOP_HEIGHT || p.Y >= screenBounds.Height - HUD_BOTTOM_HEIGHT;
+        => p.Y < HUD_TOP_HEIGHT || p.Y >= screenBounds.Height - HUD_BOTTOM_HEIGHT || MinimapPanel().Contains(p);
     
     /// <summary>
     /// Die Fläche, die eine Einheit in der Welt einnimmt: die Figur steht mit den
@@ -3398,6 +3403,12 @@ public class RTSGameplayScreen : GameScreen
         spriteBatch.Draw(px, bottomBarRect, new Color(94, 76, 48));
         spriteBatch.Draw(px, new Rectangle(0, barY, screenBounds.Width, 2), new Color(140, 115, 75));
 
+        // Die erhöhte Fläche hinter der Minimap, im Ton der Leiste mit heller Kante
+        var minimapPanel = MinimapPanel();
+        spriteBatch.Draw(px, minimapPanel, new Color(94, 76, 48));
+        spriteBatch.Draw(px, new Rectangle(minimapPanel.X, minimapPanel.Y, minimapPanel.Width, 2), new Color(140, 115, 75));
+        spriteBatch.Draw(px, new Rectangle(minimapPanel.X, minimapPanel.Y, 2, minimapPanel.Height), new Color(140, 115, 75));
+
         var minimapRect = MinimapRect();
         DrawMinimap(spriteBatch, minimapRect);
 
@@ -3600,20 +3611,30 @@ public class RTSGameplayScreen : GameScreen
     // Oben links die Ecke (0, 0), unten rechts (mapW, mapH).
 
     /// <summary>
-    /// Ganze Pixel je Kachel, so viele, wie in die Leiste passen - bei 200 px
-    /// Leistenhöhe und 64 Kacheln 3 px, die Minimap also 192 × 192 px. Ganze
-    /// Pixel halten alle Kacheln gleich groß.
+    /// Feld der Minimap rechts unten: MINIMAP_SIZE Pixel bei jeder Kartengröße,
+    /// unten bündig in der Leiste und nach oben über sie hinaus - 80 % größer als
+    /// die frühere, die in die 200-px-Leiste passen musste. Je Kachel sind das
+    /// Bruchteile von Pixeln; DrawMinimap setzt jede Kachel aus ihren Eckpunkten
+    /// zusammen, lückenlos. MinimapPanel ist die Fläche dahinter.
     /// </summary>
-    private int MinimapTilePixels()
-        => Math.Max(1, (HUD_BOTTOM_HEIGHT - 2 * MINIMAP_MARGIN) / Math.Max(tileMap.Width, tileMap.Height));
-
-    /// <summary>Feld der Minimap rechts in der unteren Leiste, senkrecht mittig.</summary>
     private Rectangle MinimapRect()
     {
-        int k = MinimapTilePixels();
-        int w = tileMap.Width * k, h = tileMap.Height * k;
-        int barY = screenBounds.Height - HUD_BOTTOM_HEIGHT;
-        return new Rectangle(screenBounds.Width - w - 12, barY + (HUD_BOTTOM_HEIGHT - h) / 2, w, h);
+        int mapMax = Math.Max(tileMap.Width, tileMap.Height);
+        int w = MINIMAP_SIZE * tileMap.Width / mapMax, h = MINIMAP_SIZE * tileMap.Height / mapMax;
+        return new Rectangle(screenBounds.Width - w - 12, screenBounds.Height - MINIMAP_MARGIN - h, w, h);
+    }
+
+    /// <summary>
+    /// Die erhöhte Fläche hinter der Minimap bis zum Fensterrand: sieht aus wie die
+    /// Leiste und zählt für Klicks zu ihr (IsOverHud), auch wo sie über die Leiste
+    /// hinausragt.
+    /// </summary>
+    private Rectangle MinimapPanel()
+    {
+        var r = MinimapRect();
+        int rand = MINIMAP_MARGIN + 6;
+        return new Rectangle(r.Left - rand, r.Top - rand, screenBounds.Width - r.Left + rand,
+                             screenBounds.Height - r.Top + rand);
     }
 
     /// <summary>Kartenpunkt (Kacheln) → Bildschirmkoordinaten innerhalb der Minimap.</summary>

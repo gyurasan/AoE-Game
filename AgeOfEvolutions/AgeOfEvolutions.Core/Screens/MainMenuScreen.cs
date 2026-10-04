@@ -1,5 +1,7 @@
 using System;
+using AgeOfEvolutions.Core.Data;
 using AgeOfEvolutions.Core.Inputs;
+using AgeOfEvolutions.Core.Settings;
 using AgeOfEvolutions.Screens;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -33,11 +35,18 @@ public class MainMenuScreen : GameScreen
     readonly (string Text, bool Enabled)[] menuOptions =
     {
         ("Neues Spiel", true),
+        ("Karte", true),
         ("Spiel laden", false),
         ("Einstellungen", true),
         ("Beenden", true),
     };
     int selectedIndex = 0;
+
+    // Der Karteneintrag wechselt bei jeder Wahl die Größe (Standard, Groß, Maximal);
+    // die Wahl bleibt in den Einstellungen gespeichert
+    private const int MAP_ENTRY = 1;
+    MapSize mapSize = MapSize.Standard;
+    SettingsManager<AgeOfEvolutionsSettings> settingsManager;
 
     public MainMenuScreen()
     {
@@ -60,6 +69,11 @@ public class MainMenuScreen : GameScreen
         // Eigene, große Schrift: die HUD-Schrift (14 pt) würde auf Menügröße
         // gestreckt unscharf. Fehlt sie, tut es die HUD-Schrift.
         menuFont = TryLoad<SpriteFont>(content, "Fonts/Menu") ?? ScreenManager.Font;
+
+        // Die zuletzt gewählte Kartengröße
+        settingsManager = ScreenManager.Game.Services.GetService<SettingsManager<AgeOfEvolutionsSettings>>();
+        if (settingsManager != null)
+            mapSize = (MapSize)Math.Clamp(settingsManager.Settings.MapSize, 0, 2);
 
         // 1x1 white texture, tinted per draw call for panels, plates and bars.
         menuButton = new Texture2D(ScreenManager.GraphicsDevice, 1, 1);
@@ -158,6 +172,13 @@ public class MainMenuScreen : GameScreen
 
     private static float UiScale(int height) => height / DESIGN_HEIGHT;
 
+    /// <summary>Text eines Eintrags; der Karteneintrag nennt die gewählte Größe.</summary>
+    private string EntryText(int index)
+        => index == MAP_ENTRY ? $"Karte: {MapSizes.Name(mapSize)}" : menuOptions[index].Text;
+
+    /// <summary>Die nächste Kartengröße im Wechsel Standard, Groß, Maximal.</summary>
+    private static MapSize NextMapSize(MapSize size) => (MapSize)(((int)size + 1) % 3);
+
     /// <summary>Platte eines Eintrags im Fenster - dieselbe zum Zeichnen und Klicken.</summary>
     private static Rectangle EntryRect(int index, int width, int height)
     {
@@ -176,12 +197,20 @@ public class MainMenuScreen : GameScreen
         {
             case 0: // New Game
                 // Via LoadingScreen so the menu transitions off before the map is built.
-                LoadingScreen.Load(ScreenManager, true, ControllingPlayer, new RTSGameplayScreen());
+                LoadingScreen.Load(ScreenManager, true, ControllingPlayer, new RTSGameplayScreen(mapSize));
                 break;
-            case 2: // Settings
+            case MAP_ENTRY: // Kartengröße wechseln und merken
+                mapSize = NextMapSize(mapSize);
+                if (settingsManager != null)
+                {
+                    settingsManager.Settings.MapSize = (int)mapSize;
+                    settingsManager.Save();
+                }
+                break;
+            case 3: // Settings
                 ScreenManager.AddScreen(new SettingsScreen(), ControllingPlayer);
                 break;
-            case 3: // Exit
+            case 4: // Exit
                 ScreenManager.Game.Exit();
                 break;
         }
@@ -215,7 +244,8 @@ public class MainMenuScreen : GameScreen
 
         for (int i = 0; i < menuOptions.Length; i++)
         {
-            var (text, enabled) = menuOptions[i];
+            var text = EntryText(i);
+            bool enabled = menuOptions[i].Enabled;
             var plate = EntryRect(i, width, height);
             bool selected = i == selectedIndex;
 

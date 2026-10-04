@@ -17,6 +17,12 @@ mit `4f85314` (2026-10-03). Commits macht der Nutzer selbst.
 
 Zuletzt fertiggestellt:
 
+- **Kartengrößen (2026-10-04)** — im Hauptmenü wählt „Karte“ zwischen Standard (64×64),
+  Groß (90×90, fast die doppelte Fläche) und Maximal (128×128, die vierfache); die Wahl
+  bleibt gespeichert. Wälder, Steinbrüche, Goldadern, Seen und alle Herden wachsen mit der
+  Fläche (`MapSettings.ForSize`), die Minimap bleibt gleich groß. Schnellstart:
+  `--rts --karte gross` bzw. `--karte max`. Prüfung: `tools/kartenpruefung -- groessen`,
+  `tools/spielablauf -- karten menue` *(C11)*
 - **Farm und Tiere (2026-10-04)** — `Felder/weizen.png` zeigt das ganze 3×3-Feld mit
   Weizenreihen und Holzzaun, `Felder/acker.png` dasselbe Feld nach der Ernte: Qwen-Image
   hat dafür nur die Weizenreihen neu gemalt (Rechteckmaske), Furchen und Zaun blieben

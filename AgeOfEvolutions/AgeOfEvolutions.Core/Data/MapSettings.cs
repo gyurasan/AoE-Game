@@ -1,3 +1,5 @@
+using System;
+
 namespace AgeOfEvolutions.Core.Data;
 
 /// <summary>
@@ -37,6 +39,11 @@ public class MapSettings
     // --- Fisch ---------------------------------------------------------
     /// <summary>Trefferquote je Küstenkachel für einen Fischschwarm (0..1).</summary>
     public float FishChance { get; set; } = 0.20f;
+
+    // --- Seen ----------------------------------------------------------
+    /// <summary>Seen auf der Karte (Min/Max, inclusive).</summary>
+    public int LakesMin { get; set; } = 2;
+    public int LakesMax { get; set; } = 4;
 
     // --- Beeren --------------------------------------------------------
     /// <summary>Wahrscheinlichkeit (0..1), dass an einer Waldlichtung Büsche wachsen.</summary>
@@ -116,4 +123,61 @@ public class MapSettings
 
     /// <summary>Die reichere Standardausstattung.</summary>
     public static MapSettings Default => new();
+
+    /// <summary>
+    /// Die Standardausstattung für eine Karte der Größe size: Wälder, Steinbrüche,
+    /// Goldadern, Seen, Herden und Gruppen werden mit der Fläche mehr, damit eine
+    /// große Karte genauso dicht besetzt ist wie die Standardkarte. Radien, Tiere je
+    /// Herde und die Startausstattung bleiben, wie sie sind.
+    /// </summary>
+    public static MapSettings ForSize(MapSize size)
+    {
+        int side = MapSizes.Side(size), standard = MapSizes.Side(MapSize.Standard);
+        float flaeche = side * side / (float)(standard * standard);
+        int Mehr(int n) => Math.Max(1, (int)Math.Round(n * flaeche));
+        var s = new MapSettings();
+        s.WoodClustersMin = Mehr(s.WoodClustersMin);
+        s.WoodClustersMax = Mehr(s.WoodClustersMax);
+        s.StoneClustersMin = Mehr(s.StoneClustersMin);
+        s.StoneClustersMax = Mehr(s.StoneClustersMax);
+        s.GoldClustersMin = Mehr(s.GoldClustersMin);
+        s.GoldClustersMax = Mehr(s.GoldClustersMax);
+        s.LakesMin = Mehr(s.LakesMin);
+        s.LakesMax = Mehr(s.LakesMax);
+        s.SheepHerdsMin = Mehr(s.SheepHerdsMin);
+        s.SheepHerdsMax = Mehr(s.SheepHerdsMax);
+        s.DeerHerdsMin = Mehr(s.DeerHerdsMin);
+        s.DeerHerdsMax = Mehr(s.DeerHerdsMax);
+        s.RabbitGroupsMin = Mehr(s.RabbitGroupsMin);
+        s.RabbitGroupsMax = Mehr(s.RabbitGroupsMax);
+        s.BoarGroupsMin = Mehr(s.BoarGroupsMin);
+        s.BoarGroupsMax = Mehr(s.BoarGroupsMax);
+        return s;
+    }
+}
+
+/// <summary>Die Kartengrößen, die das Hauptmenü anbietet.</summary>
+public enum MapSize { Standard, Large, Max }
+
+/// <summary>Seitenlänge und Name der Kartengrößen.</summary>
+public static class MapSizes
+{
+    /// <summary>
+    /// Seitenlänge in Kacheln: Standard 64, Groß 90 (fast die doppelte Fläche),
+    /// Maximal 128 (die vierfache).
+    /// </summary>
+    public static int Side(MapSize size) => size switch
+    {
+        MapSize.Large => 90,
+        MapSize.Max => 128,
+        _ => 64,
+    };
+
+    /// <summary>Name der Größe im Hauptmenü.</summary>
+    public static string Name(MapSize size) => size switch
+    {
+        MapSize.Large => "Groß",
+        MapSize.Max => "Maximal",
+        _ => "Standard",
+    };
 }

@@ -1,6 +1,6 @@
 // Spielablauf: stellt Abläufe aus RTSGameplayScreen ohne Grafik nach und prüft sie.
 //
-//   dotnet run --project tools/spielablauf -- bauen weiterbauen linksklick farm schafe wild herde bewegen minimap zoom leiste zeitalter turm menue animation fenster werkzeug feld fahne gehen
+//   dotnet run --project tools/spielablauf -- bauen weiterbauen linksklick farm schafe wild herde bewegen minimap zoom leiste zeitalter turm menue animation fenster werkzeug feld fahne gehen karten
 //
 // Jede genannte Gruppe läuft auf drei frisch erzeugten Karten. Die Spielschleife
 // läuft Bild für Bild (60 je Sekunde) mit denselben Methoden, die Update() im Spiel
@@ -102,6 +102,8 @@ for (int karte = 1; karte <= KARTEN; karte++)
     // Das Hauptmenü braucht keine Karte
     if (gruppen.Contains("menue") && karte == 1)
         Pruefe("Hauptmenü", () => Hauptmenue(verstoesse));
+    if (gruppen.Contains("karten") && karte == 1)
+        Pruefe("Kartengrößen", () => Kartengroessen(verstoesse));
 }
 
 if (verstoesse.Count > 0)
@@ -979,12 +981,20 @@ static void Minimap(List<string> verstoesse)
         var r = (Rectangle)w.Call("MinimapRect");
         if (r.Left < bw / 2 || r.Right > bw || bw - r.Right > 40)
             verstoesse.Add($"{wer}: Feld {r} sitzt nicht rechts in der Leiste");
-        if (r.Top < bh - leiste || r.Bottom > bh)
-            verstoesse.Add($"{wer}: Feld {r} ragt aus der unteren Leiste (ab y = {bh - leiste})");
-        if (Math.Max(r.Width, r.Height) < leiste - 20)
-            verstoesse.Add($"{wer}: Minimap nur {r.Width}x{r.Height} px - die Leiste fasst {leiste} px");
-        if (r.Width % mapW != 0 || r.Height % mapH != 0 || r.Width / mapW != r.Height / mapH)
-            verstoesse.Add($"{wer}: Feld {r.Width}x{r.Height} px ergibt keine gleich großen Kacheln aus ganzen Pixeln");
+        // Unten bündig in der Leiste, nach oben über sie hinaus (C11: 80 % größer als die
+        // frühere 192-px-Minimap, die in die Leiste passen musste); das Feld dahinter
+        // zählt für Klicks zur Leiste, links daneben gilt ein Klick weiter der Karte
+        if (r.Bottom > bh || r.Bottom < bh - 12 || r.Top < 40)
+            verstoesse.Add($"{wer}: Feld {r} sitzt nicht unten bündig in der Leiste (ab y = {bh - leiste})");
+        if (r.Width != r.Height || r.Width < 192 * 1.7f)
+            verstoesse.Add($"{wer}: Minimap {r.Width}x{r.Height} px - erwartet quadratisch und gut 80 % größer als die frühere (192 px)");
+        var feld = (Rectangle)w.Call("MinimapPanel");
+        if (!feld.Contains(r) || feld.Right != bw || feld.Bottom < bh)
+            verstoesse.Add($"{wer}: das Feld {feld} hinter der Minimap {r} reicht nicht bis zum Fensterrand");
+        if (!(bool)w.Call("IsOverHud", new Point(r.Center.X, r.Top + 2)))
+            verstoesse.Add($"{wer}: ein Klick auf den oberen Teil der Minimap gilt der Karte statt der Leiste");
+        if ((bool)w.Call("IsOverHud", new Point(feld.Left - 20, r.Top + 2)))
+            verstoesse.Add($"{wer}: links neben der Minimap gilt ein Klick nicht mehr der Karte");
 
         // Draufsicht wie die Spielkarte: Kartenecken auf den Feldecken, Norden oben
         foreach (var (ecke, soll) in new[]
@@ -1257,6 +1267,41 @@ static void Turm(int karte, List<string> verstoesse)
         Console.WriteLine($"  ok  {wer}: erst ab der Feudalzeit, 50 Holz + 125 Stein, fertig nach {bauzeit:0} s, sieht {(probe == null ? "-" : Vector2.Distance(probe.Value, mitte).ToString("0.0"))} Kacheln weit");
 }
 
+// Kartengrößen (C11): Standard 64, Groß 90, Maximal 128 Kacheln Seitenlänge; beide
+// Stadtzentren stehen in ihren Ecken, und die Minimap ist bei jeder Größe gleich
+// groß und zeigt die ganze Karte.
+static void Kartengroessen(List<string> verstoesse)
+{
+    const string wer = "Kartengrößen";
+    int vorher = verstoesse.Count;
+    var erwartet = new Dictionary<MapSize, int> { [MapSize.Standard] = 64, [MapSize.Large] = 90, [MapSize.Max] = 128 };
+    int feld = -1;
+    foreach (var (groesse, seite) in erwartet)
+    {
+        if (MapSizes.Side(groesse) != seite)
+            verstoesse.Add($"{wer}: {groesse} hat {MapSizes.Side(groesse)} Kacheln Seitenlänge statt {seite}");
+        var w = new Welt(groesse);
+        if (w.Map.Width != seite || w.Map.Height != seite)
+            verstoesse.Add($"{wer}: {groesse} ist {w.Map.Width}x{w.Map.Height} statt {seite}x{seite}");
+        var zentren = w.Map.Buildings.Where(b => b.Type == "Stadtzentrum").Select(b => (b.X, b.Y)).OrderBy(p => p).ToList();
+        var soll = new List<(int, int)> { (3, 3), (seite - 4, seite - 4) };
+        if (!zentren.SequenceEqual(soll))
+            verstoesse.Add($"{wer}: {groesse}: Stadtzentren bei {string.Join(", ", zentren)} statt (3, 3) und ({seite - 4}, {seite - 4})");
+        w.Set("screenBounds", new Rectangle(0, 0, 2406, 1353));
+        var r = (Rectangle)w.Call("MinimapRect");
+        if (feld < 0) feld = r.Width;
+        if (r.Width != r.Height || r.Width != feld)
+            verstoesse.Add($"{wer}: {groesse}: Minimap {r.Width}x{r.Height} statt {feld}x{feld} wie bei der Standardkarte");
+        var ecke = (Vector2)w.Call("MinimapPoint", (float)seite, (float)seite, r);
+        if (Math.Abs(ecke.X - r.Right) > 0.5f || Math.Abs(ecke.Y - r.Bottom) > 0.5f)
+            verstoesse.Add($"{wer}: {groesse}: die Kartenecke liegt in der Minimap bei {ecke} statt bei ({r.Right}, {r.Bottom})");
+    }
+    if (Enum.GetValues<MapSize>().Select(MapSizes.Name).Distinct().Count() != 3)
+        verstoesse.Add($"{wer}: die drei Größen haben keine verschiedenen Namen");
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: 64, 90 und 128 Kacheln, Stadtzentren in den Ecken, Minimap immer {feld} px");
+}
+
 // Hauptmenü (E12): die Einträge stehen mittig, wachsen mit dem Fenster und
 // überlappen nicht; die Maus wählt beim Zeigen und startet beim Loslassen über
 // einem aktiven Eintrag, eine ruhende Maus überstimmt die Tastatur nicht, und
@@ -1287,7 +1332,7 @@ static void Hauptmenue(List<string> verstoesse)
         (int, bool) Maus2(MouseState jetzt, MouseState zuvor)
             => ((int, bool))Methode("EvaluateMouse").Invoke(menue, new object[] { jetzt, zuvor, bw, bh });
 
-        var platten = Enumerable.Range(0, 4).Select(Platte).ToList();
+        var platten = Enumerable.Range(0, 5).Select(Platte).ToList();
         for (int i = 0; i < platten.Count; i++)
         {
             var r = platten[i];
@@ -1302,31 +1347,53 @@ static void Hauptmenue(List<string> verstoesse)
         }
 
         var abseits = new Point(2, 2);
+        // Einträge: 0 Neues Spiel, 1 Karte, 2 Spiel laden (gesperrt), 3 Einstellungen, 4 Beenden
         auswahl.SetValue(menue, 0);
-        if (Maus2(Maus(platten[2].Center, false), Maus(abseits, false)) != (2, false))
+        if (Maus2(Maus(platten[3].Center, false), Maus(abseits, false)) != (3, false))
             verstoesse.Add($"{fenster}: Zeigen auf „Einstellungen“ wählt sie nicht aus");
-        if (Maus2(Maus(platten[2].Center, false), Maus(platten[2].Center, false)) != (0, false))
+        if (Maus2(Maus(platten[3].Center, false), Maus(platten[3].Center, false)) != (0, false))
             verstoesse.Add($"{fenster}: ruhende Maus überstimmt die Tastaturauswahl");
-        if (Maus2(Maus(platten[3].Center, false), Maus(platten[3].Center, true)) != (3, true))
+        if (Maus2(Maus(platten[4].Center, false), Maus(platten[4].Center, true)) != (4, true))
             verstoesse.Add($"{fenster}: Klick auf „Beenden“ startet ihn nicht");
         if (Maus2(Maus(platten[0].Center, false), Maus(platten[0].Center, true)) != (0, true))
             verstoesse.Add($"{fenster}: Klick auf „Neues Spiel“ startet es nicht");
-        if (Maus2(Maus(platten[1].Center, false), Maus(platten[1].Center, true)) != (0, false))
+        if (Maus2(Maus(platten[1].Center, false), Maus(platten[1].Center, true)) != (1, true))
+            verstoesse.Add($"{fenster}: Klick auf „Karte“ wechselt die Größe nicht");
+        if (Maus2(Maus(platten[2].Center, false), Maus(platten[2].Center, true)) != (0, false))
             verstoesse.Add($"{fenster}: der gesperrte Eintrag „Spiel laden“ reagiert auf die Maus");
         if (Maus2(Maus(abseits, false), Maus(abseits, true)) != (0, false))
             verstoesse.Add($"{fenster}: Klick neben das Menü startet etwas");
     }
 
-    auswahl.SetValue(menue, 0);
+    auswahl.SetValue(menue, 1);
     Methode("MoveSelection").Invoke(menue, new object[] { 1 });
-    if ((int)auswahl.GetValue(menue) != 2)
-        verstoesse.Add($"{wer}: Pfeil nach unten von „Neues Spiel“ landet auf {auswahl.GetValue(menue)}, erwartet 2 (über das gesperrte „Spiel laden“ hinweg)");
+    if ((int)auswahl.GetValue(menue) != 3)
+        verstoesse.Add($"{wer}: Pfeil nach unten von „Karte“ landet auf {auswahl.GetValue(menue)}, erwartet 3 (über das gesperrte „Spiel laden“ hinweg)");
     Methode("MoveSelection").Invoke(menue, new object[] { -1 });
-    if ((int)auswahl.GetValue(menue) != 0)
-        verstoesse.Add($"{wer}: Pfeil nach oben von „Einstellungen“ landet auf {auswahl.GetValue(menue)}, erwartet 0");
+    if ((int)auswahl.GetValue(menue) != 1)
+        verstoesse.Add($"{wer}: Pfeil nach oben von „Einstellungen“ landet auf {auswahl.GetValue(menue)}, erwartet 1");
+
+    // Der Karteneintrag nennt die Größe und wechselt Standard, Groß, Maximal im Kreis
+    var groesse = typ.GetField("mapSize", F)
+        ?? throw new InvalidOperationException("Feld MainMenuScreen.mapSize nicht gefunden");
+    var folge = new List<MapSize>();
+    var jetzt = MapSize.Standard;
+    for (int i = 0; i < 4; i++)
+    {
+        groesse.SetValue(menue, jetzt);
+        var text = (string)Methode("EntryText").Invoke(menue, new object[] { 1 });
+        if (text != $"Karte: {MapSizes.Name(jetzt)}")
+            verstoesse.Add($"{wer}: der Karteneintrag heißt „{text}“ statt „Karte: {MapSizes.Name(jetzt)}“");
+        folge.Add(jetzt);
+        jetzt = (MapSize)Methode("NextMapSize").Invoke(null, new object[] { jetzt })!;
+    }
+    if (!folge.SequenceEqual(new[] { MapSize.Standard, MapSize.Large, MapSize.Max, MapSize.Standard }))
+        verstoesse.Add($"{wer}: die Kartengröße wechselt {string.Join(" -> ", folge)} statt Standard -> Large -> Max -> Standard");
+    if ((string)Methode("EntryText").Invoke(menue, new object[] { 0 }) != "Neues Spiel")
+        verstoesse.Add($"{wer}: der erste Eintrag heißt nicht mehr „Neues Spiel“");
 
     if (verstoesse.Count == vorher)
-        Console.WriteLine($"  ok  {wer}: mittig, wächst mit dem Fenster, Zeigen wählt, Klick startet, „Spiel laden“ gesperrt");
+        Console.WriteLine($"  ok  {wer}: mittig, wächst mit dem Fenster, Zeigen wählt, Klick startet, „Spiel laden“ gesperrt, Karte wechselt die Größe");
 }
 
 // Bewegung der Figuren (C6v): UpdateUnitMotion erkennt, ob eine Einheit läuft
@@ -1569,13 +1636,15 @@ class Welt
     const BindingFlags F = BindingFlags.NonPublic | BindingFlags.Instance;
     static readonly Type T = typeof(RTSGameplayScreen);
     readonly RTSGameplayScreen _screen = new();
-    public readonly TileMap Map = new(64, 64, 32);
+    public readonly TileMap Map;
     public readonly Player P1 = new(0, "P1", "Briten"), P2 = new(1, "P2", "Azteken");
     readonly List<Unit> _units;
     double _zeit, _nebel;
 
-    public Welt()
+    public Welt(MapSize groesse = MapSize.Standard)
     {
+        int seite = MapSizes.Side(groesse);
+        Map = new TileMap(seite, seite, 32, MapSettings.ForSize(groesse));
         _units = Map.Units;
         foreach (var u in _units)
             (u.OwnerId == 0 ? P1 : P2).AddUnit(u);

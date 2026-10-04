@@ -102,7 +102,7 @@ public class TileMap
     
     private void AddLakes()
     {
-        int count = _random.Next(2, 5);
+        int count = _random.Next(Settings.LakesMin, Settings.LakesMax + 1);
         for (int i = 0; i < count; i++)
         {
             int r = _random.Next(3, 6);

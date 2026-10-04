@@ -180,9 +180,15 @@ namespace AgeOfEvolutions.Core
 
             // Boot into the menu. The RTS mode is reachable from there, or directly
             // via the --rts command line switch (see below).
-            if (Environment.GetCommandLineArgs().Contains("--rts"))
+            var args = Environment.GetCommandLineArgs();
+            if (args.Contains("--rts"))
             {
-                screenManager.AddScreen(new RTSGameplayScreen(), null);
+                // --karte gross bzw. --karte max startet auf einer größeren Karte
+                int k = Array.IndexOf(args, "--karte");
+                var size = k >= 0 && k + 1 < args.Length
+                    ? args[k + 1] switch { "gross" => Data.MapSize.Large, "max" => Data.MapSize.Max, _ => Data.MapSize.Standard }
+                    : Data.MapSize.Standard;
+                screenManager.AddScreen(new RTSGameplayScreen(size), null);
             }
             else
             {

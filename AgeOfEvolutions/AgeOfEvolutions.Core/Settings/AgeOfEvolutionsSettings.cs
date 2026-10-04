@@ -14,6 +14,7 @@ public class AgeOfEvolutionsSettings : INotifyPropertyChanged
     private bool fullScreen;
     private int language = 2; // Default to English for now
     private ParticleEffectType particleEffect;
+    private int mapSize;
 
     /// <summary>
     /// Gets or sets whether the game is in full-screen mode.
@@ -29,6 +30,22 @@ public class AgeOfEvolutionsSettings : INotifyPropertyChanged
             if (fullScreen != value)
             {
                 fullScreen = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Die im Hauptmenü gewählte Kartengröße: 0 Standard, 1 Groß, 2 Maximal.
+    /// </summary>
+    public int MapSize
+    {
+        get => mapSize;
+        set
+        {
+            if (mapSize != value)
+            {
+                mapSize = value;
                 OnPropertyChanged();
             }
         }

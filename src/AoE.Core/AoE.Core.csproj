@@ -5,6 +5,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <OutputType>Library</OutputType>
     <Platforms>AnyCPU;x64;x86</Platforms>
+    <Version>0.0.1</Version>
+    <Title>Age of Evolutions</Title>
   </PropertyGroup>
   
   <ItemGroup>

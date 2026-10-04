@@ -1,6 +1,6 @@
 // Kartenprüfung: erzeugt viele Karten und prüft Regeln des Kartengenerators.
 //
-//   dotnet run --project tools/kartenpruefung -- rohstoffe start wild
+//   dotnet run --project tools/kartenpruefung -- rohstoffe start wild groessen
 //
 // Jede genannte Regelgruppe wird geprüft; ohne Angabe nur die Statistik.
 // Exit-Code 1, sobald eine Regel auf irgendeiner Karte verletzt ist – damit
@@ -144,6 +144,66 @@ foreach (var ((spieler, art), werte) in naechster.OrderBy(e => e.Key.Spieler))
     Console.WriteLine($"  Spieler {spieler}, naechstes {art,-5}: im Schnitt " +
                       (gefunden.Count > 0 ? $"{gefunden.Average(),5:0.0}, hoechstens {gefunden.Max(),3}" : "  -  ") +
                       $" Kacheln von der Mitte des Stadtzentrums ({gefunden.Count}/{KARTEN} Karten)");
+}
+
+// Kartengrößen (C11): jede Größe gleich dicht besetzt - Wald, Stein, Gold, Wasser,
+// Schafe und Rehe je Fläche wie auf der Standardkarte -, und beide Spieler haben
+// Stein und Gold in Laufweite ihres Stadtzentrums
+if (gruppen.Contains("groessen"))
+{
+    const int PROBEN = 10;
+    var arten = new (string Name, Func<Tile, bool> Zaehlt)[]
+    {
+        ("Wald", t => t.Type == TileType.Forest), ("Stein", t => t.Type == TileType.Mountain),
+        ("Gold", t => t.Type == TileType.GoldMine), ("Wasser", t => t.Type == TileType.Water),
+        ("Schafe", t => t.Food == FoodSource.Sheep), ("Rehe", t => t.Food == FoodSource.Deer),
+    };
+    var dichte = new Dictionary<MapSize, double[]>();
+    foreach (var groesse in Enum.GetValues<MapSize>())
+    {
+        int seite = MapSizes.Side(groesse);
+        var summe = new double[arten.Length];
+        for (int k = 0; k < PROBEN; k++)
+        {
+            var map = new TileMap(seite, seite, 32, MapSettings.ForSize(groesse));
+            if (map.Width != seite || map.Height != seite)
+                verstoesse.Add($"{groesse}: Karte {map.Width}x{map.Height} statt {seite}x{seite}");
+            for (int x = 0; x < map.Width; x++)
+            for (int y = 0; y < map.Height; y++)
+            {
+                var t = map.GetTile(x, y);
+                for (int a = 0; a < arten.Length; a++)
+                    if (arten[a].Zaehlt(t)) summe[a] += 1.0 / (seite * seite) / PROBEN;
+            }
+            foreach (var b in map.Buildings.Where(b => b.Type == "Stadtzentrum"))
+            {
+                int mx = b.X + b.Width / 2, my = b.Y + b.Height / 2;
+                foreach (var art in new[] { Resource.Stone, Resource.Gold })
+                {
+                    int best = int.MaxValue;
+                    for (int x = 0; x < map.Width; x++)
+                    for (int y = 0; y < map.Height; y++)
+                    {
+                        var t = map.GetTile(x, y);
+                        if (t.ResourceType == art && t.ResourceAmount > 0)
+                            best = Math.Min(best, Math.Abs(x - mx) + Math.Abs(y - my));
+                    }
+                    if (best > 14)
+                        verstoesse.Add($"{groesse}, Karte {k}: Spieler {b.OwnerId} hat {art} erst in {best} Kacheln Entfernung (erlaubt: 14)");
+                }
+            }
+        }
+        dichte[groesse] = summe;
+        Console.WriteLine($"  {MapSizes.Name(groesse),-8} {seite,3}x{seite,-3} je 1000 Kacheln: " +
+                          string.Join(", ", arten.Select((art, a) => $"{art.Name} {summe[a] * 1000:0}")));
+    }
+    foreach (var groesse in Enum.GetValues<MapSize>().Where(g => g != MapSize.Standard))
+        for (int a = 0; a < arten.Length; a++)
+        {
+            double relativ = dichte[groesse][a] / dichte[MapSize.Standard][a];
+            if (relativ < 0.5 || relativ > 1.6)
+                verstoesse.Add($"{MapSizes.Name(groesse)}: {arten[a].Name} {relativ:P0} so dicht wie auf der Standardkarte (erwartet 50 bis 160 % - die festen Startvorräte zählen auf der kleinen Karte mehr)");
+        }
 }
 
 if (verstoesse.Count > 0)

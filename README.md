@@ -23,6 +23,7 @@ Spielbar ist die Wirtschaft der Dunklen Zeit und der Aufstieg durch die Zeitalte
 - Ausbildung im Stadtzentrum, Bevölkerungsgrenze aus den Gebäuden
 - Zeitalter: Feudal-, Ritter- und Imperialzeit, je mit Kosten und Forschungszeit
 - Nebel des Krieges, Minimap, Zoom und Kamera
+- Drei Kartengrößen, im Hauptmenü wählbar: Standard (64×64), Groß (90×90), Maximal (128×128)
 
 Kampf und eine KI für den Gegner gibt es noch nicht, siehe [TODO](TODO.md).
 
