@@ -12,6 +12,13 @@
   <PropertyGroup>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
+  <!--
+    Ohne das bricht der Build von AgeOfEvolutions.slnx auf macOS und Linux mit NETSDK1100
+    ab. Die Exe baut dann überall mit, läuft aber nur unter Windows; dort bleibt alles wie bisher.
+  -->
+  <PropertyGroup Condition="!$([MSBuild]::IsOSPlatform('Windows'))">
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
   <ItemGroup>
     <MonoGameContentReference Include="..\AgeOfEvolutions.Core\Content\AgeOfEvolutions.mgcb">
       <Link>Content\AgeOfEvolutions.mgcb</Link>

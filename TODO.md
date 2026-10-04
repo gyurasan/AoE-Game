@@ -305,7 +305,11 @@ Aus dem MonoGame-Beispiel übrig, vom Menü nicht mehr erreichbar
 
 - [x] `RuntimeIdentifiers` = `win-x64;osx-x64;osx-arm64;linux-x64` ergänzt *(Agent H7)*
 - [x] Abnahme: `dotnet restore -r osx-arm64` läuft durch
-- [ ] Offen: auf echter macOS-Hardware starten — bisher nur Restore geprüft, nicht ausgeführt
+- [x] `dotnet build AgeOfEvolutions.slnx` auf macOS: brach mit NETSDK1100 an `WindowsDX`
+      (`net10.0-windows`) ab. `WindowsDX.csproj` setzt jetzt außerhalb von Windows
+      `EnableWindowsTargeting`; unter Windows ändert sich nichts *(2026-10-04)*
+- [ ] Offen: auf echter macOS-Hardware spielen — auf Apple Silicon (osx-arm64) startet
+      `--rts` und läuft ohne Ausnahme, das Spielen selbst ist noch nicht geprüft *(2026-10-04)*
 
 ---
 
