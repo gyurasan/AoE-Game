@@ -69,13 +69,13 @@ public class RTSGameplayScreen : GameScreen
     private int previousScrollWheel;
     private bool scrollInitialised;
     private Rectangle screenBounds;
-    
+
     // Game state
     private TileMap tileMap;
     private Data.Player player1;
     private Data.Player player2;
     private List<Unit> units;
-    
+
     // Selection
     private List<Unit> selectedUnits = new List<Unit>();
     private Vector2? selectionStart = null;
@@ -88,7 +88,7 @@ public class RTSGameplayScreen : GameScreen
     private bool isDragging;
     private bool hudPressed;   // links über der Leiste gedrückt: Taste oder Minimap beim Loslassen
     private const float DRAG_THRESHOLD = 6f;
-    
+
     // Rendering (prozedural generierte AoE1-artige Texturen)
     private Texture2D px;                     // 1x1-Pixel für FillRect/DrawLine
     private Dictionary<TileType, Texture2D> tileTex = new();
@@ -106,7 +106,7 @@ public class RTSGameplayScreen : GameScreen
     private int waterAnimationFrameCounter;
     private float waterAnimTimer;
     private List<Unit> drawList = new();
-    
+
     // Sammeln: die Karte aus Sicht der Sammelaufträge (GatherJob, AoE.Core)
     private TileMapGatherWorld gatherWorld;
 
@@ -324,7 +324,7 @@ public class RTSGameplayScreen : GameScreen
     };
     private BuildingType? placing;   // was gerade gesetzt wird, oder null
     private Vector2 mouseGridCell;
-    
+
     private readonly MapSize _mapSize;   // Kartengröße aus dem Hauptmenü
 
     public RTSGameplayScreen(MapSize mapSize = MapSize.Standard)
@@ -486,7 +486,7 @@ public class RTSGameplayScreen : GameScreen
 
     // Fester Seed: die prozeduralen Texturen sollen bei jedem Start gleich aussehen.
     private readonly Random _texRng = new Random(1337);
-    
+
     private Texture2D CreateTexture(GraphicsDevice device, int width, int height, Color color)
     {
         var texture = new Texture2D(device, width, height);
@@ -496,7 +496,7 @@ public class RTSGameplayScreen : GameScreen
         texture.SetData(colors);
         return texture;
     }
-    
+
     public override void Update(GameTime gameTime, bool otherScreenHasFocus, bool coveredByOtherScreen)
     {
         base.Update(gameTime, otherScreenHasFocus, coveredByOtherScreen);
@@ -536,7 +536,7 @@ public class RTSGameplayScreen : GameScreen
         }
 
         UpdateResources(gameTime);
-        
+
         // Wasser-Animation: alle ~400 ms ein Frame weiter (2,5 fps-Loop)
         waterAnimTimer += (float)gameTime.ElapsedGameTime.TotalMilliseconds;
         if (waterTex.Length > 0 && waterAnimTimer > 400f)
@@ -549,9 +549,9 @@ public class RTSGameplayScreen : GameScreen
     // ====================================================================
     // AoE1-artiges Rendering: prozedurale Pixel-Art-Texturen
     // ====================================================================
-    
+
     // --- Kleine Pixel-Helfer -------------------------------------------
-    
+
     private class TextureBuilder
     {
         public readonly int W, H;
@@ -601,7 +601,7 @@ public class RTSGameplayScreen : GameScreen
             return t;
         }
     }
-    
+
     /// <summary>Lädt ein Bild aus dem Content-Verzeichnis, null wenn es fehlt.</summary>
     private Texture2D LoadOptional(string asset)
     {
@@ -624,7 +624,7 @@ public class RTSGameplayScreen : GameScreen
         var gd = graphicsDevice;
         px = new Texture2D(gd, 1, 1);
         px.SetData(new[] { Color.White });
-        
+
         tileTex[TileType.Grassland] = BuildGrassTexture(gd);
         tileTex[TileType.Sand] = BuildSandTexture(gd);
         tileTex[TileType.Rock] = BuildRockTexture(gd);
@@ -637,7 +637,7 @@ public class RTSGameplayScreen : GameScreen
         tileTex[TileType.Mountain] = BuildMountainTexture(gd);
         tileTex[TileType.GoldMine] = BuildGoldTexture(gd);
         tileTex[TileType.Snow] = BuildSandTexture(gd); // Snow ≈ Sand-Optik
-        
+
         // Wasser in mehreren Varianten zu je vier Frames (Animation)
         waterTex = new Texture2D[WATER_VARIANTS, WATER_FRAMES];
         for (int v = 0; v < WATER_VARIANTS; v++)
@@ -646,7 +646,7 @@ public class RTSGameplayScreen : GameScreen
         tileTex[TileType.Water] = waterTex[0, 0];
         tileTex[TileType.Base] = BuildGrassTexture(gd); // Startzone = Gras
         tileTex[TileType.Wall] = BuildRockTexture(gd);
-        
+
         // Einheiten-Sprites (24x24). Basisfarbe blau; Spieler 2 wird beim Zeichnen rot getönt.
         var unitBase = new Color(70, 110, 190);
         unitTex[UnitType.Villager] = BuildVillagerTexture(gd, unitBase);
@@ -654,7 +654,7 @@ public class RTSGameplayScreen : GameScreen
         unitTex[UnitType.Archer] = BuildArcherTexture(gd, unitBase);
         unitTex[UnitType.Cavalry] = BuildCavalryTexture(gd, unitBase);
     }
-    
+
     private Texture2D BuildGrassTexture(GraphicsDevice gd)
     {
         var b = new TextureBuilder(32, 32);
@@ -676,7 +676,7 @@ public class RTSGameplayScreen : GameScreen
         }
         return b.Build(gd);
     }
-    
+
     private Texture2D BuildSandTexture(GraphicsDevice gd)
     {
         var b = new TextureBuilder(32, 32);
@@ -690,7 +690,7 @@ public class RTSGameplayScreen : GameScreen
         }
         return b.Build(gd);
     }
-    
+
     private Texture2D BuildRockTexture(GraphicsDevice gd)
     {
         var b = new TextureBuilder(32, 32);
@@ -705,7 +705,7 @@ public class RTSGameplayScreen : GameScreen
         }
         return b.Build(gd);
     }
-    
+
     /// <summary>
     /// Wasser mit sanftem Kräuseln aus zwei überlagerten Wellen und kurzen
     /// Glanzlichtern, die je Variante woanders liegen. Der Grund ist in allen
@@ -740,7 +740,7 @@ public class RTSGameplayScreen : GameScreen
         }
         return b.Build(gd);
     }
-    
+
     /// <summary>
     /// Waldboden: dunkel und leicht verrauscht. Die Bäume stehen nicht in der
     /// Kacheltextur – eine Textur kann nicht über ihren Rand hinaus zeichnen,
@@ -771,13 +771,13 @@ public class RTSGameplayScreen : GameScreen
         b.Set(m - 5, m - 6, new Color(110, 170, 70));
         return b.Build(gd);
     }
-    
+
     private Texture2D BuildMountainTexture(GraphicsDevice gd)
     {
         var b = new TextureBuilder(32, 32);
         b.FillRect(0, 0, 32, 32, new Color(130, 125, 120));
         b.Noise(new Color(130, 125, 120), 12, _texRng, 0.6f);
-        
+
         // Bergkamm: diagonale Felsen
         for (int i = 0; i < 6; i++)
         {
@@ -795,14 +795,14 @@ public class RTSGameplayScreen : GameScreen
         }
         return b.Build(gd);
     }
-    
+
     private Texture2D BuildGoldTexture(GraphicsDevice gd)
     {
         var b = new TextureBuilder(32, 32);
         // Brauner Untergrund
         b.FillRect(0, 0, 32, 32, new Color(140, 110, 70));
         b.Noise(new Color(140, 110, 70), 10, _texRng, 0.5f);
-        
+
         // Goldklumpen
         for (int i = 0; i < 8; i++)
         {
@@ -819,18 +819,18 @@ public class RTSGameplayScreen : GameScreen
         }
         return b.Build(gd);
     }
-    
+
     private Texture2D BuildBerryTexture(GraphicsDevice gd)
     {
         var b = new TextureBuilder(32, 32);
         // Durchsichtiger Grund: darunter liegt das Gras der Karte
-        
+
         // Büsch: grüner Haufen mit roten Beeren
         int cx = 16, cy = 18;
         b.FillCircle(cx, cy, 8, new Color(50, 110, 40));
         b.FillCircle(cx - 2, cy - 2, 5, new Color(60, 125, 48));
         b.FillCircle(cx + 3, cy + 2, 4, new Color(45, 100, 36));
-        
+
         // Beeren (kleine rote Punkte)
         for (int i = 0; i < 10; i++)
         {
@@ -845,7 +845,7 @@ public class RTSGameplayScreen : GameScreen
         b.Set(cx - 1, cy - 3, new Color(255, 100, 100));
         return b.Build(gd);
     }
-    
+
     private Texture2D BuildSheepTexture(GraphicsDevice gd)
     {
         var b = new TextureBuilder(32, 32);
@@ -1096,7 +1096,7 @@ public class RTSGameplayScreen : GameScreen
         return b.Build(gd);
     }
 
-    
+
     /// <summary>
     /// Schwenkt die Kamera per Pfeiltasten und Kantenscrollen (Mauszeiger am
     /// Fensterrand). Die Richtung wird in Bildschirmkoordinaten bestimmt und
@@ -1149,11 +1149,11 @@ public class RTSGameplayScreen : GameScreen
     {
         var keyboard = keyboardInput ?? Keyboard.GetState();
         var mouse = mouseInput ?? Mouse.GetState();
-        
+
         // Kamera schwenken: Pfeiltasten und Bildrand
         var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
         PanCamera(keyboard, mouse, dt);
-        
+
         // Zoom
         if (keyboard.IsKeyDown(Keys.OemPlus))
             cameraZoom = Math.Min(cameraZoom + 0.1f, MaxZoom);
@@ -1181,7 +1181,7 @@ public class RTSGameplayScreen : GameScreen
         // Egal ob per Tastatur geschwenkt, per Tastatur oder Mausrad gezoomt:
         // danach darf der Ausschnitt nicht über den Kartenrand hinausragen.
         ClampCamera();
-        
+
         if (keyboard.IsKeyDown(Keys.OemPeriod) && previousKeyboard.IsKeyUp(Keys.OemPeriod))
             SelectNextIdleVillager();
 
@@ -1318,7 +1318,7 @@ public class RTSGameplayScreen : GameScreen
 
     private bool IsOverHud(Point p)
         => p.Y < HUD_TOP_HEIGHT || p.Y >= screenBounds.Height - HUD_BOTTOM_HEIGHT || MinimapPanel().Contains(p);
-    
+
     /// <summary>
     /// Die Fläche, die eine Einheit in der Welt einnimmt: die Figur steht mit den
     /// Füßen auf ihrer Position und ist 24 Einheiten breit und hoch – so, wie
@@ -1332,7 +1332,7 @@ public class RTSGameplayScreen : GameScreen
         foreach (var u in units.Where(u => u.OwnerId == 0))
         {
             var unitRect = UnitWorldRect(u);
-            
+
             if (selectionRect.Intersects(unitRect))
             {
                 if (!selectedUnits.Contains(u))
@@ -1346,11 +1346,11 @@ public class RTSGameplayScreen : GameScreen
                 u.IsSelected = false;
             }
         }
-        
+
         // Remove units no longer in list
         selectedUnits.RemoveAll(u => !u.IsSelected);
     }
-    
+
     private void SelectSingleUnit(Vector2 worldPos)
     {
         // Clear previous selection
@@ -1394,7 +1394,7 @@ public class RTSGameplayScreen : GameScreen
         else
             IssueCommand(gridPos);
     }
-    
+
     /// <summary>
     /// Alle untätigen Dorfbewohner von Spieler 0: kein Sammelauftrag und
     /// Zustand Idle, in der Reihenfolge der Liste units.
@@ -2083,12 +2083,12 @@ public class RTSGameplayScreen : GameScreen
         unit.Position += direction * unit.MovementSpeed * 40 * dt;
         return false;
     }
-    
+
     private void UpdateResources(GameTime gameTime)
     {
         // No natural resource regeneration — resources are finite.
     }
-    
+
     public override void Draw(GameTime gameTime)
     {
         spriteBatch = ScreenManager.SpriteBatch;
@@ -2140,7 +2140,7 @@ public class RTSGameplayScreen : GameScreen
         if (TransitionPosition > 0)
             ScreenManager.FadeBackBufferToBlack(1f - TransitionAlpha);
     }
-    
+
     /// <summary>
     /// Bodenkacheln: Gras, Sand und Wasser aus den großen Bodenbildern, sonst die
     /// gezeichneten Kacheltexturen, am Wasser die Uferlinie. Unter Bäumen, Stein
@@ -2237,9 +2237,15 @@ public class RTSGameplayScreen : GameScreen
                     spriteBatch.Draw(objTex, rect, tint);
             }
         }
-        
+
         // Baumkronen, Stein- und Goldhaufen, Schafe und Rehe als eigene Figuren, zeilenweise von
-        // oben: tiefere überdecken höhere, auch über Kachelgrenzen hinweg
+        // oben: tiefere überdecken höhere, auch über Kachelgrenzen hinweg. Tiere sind
+        // oben: tiefere überdecken höhere, auch über Kachelgrenzen hinweg. Tiere sind
+        // „beseelt" wie spätere Gegnereinheiten: in nicht mehr sichtbarem Dunst (erforscht,
+        // aber aus der Sicht) sind lebende Tiere unsichtbar — der Dunst bleibt für Terrain,
+        // Bäume und Ressourcen. Einzige Ausnahme: erlegtes Fleisch ist abgeerntete
+        // Ressource und bleibt sichtbar, solange die Kachel bekannt ist, so wie die
+        // Beerenbüsche und Bäume im Dunst.
         for (int y = 0; y < tileMap.Height; y++)
         {
             for (int x = 0; x < tileMap.Width; x++)
@@ -2250,7 +2256,9 @@ public class RTSGameplayScreen : GameScreen
                     DrawCrowns(spriteBatch, x, y);
                 else if (PileSprites(tile.Type).Length > 0)
                     DrawPile(spriteBatch, x, y, PileSprites(tile.Type));
-                else if (AnimalSprites(tile.Food) is { Length: > 0 } animals)
+                else if (AnimalSprites(tile.Food) is { Length: > 0 } animals
+                         && (tileMap.IsTileVisible(x, y, 0)
+                             || (tile.Animal is { Slaughtered: true } && tileMap.IsTileExplored(x, y, 0))))
                     DrawAnimal(spriteBatch, tile, x, y, animals);
             }
         }
@@ -2544,7 +2552,7 @@ public class RTSGameplayScreen : GameScreen
                                                 crownSize, crownSize), Color.White);
         }
     }
-    
+
     /// <summary>
     /// Bäume als Sprites an den Stellen der Kronen: anderthalb Kronen breit,
     /// mit dem Stammfuß eine halbe Krone unter der Kronenmitte. Die Kachel wird
@@ -2577,7 +2585,7 @@ public class RTSGameplayScreen : GameScreen
     private Texture2D _fishTex;
     private Texture2D _farmTex;
     private Texture2D _deerTex;
-    
+
     private Texture2D BuildDeerTextureCached()
     {
         if (_deerTex == null) _deerTex = BuildDeerTexture(graphicsDevice);
@@ -2604,7 +2612,7 @@ public class RTSGameplayScreen : GameScreen
         if (_farmTex == null) _farmTex = BuildFarmTexture(graphicsDevice);
         return _farmTex;
     }
-    
+
     private Texture2D GetTileTexture(Data.Tile tile)
     {
         // Wasser nutzt den animierten Frame
@@ -2618,7 +2626,7 @@ public class RTSGameplayScreen : GameScreen
 
         if (tileTex.TryGetValue(tile.Type, out var tex))
             return tex;
-        
+
         return tileTex.Values.FirstOrDefault();
     }
 
@@ -2674,7 +2682,7 @@ public class RTSGameplayScreen : GameScreen
         if (rect.Intersects(screenBounds) == false &&
             new Rectangle(rect.X - 32, rect.Y - rect.Height - 32, rect.Width + 64, rect.Height * 2 + 64).Intersects(screenBounds) == false)
             return;
-        
+
         bool isPlayer1 = b.OwnerId == 0;
 
         // Baustellen zeigen den Fortschritt, fertige Gebäude ihre eigene Grafik;
@@ -2723,12 +2731,12 @@ public class RTSGameplayScreen : GameScreen
                 DrawTower(spriteBatch, rect, isPlayer1);
                 return;
         }
-        
+
         // Fundament (grün/braun)
         Color foundation = isPlayer1 ? new Color(120, 100, 70) : new Color(140, 90, 70);
         Color roof = isPlayer1 ? new Color(170, 160, 140) : new Color(180, 140, 120);
         Color wood = isPlayer1 ? new Color(100, 80, 55) : new Color(110, 75, 55);
-        
+
         // Entworfen für 4 × 4 Kacheln = 128 × 128 Pixel bei Zoom 1. BuildingPart
         // rechnet jede Entwurfsangabe auf die tatsächliche Größe um – vorher
         // wuchs nur die Grundplatte mit, und bei Zoom 2 blieb das Haus ein
@@ -2990,7 +2998,7 @@ public class RTSGameplayScreen : GameScreen
         return new Rectangle(rect.X + (int)(x * sx), rect.Y + (int)(y * sy),
                              Math.Max(1, (int)(width * sx)), Math.Max(1, (int)(height * sy)));
     }
-    
+
     private void spriteDraw(SpriteBatch sb, Texture2D tex, Rectangle r, Color c)
     {
         if (tex == null) return;
@@ -3000,7 +3008,7 @@ public class RTSGameplayScreen : GameScreen
         // Zeichnen mit Tinting (px-Texture = weißes 1×1-Pixel)
         sb.Draw(tex, clipped, c);
     }
-    
+
     private void DrawUnits(SpriteBatch spriteBatch)
     {
         var margin = new Rectangle(screenBounds.X - 32, screenBounds.Y - 32, screenBounds.Width + 64, screenBounds.Height + 64);
@@ -3726,8 +3734,8 @@ public class RTSGameplayScreen : GameScreen
     }
 
     // --- Ende Minimap ------------------------------------------------------------
-    
-    
+
+
         private static string ResourceName(Resource resource) => resource switch
     {
         Resource.Food => "Nahrung",
@@ -3740,61 +3748,61 @@ public class RTSGameplayScreen : GameScreen
     private Texture2D BuildArcherTexture(GraphicsDevice gd, Color playerColor)
     {
         var b = new TextureBuilder(24, 24);
-    
+
         // Körper
         int bodyX = 7, bodyY = 6, bodyW = 10, bodyH = 14;
         b.FillRect(bodyX, bodyY, bodyW, bodyH, new Color(225, 190, 150)); // Haut
         b.OutlineRect(bodyX, bodyY, bodyW, bodyH, new Color(40, 30, 25)); // Umriss
-    
+
         // Tunika über dem Unterkörper (Haut bleibt nur als Kopf/Arme sichtbar)
         b.FillRect(bodyX + 1, bodyY + 4, bodyW - 2, bodyH - 5, playerColor);
-    
+
         // Kapuze
         b.FillRect(bodyX - 1, bodyY - 2, bodyW + 2, 3, playerColor);
-    
+
         // Bogen (vertikaler Halbbogen links)
         int bowX = 2, bowY = 6;
         b.FillCircle(bowX, bowY + 5, 4, new Color(120, 80, 40)); // Bogen
         b.FillRect(bowX - 1, bowY + 3, 1, 5, new Color(220, 210, 190)); // Sehne
-    
+
         // Schatten
         b.FillRect(6, 21, 12, 2, new Color(0, 0, 0, 70));
-    
+
         return b.Build(gd);
     }
 
     private Texture2D BuildCavalryTexture(GraphicsDevice gd, Color playerColor)
     {
         var b = new TextureBuilder(24, 24);
-    
+
         // Pferd
         int horseX = 3, horseY = 8, horseW = 16, horseH = 8;
         b.FillRect(horseX, horseY, horseW, horseH, new Color(110, 75, 50)); // Pferdekörper
         b.OutlineRect(horseX, horseY, horseW, horseH, new Color(40, 30, 25)); // Umriss
-    
+
         // Beine
         b.FillRect(horseX + 1, horseY + 7, 2, 2, new Color(110, 75, 50));
         b.FillRect(horseX + 5, horseY + 7, 2, 2, new Color(110, 75, 50));
         b.FillRect(horseX + 9, horseY + 7, 2, 2, new Color(110, 75, 50));
         b.FillRect(horseX + 13, horseY + 7, 2, 2, new Color(110, 75, 50));
-    
+
         // Kopf
         b.FillRect(horseX + 16, horseY + 4, 3, 3, new Color(110, 75, 50));
-    
+
         // Schweif
         b.FillRect(horseX - 1, horseY + 6, 2, 1, new Color(110, 75, 50));
-    
+
         // Reiter
         int riderX = 9, riderY = 4;
         b.FillRect(riderX, riderY, 6, 4, playerColor); // Oberkörper
         b.FillRect(riderX + 2, riderY - 1, 2, 2, new Color(150, 150, 160)); // Helm
-    
+
         // Schatten
         b.FillRect(4, 21, 16, 2, new Color(0, 0, 0, 70));
-    
+
         return b.Build(gd);
     }
-    
+
     private Vector2 WorldToScreen(Vector2 worldPos)
     {
         return new Vector2(
@@ -3886,17 +3894,17 @@ public class RTSGameplayScreen : GameScreen
             screenPos.X / cameraZoom - cameraPosition.X,
             screenPos.Y / cameraZoom - cameraPosition.Y);
     }
-    
+
     private Vector2 WorldToGrid(Vector2 worldPos)
     {
         return tileMap.WorldToGrid(worldPos);
     }
-    
+
     private Vector2 GridToWorld(Vector2 gridPos)
     {
         return tileMap.GridToWorld(gridPos);
     }
-    
+
     private Color GetTileColor(AgeOfEvolutions.Core.Data.Tile tile)
     {
         return tile.Type switch
