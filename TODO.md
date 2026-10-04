@@ -4,9 +4,9 @@
 
 ## Wiederaufnahme — hier weitermachen
 
-Zuletzt angefasst: **Farm und Tiere im neuen Stil** (2026-10-04) — die Farm ist ein Bild
-über das ganze Feld (C7h), Schafe und Rehe sind Sprites mit eigenem Wandertakt und
-sichtbarem Schritt (C7t), das Bildwerkzeug malt mit Rechteckmaske und Stärke aus (C7m).
+Zuletzt angefasst: **Gebäude und Dorfbewohner je Zeitalter** (2026-10-04, C4g, C4h) —
+jedes Gebäude hat für Dunkle, Feudal-, Ritter- und Imperialzeit ein eigenes Bild, und die
+Dorfbewohner kleiden sich nach dem Zeitalter; beides wechselt, sobald der Besitzer aufsteigt.
 Uncommittet im Arbeitsbaum; Commit macht der Nutzer.
 
 Alles baut und läuft: `dotnet build AgeOfEvolutions.slnx` (0 Fehler, 0 Warnungen),
@@ -17,6 +17,26 @@ mit `4f85314` (2026-10-03). Commits macht der Nutzer selbst.
 
 Zuletzt fertiggestellt:
 
+- **Dorfbewohner je Zeitalter (2026-10-04)** — dieselbe Figur, je Zeitalter umgekleidet:
+  Kittel und Strohhut, dann Tunika mit Lederwams, Gürteltasche und Filzkappe, dann
+  gepolstertes Wams mit grauer Gugel, zuletzt Wams mit Puffärmeln, weißem Kragen und
+  Federbarett; das Blau der Spielerfarbe bleibt das Hauptkleidungsstück. Qwen-Image malte
+  über dem Bild der Dunklen Zeit alles neu außer Gesicht, erhobenem Unterarm samt Faust und
+  Schuhen (Gruppe `einheiten`, `dorfbewohner_zeit_*`) — so sitzt das Werkzeug ohne neue
+  Messung in der Faust. Nur die Faust stehen zu lassen reichte nicht: das Modell malte
+  daneben eine zweite, und rechts unter dem Arm eine dritte Hand. Laufbilder je Zeitalter
+  wie bisher über die Beine (`einheiten_lauf`). Abnahme `c4h_dorfbewohner.py` *(C4h)*
+- **Gebäude je Zeitalter (2026-10-04)** — Stadtzentrum, Haus, Mühle, Holzfäller- und
+  Bergbaulager in vier Fassungen, der Wachturm ab der Feudalzeit in drei: Langhaus und
+  Hütten aus Holz, Flechtwerk und Stroh, dann Bretter und Schindeln auf Bruchstein, dann
+  Burg und Steinbau mit Ziegeldach, zuletzt Haustein mit Schiefer, Kupfer und Gold
+  (`tools/bilder/bilder.json`, Gruppen `gebaeude_dunkel` bis `gebaeude_imperial`, Bilder in
+  `Content/Gebaeude/<zeitalter>/`). Fahnentuch und Mühlennabe sind je Bild gemessen
+  (`FlagCloth`, `MillHubs`); fehlt ein Bild, gilt das des Zeitalters davor. Lange
+  Materialbeschreibungen im Prompt kippten Qwen-Image ins Gemalte, die Prompts sind deshalb
+  knapp. Für Rot umgefärbt wird hier nur Blau ab Sättigung 0,6 (`blau_saettigung` in
+  `uebernehmen.ps1`), sonst färben sich Schieferdächer und Steinschatten mit. Abnahme
+  `c4g_zeitalter.py`; `c6g` zählt seither Strohgold statt Ziegelrot *(C4g)*
 - **Kartengrößen (2026-10-04)** — im Hauptmenü wählt „Karte“ zwischen Standard (64×64),
   Groß (90×90, fast die doppelte Fläche) und Maximal (128×128, die vierfache); die Wahl
   bleibt gespeichert. Wälder, Steinbrüche, Goldadern, Seen und alle Herden wachsen mit der
@@ -156,8 +176,8 @@ Nächste sinnvolle Schritte, in dieser Reihenfolge:
 6. **Veraltete Abnahmen** — `c1n`, `c1c` und `c8a` prüfen Schreibweisen von früher (die
    Schaf-Nahrung als Zahl, „Untätig" in `DrawUI`, „Links ziehen" im Hilfetext) und sind
    deshalb rot, obwohl das Verhalten stimmt; auf Verhalten umstellen.
-7. **Wild (Rehe)** — fertig: 5–8 Herden je 5–12 Rehe, fast so viele wie
-   Schafe, je Spieler eine Herde 12–20 Kacheln vom Stadtzentrum (C7d), 150 Nahrung,
+7. **Wild (Rehe)** — fertig: 5–8 Herden je 3–9 Rehe (seither ~70 % der Schaf-Dichte
+   statt ~100 %), je Spieler eine Herde 12–20 Kacheln vom Stadtzentrum (C7d), 150 Nahrung,
    reserviert wie die Schafe, solange ein Dorfbewohner jagt (Gruppe `wild` in
    `tools/spielablauf`, Bestand in `tools/kartenpruefung -- wild`); Sprites und Bewegung seit
    C7t. Offen nur die Sichtprüfung, dass zwei Dörfler nicht auf dasselbe Reh laufen.
@@ -165,9 +185,10 @@ Nächste sinnvolle Schritte, in dieser Reihenfolge:
    **Wildschweine** (3–5 Rotten je 1–3, 300 Nahrung, gemächlich) mit Stand-, Lauf- und
    Fleischbildern; noch ohne Gegenwehr, die bräuchte die Kampfschleife.
 
-8. **Gebäude je Zeitalter** — die Gebäude sollen in jedem Zeitalter anders aussehen
-   (Vorgabe des Nutzers, 2026-10-04). Umsetzung später: je Gebäude ein Bildsatz pro
-   Zeitalter aus Qwen-Image, gewählt nach dem Zeitalter des Besitzers.
+8. **Gebäude je Zeitalter** — fertig seit C4g (2026-10-04): je Gebäude ein Bildsatz pro
+   Zeitalter aus Qwen-Image, gewählt nach dem Zeitalter des Besitzers. Offen nur die
+   Sichtprüfung im echten Aufstieg und im Rot des zweiten Spielers. Die Vorgabe des
+   Nutzers, nach der die Bilder entstanden sind:
    - **Dunkle Zeit:** Die Siedlungen wirken wie provisorische Lager oder ärmliche,
      frühmittelalterliche Dörfer. Aussehen: klein, flach, asymmetrisch, meist unebene Formen;
      noch keine befestigten Strassen oder Fundamente. Materialien: fast ausschliesslich
@@ -639,6 +660,10 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
       Gebäude der Feudalzeit: **Wachturm** (Taste T, 50 Holz + 125 Stein, 80 s, sieht
       10 Kacheln weit) *(Agent C4c)*. Offen: weitere Gebäude und die Einheiten — die
       brauchen die zurückgestellte Kampfschleife
+- [x] Gebäude sehen in jedem Zeitalter anders aus: ein Bildsatz je Zeitalter unter
+      `Content/Gebaeude/<zeitalter>/`, gezeichnet im Zeitalter des Besitzers *(Agent C4g)*
+- [x] Dorfbewohner kleiden sich nach dem Zeitalter ihres Besitzers: Stand- und Laufbilder je
+      Zeitalter unter `Content/Einheiten/<zeitalter>/` *(Agent C4h)*
 
 ### C5 · Bauen [X] — erledigt
 

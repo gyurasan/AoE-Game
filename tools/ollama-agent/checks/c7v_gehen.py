@@ -45,8 +45,10 @@ for farbe in ("blau", "rot"):
             fehler.append(f"Einheiten/{name}.png ist {b}x{h}, das Standbild {groesse[0]}x{groesse[1]} - nicht deckungsgleich")
         if f"/build:Einheiten/{name}.png" not in mgcb:
             fehler.append(f"Einheiten/{name}.png ist nicht in AgeOfEvolutions.mgcb eingetragen")
+# Seit C4h lädt der Bildschirm die Laufbilder aus dem Ordner des Standbilds (Einheiten/
+# oder Einheiten/<zeitalter>/) - der Name steht dann ohne Ordner im Quelltext
 for pose in ("lauf1", "lauf2"):
-    if f'"Einheiten/dorfbewohner_{pose}"' not in text:
+    if f'"Einheiten/dorfbewohner_{pose}"' not in text and f'"dorfbewohner_{pose}"' not in text:
         fehler.append(f"der Spielbildschirm lädt Einheiten/dorfbewohner_{pose} nicht")
 
 dorf = methode(text, "DrawVillager") or ""

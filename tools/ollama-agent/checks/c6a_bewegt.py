@@ -51,17 +51,21 @@ fahne = methode(text, "DrawWavingFlag") or ""
 if not re.search(r"\bFlagWave\s*\(", fahne):
     fehler.append("DrawWavingFlag bewegt das Tuch nicht (FlagWave)")
 
-# FlagCloth gegen die Bilder: der blaue Stoff liegt im Rechteck, das Rechteck ist kaum größer
+# FlagCloth gegen die Bilder: der blaue Stoff liegt im Rechteck, das Rechteck ist kaum größer.
+# Seit C4g ist der Schlüssel das Bild (Gebaeude/haus, Gebaeude/feudal/haus, ...), nicht
+# der Gebäudetyp - jedes Zeitalter malt die Fahne woanders
 eintraege = dict((n, tuple(int(v) for v in r)) for n, *r in re.findall(
     r'\["([^"]+)"\]\s*=\s*new\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)', text))
-bilder = {"Haus": "haus", "Mühle": "muehle_ohne", "Wachturm": "wachturm",
-          "Bergbaulager": "bergbaulager", "Holzfällerlager": "holzfaellerlager"}
-for gebaeude_name, datei in bilder.items():
-    if gebaeude_name not in eintraege:
-        fehler.append(f"FlagCloth: {gebaeude_name} fehlt")
+for pflicht in ("Gebaeude/haus", "Gebaeude/muehle_ohne", "Gebaeude/wachturm",
+                "Gebaeude/bergbaulager", "Gebaeude/holzfaellerlager"):
+    if pflicht not in eintraege:
+        fehler.append(f"FlagCloth: {pflicht} fehlt")
+for gebaeude_name, (x, y, b, h) in eintraege.items():
+    datei = CONTENT / f"{gebaeude_name}_blau.png"
+    if not datei.is_file():
+        fehler.append(f"FlagCloth {gebaeude_name}: Bild {datei.name} fehlt")
         continue
-    x, y, b, h = eintraege[gebaeude_name]
-    breite, hoehe, pixel = lies_png(CONTENT / f"Gebaeude/{datei}_blau.png")
+    breite, hoehe, pixel = lies_png(datei)
     blau = []
     for py in range(min(hoehe, y + h + 20)):
         for px in range(breite):

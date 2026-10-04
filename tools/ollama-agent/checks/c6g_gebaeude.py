@@ -1,10 +1,12 @@
 """Abnahme C6g: die Gebäude erscheinen im laufenden Spiel als Sprites.
 
 Startet die DesktopGL-Fassung mit --rts, fotografiert die Fensterfläche und
-zählt im Kartenbereich die Pixel im Ziegelrot des Stadtzentrum-Sprites. Die
-selbst gezeichnete Fassung hat kein solches Rot - am 2026-10-03 null Pixel -,
-das Sprite mit seinem Ziegeldach je nach Zoom und Fenster gut zweitausend
-(Schwelle 500, damit kleinere Fenster nicht durchfallen).
+zählt im Kartenbereich die Pixel im Strohgold des Stadtzentrum-Sprites. Seit C4g
+steht zu Beginn das Langhaus der Dunklen Zeit (Gebaeude/dunkel/stadtzentrum) mit
+Strohdach; das frühere Ziegelrot gibt es erst ab der Ritterzeit. Die selbst
+gezeichnete Fassung hat kein Strohgold, das Sprite am 2026-10-04 bei 3008 x 1692
+gut 3500 Pixel, davon 3300 am Stadtzentrum; Wiese und Goldhaufen tragen wenige
+hundert bei (Schwelle 1000, damit kleinere Fenster nicht durchfallen).
 
 Vorher muss DesktopGL gebaut sein. Für einige Sekunden erscheint das Spielfenster.
 """
@@ -29,14 +31,14 @@ if lauf.returncode != 0 or not bild.is_file():
     melde([f"Bildschirmfoto gescheitert: {(lauf.stdout + lauf.stderr).strip()[:400]}"], "")
 
 W, H, pixel = lies_bmp(bild)
-ziegel = 0
+stroh = 0
 for y in range(OBEN, H - UNTEN):
     for x in range(W):
         r, g, b = pixel(x, y)
-        if r > 140 and r - g > 60 and g < 120 and b < 90:
-            ziegel += 1
+        if r > 150 and g > 100 and b < 90 and 30 <= r - g <= 100 and g - b >= 50:
+            stroh += 1
 
 fehler = []
-if ziegel < 500:
-    fehler.append(f"nur {ziegel} ziegelrote Pixel auf der Karte - das Stadtzentrum-Sprite ist nicht zu sehen")
-melde(fehler, f"C6g erfuellt: {ziegel} ziegelrote Pixel (Stadtzentrum als Sprite)")
+if stroh < 1000:
+    fehler.append(f"nur {stroh} strohgoldene Pixel auf der Karte - das Stadtzentrum-Sprite der Dunklen Zeit ist nicht zu sehen")
+melde(fehler, f"C6g erfuellt: {stroh} strohgoldene Pixel (Stadtzentrum der Dunklen Zeit als Sprite)")

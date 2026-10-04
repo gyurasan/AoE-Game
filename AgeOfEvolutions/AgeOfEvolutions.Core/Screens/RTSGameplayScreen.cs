@@ -184,44 +184,81 @@ public class RTSGameplayScreen : GameScreen
     // Gebäude als Sprites - erzeugt mit Qwen-Image (tools/bilder/bilder.json,
     // Gruppe gebaeude), freigestellt und je Spieler eingefärbt: _blau für
     // Spieler 0, _rot für Spieler 1. Schlüssel ist der Gebäudename der Karte.
+    // Jedes Zeitalter hat einen eigenen Satz unter Gebaeude/<ordner>/ (Gruppen
+    // gebaeude_dunkel bis gebaeude_imperial); gezeichnet wird der des Zeitalters,
+    // in dem der Besitzer gerade ist. Fehlt dort ein Bild, gilt das des
+    // Zeitalters davor, zuletzt das zeitlose direkt unter Gebaeude/.
     private static readonly (string Type, string Asset)[] BuildingSprites =
     {
         ("Stadtzentrum", "Gebaeude/stadtzentrum"), ("Haus", "Gebaeude/haus"),
         ("Mühle", "Gebaeude/muehle"), ("Holzfällerlager", "Gebaeude/holzfaellerlager"),
         ("Bergbaulager", "Gebaeude/bergbaulager"), ("Wachturm", "Gebaeude/wachturm"),
     };
-    private readonly Dictionary<(string Type, int Owner), Texture2D> _buildingSprites = new();
+    private static readonly string[] AgeFolders = { "dunkel", "feudal", "ritter", "imperial" };   // Index = Age
+    private readonly Dictionary<(string Type, Age Age, int Owner), Texture2D> _buildingSprites = new();
 
-    // Windrad der Mühle: Gebaeude/muehle_ohne_* ist die Mühle ohne gemalte Flügel,
-    // Gebaeude/muehle_fluegel das Flügelkreuz von vorn. Die Nabe als Anteil am
-    // Mühlenbild (am Bild gemessen), der Durchmesser als Anteil an seiner Breite,
-    // die Drehung in Bogenmaß je Sekunde
-    private static readonly Vector2 MillHub = new(0.566f, 0.396f);
-    private const float MILL_SAIL_SIZE = 1.0f;
+    // Windrad der Mühle: muehle_ohne_* ist die Mühle ohne gemalte Flügel, je
+    // Zeitalter eine, Gebaeude/muehle_fluegel das Flügelkreuz von vorn für alle.
+    // MillHubs hält je Mühlenbild die Nabe als Anteil am Bild (am Bild gemessen)
+    // und den Durchmesser des Kreuzes als Anteil an seiner Breite; die Drehung in
+    // Bogenmaß je Sekunde
+    private static readonly Dictionary<string, (Vector2 Hub, float Size)> MillHubs = new()
+    {
+        ["Gebaeude/muehle_ohne"] = (new(0.566f, 0.396f), 1.0f),
+        ["Gebaeude/dunkel/muehle_ohne"] = (new(0.227f, 0.45f), 1.0f),
+        ["Gebaeude/feudal/muehle_ohne"] = (new(0.498f, 0.593f), 1.0f),
+        ["Gebaeude/ritter/muehle_ohne"] = (new(0.494f, 0.554f), 1.0f),
+        ["Gebaeude/imperial/muehle_ohne"] = (new(0.492f, 0.368f), 1.0f),
+    };
     private const float MILL_SAIL_SPEED = 0.6f;
-    private readonly Dictionary<int, Texture2D> _millBare = new();   // je Spieler
+    private readonly Dictionary<(Age Age, int Owner), Texture2D> _millBare = new();
+    private readonly Dictionary<Texture2D, (Vector2 Hub, float Size)> _millHubs = new();
     private Texture2D _millSails;
 
-    // Fahnen auf den Gebäuden: das Fahnentuch im Gebäudebild (Mast links), am Bild
-    // gemessen und um die Kontur erweitert. DrawWavingFlag lässt es wehen: Ausschlag
-    // als Anteil an der Tuchhöhe, Welle in Bogenmaß je Sekunde
+    // Fahnen auf den Gebäuden: das Fahnentuch je Gebäudebild (Mast links), am Bild
+    // gemessen und um die Kontur erweitert - jedes Zeitalter malt es woanders.
+    // DrawWavingFlag lässt es wehen: Ausschlag als Anteil an der Tuchhöhe, Welle in
+    // Bogenmaß je Sekunde
     private static readonly Dictionary<string, Rectangle> FlagCloth = new()
     {
-        ["Haus"] = new(64, 12, 48, 36),
-        ["Mühle"] = new(168, 5, 37, 21),
-        ["Wachturm"] = new(131, 12, 50, 40),
-        ["Bergbaulager"] = new(236, 130, 20, 22),
-        ["Holzfällerlager"] = new(208, 190, 21, 18),
+        ["Gebaeude/haus"] = new(64, 12, 48, 36),
+        ["Gebaeude/muehle"] = new(168, 5, 37, 21),
+        ["Gebaeude/muehle_ohne"] = new(168, 5, 37, 21),
+        ["Gebaeude/wachturm"] = new(131, 12, 50, 40),
+        ["Gebaeude/bergbaulager"] = new(236, 130, 20, 22),
+        ["Gebaeude/holzfaellerlager"] = new(208, 190, 21, 18),
+        ["Gebaeude/dunkel/haus"] = new(78, 13, 41, 38),
+        ["Gebaeude/dunkel/muehle_ohne"] = new(166, 1, 44, 28),
+        ["Gebaeude/dunkel/holzfaellerlager"] = new(11, 127, 27, 24),
+        ["Gebaeude/dunkel/bergbaulager"] = new(207, 22, 49, 35),
+        ["Gebaeude/feudal/haus"] = new(73, 26, 27, 20),
+        ["Gebaeude/feudal/muehle_ohne"] = new(130, 4, 60, 29),
+        ["Gebaeude/feudal/holzfaellerlager"] = new(237, 122, 19, 20),
+        ["Gebaeude/feudal/bergbaulager"] = new(214, 16, 42, 36),
+        ["Gebaeude/feudal/wachturm"] = new(130, 7, 45, 28),
+        ["Gebaeude/ritter/haus"] = new(66, 26, 29, 23),
+        ["Gebaeude/ritter/muehle_ohne"] = new(131, 4, 51, 27),
+        ["Gebaeude/ritter/bergbaulager"] = new(236, 124, 20, 22),
+        ["Gebaeude/ritter/wachturm"] = new(130, 8, 54, 28),
+        ["Gebaeude/imperial/haus"] = new(76, 11, 35, 30),
+        ["Gebaeude/imperial/muehle_ohne"] = new(131, 9, 49, 35),
+        ["Gebaeude/imperial/holzfaellerlager"] = new(92, 9, 29, 19),
+        ["Gebaeude/imperial/bergbaulager"] = new(223, 122, 33, 22),
+        ["Gebaeude/imperial/wachturm"] = new(131, 7, 56, 37),
     };
+    private readonly Dictionary<Texture2D, Rectangle> _flagCloths = new();
     private const float FLAG_WAVE = 0.18f;
     private const float FLAG_SPEED = 5f;
 
     // Dorfbewohner als Sprite (tools/bilder, Gruppe einheiten), je Spieler blau
-    // oder rot; die Bewegung kommt aus dem Code, siehe DrawVillager
-    private readonly Dictionary<int, Texture2D> _villagerSprites = new();
-    // Laufbilder je Spieler (Einheiten/dorfbewohner_lauf1, _lauf2), deckungsgleich mit
-    // dem Standbild zugeschnitten: Schritt, Stand, Gegenschritt, Stand
-    private readonly Dictionary<int, Texture2D[]> _villagerWalk = new();
+    // oder rot; die Bewegung kommt aus dem Code, siehe DrawVillager. Ab der
+    // Feudalzeit trägt er die Kleidung seines Zeitalters (Einheiten/<ordner>/,
+    // dieselbe Figur umgekleidet, die Faust an derselben Stelle); fehlt ein Bild,
+    // die des Zeitalters davor. Schlüssel ist Zeitalter und Spieler
+    private readonly Dictionary<(Age Age, int Owner), Texture2D> _villagerSprites = new();
+    // Laufbilder (dorfbewohner_lauf1, _lauf2 im Ordner des Standbilds), deckungsgleich
+    // mit dem Standbild zugeschnitten: Schritt, Stand, Gegenschritt, Stand
+    private readonly Dictionary<(Age Age, int Owner), Texture2D[]> _villagerWalk = new();
     private const float VILLAGER_STEP_RATE = 10f;   // Schritttakt beim Gehen, Bogenmaß je Sekunde
     private Texture2D _shadowTex;          // weicher Schatten unter den Füßen
 
@@ -383,21 +420,27 @@ public class RTSGameplayScreen : GameScreen
             }
         }
 
-        // Dorfbewohner-Sprites je Spielerfarbe und ihr Schatten; fehlt das
-        // Sprite, zeichnet DrawUnits die Figur wie bisher selbst
+        // Dorfbewohner-Sprites je Zeitalter und Spielerfarbe und ihr Schatten. Die
+        // Dunkle Zeit trägt die Grundkleidung unter Einheiten/, spätere Zeitalter ihre
+        // eigene, sonst die des Zeitalters davor; fehlt das Sprite ganz, zeichnet
+        // DrawUnits die Figur wie bisher selbst
         foreach (var (owner, colour) in new[] { (0, "_blau"), (1, "_rot") })
         {
-            try
+            var stand = LoadOptional("Einheiten/dorfbewohner" + colour);
+            var walk = VillagerWalkCycle(stand, "Einheiten/", colour);
+            for (int age = 0; age < AgeFolders.Length; age++)
             {
-                _villagerSprites[owner] = ScreenManager.Game.Content.Load<Texture2D>("Einheiten/dorfbewohner" + colour);
+                string folder = "Einheiten/" + AgeFolders[age] + "/";
+                if (LoadOptional(folder + "dorfbewohner" + colour) is { } dressed)
+                {
+                    stand = dressed;
+                    walk = VillagerWalkCycle(dressed, folder, colour);
+                }
+                if (stand != null)
+                    _villagerSprites[((Age)age, owner)] = stand;
+                if (walk != null)
+                    _villagerWalk[((Age)age, owner)] = walk;
             }
-            catch (Microsoft.Xna.Framework.Content.ContentLoadException)
-            {
-            }
-            if (_villagerSprites.TryGetValue(owner, out var stand)
-                && LoadOptional("Einheiten/dorfbewohner_lauf1" + colour) is { } lauf1
-                && LoadOptional("Einheiten/dorfbewohner_lauf2" + colour) is { } lauf2)
-                _villagerWalk[owner] = new[] { lauf1, stand, lauf2, stand };
         }
         _shadowTex = BuildShadowTexture(graphicsDevice);
         foreach (var (tool, style) in ToolStyles)
@@ -433,25 +476,29 @@ public class RTSGameplayScreen : GameScreen
                 _animalWalk[stand] = new[] { lauf1, stand, lauf2, stand };
         }
 
-        // Gebäude-Sprites je Spielerfarbe; fehlt eines, zeichnet DrawBuilding
-        // das Gebäude wie bisher selbst
-        foreach (var (type, asset) in BuildingSprites)
-        {
-            foreach (var (owner, colour) in new[] { (0, "_blau"), (1, "_rot") })
-            {
-                try
-                {
-                    _buildingSprites[(type, owner)] = ScreenManager.Game.Content.Load<Texture2D>(asset + colour);
-                }
-                catch (Microsoft.Xna.Framework.Content.ContentLoadException)
-                {
-                }
-            }
-        }
+        // Gebäude-Sprites je Zeitalter und Spielerfarbe. Fehlt das Bild eines
+        // Zeitalters, gilt das des Zeitalters davor, zuletzt das zeitlose unter
+        // Gebaeude/; fehlt auch das, zeichnet DrawBuilding das Gebäude wie bisher
+        // selbst
         foreach (var (owner, colour) in new[] { (0, "_blau"), (1, "_rot") })
         {
-            if (LoadOptional("Gebaeude/muehle_ohne" + colour) is { } bare)
-                _millBare[owner] = bare;
+            foreach (var (type, asset) in BuildingSprites)
+            {
+                var sprite = LoadBuildingSprite(asset, colour);
+                for (int age = 0; age < AgeFolders.Length; age++)
+                {
+                    sprite = LoadBuildingSprite(AgeAsset(asset, age), colour) ?? sprite;
+                    if (sprite != null)
+                        _buildingSprites[(type, (Age)age, owner)] = sprite;
+                }
+            }
+            var bare = LoadBuildingSprite("Gebaeude/muehle_ohne", colour);
+            for (int age = 0; age < AgeFolders.Length; age++)
+            {
+                bare = LoadBuildingSprite(AgeAsset("Gebaeude/muehle_ohne", age), colour) ?? bare;
+                if (bare != null)
+                    _millBare[((Age)age, owner)] = bare;
+            }
         }
         _millSails = LoadOptional("Gebaeude/muehle_fluegel");
 
@@ -614,6 +661,39 @@ public class RTSGameplayScreen : GameScreen
             return null;
         }
     }
+
+    /// <summary>
+    /// Lädt das Gebäudebild asset + colour, falls es das gibt, und merkt sich dazu
+    /// sein Fahnentuch (FlagCloth) und bei der Mühle die Nabe (MillHubs). Beide
+    /// gehören zum Bild, nicht zum Gebäudetyp - jedes Zeitalter malt sie woanders.
+    /// </summary>
+    private Texture2D LoadBuildingSprite(string asset, string colour)
+    {
+        var sprite = LoadOptional(asset + colour);
+        if (sprite == null)
+            return null;
+        if (FlagCloth.TryGetValue(asset, out var cloth))
+            _flagCloths[sprite] = cloth;
+        if (MillHubs.TryGetValue(asset, out var mill))
+            _millHubs[sprite] = mill;
+        return sprite;
+    }
+
+    /// <summary>
+    /// Die Laufbilder zum Dorfbewohner-Standbild stand aus seinem Ordner folder:
+    /// Schritt, Stand, Gegenschritt, Stand - oder null, wenn eines fehlt; dann
+    /// gleitet die Figur wie bisher. Laufbilder eines anderen Zeitalters passen
+    /// nicht zur Kleidung und werden deshalb nicht genommen.
+    /// </summary>
+    private Texture2D[] VillagerWalkCycle(Texture2D stand, string folder, string colour)
+        => stand != null && LoadOptional(folder + "dorfbewohner_lauf1" + colour) is { } lauf1
+           && LoadOptional(folder + "dorfbewohner_lauf2" + colour) is { } lauf2
+            ? new[] { lauf1, stand, lauf2, stand }
+            : null;
+
+    /// <summary>Das Bild asset im Ordner des Zeitalters age: aus Gebaeude/haus wird Gebaeude/feudal/haus.</summary>
+    private static string AgeAsset(string asset, int age)
+        => asset.Replace("Gebaeude/", "Gebaeude/" + AgeFolders[age] + "/");
 
     /// <summary>
     /// Erzeugt prozedurale Pixel-Art-Texturen für alle Kacheltypen + Wasserframes.
@@ -1595,6 +1675,9 @@ public class RTSGameplayScreen : GameScreen
 
     private Data.Player PlayerOf(Unit unit) => unit.OwnerId == 0 ? player1 : player2;
 
+    /// <summary>Das Zeitalter des Spielers owner - danach richtet sich, wie seine Gebäude aussehen.</summary>
+    private Age AgeOf(int owner) => (owner == 0 ? player1 : player2).Ages.Current;
+
     /// <summary>Das Stadtzentrum eines Spielers, oder null.</summary>
     private Building TownCenterOf(int ownerId)
         => tileMap.Buildings.FirstOrDefault(b => b.OwnerId == ownerId
@@ -2492,12 +2575,12 @@ public class RTSGameplayScreen : GameScreen
 
     /// <summary>
     /// Das Flügelkreuz der Mühle dreht sich vor dem Mühlenbild um die Nabe
-    /// (MillHub, am Bild gemessen), MILL_SAIL_SIZE Mühlenbreiten groß.
+    /// (mill.Hub, am Bild gemessen), mill.Size Mühlenbreiten groß.
     /// </summary>
-    private void DrawMillSails(SpriteBatch spriteBatch, Rectangle area, float phase)
+    private void DrawMillSails(SpriteBatch spriteBatch, Rectangle area, float phase, (Vector2 Hub, float Size) mill)
     {
-        var hub = new Vector2(area.X + area.Width * MillHub.X, area.Y + area.Height * MillHub.Y);
-        float scale = area.Width * MILL_SAIL_SIZE / _millSails.Width;
+        var hub = new Vector2(area.X + area.Width * mill.Hub.X, area.Y + area.Height * mill.Hub.Y);
+        float scale = area.Width * mill.Size / _millSails.Width;
         var origin = new Vector2(_millSails.Width / 2f, _millSails.Height / 2f);
         spriteBatch.Draw(_millSails, hub, null, Color.White, MillSailAngle(animationTime + phase), origin, scale,
                          SpriteEffects.None, 0f);
@@ -2695,22 +2778,26 @@ public class RTSGameplayScreen : GameScreen
 
         // Sprite so breit wie die Grundfläche und unten bündig mit ihr - hohe
         // Gebäude wie Turm und Mühle ragen über die Kacheln dahinter hinaus
-        if (_buildingSprites.TryGetValue((b.Type, b.OwnerId), out var sprite))
+        // Jedes Zeitalter hat eigene Bilder: gezeichnet wird das des Besitzers
+        var age = AgeOf(b.OwnerId);
+        if (_buildingSprites.TryGetValue((b.Type, age, b.OwnerId), out var sprite))
         {
-            // Die Mühle ohne gemalte Flügel, wenn das Flügelkreuz da ist - es dreht sich davor
+            // Die Mühle ohne gemalte Flügel, wenn das Flügelkreuz da ist und ihre
+            // Nabe gemessen - es dreht sich davor
             Texture2D bare = null;
-            bool windmill = b.Type == "Mühle" && _millSails != null && _millBare.TryGetValue(b.OwnerId, out bare);
+            bool windmill = b.Type == "Mühle" && _millSails != null
+                            && _millBare.TryGetValue((age, b.OwnerId), out bare) && _millHubs.ContainsKey(bare);
             if (windmill)
                 sprite = bare;
             int spriteHeight = rect.Width * sprite.Height / sprite.Width;
             var area = new Rectangle(rect.X, rect.Bottom - spriteHeight, rect.Width, spriteHeight);
             float phase = (b.X * 7 + b.Y * 13) * 0.37f;   // jedes Gebäude im eigenen Takt
-            if (FlagCloth.TryGetValue(b.Type, out var cloth))
+            if (_flagCloths.TryGetValue(sprite, out var cloth))
                 DrawWavingFlag(spriteBatch, sprite, area, cloth, phase);
             else
                 spriteBatch.Draw(sprite, area, Color.White);
             if (windmill)
-                DrawMillSails(spriteBatch, area, phase);
+                DrawMillSails(spriteBatch, area, phase, _millHubs[bare]);
             return;
         }
         switch (b.Core.BuildingType)
@@ -3034,7 +3121,8 @@ public class RTSGameplayScreen : GameScreen
             var tint = unit.OwnerId == 0 ? Color.White : new Color(255, 180, 180);
 
             // Einheit zeichnen - Dorfbewohner als bewegtes Sprite, sofern geladen
-            if (unit.Type == UnitType.Villager && _villagerSprites.TryGetValue(unit.OwnerId, out var figure))
+            if (unit.Type == UnitType.Villager
+                && _villagerSprites.TryGetValue((AgeOf(unit.OwnerId), unit.OwnerId), out var figure))
             {
                 DrawVillager(spriteBatch, unit, figure, screenPos, size);
             }
@@ -3139,7 +3227,7 @@ public class RTSGameplayScreen : GameScreen
         }
 
         // Beim Gehen setzt er die Beine, im Takt des Wippens: gespreizt unten, im Stand oben
-        if (moving && _villagerWalk.TryGetValue(unit.OwnerId, out var walk))
+        if (moving && _villagerWalk.TryGetValue((AgeOf(unit.OwnerId), unit.OwnerId), out var walk))
             figure = walk[VillagerWalkPhase(t)];
 
         // Schatten unter den Füßen - er bleibt am Boden, während die Figur wippt

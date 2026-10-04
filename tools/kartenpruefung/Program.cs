@@ -23,7 +23,7 @@ var abbaubar = new Dictionary<TileType, int>();
 var anzahl = new Dictionary<TileType, int>();
 var naechster = new Dictionary<(int Spieler, Resource Art), List<int>>();
 int fische = 0, kartenMitFisch = 0;
-int reheGesamt = 0, schafeGesamt = 0, ohneReh = 0, kaninchenGesamt = 0, schweineGesamt = 0;
+int reheGesamt = 0, schafeGesamt = 0, ohneReh = 0, kaninchenGesamt = 0, schweineGesamt = 0, beerenGesamt = 0;
 var startJagd = new List<int>();   // Abstand der nächsten Rehe zu jedem Stadtzentrum
 
 for (int k = 0; k < KARTEN; k++)
@@ -81,7 +81,7 @@ for (int k = 0; k < KARTEN; k++)
 
     // Wild (C7d): fast so viele Rehe wie Schafe, auf jeder Karte welche, und jeder
     // Spieler hat eine Rehherde in Reichweite seines Stadtzentrums
-    int rehe = 0, schafe = 0, kaninchen = 0, schweine = 0;
+    int rehe = 0, schafe = 0, kaninchen = 0, schweine = 0, beeren = 0;
     for (int x = 0; x < map.Width; x++)
     for (int y = 0; y < map.Height; y++)
     {
@@ -90,9 +90,11 @@ for (int k = 0; k < KARTEN; k++)
         else if (futter == FoodSource.Sheep) schafe++;
         else if (futter == FoodSource.Rabbit) kaninchen++;
         else if (futter == FoodSource.Boar) schweine++;
+        else if (futter == FoodSource.Berries) beeren++;
     }
     reheGesamt += rehe;
     schafeGesamt += schafe;
+    beerenGesamt += beeren;
     if (rehe == 0) ohneReh++;
     if (gruppen.Contains("wild") && rehe == 0)
         verstoesse.Add($"Karte {k}: kein einziges Reh");
@@ -132,8 +134,9 @@ Console.WriteLine($"  Wild: {reheGesamt / (float)KARTEN:0.0} Rehe und {schafeGes
                   $"(Rehe = {verhaeltnis:P0} der Schafe), {ohneReh} Karten ohne Reh, " +
                   $"nächstes Reh im Schnitt {startJagd.Where(d => d != int.MaxValue).DefaultIfEmpty(0).Average():0.0} Kacheln vom Stadtzentrum");
 Console.WriteLine($"  Kleinwild: {kaninchenGesamt / (float)KARTEN:0.0} Kaninchen und {schweineGesamt / (float)KARTEN:0.0} Wildschweine je Karte");
-if (gruppen.Contains("wild") && (verhaeltnis < 0.7f || verhaeltnis > 1.0f))
-    verstoesse.Add($"Rehe sind {verhaeltnis:P0} der Schafe - erwartet: fast so viele (70 bis 100 %)");
+Console.WriteLine($"  Beerenbuusche: {beerenGesamt / (float)KARTEN:0.0} je Karte");
+if (gruppen.Contains("wild") && (verhaeltnis < 0.55f || verhaeltnis > 1.0f))
+    verstoesse.Add($"Rehe sind {verhaeltnis:P0} der Schafe - erwartet: etwa 60 bis 100 % (seit 2026-10-04 ~70 %)");
 int felsen = anzahl.GetValueOrDefault(TileType.Rock);
 Console.WriteLine($"  Deko-Felsen (Rock): {felsen}");
 if (gruppen.Contains("rohstoffe") && felsen > 0)

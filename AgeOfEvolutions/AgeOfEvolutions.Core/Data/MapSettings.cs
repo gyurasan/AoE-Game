@@ -48,8 +48,9 @@ public class MapSettings
     // --- Beeren --------------------------------------------------------
     /// <summary>Wahrscheinlichkeit (0..1), dass an einer Waldlichtung Büsche wachsen.</summary>
     public float BerryChance { get; set; } = 0.85f;
-    public int BerriesMin { get; set; } = 3;
-    public int BerriesMax { get; set; } = 5;
+    /// <summary>Büsche je Waldlichtung (Min/Max, inclusive) — seit 2026-10-04 doppelt so viele.</summary>
+    public int BerriesMin { get; set; } = 6;
+    public int BerriesMax { get; set; } = 11;
 
     // --- Schafe --------------------------------------------------------
     /// <summary>Anzahl der Schafherden auf der Karte (Min/Max, inclusive).</summary>
@@ -79,9 +80,13 @@ public class MapSettings
     /// </summary>
     public int DeerHerdsMin { get; set; } = 5;
     public int DeerHerdsMax { get; set; } = 8;
-    /// <summary>Rehe je Herde (Min/Max, inclusive) — zusammen fast so viele wie Schafe.</summary>
-    public int DeerPerHerdMin { get; set; } = 5;
-    public int DeerPerHerdMax { get; set; } = 12;
+    /// <summary>Rehe je Herde (Min/Max, inclusive).</summary>
+    /// <remarks>
+    /// Seit 2026-10-04 etwas kleiner (vorher 5–12): die Dichte ist jetzt ~70 % statt
+    /// ~100 % der Schaf-Dichte, damit eine (kleine) Karte nicht übersät von Rehen ist.
+    /// </remarks>
+    public int DeerPerHerdMin { get; set; } = 3;
+    public int DeerPerHerdMax { get; set; } = 9;
     /// <summary>
     /// Abstand der Startherde jedes Spielers zu seinem Stadtzentrum (Kacheln,
     /// waagerecht plus senkrecht) - in Reichweite, wie die Startjagd in AoE.

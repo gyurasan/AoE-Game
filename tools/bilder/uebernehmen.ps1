@@ -14,6 +14,10 @@
 #                         einem weichen Kreuz aus dem unverschobenen Bild überdecken
 #   spielerfarben true    zwei Dateien: <ziel>_blau.png wie erzeugt, <ziel>_rot.png
 #                         mit kräftigem Blau (Fahnen, Banner) in Rot umgefärbt
+#   blau_saettigung  s    ab welcher Sättigung (0 bis 1, sonst 0,3) Blau als Spielerfarbe
+#                         gilt. Die Gebäude der Zeitalter brauchen 0,6: Schieferdächer,
+#                         bläuliche Steinschatten und Fenster liegen bei 0,3 bis 0,5
+#                         und würden sonst mit rot
 #   figur         name    alle Einträge mit derselben Figur, auch aus anderen Gruppen,
 #                         auf dasselbe Rechteck beschneiden: die Vereinigung ihrer
 #                         sichtbaren Flächen. So bleiben die Laufbilder eines Tiers
@@ -121,9 +125,9 @@ public static class Nachbearbeitung
         return b;
     }
 
-    /// Kräftiges Blau (Farbton 190-260 Grad, Sättigung ab 0,3) wird Rot: der
-    /// Bereich wird um 225 Grad verschoben und gestaucht, Helligkeit bleibt.
-    public static Bitmap BlauZuRot(Bitmap quelle)
+    /// Kräftiges Blau (Farbton 190-260 Grad, Sättigung ab saettigung) wird Rot:
+    /// der Bereich wird um 225 Grad verschoben und gestaucht, Helligkeit bleibt.
+    public static Bitmap BlauZuRot(Bitmap quelle, double saettigung)
     {
         var b = new Bitmap(quelle);
         BitmapData d; var px = Lesen(b, out d);
@@ -136,7 +140,7 @@ public static class Nachbearbeitung
             double s = c / max;
             double h = max == rt ? 60 * (((gr - bl) / c) % 6) : max == gr ? 60 * ((bl - rt) / c + 2) : 60 * ((rt - gr) / c + 4);
             if (h < 0) h += 360;
-            if (h < 190 || h > 260 || s < 0.3) continue;
+            if (h < 190 || h > 260 || s < saettigung) continue;
             double neu = ((h - 225) * 0.4 + 360) % 360;
             double x = c * (1 - Math.Abs((neu / 60) % 2 - 1)), m = max - c;
             double r1 = 0, g1 = 0, b1 = 0;
@@ -213,7 +217,9 @@ foreach ($g in $katalog.PSObject.Properties) {
             if (Wert $e $g.Value "spielerfarben") {
                 $basis = [System.IO.Path]::ChangeExtension($ziel, $null).TrimEnd('.')
                 $bild.Save("${basis}_blau.png", [System.Drawing.Imaging.ImageFormat]::Png)
-                $rot = [Nachbearbeitung]::BlauZuRot($bild)
+                $saettigung = Wert $e $g.Value "blau_saettigung"
+                if ($null -eq $saettigung) { $saettigung = 0.3 }
+                $rot = [Nachbearbeitung]::BlauZuRot($bild, [double]$saettigung)
                 $rot.Save("${basis}_rot.png", [System.Drawing.Imaging.ImageFormat]::Png); $rot.Dispose()
                 Write-Output ("{0,-34} -> {1} (blau, rot; {2}x{3})" -f (Split-Path $quelle -Leaf), $e.ziel, $bild.Width, $bild.Height)
             } else {

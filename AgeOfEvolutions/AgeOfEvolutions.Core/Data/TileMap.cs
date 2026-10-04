@@ -379,9 +379,9 @@ public class TileMap
         }
     }
 
-    // Rehe: fast so viele wie Schafe, in Herden auf Gras über je 5×5 Kacheln, ein Reh
-    // je Kachel; die Wanderung (UpdateDeer) bewegt diese. Die ersten beiden Herden
-    // stehen je eine in Reichweite eines Stadtzentrums (DeerStartDistanceMin bis
+    // Rehe: etwas weniger als die Schafe (~70 % der Dichte, seit 2026-10-04), in Herden
+    // auf Gras über je 5×5 Kacheln, ein Reh je Kachel; die Wanderung (UpdateDeer) bewegt
+    // diese. Die ersten beiden Herden stehen je eine in Reichweite eines Stadtzentrums (DeerStartDistanceMin bis
     // -Max Kacheln, wie die Startjagd in AoE), die übrigen irgendwo auf der Karte.
     // Eine Herde, die keinen Platz auf Gras findet, sucht sich eine neue Stelle -
     // vorher blieb rund jede 75. Karte ganz ohne Rehe.

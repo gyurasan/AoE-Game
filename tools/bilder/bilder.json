@@ -278,6 +278,1827 @@
     "prompt": "A medieval peasant villager in a bright blue tunic with a brown belt, brown trousers, leather shoes and a straw hat, friendly face, walking pose turned slightly to the right, his right hand raised to the shoulder and clenched into an empty fist, holding nothing.",
     "negativ": "hoe, tool, stick, handle, staff, pole, rod, weapon, object in hand",
     "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_zeit_feudal",
+    "seed": 4330,
+    "ziel": "Einheiten/feudal/dorfbewohner.png",
+    "vorlage": "dorfbewohner_frei_4101_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       285,
+       38,
+       446,
+       102
+      ],
+      [
+       285,
+       140,
+       155,
+       120
+      ],
+      [
+       580,
+       140,
+       60,
+       135
+      ],
+      [
+       285,
+       260,
+       315,
+       570
+      ],
+      [
+       600,
+       475,
+       60,
+       355
+      ],
+      [
+       503,
+       168,
+       2,
+       1
+      ],
+      [
+       502,
+       169,
+       3,
+       2
+      ],
+      [
+       579,
+       193,
+       1,
+       6
+      ],
+      [
+       578,
+       199,
+       2,
+       1
+      ],
+      [
+       572,
+       200,
+       8,
+       18
+      ],
+      [
+       571,
+       218,
+       9,
+       8
+      ],
+      [
+       524,
+       219,
+       3,
+       1
+      ],
+      [
+       544,
+       219,
+       4,
+       1
+      ],
+      [
+       524,
+       220,
+       23,
+       1
+      ],
+      [
+       526,
+       221,
+       20,
+       1
+      ],
+      [
+       529,
+       222,
+       15,
+       1
+      ],
+      [
+       565,
+       226,
+       15,
+       21
+      ],
+      [
+       559,
+       247,
+       21,
+       9
+      ],
+      [
+       560,
+       256,
+       20,
+       1
+      ],
+      [
+       564,
+       257,
+       16,
+       1
+      ],
+      [
+       565,
+       258,
+       15,
+       1
+      ],
+      [
+       572,
+       259,
+       8,
+       1
+      ],
+      [
+       600,
+       275,
+       131,
+       3
+      ],
+      [
+       605,
+       278,
+       126,
+       1
+      ],
+      [
+       606,
+       279,
+       125,
+       3
+      ],
+      [
+       605,
+       282,
+       126,
+       1
+      ],
+      [
+       606,
+       283,
+       125,
+       2
+      ],
+      [
+       612,
+       285,
+       119,
+       1
+      ],
+      [
+       612,
+       286,
+       53,
+       1
+      ],
+      [
+       704,
+       286,
+       27,
+       6
+      ],
+      [
+       612,
+       287,
+       51,
+       5
+      ],
+      [
+       612,
+       292,
+       39,
+       1
+      ],
+      [
+       710,
+       292,
+       21,
+       1
+      ],
+      [
+       612,
+       293,
+       38,
+       9
+      ],
+      [
+       711,
+       293,
+       20,
+       5
+      ],
+      [
+       715,
+       298,
+       16,
+       1
+      ],
+      [
+       718,
+       299,
+       13,
+       14
+      ],
+      [
+       613,
+       302,
+       37,
+       3
+      ],
+      [
+       618,
+       305,
+       26,
+       1
+      ],
+      [
+       619,
+       306,
+       24,
+       13
+      ],
+      [
+       723,
+       313,
+       8,
+       1
+      ],
+      [
+       724,
+       314,
+       7,
+       8
+      ],
+      [
+       625,
+       319,
+       18,
+       2
+      ],
+      [
+       624,
+       321,
+       19,
+       1
+      ],
+      [
+       625,
+       322,
+       18,
+       4
+      ],
+      [
+       723,
+       322,
+       8,
+       29
+      ],
+      [
+       625,
+       326,
+       22,
+       1
+      ],
+      [
+       625,
+       327,
+       23,
+       2
+      ],
+      [
+       625,
+       329,
+       25,
+       4
+      ],
+      [
+       624,
+       333,
+       26,
+       3
+      ],
+      [
+       625,
+       336,
+       25,
+       2
+      ],
+      [
+       625,
+       338,
+       26,
+       1
+      ],
+      [
+       653,
+       338,
+       4,
+       1
+      ],
+      [
+       631,
+       339,
+       25,
+       5
+      ],
+      [
+       631,
+       344,
+       26,
+       6
+      ],
+      [
+       658,
+       346,
+       5,
+       4
+      ],
+      [
+       631,
+       350,
+       33,
+       1
+      ],
+      [
+       631,
+       351,
+       3,
+       1
+      ],
+      [
+       637,
+       351,
+       27,
+       1
+      ],
+      [
+       718,
+       351,
+       13,
+       20
+      ],
+      [
+       638,
+       352,
+       26,
+       2
+      ],
+      [
+       638,
+       354,
+       25,
+       2
+      ],
+      [
+       638,
+       356,
+       19,
+       2
+      ],
+      [
+       658,
+       356,
+       5,
+       2
+      ],
+      [
+       638,
+       358,
+       18,
+       1
+      ],
+      [
+       638,
+       359,
+       12,
+       13
+      ],
+      [
+       723,
+       371,
+       8,
+       15
+      ],
+      [
+       645,
+       372,
+       5,
+       1
+      ],
+      [
+       723,
+       386,
+       6,
+       2
+      ],
+      [
+       730,
+       386,
+       1,
+       12
+      ],
+      [
+       724,
+       388,
+       5,
+       1
+      ],
+      [
+       724,
+       389,
+       3,
+       1
+      ],
+      [
+       729,
+       398,
+       2,
+       1
+      ],
+      [
+       724,
+       399,
+       7,
+       6
+      ],
+      [
+       723,
+       405,
+       8,
+       1
+      ],
+      [
+       717,
+       406,
+       14,
+       12
+      ],
+      [
+       711,
+       418,
+       3,
+       1
+      ],
+      [
+       715,
+       418,
+       16,
+       1
+      ],
+      [
+       711,
+       419,
+       20,
+       4
+      ],
+      [
+       710,
+       423,
+       21,
+       8
+      ],
+      [
+       704,
+       431,
+       27,
+       14
+      ],
+      [
+       699,
+       445,
+       32,
+       6
+      ],
+      [
+       698,
+       451,
+       33,
+       1
+      ],
+      [
+       600,
+       452,
+       4,
+       6
+      ],
+      [
+       691,
+       452,
+       40,
+       6
+      ],
+      [
+       600,
+       458,
+       10,
+       1
+      ],
+      [
+       684,
+       458,
+       4,
+       1
+      ],
+      [
+       690,
+       458,
+       41,
+       1
+      ],
+      [
+       600,
+       459,
+       11,
+       6
+      ],
+      [
+       684,
+       459,
+       47,
+       7
+      ],
+      [
+       600,
+       465,
+       12,
+       1
+      ],
+      [
+       677,
+       465,
+       3,
+       1
+      ],
+      [
+       600,
+       466,
+       23,
+       5
+      ],
+      [
+       677,
+       466,
+       54,
+       5
+      ],
+      [
+       600,
+       471,
+       24,
+       1
+      ],
+      [
+       671,
+       471,
+       60,
+       1
+      ],
+      [
+       600,
+       472,
+       34,
+       3
+      ],
+      [
+       670,
+       472,
+       61,
+       1
+      ],
+      [
+       665,
+       473,
+       66,
+       2
+      ]
+     ]
+    },
+    "prompt": "A medieval villager in a bright blue wool tunic with a brown leather jerkin laced over it, a brown belt with a small pouch, dark brown hose, leather shoes and a brown felt cap, friendly face, walking pose turned slightly to the right, holding nothing.",
+    "negativ": "hoe, tool, stick, handle, staff, pole, rod, weapon, object in hand, armor, sword, cape, second fist, extra hand, extra arm, three hands, raised left arm",
+    "figur": "dorfbewohner_feudal"
+   },
+   {
+    "name": "dorfbewohner_zeit_ritter",
+    "seed": 4432,
+    "ziel": "Einheiten/ritter/dorfbewohner.png",
+    "vorlage": "dorfbewohner_frei_4101_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       285,
+       38,
+       446,
+       102
+      ],
+      [
+       285,
+       140,
+       155,
+       120
+      ],
+      [
+       580,
+       140,
+       60,
+       135
+      ],
+      [
+       285,
+       260,
+       315,
+       570
+      ],
+      [
+       600,
+       475,
+       60,
+       355
+      ],
+      [
+       503,
+       168,
+       2,
+       1
+      ],
+      [
+       502,
+       169,
+       3,
+       2
+      ],
+      [
+       579,
+       193,
+       1,
+       6
+      ],
+      [
+       578,
+       199,
+       2,
+       1
+      ],
+      [
+       572,
+       200,
+       8,
+       18
+      ],
+      [
+       571,
+       218,
+       9,
+       8
+      ],
+      [
+       524,
+       219,
+       3,
+       1
+      ],
+      [
+       544,
+       219,
+       4,
+       1
+      ],
+      [
+       524,
+       220,
+       23,
+       1
+      ],
+      [
+       526,
+       221,
+       20,
+       1
+      ],
+      [
+       529,
+       222,
+       15,
+       1
+      ],
+      [
+       565,
+       226,
+       15,
+       21
+      ],
+      [
+       559,
+       247,
+       21,
+       9
+      ],
+      [
+       560,
+       256,
+       20,
+       1
+      ],
+      [
+       564,
+       257,
+       16,
+       1
+      ],
+      [
+       565,
+       258,
+       15,
+       1
+      ],
+      [
+       572,
+       259,
+       8,
+       1
+      ],
+      [
+       600,
+       275,
+       131,
+       3
+      ],
+      [
+       605,
+       278,
+       126,
+       1
+      ],
+      [
+       606,
+       279,
+       125,
+       3
+      ],
+      [
+       605,
+       282,
+       126,
+       1
+      ],
+      [
+       606,
+       283,
+       125,
+       2
+      ],
+      [
+       612,
+       285,
+       119,
+       1
+      ],
+      [
+       612,
+       286,
+       53,
+       1
+      ],
+      [
+       704,
+       286,
+       27,
+       6
+      ],
+      [
+       612,
+       287,
+       51,
+       5
+      ],
+      [
+       612,
+       292,
+       39,
+       1
+      ],
+      [
+       710,
+       292,
+       21,
+       1
+      ],
+      [
+       612,
+       293,
+       38,
+       9
+      ],
+      [
+       711,
+       293,
+       20,
+       5
+      ],
+      [
+       715,
+       298,
+       16,
+       1
+      ],
+      [
+       718,
+       299,
+       13,
+       14
+      ],
+      [
+       613,
+       302,
+       37,
+       3
+      ],
+      [
+       618,
+       305,
+       26,
+       1
+      ],
+      [
+       619,
+       306,
+       24,
+       13
+      ],
+      [
+       723,
+       313,
+       8,
+       1
+      ],
+      [
+       724,
+       314,
+       7,
+       8
+      ],
+      [
+       625,
+       319,
+       18,
+       2
+      ],
+      [
+       624,
+       321,
+       19,
+       1
+      ],
+      [
+       625,
+       322,
+       18,
+       4
+      ],
+      [
+       723,
+       322,
+       8,
+       29
+      ],
+      [
+       625,
+       326,
+       22,
+       1
+      ],
+      [
+       625,
+       327,
+       23,
+       2
+      ],
+      [
+       625,
+       329,
+       25,
+       4
+      ],
+      [
+       624,
+       333,
+       26,
+       3
+      ],
+      [
+       625,
+       336,
+       25,
+       2
+      ],
+      [
+       625,
+       338,
+       26,
+       1
+      ],
+      [
+       653,
+       338,
+       4,
+       1
+      ],
+      [
+       631,
+       339,
+       25,
+       5
+      ],
+      [
+       631,
+       344,
+       26,
+       6
+      ],
+      [
+       658,
+       346,
+       5,
+       4
+      ],
+      [
+       631,
+       350,
+       33,
+       1
+      ],
+      [
+       631,
+       351,
+       3,
+       1
+      ],
+      [
+       637,
+       351,
+       27,
+       1
+      ],
+      [
+       718,
+       351,
+       13,
+       20
+      ],
+      [
+       638,
+       352,
+       26,
+       2
+      ],
+      [
+       638,
+       354,
+       25,
+       2
+      ],
+      [
+       638,
+       356,
+       19,
+       2
+      ],
+      [
+       658,
+       356,
+       5,
+       2
+      ],
+      [
+       638,
+       358,
+       18,
+       1
+      ],
+      [
+       638,
+       359,
+       12,
+       13
+      ],
+      [
+       723,
+       371,
+       8,
+       15
+      ],
+      [
+       645,
+       372,
+       5,
+       1
+      ],
+      [
+       723,
+       386,
+       6,
+       2
+      ],
+      [
+       730,
+       386,
+       1,
+       12
+      ],
+      [
+       724,
+       388,
+       5,
+       1
+      ],
+      [
+       724,
+       389,
+       3,
+       1
+      ],
+      [
+       729,
+       398,
+       2,
+       1
+      ],
+      [
+       724,
+       399,
+       7,
+       6
+      ],
+      [
+       723,
+       405,
+       8,
+       1
+      ],
+      [
+       717,
+       406,
+       14,
+       12
+      ],
+      [
+       711,
+       418,
+       3,
+       1
+      ],
+      [
+       715,
+       418,
+       16,
+       1
+      ],
+      [
+       711,
+       419,
+       20,
+       4
+      ],
+      [
+       710,
+       423,
+       21,
+       8
+      ],
+      [
+       704,
+       431,
+       27,
+       14
+      ],
+      [
+       699,
+       445,
+       32,
+       6
+      ],
+      [
+       698,
+       451,
+       33,
+       1
+      ],
+      [
+       600,
+       452,
+       4,
+       6
+      ],
+      [
+       691,
+       452,
+       40,
+       6
+      ],
+      [
+       600,
+       458,
+       10,
+       1
+      ],
+      [
+       684,
+       458,
+       4,
+       1
+      ],
+      [
+       690,
+       458,
+       41,
+       1
+      ],
+      [
+       600,
+       459,
+       11,
+       6
+      ],
+      [
+       684,
+       459,
+       47,
+       7
+      ],
+      [
+       600,
+       465,
+       12,
+       1
+      ],
+      [
+       677,
+       465,
+       3,
+       1
+      ],
+      [
+       600,
+       466,
+       23,
+       5
+      ],
+      [
+       677,
+       466,
+       54,
+       5
+      ],
+      [
+       600,
+       471,
+       24,
+       1
+      ],
+      [
+       671,
+       471,
+       60,
+       1
+      ],
+      [
+       600,
+       472,
+       34,
+       3
+      ],
+      [
+       670,
+       472,
+       61,
+       1
+      ],
+      [
+       665,
+       473,
+       66,
+       2
+      ]
+     ]
+    },
+    "prompt": "A high medieval craftsman in a bright blue padded doublet with a row of buttons, a grey wool hood with a short cape over the shoulders, a leather belt, dark grey hose and leather shoes, friendly face, walking pose turned slightly to the right, holding nothing.",
+    "negativ": "hoe, tool, stick, handle, staff, pole, rod, weapon, object in hand, armor, sword, cape, second fist, extra hand, extra arm, three hands, raised left arm",
+    "figur": "dorfbewohner_ritter"
+   },
+   {
+    "name": "dorfbewohner_zeit_imperial",
+    "seed": 4531,
+    "ziel": "Einheiten/imperial/dorfbewohner.png",
+    "vorlage": "dorfbewohner_frei_4101_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       285,
+       38,
+       446,
+       102
+      ],
+      [
+       285,
+       140,
+       155,
+       120
+      ],
+      [
+       580,
+       140,
+       60,
+       135
+      ],
+      [
+       285,
+       260,
+       315,
+       570
+      ],
+      [
+       600,
+       475,
+       60,
+       355
+      ],
+      [
+       503,
+       168,
+       2,
+       1
+      ],
+      [
+       502,
+       169,
+       3,
+       2
+      ],
+      [
+       579,
+       193,
+       1,
+       6
+      ],
+      [
+       578,
+       199,
+       2,
+       1
+      ],
+      [
+       572,
+       200,
+       8,
+       18
+      ],
+      [
+       571,
+       218,
+       9,
+       8
+      ],
+      [
+       524,
+       219,
+       3,
+       1
+      ],
+      [
+       544,
+       219,
+       4,
+       1
+      ],
+      [
+       524,
+       220,
+       23,
+       1
+      ],
+      [
+       526,
+       221,
+       20,
+       1
+      ],
+      [
+       529,
+       222,
+       15,
+       1
+      ],
+      [
+       565,
+       226,
+       15,
+       21
+      ],
+      [
+       559,
+       247,
+       21,
+       9
+      ],
+      [
+       560,
+       256,
+       20,
+       1
+      ],
+      [
+       564,
+       257,
+       16,
+       1
+      ],
+      [
+       565,
+       258,
+       15,
+       1
+      ],
+      [
+       572,
+       259,
+       8,
+       1
+      ],
+      [
+       600,
+       275,
+       131,
+       3
+      ],
+      [
+       605,
+       278,
+       126,
+       1
+      ],
+      [
+       606,
+       279,
+       125,
+       3
+      ],
+      [
+       605,
+       282,
+       126,
+       1
+      ],
+      [
+       606,
+       283,
+       125,
+       2
+      ],
+      [
+       612,
+       285,
+       119,
+       1
+      ],
+      [
+       612,
+       286,
+       53,
+       1
+      ],
+      [
+       704,
+       286,
+       27,
+       6
+      ],
+      [
+       612,
+       287,
+       51,
+       5
+      ],
+      [
+       612,
+       292,
+       39,
+       1
+      ],
+      [
+       710,
+       292,
+       21,
+       1
+      ],
+      [
+       612,
+       293,
+       38,
+       9
+      ],
+      [
+       711,
+       293,
+       20,
+       5
+      ],
+      [
+       715,
+       298,
+       16,
+       1
+      ],
+      [
+       718,
+       299,
+       13,
+       14
+      ],
+      [
+       613,
+       302,
+       37,
+       3
+      ],
+      [
+       618,
+       305,
+       26,
+       1
+      ],
+      [
+       619,
+       306,
+       24,
+       13
+      ],
+      [
+       723,
+       313,
+       8,
+       1
+      ],
+      [
+       724,
+       314,
+       7,
+       8
+      ],
+      [
+       625,
+       319,
+       18,
+       2
+      ],
+      [
+       624,
+       321,
+       19,
+       1
+      ],
+      [
+       625,
+       322,
+       18,
+       4
+      ],
+      [
+       723,
+       322,
+       8,
+       29
+      ],
+      [
+       625,
+       326,
+       22,
+       1
+      ],
+      [
+       625,
+       327,
+       23,
+       2
+      ],
+      [
+       625,
+       329,
+       25,
+       4
+      ],
+      [
+       624,
+       333,
+       26,
+       3
+      ],
+      [
+       625,
+       336,
+       25,
+       2
+      ],
+      [
+       625,
+       338,
+       26,
+       1
+      ],
+      [
+       653,
+       338,
+       4,
+       1
+      ],
+      [
+       631,
+       339,
+       25,
+       5
+      ],
+      [
+       631,
+       344,
+       26,
+       6
+      ],
+      [
+       658,
+       346,
+       5,
+       4
+      ],
+      [
+       631,
+       350,
+       33,
+       1
+      ],
+      [
+       631,
+       351,
+       3,
+       1
+      ],
+      [
+       637,
+       351,
+       27,
+       1
+      ],
+      [
+       718,
+       351,
+       13,
+       20
+      ],
+      [
+       638,
+       352,
+       26,
+       2
+      ],
+      [
+       638,
+       354,
+       25,
+       2
+      ],
+      [
+       638,
+       356,
+       19,
+       2
+      ],
+      [
+       658,
+       356,
+       5,
+       2
+      ],
+      [
+       638,
+       358,
+       18,
+       1
+      ],
+      [
+       638,
+       359,
+       12,
+       13
+      ],
+      [
+       723,
+       371,
+       8,
+       15
+      ],
+      [
+       645,
+       372,
+       5,
+       1
+      ],
+      [
+       723,
+       386,
+       6,
+       2
+      ],
+      [
+       730,
+       386,
+       1,
+       12
+      ],
+      [
+       724,
+       388,
+       5,
+       1
+      ],
+      [
+       724,
+       389,
+       3,
+       1
+      ],
+      [
+       729,
+       398,
+       2,
+       1
+      ],
+      [
+       724,
+       399,
+       7,
+       6
+      ],
+      [
+       723,
+       405,
+       8,
+       1
+      ],
+      [
+       717,
+       406,
+       14,
+       12
+      ],
+      [
+       711,
+       418,
+       3,
+       1
+      ],
+      [
+       715,
+       418,
+       16,
+       1
+      ],
+      [
+       711,
+       419,
+       20,
+       4
+      ],
+      [
+       710,
+       423,
+       21,
+       8
+      ],
+      [
+       704,
+       431,
+       27,
+       14
+      ],
+      [
+       699,
+       445,
+       32,
+       6
+      ],
+      [
+       698,
+       451,
+       33,
+       1
+      ],
+      [
+       600,
+       452,
+       4,
+       6
+      ],
+      [
+       691,
+       452,
+       40,
+       6
+      ],
+      [
+       600,
+       458,
+       10,
+       1
+      ],
+      [
+       684,
+       458,
+       4,
+       1
+      ],
+      [
+       690,
+       458,
+       41,
+       1
+      ],
+      [
+       600,
+       459,
+       11,
+       6
+      ],
+      [
+       684,
+       459,
+       47,
+       7
+      ],
+      [
+       600,
+       465,
+       12,
+       1
+      ],
+      [
+       677,
+       465,
+       3,
+       1
+      ],
+      [
+       600,
+       466,
+       23,
+       5
+      ],
+      [
+       677,
+       466,
+       54,
+       5
+      ],
+      [
+       600,
+       471,
+       24,
+       1
+      ],
+      [
+       671,
+       471,
+       60,
+       1
+      ],
+      [
+       600,
+       472,
+       34,
+       3
+      ],
+      [
+       670,
+       472,
+       61,
+       1
+      ],
+      [
+       665,
+       473,
+       66,
+       2
+      ]
+     ]
+    },
+    "prompt": "A well-dressed late medieval townsman in a bright blue doublet with puffed slashed sleeves, a white linen collar, a black velvet beret with a small white feather, a fine leather belt, dark hose and leather shoes, friendly face, walking pose turned slightly to the right, holding nothing.",
+    "negativ": "hoe, tool, stick, handle, staff, pole, rod, weapon, object in hand, armor, sword, cape, second fist, extra hand, extra arm, three hands, raised left arm",
+    "figur": "dorfbewohner_imperial"
    }
   ]
  },
@@ -1128,7 +2949,329 @@
      ]
     },
     "prompt": "A medieval peasant villager in a bright blue tunic with a brown belt, brown trousers, leather shoes and a straw hat, friendly face, his right hand raised to the shoulder and clenched into an empty fist, holding nothing, walking to the right. His legs pass each other: one leg stands straight under the body carrying the weight, the other knee is bent and that foot is lifted, swinging forward."
+   },
+   {
+    "name": "dorfbewohner_zeit_feudal_lauf1",
+    "seed": 4380,
+    "ziel": "Einheiten/feudal/dorfbewohner_lauf1.png",
+    "figur": "dorfbewohner_feudal",
+    "vorlage": "../einheiten/dorfbewohner_zeit_feudal_4330_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       280,
+       660,
+       420,
+       330
+      ]
+     ]
+    },
+    "prompt": "A medieval villager in a bright blue wool tunic with a brown leather jerkin laced over it, a brown belt with a small pouch, dark brown hose, leather shoes and a brown felt cap, friendly face, his right hand raised to the shoulder and clenched into an empty fist, holding nothing, walking to the right. His legs are in mid-stride: the front leg steps far forward with the heel down, the back leg pushes off far behind on its toes."
+   },
+   {
+    "name": "dorfbewohner_zeit_feudal_lauf2",
+    "seed": 4392,
+    "ziel": "Einheiten/feudal/dorfbewohner_lauf2.png",
+    "figur": "dorfbewohner_feudal",
+    "vorlage": "../einheiten/dorfbewohner_zeit_feudal_4330_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       280,
+       660,
+       420,
+       330
+      ]
+     ]
+    },
+    "prompt": "A medieval villager in a bright blue wool tunic with a brown leather jerkin laced over it, a brown belt with a small pouch, dark brown hose, leather shoes and a brown felt cap, friendly face, his right hand raised to the shoulder and clenched into an empty fist, holding nothing, walking to the right. His legs pass each other: one leg stands straight under the body carrying the weight, the other knee is bent and that foot is lifted, swinging forward."
+   },
+   {
+    "name": "dorfbewohner_zeit_ritter_lauf1",
+    "seed": 4482,
+    "ziel": "Einheiten/ritter/dorfbewohner_lauf1.png",
+    "figur": "dorfbewohner_ritter",
+    "vorlage": "../einheiten/dorfbewohner_zeit_ritter_4432_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       280,
+       660,
+       420,
+       330
+      ]
+     ]
+    },
+    "prompt": "A high medieval craftsman in a bright blue padded doublet with a row of buttons, a grey wool hood with a short cape over the shoulders, a leather belt, dark grey hose and leather shoes, friendly face, his right hand raised to the shoulder and clenched into an empty fist, holding nothing, walking to the right. His legs are in mid-stride: the front leg steps far forward with the heel down, the back leg pushes off far behind on its toes."
+   },
+   {
+    "name": "dorfbewohner_zeit_ritter_lauf2",
+    "seed": 4493,
+    "ziel": "Einheiten/ritter/dorfbewohner_lauf2.png",
+    "figur": "dorfbewohner_ritter",
+    "vorlage": "../einheiten/dorfbewohner_zeit_ritter_4432_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       280,
+       660,
+       420,
+       330
+      ]
+     ]
+    },
+    "prompt": "A high medieval craftsman in a bright blue padded doublet with a row of buttons, a grey wool hood with a short cape over the shoulders, a leather belt, dark grey hose and leather shoes, friendly face, his right hand raised to the shoulder and clenched into an empty fist, holding nothing, walking to the right. His legs pass each other: one leg stands straight under the body carrying the weight, the other knee is bent and that foot is lifted, swinging forward."
+   },
+   {
+    "name": "dorfbewohner_zeit_imperial_lauf1",
+    "seed": 4581,
+    "ziel": "Einheiten/imperial/dorfbewohner_lauf1.png",
+    "figur": "dorfbewohner_imperial",
+    "vorlage": "../einheiten/dorfbewohner_zeit_imperial_4531_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       280,
+       660,
+       420,
+       330
+      ]
+     ]
+    },
+    "prompt": "A well-dressed late medieval townsman in a bright blue doublet with puffed slashed sleeves, a white linen collar, a black velvet beret with a small white feather, a fine leather belt, dark hose and leather shoes, friendly face, his right hand raised to the shoulder and clenched into an empty fist, holding nothing, walking to the right. His legs are in mid-stride: the front leg steps far forward with the heel down, the back leg pushes off far behind on its toes."
+   },
+   {
+    "name": "dorfbewohner_zeit_imperial_lauf2",
+    "seed": 4593,
+    "ziel": "Einheiten/imperial/dorfbewohner_lauf2.png",
+    "figur": "dorfbewohner_imperial",
+    "vorlage": "../einheiten/dorfbewohner_zeit_imperial_4531_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       280,
+       660,
+       420,
+       330
+      ]
+     ]
+    },
+    "prompt": "A well-dressed late medieval townsman in a bright blue doublet with puffed slashed sleeves, a white linen collar, a black velvet beret with a small white feather, a fine leather belt, dark hose and leather shoes, friendly face, his right hand raised to the shoulder and clenched into an empty fist, holding nothing, walking to the right. His legs pass each other: one leg stands straight under the body carrying the weight, the other knee is bent and that foot is lifted, swinging forward."
    }
   ]
+ },
+ "gebaeude_dunkel": {
+  "groesse": [
+   1024,
+   1024
+  ],
+  "schritte": 30,
+  "cfg": 3.0,
+  "freistellen": true,
+  "stil": "Game sprite for a top-down 2D strategy game, three-quarter top-down view from the south: the front facade faces the viewer and the roof is seen from above. Detailed 16-bit pixel art, crisp pixels, warm medieval colors, soft light from the upper left. One single building centered, fully visible, isolated on a plain white background, no ground plate, no shadow on the background, no text. Limited color palette, clearly visible square pixels, hard pixel edges, no anti-aliasing, like a classic 1990s strategy game sprite.",
+  "negativ": "text, letters, logo, watermark, frame, border, isometric diamond grid, multiple buildings, people, trees, landscape, scenery, cut off, cropped, blurry, photo, 3d render, realistic, painterly, digital painting, brush strokes, fine hair strands, smooth gradients, smoke, ground, grass, black background, dark background",
+  "bilder": [
+   {
+    "name": "stadtzentrum",
+    "seed": 5002,
+    "prompt": "A large medieval longhouse hall with walls of wattle and daub between wooden log posts, a big thatched roof, a wide wooden double door and a blue cloth banner on a wooden pole beside the door.",
+    "ziel": "Gebaeude/dunkel/stadtzentrum.png",
+    "zielbreite": 384
+   },
+   {
+    "name": "haus",
+    "seed": 5011,
+    "prompt": "A small medieval peasant hut with wattle and daub walls, wooden log posts, a thatched roof, a wooden door and a small blue pennant on the roof.",
+    "ziel": "Gebaeude/dunkel/haus.png"
+   },
+   {
+    "name": "muehle_ohne",
+    "seed": 5021,
+    "prompt": "A small wooden post mill: a boxy mill house of wooden logs and planks raised on a timber trestle, a thatched roof, a short round wooden axle stub sticking out of the front of the roof toward the viewer, its round end facing the viewer. The mill has no sails, no blades and no arms at all. A small blue pennant on the roof.",
+    "ziel": "Gebaeude/dunkel/muehle_ohne.png",
+    "negativ": "sails, blades, windmill arms, spokes, lattice, canvas, propeller, white cloth, white triangle"
+   },
+   {
+    "name": "holzfaellerlager",
+    "seed": 5031,
+    "prompt": "A small medieval lumber camp: an open lean-to shelter of wooden logs with a thatched roof, a pile of logs in front, a tree stump with an axe and a small blue pennant on a pole.",
+    "ziel": "Gebaeude/dunkel/holzfaellerlager.png"
+   },
+   {
+    "name": "bergbaulager",
+    "seed": 5043,
+    "prompt": "A small medieval mining camp: an open lean-to shelter of wooden logs with a thatched roof, a heap of grey stone and gold ore in front, pickaxes leaning on it and a small blue pennant standing on a tall pole beside the building, the flag flying to the right.",
+    "ziel": "Gebaeude/dunkel/bergbaulager.png"
+   }
+  ],
+  "zuschneiden": true,
+  "zielbreite": 256,
+  "spielerfarben": true,
+  "blau_saettigung": 0.6
+ },
+ "gebaeude_feudal": {
+  "groesse": [
+   1024,
+   1024
+  ],
+  "schritte": 30,
+  "cfg": 3.0,
+  "freistellen": true,
+  "stil": "Game sprite for a top-down 2D strategy game, three-quarter top-down view from the south: the front facade faces the viewer and the roof is seen from above. Detailed 16-bit pixel art, crisp pixels, warm medieval colors, soft light from the upper left. One single building centered, fully visible, isolated on a plain white background, no ground plate, no shadow on the background, no text. Limited color palette, clearly visible square pixels, hard pixel edges, no anti-aliasing, like a classic 1990s strategy game sprite.",
+  "negativ": "text, letters, logo, watermark, frame, border, isometric diamond grid, multiple buildings, people, trees, landscape, scenery, cut off, cropped, blurry, photo, 3d render, realistic, painterly, digital painting, brush strokes, fine hair strands, smooth gradients, smoke, ground, grass, black background, dark background",
+  "bilder": [
+   {
+    "name": "stadtzentrum",
+    "seed": 5101,
+    "prompt": "A large medieval town center: a two-storey hall of wooden planks and timber beams on a fieldstone foundation, a wooden shingle roof, a small wooden lookout tower on one corner, a wide wooden gate and a blue banner above the gate.",
+    "ziel": "Gebaeude/feudal/stadtzentrum.png",
+    "zielbreite": 384
+   },
+   {
+    "name": "haus",
+    "seed": 5112,
+    "prompt": "A medieval wooden house of planks on a low fieldstone foundation, a wooden shingle roof, a wooden door, a shuttered window and a small blue pennant on the roof.",
+    "ziel": "Gebaeude/feudal/haus.png"
+   },
+   {
+    "name": "muehle_ohne",
+    "seed": 5121,
+    "prompt": "A round mill tower with a lower half of fieldstone and an upper half of wooden planks, a conical wooden shingle roof, a small arched wooden door, a short round wooden axle stub sticking out of the front of the roof toward the viewer, its round end facing the viewer. The mill has no sails, no blades and no arms at all. A small blue flag on top of the roof.",
+    "ziel": "Gebaeude/feudal/muehle_ohne.png",
+    "negativ": "sails, blades, windmill arms, spokes, lattice, canvas, propeller, white cloth, white triangle"
+   },
+   {
+    "name": "holzfaellerlager",
+    "seed": 5131,
+    "prompt": "An open medieval lumber camp: a wooden plank shed with a slanted shingle roof on a fieldstone foundation, a neat stack of chopped logs in front, a sawhorse, a tree stump with an axe and a small blue flag.",
+    "ziel": "Gebaeude/feudal/holzfaellerlager.png"
+   },
+   {
+    "name": "bergbaulager",
+    "seed": 5144,
+    "prompt": "An open medieval mining camp: a wooden plank shed with a slanted shingle roof on a fieldstone foundation, a wooden cart full of grey stone and gold ore in front, pickaxes leaning on the wall and a small blue flag standing on a tall pole beside the building, the flag flying to the right.",
+    "ziel": "Gebaeude/feudal/bergbaulager.png"
+   },
+   {
+    "name": "wachturm",
+    "seed": 5150,
+    "prompt": "A tall medieval wooden watchtower: a square lookout platform of wooden planks with a pointed shingle roof on four tall timber legs with cross bracing, on a low fieldstone base, a ladder and a small blue flag on the roof.",
+    "ziel": "Gebaeude/feudal/wachturm.png"
+   }
+  ],
+  "zuschneiden": true,
+  "zielbreite": 256,
+  "spielerfarben": true,
+  "blau_saettigung": 0.6
+ },
+ "gebaeude_ritter": {
+  "groesse": [
+   1024,
+   1024
+  ],
+  "schritte": 30,
+  "cfg": 3.0,
+  "freistellen": true,
+  "stil": "Game sprite for a top-down 2D strategy game, three-quarter top-down view from the south: the front facade faces the viewer and the roof is seen from above. Detailed 16-bit pixel art, crisp pixels, warm medieval colors, soft light from the upper left. One single building centered, fully visible, isolated on a plain white background, no ground plate, no shadow on the background, no text. Limited color palette, clearly visible square pixels, hard pixel edges, no anti-aliasing, like a classic 1990s strategy game sprite.",
+  "negativ": "text, letters, logo, watermark, frame, border, isometric diamond grid, multiple buildings, people, trees, landscape, scenery, cut off, cropped, blurry, photo, 3d render, realistic, painterly, digital painting, brush strokes, fine hair strands, smooth gradients, smoke, ground, grass, black background, dark background",
+  "bilder": [
+   {
+    "name": "stadtzentrum",
+    "seed": 5201,
+    "prompt": "A large medieval castle keep as town center: a massive multi-storey building of grey stone masonry with thick walls, four round corner towers with red tiled conical roofs, battlements, a heavy arched gate and a blue banner above the gate.",
+    "ziel": "Gebaeude/ritter/stadtzentrum.png",
+    "zielbreite": 384
+   },
+   {
+    "name": "haus",
+    "seed": 5210,
+    "prompt": "A two-storey medieval town house: ground floor of grey stone masonry, upper floor timber-framed with white plaster, a steep red tiled roof, a stone chimney and a small blue pennant on the roof.",
+    "ziel": "Gebaeude/ritter/haus.png"
+   },
+   {
+    "name": "muehle_ohne",
+    "seed": 5221,
+    "prompt": "A tall round medieval tower mill of grey stone masonry with small arched windows, a conical red tiled roof, a heavy wooden door, a short round wooden axle stub sticking out of the front of the roof toward the viewer, its round end facing the viewer. The mill has no sails, no blades and no arms at all. A small blue flag on top of the roof.",
+    "ziel": "Gebaeude/ritter/muehle_ohne.png",
+    "negativ": "sails, blades, windmill arms, spokes, lattice, canvas, propeller, white cloth, white triangle"
+   },
+   {
+    "name": "holzfaellerlager",
+    "seed": 5231,
+    "prompt": "A large medieval lumber yard: a building with a ground floor of grey stone masonry and a timber upper floor, a red tiled roof, a big stack of sawn logs and planks in front, a sawhorse with a large saw and a small blue flag.",
+    "ziel": "Gebaeude/ritter/holzfaellerlager.png"
+   },
+   {
+    "name": "bergbaulager",
+    "seed": 5240,
+    "prompt": "A medieval mining storehouse of grey stone masonry with a red tiled roof, a wooden crane hoist, a wooden cart full of grey stone and gold ore in front, pickaxes on the wall and a small blue flag.",
+    "ziel": "Gebaeude/ritter/bergbaulager.png"
+   },
+   {
+    "name": "wachturm",
+    "seed": 5250,
+    "prompt": "A tall square medieval guard tower of grey stone masonry with battlements on top, arrow slits, a small arched door and a blue flag on the top.",
+    "ziel": "Gebaeude/ritter/wachturm.png"
+   }
+  ],
+  "zuschneiden": true,
+  "zielbreite": 256,
+  "spielerfarben": true,
+  "blau_saettigung": 0.6
+ },
+ "gebaeude_imperial": {
+  "groesse": [
+   1024,
+   1024
+  ],
+  "schritte": 30,
+  "cfg": 3.0,
+  "freistellen": true,
+  "stil": "Game sprite for a top-down 2D strategy game, three-quarter top-down view from the south: the front facade faces the viewer and the roof is seen from above. Detailed 16-bit pixel art, crisp pixels, warm medieval colors, soft light from the upper left. One single building centered, fully visible, isolated on a plain white background, no ground plate, no shadow on the background, no text. Limited color palette, clearly visible square pixels, hard pixel edges, no anti-aliasing, like a classic 1990s strategy game sprite.",
+  "negativ": "text, letters, logo, watermark, frame, border, isometric diamond grid, multiple buildings, people, trees, landscape, scenery, cut off, cropped, blurry, photo, 3d render, realistic, painterly, digital painting, brush strokes, fine hair strands, smooth gradients, smoke, ground, grass, black background, dark background",
+  "bilder": [
+   {
+    "name": "stadtzentrum",
+    "seed": 5301,
+    "prompt": "A magnificent late medieval town hall palace of pale cream stone and white marble: high arched windows, ornate carvings, a tall central clock tower with a dark slate spire and golden ornaments, green copper roofs on the side towers, a grand arched portal and blue flags on golden poles.",
+    "ziel": "Gebaeude/imperial/stadtzentrum.png",
+    "zielbreite": 384
+   },
+   {
+    "name": "haus",
+    "seed": 5311,
+    "prompt": "An elegant three-storey late medieval town house of pale cream stone with ornate framed windows, a decorated stepped gable, a dark slate roof with a dormer, golden ornaments and a small blue pennant on a golden pole on the roof.",
+    "ziel": "Gebaeude/imperial/haus.png"
+   },
+   {
+    "name": "muehle_ohne",
+    "seed": 5322,
+    "prompt": "A tall elegant tower mill of pale cream stone with a wooden gallery around the middle and ornate arched windows, a dark slate cap roof with a golden finial, a short round wooden axle stub sticking out of the front of the roof toward the viewer, its round end facing the viewer. The mill has no sails, no blades and no arms at all. A small blue flag on a golden pole on top of the roof.",
+    "ziel": "Gebaeude/imperial/muehle_ohne.png",
+    "negativ": "sails, blades, windmill arms, spokes, lattice, canvas, propeller, white cloth, white triangle"
+   },
+   {
+    "name": "holzfaellerlager",
+    "seed": 5331,
+    "prompt": "A grand late medieval sawmill workshop of pale cream stone with a large arched open gate, a dark slate roof with golden ornaments, neatly stacked sawn planks and logs in front and a small blue flag on a golden pole.",
+    "ziel": "Gebaeude/imperial/holzfaellerlager.png"
+   },
+   {
+    "name": "bergbaulager",
+    "seed": 5343,
+    "prompt": "A grand late medieval mining guild house of pale cream stone with arched openings and ornate details, a dark slate roof with golden ornaments, an iron-banded cart full of grey stone and gold ore in front and a small blue flag on a tall golden pole beside the building, the flag flying to the right.",
+    "ziel": "Gebaeude/imperial/bergbaulager.png"
+   },
+   {
+    "name": "wachturm",
+    "seed": 5350,
+    "prompt": "A tall mighty late medieval keep tower of pale cream stone with ornate battlements, small round corner turrets, tall arched windows, a dark slate pointed roof with a golden finial and a blue flag on a golden pole on the top.",
+    "ziel": "Gebaeude/imperial/wachturm.png"
+   }
+  ],
+  "zuschneiden": true,
+  "zielbreite": 256,
+  "spielerfarben": true,
+  "blau_saettigung": 0.6
  }
 }
