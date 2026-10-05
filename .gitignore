@@ -5,6 +5,7 @@
 # Build-Artefakte
 bin/
 obj/
+release/
 
 # MonoGame Content Pipeline
 Content/bin/
