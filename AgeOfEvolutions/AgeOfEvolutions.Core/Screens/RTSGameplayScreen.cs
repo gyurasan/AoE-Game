@@ -36,7 +36,9 @@ public class RTSGameplayScreen : GameScreen
     private float cameraZoom = 1.0f;
 
     private const float MIN_ZOOM = 0.5f;
-    private const float MAX_ZOOM = 2.0f;
+    // Maximalzoom: 1× zeigt ca. 17 Kacheln über die Fensterhöhe, 2× acht, 4×
+    // noch vier — damit kommt man nah an einzelne Figuren und Gebäude heran.
+    private const float MAX_ZOOM = 4.0f;
 
     // Bezugshöhe der Zoomgrenzen. Bis 1080 px Fensterhöhe gelten MIN_ZOOM und
     // MAX_ZOOM wie angegeben, darüber wachsen beide und der Startzoom mit. So
@@ -71,10 +73,10 @@ public class RTSGameplayScreen : GameScreen
     private Rectangle screenBounds;
 
     // Game state
-    private TileMap tileMap;
-    private Data.Player player1;
-    private Data.Player player2;
-    private List<Unit> units;
+    internal TileMap tileMap;
+    internal Data.Player player1;
+    internal Data.Player player2;
+    internal List<Unit> units;
 
     // Selection
     private List<Unit> selectedUnits = new List<Unit>();
@@ -108,7 +110,7 @@ public class RTSGameplayScreen : GameScreen
     private List<Unit> drawList = new();
 
     // Sammeln: die Karte aus Sicht der Sammelaufträge (GatherJob, AoE.Core)
-    private TileMapGatherWorld gatherWorld;
+    internal TileMapGatherWorld gatherWorld;
 
     // Maus im vorigen Frame. Ein Rechtsklick ist ein Befehl pro Klick, nicht
     // einer pro Frame, in dem die Taste unten ist.
@@ -120,6 +122,75 @@ public class RTSGameplayScreen : GameScreen
     // Einheiten bewegen sich langsam, viermal pro Sekunde genügt
     private float fogTimer;
     private const float FOG_INTERVAL = 0.25f;
+
+    // ------------------------------------------------------------------
+    // KI-Steuerung (Spieler 1). Der AI-Agent tickt im Update-Loop — alle
+    // Befehle laufen damit im Spiel-Faden. Externe Anweisungen (REST-API,
+    // Skript) steuern über EnqueueOrder dieselbe Schlange, die auch die
+    // eingebaute KI benutzt.
+    // ------------------------------------------------------------------
+    private AgeOfEvolutions.Core.AI.AiAgent _agent;
+    private readonly Queue<System.Action> _orderQueue = new();
+
+    /// <summary>
+    /// Eine Handlung in den Spiel-Faden einreihen. Thread-sicher — wird im
+    /// nächsten <see cref="Update"/>-Frame ausgeführt, wo sie dieselbe
+    /// owner-generic Schnittstelle nimmt wie der Mensch. So steuert die
+    /// eingebaute KI und eine externe REST-KI über denselben Mechanismus.
+    /// </summary>
+    public void EnqueueOrder(System.Action order)
+    {
+        if (order == null) return;
+        lock (_orderQueue) _orderQueue.Enqueue(order);
+    }
+
+    /// <summary>
+    /// Die eingebaute KI einschalten (oder aus — <c>ai = null</c>). Standard:
+    /// <c>EconomyAi</c> als Gegner (Spieler 1). Der Takt ist 0,5 s.
+    /// Läuft die Methode zweimal, ersetzt die zweite den ersten Agenten.
+    /// </summary>
+    public void ActivateAi(AoE.Core.Ai.IAi ai, int owner = 1, float tickInterval = 0.5f)
+    {
+        if (ai == null)
+        {
+            _agent = null;
+            return;
+        }
+        _agent = new AgeOfEvolutions.Core.AI.AiAgent(this, ai, owner, tickInterval);
+    }
+
+    /// <summary>Für Tests/Reflexion: der aktuelle Agent, oder null.</summary>
+    public AgeOfEvolutions.Core.AI.AiAgent ActiveAgent => _agent;
+
+    /// <summary>
+    /// Alle wartenden Orders in Ausführung ausführen. Läuft nur im
+    /// Update-Frame — von anderen Fäden nur über <see cref="EnqueueOrder"/>
+    /// einreichen, nicht direkt hier rufen.
+    /// </summary>
+    private void DrainOrders()
+    {
+        List<System.Action> snapshot;
+        lock (_orderQueue)
+        {
+            if (_orderQueue.Count == 0) return;
+            snapshot = new List<System.Action>(_orderQueue);
+            while (_orderQueue.TryDequeue(out _)) { }
+        }
+
+        foreach (var order in snapshot)
+        {
+            try
+            {
+                order();
+            }
+            catch (System.Exception ex)
+            {
+                // Ein Fehler in einer einzelnen Order darf den Spiel-Faden
+                // nicht abreißen; die nächste Order läuft weiter.
+                System.Diagnostics.Debug.WriteLine($"[AI-Order] {ex.GetType().Name}: {ex.Message}");
+            }
+        }
+    }
 
     // Höhe der oberen und unteren Leiste aus DrawUI — Klicks dort gelten
     // nicht der Karte. Die untere Leiste trägt Befehlstasten, Einheiteninfo
@@ -379,6 +450,13 @@ public class RTSGameplayScreen : GameScreen
 
     private readonly MapSize _mapSize;   // Kartengröße aus dem Hauptmenü
 
+    /// <summary>
+    /// Eingebaute KI als Gegner (Spieler 1). Standardmäßig an — so hat ein
+    /// Solo-Spiel automatisch einen spielenden Gegenspieler. Auf
+    /// <c>false</c>, wenn man zweispielerig/hotseat spielen will.
+    /// </summary>
+    public bool AiEnabled { get; set; } = true;
+
     public RTSGameplayScreen(MapSize mapSize = MapSize.Standard)
     {
         _mapSize = mapSize;
@@ -417,6 +495,17 @@ public class RTSGameplayScreen : GameScreen
 
         // Bevölkerungsgrenze gleich aus den Startgebäuden rechnen
         UpdatePopulationLimits();
+
+        // Eingebaute KI als Gegner aktivieren — Solo-Spiel bekommt automatisch
+        // einen spielenden Gegenspieler (Owner 1). Die KI tickt im Update-Loop
+        // (0,5 s) und benutzt dieselben owner-generic Screen-Methoden wie der
+        // Mensch. Externe Steuerungen (REST, Netzwerk) steuern über
+        // EnqueueOrder die denselben Pfad nehmen.
+        if (AiEnabled)
+        {
+            ActivateAi(new AoE.Core.Ai.EconomyAi(), owner: 1);
+            System.Diagnostics.Debug.WriteLine("[AI] Eingebaute Wirtschaft-KI als Gegner (Owner 1) aktiv.");
+        }
 
         // Create placeholder textures
         tileTexture = CreateTexture(graphicsDevice, 32, 32, Color.Green);
@@ -621,6 +710,25 @@ public class RTSGameplayScreen : GameScreen
         {
             fogTimer = FOG_INTERVAL;
             tileMap.UpdateFogOfWarForPlayer(0, units);
+            // Der KI-Gegner (Spieler 1) braucht seine eigene Sicht — seine
+            // Einheiten und Gebäude decken seine Startzone auf. Ohne den
+            // zweiten Aufruf wäre seine ganze Karte im Nebel und er könnte
+            // nie gezielt sammeln.
+            tileMap.UpdateFogOfWarForPlayer(1, units);
+        }
+
+        // Befehle aus der Queue (eingebaute KI, REST-API, Skripte) im
+        // Spiel-Faden ausführen. Jede Order läuft als geschlossener Block —
+        // der menschliche und der KI-Eingabe pfaden teilen sich denselben
+        // owner-generic Kernel.
+        DrainOrders();
+
+        // Die eingebaute KI tickt auf ihrem eigenen Rhythmus. Sie liest den
+        // gerade aktuellen Zustand und meldet ihre Handlungen als Orders —
+        // dieselbe Queue, die auch ein externer Spieler füttert.
+        if (_agent != null)
+        {
+            _agent.Tick((float)gameTime.ElapsedGameTime.TotalSeconds);
         }
 
         UpdateResources(gameTime);
@@ -1591,14 +1699,34 @@ public class RTSGameplayScreen : GameScreen
     /// </summary>
     private void IssueCommand(Vector2 gridPos)
     {
+        // Menschliche UI-Ebene: die Auswahl gehört zu Spieler 0, deshalb
+        // genau dieselben Einheiten, die gerade ausgewählt sind.
+        var sel = new List<Unit>();
+        foreach (var u in selectedUnits)
+        {
+            if (u.OwnerId == 0) sel.Add(u);
+        }
+        if (sel.Count == 0)
+        {
+            sel.AddRange(selectedUnits);    // Fallback: keine eigenen Einheiten — alle nehmen
+        }
+        IssueCommand(0, sel, gridPos);
+    }
+
+    /// <summary>
+    /// Owner-generic Version — die KI-Schnittstelle. <paramref name="ownerId"/>
+    /// ist der Spieler, <paramref name="selectedUnits"/> seine Einheiten.
+    /// </summary>
+    internal void IssueCommand(int ownerId, List<Unit> selectedUnits, Vector2 gridPos)
+    {
         var tile = tileMap.GetTile((int)gridPos.X, (int)gridPos.Y);
         // Nur Erforschtes lässt sich gezielt ernten; ein Klick in den Nebel ist ein Laufbefehl
         bool isSource = tile != null && tile.ResourceType.HasValue && tile.ResourceAmount > 0
                         && string.IsNullOrEmpty(tile.Building)
-                        && tileMap.IsTileExplored((int)gridPos.X, (int)gridPos.Y, 0);
+                        && tileMap.IsTileExplored((int)gridPos.X, (int)gridPos.Y, ownerId);
         // Eine eigene, noch unfertige Baustelle unter dem Klick
         var site = BuildingAt(gridPos);
-        if (site != null && (site.OwnerId != 0 || site.IsComplete))
+        if (site != null && (site.OwnerId != ownerId || site.IsComplete))
             site = null;
 
         foreach (var unit in selectedUnits)
@@ -1632,7 +1760,7 @@ public class RTSGameplayScreen : GameScreen
     /// Setzt um, was der Sammelauftrag als Nächstes verlangt: zum Ziel
     /// laufen, sammeln oder — ist er erledigt — untätig werden.
     /// </summary>
-    private void FollowJob(Unit unit)
+    internal void FollowJob(Unit unit)
     {
         var job = unit.Job;
         switch (job.Phase)
@@ -1742,13 +1870,13 @@ public class RTSGameplayScreen : GameScreen
         FollowJob(unit);
     }
 
-    private Data.Player PlayerOf(Unit unit) => unit.OwnerId == 0 ? player1 : player2;
+    internal Data.Player PlayerOf(Unit unit) => unit.OwnerId == 0 ? player1 : player2;
 
     /// <summary>Das Zeitalter des Spielers owner - danach richtet sich, wie seine Gebäude aussehen.</summary>
     private Age AgeOf(int owner) => (owner == 0 ? player1 : player2).Ages.Current;
 
     /// <summary>Das Stadtzentrum eines Spielers, oder null.</summary>
-    private Building TownCenterOf(int ownerId)
+    internal Building TownCenterOf(int ownerId)
         => tileMap.Buildings.FirstOrDefault(b => b.OwnerId == ownerId
                                                && b.Core.BuildingType == BuildingType.TownCenter);
 
@@ -1782,6 +1910,34 @@ public class RTSGameplayScreen : GameScreen
             ShowHudMessage("Warteschlange voll");
         else if (!townCenter.Training.Enqueue(UnitType.Villager, VillagerCost, VILLAGER_TRAIN_SECONDS, player1.Resources))
             ShowHudMessage($"Nicht genug Nahrung ({VillagerCost[Resource.Food]})");
+    }
+
+    /// <summary>
+    /// Owner-generic Version der Ausbildung — die KI-Schnittstelle. Der
+    /// menschliche Pfad (ohne Parameter) ruft <c>TrainVillager(0)</c>.
+    /// </summary>
+    internal bool TrainVillager(int ownerId)
+    {
+        var owner = ownerId == 0 ? player1 : player2;
+        var townCenter = TownCenterOf(ownerId);
+        if (townCenter == null) return false;
+        if (townCenter.Training.Count >= AoE.Core.Economy.TrainingQueue<UnitType>.MAX_LENGTH)
+            return false;
+        return townCenter.Training.Enqueue(UnitType.Villager, VillagerCost,
+                                           VILLAGER_TRAIN_SECONDS, owner.Resources);
+    }
+
+    /// <summary>
+    /// Owner-generic Version des Aufstiegs — die KI-Schnittstelle.
+    /// </summary>
+    internal bool AdvanceAge(int ownerId)
+    {
+        var owner = ownerId == 0 ? player1 : player2;
+        var ages = owner.Ages;
+        if (TownCenterOf(ownerId) == null) return false;
+        if (ages.Target is { } target) return false;
+        if (AgeRules.Next(ages.Current) is not { } next) return false;
+        return ages.TryStart(owner.Resources);
     }
 
     /// <summary>
@@ -1878,17 +2034,24 @@ public class RTSGameplayScreen : GameScreen
     /// <paramref name="cell"/> Platz hat: freie, bebaubare Fläche
     /// (TileMap.CanPlaceBuilding), schon einmal gesehen und ohne Einheit darauf.
     /// </summary>
-    private bool CanPlace(BuildingType type, Vector2 cell)
+    private bool CanPlace(BuildingType type, Vector2 cell) => CanPlace(0, type, cell);
+
+    /// <summary>
+    /// Owner-generic Version — die KI-Schnittstelle. Die menschliche UI-Version
+    /// (oben) delegiert hier mit <c>ownerId = 0</c>.
+    /// </summary>
+    internal bool CanPlace(int ownerId, BuildingType type, Vector2 cell)
     {
         int x = (int)cell.X, y = (int)cell.Y, size = BuildingRules.SizeOf(type);
         if (!tileMap.CanPlaceBuilding(x, y, size))
             return false;
         for (int bx = x; bx < x + size; bx++)
             for (int by = y; by < y + size; by++)
-                if (!tileMap.IsTileExplored(bx, by, 0))
+                if (!tileMap.IsTileExplored(bx, by, ownerId))
                     return false;
         return !units.Any(u =>
         {
+            if (u.OwnerId != ownerId) return false;
             var c = WorldToGrid(u.Position);
             return c.X >= x && c.X < x + size && c.Y >= y && c.Y < y + size;
         });
@@ -1902,33 +2065,59 @@ public class RTSGameplayScreen : GameScreen
     /// </summary>
     private void PlaceBuilding(BuildingType type, Vector2 cell)
     {
-        if (!CanPlace(type, cell))
-        {
+        if (!PlaceBuilding(0, type, cell,
+                           selectedUnits.Where(u => u.OwnerId == 0).ToList()))
             ShowHudMessage("Hier kann nicht gebaut werden");
-            return;
-        }
-        var cost = BuildingRules.CostOf(type);
-        if (!player1.Resources.PayCost(cost))
-        {
-            ShowHudMessage($"Nicht genug Rohstoffe ({CostText(cost)})");
-            return;
-        }
-        placing = null;
+    }
 
-        // Farm: kein Gebäude, das man baut — ein 3×3-Feld, das man anlegt und das
-        // wächst. Die ausgewählten Dorfbewohner werden sofort dazu geschickt,
-        // das Getreide zu ernten; nach der Ernte wächst jede Kachel nach.
+    /// <summary>
+    /// Owner-generic Baustelle anlegen, bezahlen und die übergebenen
+    /// Dorfbewohner schicken — die KI-Schnittstelle. Die menschliche UI-Version
+    /// delegiert mit <c>ownerId = 0</c> und der aktuellen Auswahl. Rückgabe
+    /// false, wenn der Platz nicht passt oder die Rohstoffe fehlen.
+    /// </summary>
+    internal bool PlaceBuilding(int ownerId, BuildingType type, Vector2 cell, List<Unit> builders)
+    {
+        if (!CanPlace(ownerId, type, cell))
+            return false;
+        var owner = ownerId == 0 ? player1 : player2;
+        var cost = BuildingRules.CostOf(type);
+        if (!owner.Resources.PayCost(cost))
+            return false;
+        if (ownerId == 0)
+            placing = null;   // Setzmodus nur für die menschliche Spielweise
+
+        var villagers = builders.Where(u => u.Core is CoreVillager).ToList();
+
+        // Farm: kein Gebäude, das man baut — ein 3×3-Feld, das man anlegt und
+        // das wächst. Die angegebenen Dorfbewohner werden sofort dazu geschickt.
         if (type == BuildingType.Farm)
         {
             tileMap.PlantCrop((int)cell.X, (int)cell.Y, BuildingRules.SizeOf(type));
-            HarvestFarm((int)cell.X, (int)cell.Y, selectedUnits.Where(u => u.Core is CoreVillager).ToList());
-            return;
+            HarvestFarm((int)cell.X, (int)cell.Y, villagers);
+            return true;
         }
 
-        var site = tileMap.AddBuilding((int)cell.X, (int)cell.Y, BuildingName(type), 0, BuildingRules.SizeOf(type));
-        site.Construction = new Construction(BuildingRules.BuildSecondsOf(type));
-        foreach (var unit in selectedUnits.Where(u => u.Core is CoreVillager))
-            AssignBuilder(unit, site);
+        if (!string.IsNullOrEmpty(BuildingNameOrNull(type)))
+        {
+            var site = tileMap.AddBuilding((int)cell.X, (int)cell.Y, BuildingName(type), ownerId, BuildingRules.SizeOf(type));
+            site.Construction = new Construction(BuildingRules.BuildSecondsOf(type));
+            foreach (var unit in villagers)
+                AssignBuilder(unit, site);
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Name eines Gebäudetyps aus dem Baumenü, oder null, falls das Gebäude
+    /// (noch) nicht im Menü ist — dann kann die KI es nicht bauen.
+    /// </summary>
+    private static string BuildingNameOrNull(BuildingType type)
+    {
+        foreach (var entry in BuildMenu)
+            if (entry.Type == type) return entry.Name;
+        return null;
     }
 
     /// <summary>
@@ -1968,7 +2157,7 @@ public class RTSGameplayScreen : GameScreen
     /// Sammelauftrag endet, er läuft auf eine Kachel am Rand und baut dort
     /// (UpdateConstruction). Ist kein Rand erreichbar, wird er untätig.
     /// </summary>
-    private void AssignBuilder(Unit unit, Building site)
+    internal void AssignBuilder(Unit unit, Building site)
     {
         unit.Job = null;
         unit.BuildSite = site;

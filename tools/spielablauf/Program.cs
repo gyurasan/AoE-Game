@@ -1692,9 +1692,9 @@ static void Zoom(List<string> verstoesse)
             verstoesse.Add($"{wer}: ganz herausgezoomt nur {fern:0} von {w.Map.Height} Kacheln übereinander");
         Console.WriteLine($"      {wer}: Zoom {zoomFern:0.00} bis {zoomNah:0.00}, ganz nah {nah[bh]:0.0} Kacheln übereinander");
     }
-    float klein = 768 / (ts * 2f);
+    float klein = 768 / (ts * 4f);
     if (Math.Abs(nah[768] - klein) > 0.1f)
-        verstoesse.Add($"Zoom 1280x768: ganz nah {nah[768]:0.0} Kacheln übereinander, erwartet {klein:0.0} (MAX_ZOOM 2 bleibt)");
+        verstoesse.Add($"Zoom 1280x768: ganz nah {nah[768]:0.0} Kacheln übereinander, erwartet {klein:0.0} (MAX_ZOOM 4)");
     if (Math.Abs(nah[2707] - nah[1353]) > 0.5f)
         verstoesse.Add($"Zoom: ganz nah {nah[2707]:0.0} Kacheln übereinander bei 2707 px Höhe, {nah[1353]:0.0} bei 1353 px - "
                        + "die hohe Auflösung kommt nicht gleich nah heran");

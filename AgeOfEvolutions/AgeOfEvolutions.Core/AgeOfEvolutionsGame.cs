@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using AgeOfEvolutions.Core.AI;
 using AgeOfEvolutions.Core.Effects;
 using AgeOfEvolutions.Core.Localization;
 using AgeOfEvolutions.Core.Screens;
@@ -25,6 +26,10 @@ namespace AgeOfEvolutions.Core
     {
         // Resources for drawing.
         private GraphicsDeviceManager graphicsDeviceManager;
+
+        // KI-API-Server; nicht null, wenn das Spiel mit --api gestartet wurde.
+        // Die Server-Thread ist im Hintergrund; Shutdown über UnloadContent.
+        private AiApiServer? _aiApi;
 
         // ApplyChanges() loest selbst wieder ClientSizeChanged aus — ohne
         // diese Sperre ruft sich die Behandlung endlos auf.
@@ -222,6 +227,47 @@ namespace AgeOfEvolutions.Core
             {
                 screenManager.AddScreen(new BackgroundScreen(), null);
                 screenManager.AddScreen(new MainMenuScreen(), null);
+            }
+
+            // KI-HTTP-API: --api [port] startet einen lokalen Server auf
+            // 127.0.0.1 (Standard 8080). Die API zeigt auf die im
+            // --rts-Pfad erzeugte RTSGameplayScreen; im Menüpfad (ohne
+            // --rts) ist die API nicht verfügbar. Läuft parallel im
+            // Hintergrund; der Shutdown happens in UnloadContent.
+            int apiIdx = Array.IndexOf(args, "--api");
+            if (apiIdx >= 0)
+            {
+                int port = AiApiServer.DefaultPort;
+                if (apiIdx + 1 < args.Length && int.TryParse(args[apiIdx + 1], out int p))
+                    port = p;
+
+                // Die API braucht eine live RTSGameplayScreen. Wir suchen
+                // sie im aktuellen Screen-Stack ab — im --rts-Pfad ist sie
+                // die oberste; im Menüpfad gibt es noch keine, dann schal-
+                // ten wir die API still aus und loggen.
+                GameScreen[] screens = screenManager.GetScreens();
+                for (int i = 0; i < screens.Length; i++)
+                {
+                    if (screens[i] is RTSGameplayScreen rts)
+                    {
+                        _aiApi = new AiApiServer(rts, port);
+                        try
+                        {
+                            _aiApi.Start();
+                            System.Diagnostics.Debug.WriteLine($"[AI-API] Aktiv: {_aiApi.Prefix}");
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"[AI-API] Start fehlgeschlagen: {ex.Message}");
+                            _aiApi.Dispose();
+                            _aiApi = null;
+                        }
+                        break;
+                    }
+                }
+
+                if (_aiApi == null)
+                    Console.WriteLine("[AI-API] Keine RTS-Screen gefunden — starte erneut mit --rts --api, damit der Server anbindet.");
             }
         }
 

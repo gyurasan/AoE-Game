@@ -1341,6 +1341,12 @@ public class Building
     /// </summary>
     public BuildingEntity Core { get; }
 
+    /// <summary>
+    /// Stabile Identität der Baustelle. Die KI-Brücke nutzt sie, um eine
+    /// Einheiten-ID einer Baustelle-ID zuzuordnen.
+    /// </summary>
+    public Guid Id { get; } = Guid.NewGuid();
+
     public int Health
     {
         get => Core.CurrentHp;
