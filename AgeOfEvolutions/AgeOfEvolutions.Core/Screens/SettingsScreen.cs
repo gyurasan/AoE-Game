@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Globalization;
+using AgeOfEvolutions.Core;
 using AgeOfEvolutions.Core.Effects;
 using AgeOfEvolutions.Core.Localization;
 using AgeOfEvolutions.Core.Settings;
@@ -155,7 +156,9 @@ class SettingsScreen : MenuScreen
     /// <param name="e">The <see cref="PlayerIndexEventArgs"/> instance containing the event data.</param>
     private void FullScreenMenuEntrySelected(object sender, PlayerIndexEventArgs e)
     {
-        gdm.ToggleFullScreen();
+        // Über das Spiel, nicht direkt am GraphicsDeviceManager: das Spiel stellt
+        // beim Verlassen des Vollbilds die Fenstergröße wieder her.
+        ((AgeOfEvolutionsGame)ScreenManager.Game).ToggleFullScreen();
 
         settingsManager.Settings.FullScreen = gdm.IsFullScreen;
     }

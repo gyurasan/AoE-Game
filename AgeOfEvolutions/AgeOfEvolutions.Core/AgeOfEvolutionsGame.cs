@@ -30,6 +30,12 @@ namespace AgeOfEvolutions.Core
         // diese Sperre ruft sich die Behandlung endlos auf.
         private bool handlingResize;
 
+        // Fenstergröße für die Rückkehr aus dem Vollbild. Im randlosen Vollbild
+        // folgt der Bildpuffer dem Bildschirm; ohne diese Merkgröße ging das
+        // Fenster danach in Bildschirmgröße auf, die Titelleiste lag oben
+        // außerhalb, und es sah weiter aus wie Vollbild.
+        private Point windowedSize;
+
         // Manages the game's screen transitions and screens.
         private ScreenManager screenManager;
 
@@ -96,6 +102,8 @@ namespace AgeOfEvolutions.Core
                     Math.Max(1280, (int)(display.Width * 0.8f));
                 graphicsDeviceManager.PreferredBackBufferHeight =
                     Math.Max(768, (int)(display.Height * 0.8f));
+                windowedSize = new Point(graphicsDeviceManager.PreferredBackBufferWidth,
+                    graphicsDeviceManager.PreferredBackBufferHeight);
 
                 Window.AllowUserResizing = true;
                 Window.ClientSizeChanged += OnClientSizeChanged;
@@ -147,6 +155,10 @@ namespace AgeOfEvolutions.Core
             if (bounds.Width <= 0 || bounds.Height <= 0)
                 return;
 
+            // Nur Fenstergrößen merken - im Vollbild meldet das Fenster die des Bildschirms
+            if (!graphicsDeviceManager.IsFullScreen)
+                windowedSize = new Point(bounds.Width, bounds.Height);
+
             handlingResize = true;
             try
             {
@@ -158,6 +170,22 @@ namespace AgeOfEvolutions.Core
             {
                 handlingResize = false;
             }
+        }
+
+        /// <summary>
+        /// Schaltet zwischen Fenster und randlosem Vollbild um. Zurück ins Fenster
+        /// geht es mit der zuletzt gemerkten Fenstergröße: Im Vollbild steht der
+        /// Bildpuffer auf Bildschirmgröße, und mit der kehrten DesktopGL wie DirectX
+        /// zurück - ein Fenster, dessen Titelleiste oben außerhalb des Bildschirms lag.
+        /// </summary>
+        public void ToggleFullScreen()
+        {
+            if (IsDesktop && graphicsDeviceManager.IsFullScreen)
+            {
+                graphicsDeviceManager.PreferredBackBufferWidth = windowedSize.X;
+                graphicsDeviceManager.PreferredBackBufferHeight = windowedSize.Y;
+            }
+            graphicsDeviceManager.ToggleFullScreen();
         }
 
         /// <summary>
