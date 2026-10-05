@@ -56,7 +56,12 @@ public sealed class FakeWorld : IWorldState, IWorldActions
     public int? Build(BuildingType t, int x, int y, int[] builders)
     {
         Log.Add($"build({t},{x},{y},n={builders.Length})");
-        return AllBuildings.Count + 1;
+        // Wie im Spiel: die Baustelle existiert danach (unfertig) und die
+        // genannten Arbeiter sind ihre Erbauer.
+        var site = AddBuilding(t, x, y, complete: false);
+        foreach (int builderId in builders)
+            Log.Add($"assign({builderId}@{site.Id})");
+        return site.Id;
     }
     public void TrainVillager() => Log.Add("train()");
     public void AdvanceAge()
@@ -169,7 +174,7 @@ public class EconomyAiTests
     }
 
     [Fact]
-    public void PrefersWoodOverFood()
+    public void PrefersFoodOverWood()
     {
         var w = new FakeWorld { Resources = new ResourceVector(50, 50, 50, 50), PopulationCapacity = 20 };
         int wId = w.AddVillager(x: 4, y: 4);
@@ -177,8 +182,8 @@ public class EconomyAiTests
         w.AddSource(Resource.Food, 6, 6);
 
         ai.Tick(w, w, 0.1f, new AiContext(1));
-        Assert.Contains($"gather({wId},10,10)", w.Log);
-        Assert.DoesNotContain($"gather({wId},6,6)", w.Log);
+        Assert.Contains($"gather({wId},6,6)", w.Log);
+        Assert.DoesNotContain($"gather({wId},10,10)", w.Log);
     }
 
     [Fact]
@@ -236,5 +241,127 @@ public class EconomyAiTests
 
         ai.Tick(w, w, 0.1f, new AiContext(1));
         Assert.DoesNotContain($"gather({wId},10,10)", w.Log);
+    }
+
+    // -----------------------------------------------------------------
+    // Gebäudeplanung
+    // -----------------------------------------------------------------
+    [Fact]
+    public void BuildsHouseWhenPopulationAtCap()
+    {
+        // Pop 5/5: ohne Haus kann niemand mehr ausgebildet werden.
+        var w = new FakeWorld { PopulationCount = 5, PopulationCapacity = 5,
+                                 Resources = new ResourceVector(100, 300, 100, 200) };
+        w.AddBuilding(BuildingType.TownCenter, 20, 20, complete: true);
+        w.AddVillager(18, 22, UnitStateKind.Gathering, gathering: (30, 30, Resource.Food));
+        int free = w.AddVillager(18, 21);   // freier Dorfbewohner
+
+        ai.Tick(w, w, 0.1f, new AiContext(1));
+
+        Assert.True(w.Log.Any(s => s.StartsWith("build(House,")), string.Join(" | ", w.Log));
+        Assert.True(w.Log.Any(s => s.StartsWith($"assign({free}@")), string.Join(" | ", w.Log));
+    }
+
+    [Fact]
+    public void HousePullsWorkersFromGatheringWhenNoneFree()
+    {
+        // Der reale Deadlock: alle sammeln, Pop am Limit, niemand frei.
+        var w = new FakeWorld { PopulationCount = 5, PopulationCapacity = 5,
+                                 Resources = new ResourceVector(80, 250, 50, 200) };
+        w.AddBuilding(BuildingType.TownCenter, 20, 20, complete: true);
+        for (int i = 0; i < 3; i++)
+            w.AddVillager(18 + i, 22, UnitStateKind.Gathering, gathering: (30, 30 + i, Resource.Wood));
+
+        ai.Tick(w, w, 0.1f, new AiContext(1));
+
+        // Das Haus muss trotzdem stehen — aus dem Sammelpool abgezogen
+        Assert.True(w.Log.Any(s => s.StartsWith("build(House,")), string.Join(" | ", w.Log));
+    }
+
+    [Fact]
+    public void DoesNotBuildSecondHouseWhileOneIsUnderConstruction()
+    {
+        var w = new FakeWorld { PopulationCount = 5, PopulationCapacity = 5,
+                                 Resources = new ResourceVector(80, 400, 50, 200) };
+        w.AddBuilding(BuildingType.TownCenter, 20, 20, complete: true);
+        var house = w.AddBuilding(BuildingType.House, 16, 20, complete: false);
+        house.ConstructionProgress = 0.2f;
+        w.AddVillager(18, 22);
+
+        ai.Tick(w, w, 0.1f, new AiContext(1));
+
+        // Kein Haus darf mehr gebaut werden — es steht eines (im Bau)
+        Assert.Empty(w.Log.Where(s => s.StartsWith("build(House,")));
+    }
+
+    [Fact]
+    public void BuildsFarmWhenFoodLow()
+    {
+        var w = new FakeWorld { Resources = new ResourceVector(100, 300, 50, 200),
+                                 PopulationCapacity = 20 };
+        w.AddBuilding(BuildingType.TownCenter, 20, 20, complete: true);
+        int free = w.AddVillager(18, 22);
+
+        ai.Tick(w, w, 0.1f, new AiContext(1));
+
+        Assert.True(w.Log.Any(s => s.StartsWith("build(Farm,")), string.Join(" | ", w.Log));
+        Assert.True(w.Log.Any(s => s.StartsWith($"assign({free}@")), string.Join(" | ", w.Log));
+    }
+
+    [Fact]
+    public void DoesNotBuildFarmWhenFoodComfortable()
+    {
+        var w = new FakeWorld { Resources = new ResourceVector(500, 300, 50, 200),
+                                 PopulationCapacity = 20 };
+        w.AddBuilding(BuildingType.TownCenter, 20, 20, complete: true);
+        w.AddVillager(18, 22);
+
+        ai.Tick(w, w, 0.1f, new AiContext(1));
+
+        Assert.True(!w.Log.Any(s => s.StartsWith("build(Farm,")), string.Join(" | ", w.Log));
+    }
+
+    [Fact]
+    public void BuildsLumberCampOnceWoodAtTwoHundred()
+    {
+        var w = new FakeWorld { Resources = new ResourceVector(500, 210, 50, 200),
+                                 PopulationCapacity = 20 };
+        w.AddBuilding(BuildingType.TownCenter, 20, 20, complete: true);
+        w.AddVillager(18, 22);
+        w.AddVillager(18, 21);
+
+        ai.Tick(w, w, 0.1f, new AiContext(1));
+
+        Assert.True(w.Log.Any(s => s.StartsWith("build(LumberCamp,")), string.Join(" | ", w.Log));
+    }
+
+    [Fact]
+    public void DoesNotBuildLumberCampBelowTwoHundredWood()
+    {
+        var w = new FakeWorld { Resources = new ResourceVector(500, 150, 50, 200),
+                                 PopulationCapacity = 20 };
+        w.AddBuilding(BuildingType.TownCenter, 20, 20, complete: true);
+        w.AddVillager(18, 22);
+
+        ai.Tick(w, w, 0.1f, new AiContext(1));
+
+        Assert.True(!w.Log.Any(s => s.StartsWith("build(LumberCamp,")), string.Join(" | ", w.Log));
+    }
+
+    [Fact]
+    public void HouseHasPriorityOverFarmAndCamp()
+    {
+        // Alle drei Bedingungen gleichzeitig erfüllt: es muss das Haus zuerst
+        // gebaut werden (einziger Baubefehl).
+        var w = new FakeWorld { PopulationCount = 5, PopulationCapacity = 5,
+                                 Resources = new ResourceVector(100, 300, 50, 200) };
+        w.AddBuilding(BuildingType.TownCenter, 20, 20, complete: true);
+        w.AddVillager(18, 22);
+
+        ai.Tick(w, w, 0.1f, new AiContext(1));
+
+        Assert.True(w.Log.Any(s => s.StartsWith("build(House,")), string.Join(" | ", w.Log));
+        Assert.Empty(w.Log.Where(s => s.StartsWith("build(Farm,")));
+        Assert.Empty(w.Log.Where(s => s.StartsWith("build(LumberCamp,")));
     }
 }

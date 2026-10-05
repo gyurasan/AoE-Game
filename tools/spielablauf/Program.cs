@@ -2336,8 +2336,14 @@ class Welt
 
     public object Call(string name, params object[] args)
     {
-        var m = T.GetMethod(name, F)
-            ?? throw new InvalidOperationException($"Methode RTSGameplayScreen.{name} nicht gefunden - umbenannt?");
+        // Methode nach Name UND Argumentanzahl auflösen: RTSGameplayScreen
+        // hat seit der KI-Schnittstelle teils mehrere Overloads desselben Namens
+        // (z. B. CanPlace/PlaceBuilding mit und ohne ownerId). GetMethod(name)
+        // wirft bei mehreren Namens-Treffern AmbiguousMatchException.
+        var m = T.GetMethods(F).Where(x => x.Name == name && x.GetParameters().Length == args.Length)
+            .FirstOrDefault()
+            ?? throw new InvalidOperationException(
+                $"Methode RTSGameplayScreen.{name}({args.Length} Argumente) nicht gefunden - umbenannt?");
         return m.Invoke(_screen, args);
     }
 

@@ -1311,15 +1311,24 @@ public class TileMap
 
     /// <summary>Kachel ist gerade einsehbar.</summary>
     public bool IsTileVisible(int x, int y, int playerId = 0)
-        => NavGrid.GetTile(x, y)?.GetVisibility(playerId) == TileVisibility.Visible;
+        => _testNoFog || NavGrid.GetTile(x, y)?.GetVisibility(playerId) == TileVisibility.Visible;
 
     /// <summary>
     /// Kachel wurde schon einmal gesehen. Schließt den Zustand
     /// „erforscht, aber veraltet" mit ein — der wird abgedunkelt gezeichnet.
     /// </summary>
     public bool IsTileExplored(int x, int y, int playerId = 0)
-        => (NavGrid.GetTile(x, y)?.GetVisibility(playerId)
+        => _testNoFog || (NavGrid.GetTile(x, y)?.GetVisibility(playerId)
             ?? TileVisibility.Unexplored) != TileVisibility.Unexplored;
+
+    /// <summary>
+    /// Test-Modus (CLI --test): der Nebel des Krieges ist vollständig
+    /// aufgehoben — alle Kacheln gelten als sichtbar. Dadurch bleiben auch
+    /// fremde Einheiten sichtbar, und die Minimap zeigt die ganze Karte mitsamt
+    /// den gegnerischen Einheiten und Gebäuden. Standard: aus.
+    /// </summary>
+    public static bool TestNoFog = false;
+    private static bool _testNoFog => TestNoFog;
 }
 
 /// <summary>

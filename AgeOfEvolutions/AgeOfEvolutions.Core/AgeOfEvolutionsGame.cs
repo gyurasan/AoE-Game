@@ -214,6 +214,14 @@ namespace AgeOfEvolutions.Core
             // Boot into the menu. The RTS mode is reachable from there, or directly
             // via the --rts command line switch (see below).
             var args = Environment.GetCommandLineArgs();
+            // Testmodus: Karte komplett sichtbar ohne Nebel; Gegner-Einheiten
+            // werden rot auf der Minimap eingezeichnet. Aktiviert mit --test.
+            bool testMode = args.Contains("--test");
+            if (testMode)
+                Data.TileMap.TestNoFog = true;
+
+            // Boot into the menu. The RTS mode is reachable from there, or directly
+            // via the --rts command line switch (see below).
             if (args.Contains("--rts"))
             {
                 // --karte gross bzw. --karte max startet auf einer größeren Karte

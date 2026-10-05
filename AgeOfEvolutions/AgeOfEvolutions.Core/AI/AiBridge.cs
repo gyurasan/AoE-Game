@@ -122,7 +122,7 @@ public sealed class AiBridge : IWorldState, IWorldActions
             if (UnitOf(id) is { } u) builders.Add(u);
         }
 
-        if (!_screen.PlaceBuilding(Owner, type, new Vector2(x, y), builders))
+        if (!_screen.PlaceBuildingFor(Owner, type, new Vector2(x, y), builders))
             return null;
 
         // Das neue Gebäude ist das letzte der Liste des Owners (AddBuilding

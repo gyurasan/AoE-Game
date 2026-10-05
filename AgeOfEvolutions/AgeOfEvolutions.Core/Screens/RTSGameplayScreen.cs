@@ -49,7 +49,12 @@ public class RTSGameplayScreen : GameScreen
 
     /// <summary>Faktor für Zoomgrenzen und Startzoom: 1 bis 1080 px Fensterhöhe, darüber proportional.</summary>
     private float ZoomScale => Math.Max(1f, screenBounds.Height / ZOOM_REFERENCE_HEIGHT);
-    private float MinZoom => MIN_ZOOM * ZoomScale;
+    // Testmodus (--test): die ganze Karte auf einen Blick — der minimale Zoom
+    // darf dann so weit heraus, dass Karte und Leisten ins Fenster passen.
+    private float _testFit = 0f;   // 0 = aus; >0 = passender Gesamtzoom
+    private float MinZoom => _testFit > 0f
+        ? Math.Min(MIN_ZOOM * ZoomScale, _testFit)
+        : MIN_ZOOM * ZoomScale;
     private float MaxZoom => MAX_ZOOM * ZoomScale;
 
     // ZoomScale, auf die cameraZoom zuletzt abgestimmt wurde (SyncZoomToWindow)
@@ -637,6 +642,21 @@ public class RTSGameplayScreen : GameScreen
         cameraPosition = new Vector2(screenBounds.Width / (2f * cameraZoom),
                                      screenBounds.Height / (2f * cameraZoom)) - start;
         ClampCamera();
+
+        // Testmodus (--test): die ganze Karte in einen Blick — Zoom so weit
+        // heraus, dass Karte plus untere Leiste ins Fenster passen, Kamera
+        // zeigt die Kartenmitte. Nebel bleibt per TileMap.TestNoFog aus.
+        if (Data.TileMap.TestNoFog)
+        {
+            float mapW = tileMap.Width * tileMap.TileSize;
+            float mapH = tileMap.Height * tileMap.TileSize;
+            _testFit = Math.Min(screenBounds.Width / mapW,
+                                (screenBounds.Height - 240f) / mapH) * 0.98f;
+            cameraZoom = Math.Max(0.05f, _testFit);
+            _appliedZoomScale = ZoomScale;   // SyncZoomToWindow nicht erneut skalieren
+            cameraPosition = Vector2.Zero;
+            ClampCamera();
+        }
 
         // Sicht gleich zu Beginn rechnen, sonst wäre der erste Frame schwarz
         tileMap.UpdateFogOfWarForPlayer(0, units);
@@ -2032,13 +2052,13 @@ public class RTSGameplayScreen : GameScreen
     /// <summary>
     /// Ob ein Gebäude dieses Typs mit der linken oberen Ecke auf
     /// <paramref name="cell"/> Platz hat: freie, bebaubare Fläche
-    /// (TileMap.CanPlaceBuilding), schon einmal gesehen und ohne Einheit darauf.
+    /// (TileMap.CanPlaceBuilding), schon einmal gesehen und ohne Einheit
+    /// darauf. Ruft mit <c>ownerId = 0</c>.
     /// </summary>
     private bool CanPlace(BuildingType type, Vector2 cell) => CanPlace(0, type, cell);
 
     /// <summary>
-    /// Owner-generic Version — die KI-Schnittstelle. Die menschliche UI-Version
-    /// (oben) delegiert hier mit <c>ownerId = 0</c>.
+    /// Owner-generic Version — die KI-Schnittstelle.
     /// </summary>
     internal bool CanPlace(int ownerId, BuildingType type, Vector2 cell)
     {
@@ -2058,25 +2078,24 @@ public class RTSGameplayScreen : GameScreen
     }
 
     /// <summary>
-    /// Legt für Spieler 0 eine Baustelle mit der linken oberen Ecke auf
+    /// Legt eine Baustelle mit der linken oberen Ecke auf
     /// <paramref name="cell"/> an und bezahlt sie; die ausgewählten
     /// Dorfbewohner gehen bauen. Passt das Gebäude nicht hin oder reichen die
     /// Rohstoffe nicht, bleibt der Setzmodus an und ein Hinweis erscheint.
     /// </summary>
     private void PlaceBuilding(BuildingType type, Vector2 cell)
     {
-        if (!PlaceBuilding(0, type, cell,
-                           selectedUnits.Where(u => u.OwnerId == 0).ToList()))
+        if (!PlaceBuildingFor(0, type, cell,
+                             selectedUnits.Where(u => u.OwnerId == 0).ToList()))
             ShowHudMessage("Hier kann nicht gebaut werden");
     }
 
     /// <summary>
     /// Owner-generic Baustelle anlegen, bezahlen und die übergebenen
-    /// Dorfbewohner schicken — die KI-Schnittstelle. Die menschliche UI-Version
-    /// delegiert mit <c>ownerId = 0</c> und der aktuellen Auswahl. Rückgabe
+    /// Dorfbewohner schicken — die KI-Schnittstelle. Rückgabe
     /// false, wenn der Platz nicht passt oder die Rohstoffe fehlen.
     /// </summary>
-    internal bool PlaceBuilding(int ownerId, BuildingType type, Vector2 cell, List<Unit> builders)
+    internal bool PlaceBuildingFor(int ownerId, BuildingType type, Vector2 cell, List<Unit> builders)
     {
         if (!CanPlace(ownerId, type, cell))
             return false;
@@ -2338,7 +2357,10 @@ public class RTSGameplayScreen : GameScreen
     {
         var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
-        foreach (var unit in units.Where(u => u.OwnerId == 0))
+        // Beide Spieler: die owner-generic Kernlogik (Sammeln, Bauen,
+        // Zurückkehren) unterscheidet sich nicht — nur die UI gehört dem
+        // Menschen. Der KI-Gegner (Owner 1) würde sonst stehen bleiben.
+        foreach (var unit in units)
         {
             switch (unit.State)
             {
@@ -4390,11 +4412,13 @@ public class RTSGameplayScreen : GameScreen
 
         // Einheiten - Position ist die Mitte der Figur in Weltpixeln. Fremde
         // nur in Sicht, sonst verriete die Minimap, was der Nebel verbirgt.
+        // Im Test-Modus (--test) gibt es keinen Nebel: alle Einheiten zählen.
         float ts = tileMap.TileSize;
         foreach (var u in units)
         {
             float ux = u.Position.X / ts, uy = u.Position.Y / ts;
-            if (u.OwnerId != 0 && !tileMap.IsTileVisible((int)ux, (int)uy, 0))
+            if (u.OwnerId != 0 && !Data.TileMap.TestNoFog
+                && !tileMap.IsTileVisible((int)ux, (int)uy, 0))
                 continue;
             var p = MinimapPoint(ux, uy, r);
             sb.Draw(px, new Rectangle((int)p.X - 1, (int)p.Y - 1, 3, 3),
@@ -4540,9 +4564,24 @@ public class RTSGameplayScreen : GameScreen
             ? (viewWidth - mapWidth) / 2f
             : MathHelper.Clamp(cameraPosition.X, viewWidth - mapWidth, 0f);
 
-        cameraPosition.Y = viewHeight >= mapHeight
-            ? (viewHeight - mapHeight) / 2f
-            : MathHelper.Clamp(cameraPosition.Y, viewHeight - mapHeight, 0f);
+        // Sichtbarer Kartenbereich: ganz oben am Bildschirmrand, unten an der
+        // Kante der unteren Menüleiste. Bei maximalem Runterscrollen liegt der
+        // Kartenboden exakt auf der Leistenkante — nicht darunter (der
+        // verschwindet sonst hinter der Leiste und der Scrollweg endet zu
+        // früh). Ist die Karte kleiner als die Fläche, zentriert sie in ihr.
+        float regionBottom = screenBounds.Height - HUD_BOTTOM_HEIGHT;
+        if (viewHeight >= mapHeight)
+        {
+            // Karte passt: vertikal zentriert im freien Bereich (0 bis Leistenkante):
+            // Kartenmitte bei regionBottom/2.
+            cameraPosition.Y = (regionBottom / cameraZoom - mapHeight) / 2f;
+        }
+        else
+        {
+            cameraPosition.Y = MathHelper.Clamp(cameraPosition.Y,
+                                                 regionBottom / cameraZoom - mapHeight,
+                                                 0f);
+        }
     }
 
     /// <summary>

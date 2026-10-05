@@ -97,7 +97,11 @@ public sealed class AiApiServer : IDisposable
 
     private void Handle(HttpListenerContext ctx)
     {
-        string path = ctx.Request.RawUrl ?? "/";
+        // RawUrl trägt die Query-String mit (z. B. "/state?owner=1") — für den
+        // Pfad-Vergleich nur die reine Wegkomponente nehmen.
+        string raw = ctx.Request.RawUrl ?? "/";
+        int q = raw.IndexOf('?');
+        string path = q >= 0 ? raw[..q] : raw;
         string method = ctx.Request.HttpMethod ?? "GET";
 
         if (method == "GET")

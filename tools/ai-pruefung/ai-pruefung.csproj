@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Headless-Prüfung, dass der KI-Gegner (Owner 1) spielt: Bevölkerung,
+    Ressourcen, Gebäude und Sammeljobs von Owner 1 müssen laufen. Sieht die
+    Screen-Methoden und die Aktivierung der EconomyAi — was AoE.Tests (Core)
+    und spielablauf (menschliche Eingabe) nicht abdecken.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>ai-pruefung</AssemblyName>
+    <RootNamespace>ai_pruefung</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\AgeOfEvolutions\AgeOfEvolutions.Core\AgeOfEvolutions.Core.csproj" />
+    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.*" />
+  </ItemGroup>
+
+</Project>
