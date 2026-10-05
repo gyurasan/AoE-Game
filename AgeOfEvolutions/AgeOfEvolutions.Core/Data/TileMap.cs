@@ -704,6 +704,39 @@ public class TileMap
         return tile != null && tile.Walkable && string.IsNullOrEmpty(tile.Building);
     }
 
+    /// <summary>
+    /// Ob eine Figur geradeaus von <paramref name="from"/> nach <paramref name="to"/>
+    /// gehen kann (Weltkoordinaten), ohne Wasser, Wald, Felsen oder Gebäude zu streifen.
+    /// Damit laufen Dorfbewohner über freies Land gerade, statt dem Zickzack der
+    /// Kachelmitten zu folgen.
+    /// VERTRAG: die Strecke wird in gleichen Schritten von höchstens 4 Welteinheiten
+    /// abgetastet, Anfang und Ende eingeschlossen; an jeder Stelle liegen der Punkt
+    /// selbst und die beiden Punkte im Abstand <paramref name="clearance"/> quer zur
+    /// Strecke (links und rechts) auf begehbaren Kacheln (IsWalkable von WorldToGrid).
+    /// Punkte mit negativer Koordinate gelten als nicht begehbar - WorldToGrid schneidet
+    /// dort zur Null hin ab und landete sonst auf Kachel 0. Sind from und to gleich,
+    /// zählt nur dieser Punkt (ohne Querpunkte).
+    /// </summary>
+    public bool IsSegmentWalkable(Vector2 from, Vector2 to, float clearance)
+    {
+        bool Frei(Vector2 p) => p.X >= 0 && p.Y >= 0 && IsWalkable((int)(p.X / TileSize), (int)(p.Y / TileSize));
+
+        var d = to - from;
+        float len = d.Length();
+        if (len < 0.0001f)
+            return Frei(from);
+
+        int n = (int)MathF.Ceiling(len / 4f);
+        var quer = new Vector2(-d.Y, d.X) / len * clearance;
+        for (int i = 0; i <= n; i++)
+        {
+            var p = from + d * (i / (float)n);
+            if (!Frei(p) || !Frei(p + quer) || !Frei(p - quer))
+                return false;
+        }
+        return true;
+    }
+
     /// <summary>Vorrat einer vollen Farm-Kachel (AoE II: jede Zeile ist eine 175-Nahrungsquelle).</summary>
     public const int FARM_FOOD = 175;
     /// <summary>Sekunden, bis eine geerntete Farm-Kachel wieder voll ist.</summary>
@@ -950,6 +983,9 @@ public class TileMap
     /// Nahrung und Tier ziehen um, die alte Kachel wird Wiese. Das Tier blickt
     /// in Schrittrichtung und merkt sich, woher es kam (FromX, FromY, Glide).
     /// Gibt die neue Kachel zurück, oder null, wenn kein Ziel frei war.
+    /// VERTRAG (zusätzlich): die ersten acht Versuche verwerfen Schritte ohne
+    /// Seitenanteil (dx == 0) - das Tier zeigt sich nur von der Seite und ginge sonst
+    /// seitwärts gewandt nach oben oder unten; erst danach sind sie erlaubt.
     /// </summary>
     private (int x, int y)? WanderStep(Tile t, int radius, FoodSource source)
     {
@@ -958,6 +994,10 @@ public class TileMap
             int dx = _wildRng.Next(-radius, radius + 1);
             int dy = _wildRng.Next(-radius, radius + 1);
             if (dx == 0 && dy == 0) continue;
+            // Die ersten acht Versuche verwerfen Schritte ohne Seitenanteil
+            // (dx == 0): das Tier zeigt sich nur von der Seite und ginge sonst
+            // seitwärts gewandt nach oben oder unten; erst danach sind sie erlaubt.
+            if (dx == 0 && attempt < 8) continue;
             int nx = t.X + dx, ny = t.Y + dy;
             var target = GetTile(nx, ny);
             if (target == null) continue;

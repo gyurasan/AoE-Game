@@ -796,6 +796,17 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
 - [x] Bäume im Wind: jeder Baum wiegt sich, der Stammfuß steht, die Krone schwingt aus -
       in denselben Böen wie der Weizen (`Wind.Gust`, `Wind.TreeSway`, `Wind.SwayStrips`;
       Gruppe `wind` in `tools/spielablauf`) *(Agent G9)*
+- [x] Natürlicheres Gehen: Laufbilder und Wippen nach der gelaufenen Strecke statt nach der
+      Uhr (keine rutschenden Füße), leichte Vorlage statt Kippeln von Seite zu Seite,
+      Anfahren und Abbremsen, gerade Wege über freies Land statt Kachel-Zickzack
+      (`Gait`, `TileMap.IsSegmentWalkable`, `Unit.Pace`); Schafe und Wild gleiten weich von
+      Kachel zu Kachel und wippen nur, solange sie Fahrt haben. Gruppen `gang` und `gehen`
+      in `tools/spielablauf` *(Agent H1, H2, H3)*
+- [x] Blickrichtung in Seitenansicht: Dorfbewohner blicken zur Seite, in die sie gehen - fast
+      senkrecht zur Seite ihres Ziels -, bei der Arbeit zu Baum, Stein, Gold oder Baustelle,
+      und stehen dafür bevorzugt seitlich daneben statt darüber, darunter oder mitten im
+      Haufen (`Gait.FacingLeft`, `StandCell`, `SiteStandCell`); Schafe und Wild machen kaum
+      rein senkrechte Schritte (`WanderStep`). Gruppe `blick` in `tools/spielablauf` *(Agent J)*
 
 ### C10 · Kamera [R]
 

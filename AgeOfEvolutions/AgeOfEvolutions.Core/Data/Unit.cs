@@ -94,6 +94,12 @@ public class Unit
     
     // Pathfinding
     public List<Vector2> Path { get; set; } = new List<Vector2>();
+
+    /// <summary>
+    /// Wie schnell die Einheit gerade geht, als Anteil an ihrem vollen Tempo:
+    /// sie fährt an und bremst vor dem Ziel, siehe Gait.Approach und Gait.ArrivalSpeed.
+    /// </summary>
+    public float Pace { get; set; }
     
     /// <summary>
     /// Laufender Sammelauftrag, oder null. Traglast, Quelle und Abgabestelle

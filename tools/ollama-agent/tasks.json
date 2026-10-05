@@ -6,41 +6,6 @@
   },
   "tasks": [
     {
-      "id": "H3",
-      "title": "Doppelten ProjectReference auf AoE.Core entfernen",
-      "auto": true,
-      "max_turns": 10,
-      "prompt": "In AgeOfEvolutions/AgeOfEvolutions.Core/AgeOfEvolutions.Core.csproj wird das Projekt AoE.Core ZWEIMAL referenziert: einmal in einer ItemGroup mit Schraegstrichen ('../../src/AoE.Core/AoE.Core.csproj') und einmal in einer zweiten ItemGroup mit Backslashes ('..\\..\\src\\AoE.Core\\AoE.Core.csproj'). Beide meinen dasselbe Projekt. Entferne genau eine der beiden ItemGroups, sodass der Verweis nur noch einmal vorkommt. Behalte die Variante mit Backslashes, das ist die uebliche Schreibweise in .NET-Projektdateien. Aendere sonst nichts an der Datei - Frameworkversion, Platforms und die MonoGame-PackageReference bleiben unveraendert.",
-      "context_files": [
-        "AgeOfEvolutions/AgeOfEvolutions.Core/AgeOfEvolutions.Core.csproj"
-      ],
-      "allow_write": [
-        "AgeOfEvolutions/AgeOfEvolutions.Core/*.csproj"
-      ],
-      "verify": [
-        "dotnet build AgeOfEvolutions/AgeOfEvolutions.DesktopGL/AgeOfEvolutions.DesktopGL.csproj -v q --nologo",
-        "py -c \"import pathlib,sys; t=pathlib.Path('AgeOfEvolutions/AgeOfEvolutions.Core/AgeOfEvolutions.Core.csproj').read_text(encoding='utf-8-sig'); n=t.count('AoE.Core.csproj'); print('ProjectReference-Treffer:',n); sys.exit(0 if n==1 else 1)\""
-      ]
-    },
-    {
-      "id": "H1",
-      "title": ".gitignore fuer .NET + MonoGame + Visual Studio anlegen",
-      "auto": true,
-      "max_turns": 8,
-      "prompt": "Das Repository hat keine .gitignore, deshalb sind Build-Artefakte eingecheckt. Lege im Wurzelverzeichnis eine .gitignore an, die fuer ein .NET-/MonoGame-Projekt unter Visual Studio das Uebliche ausschliesst. Sie muss mindestens abdecken: bin/ und obj/ auf jeder Ebene, das Visual-Studio-Verzeichnis .vs/, die MonoGame-Content-Zwischenstaende (Content/bin/ und Content/obj/), Benutzerdateien (*.user, *.suo), Test- und Coverage-Ergebnisse sowie NuGet-Pakete (packages/, *.nupkg). Gruppiere die Eintraege mit kurzen Kommentar-Ueberschriften. Wichtig: die Quellverzeichnisse src/, tests/, demo/, docs/ und tools/ duerfen NICHT ausgeschlossen werden.",
-      "context_files": [],
-      "allow_write": [
-        ".gitignore"
-      ],
-      "_warnung": "--no-index ist zwingend: ohne das ueberspringt git check-ignore alle GETRACKTEN Dateien und meldet 'nicht ignoriert', obwohl die Regel greift. Genau hier sind bin/ und obj/ getrackt.",
-      "verify": [
-        "git check-ignore --no-index -q AgeOfEvolutions/AgeOfEvolutions.Core/obj/project.assets.json",
-        "git check-ignore --no-index -q AgeOfEvolutions/AgeOfEvolutions.Core/bin/Debug/beliebig/irgendwas.dll",
-        "git check-ignore --no-index -q AgeOfEvolutions/.vs/AgeOfEvolutions/v17/.suo",
-        "py -c \"import subprocess,sys; bad=[p for p in ['src/AoE.Core/AoE.Core.csproj','tests/AoE.Tests/UnitTests.cs','docs/AgeOfEmpires.md','TODO.md','tools/ollama-agent/run_tasks.py'] if subprocess.run(['git','check-ignore','--no-index','-q',p]).returncode==0]; print('faelschlich ignoriert:',bad); sys.exit(1 if bad else 0)\""
-      ]
-    },
-    {
       "id": "C3",
       "title": "Endliche Ressourcenvorkommen statt Regeneration",
       "auto": false,
@@ -86,21 +51,6 @@
       ],
       "verify": [
         "py -c \"import pathlib,sys; t=pathlib.Path('AgeOfEvolutions/.github/copilot-instructions.md').read_text(encoding='utf-8-sig'); ok = 'azure' not in t.lower() and 'AoE.Core' in t and len(t)>150; print('projektbezogen und azure-frei:', ok); sys.exit(0 if ok else 1)\""
-      ]
-    },
-    {
-      "id": "H2",
-      "title": "csproj-Dateinamen auf kanonische Schreibweise bringen",
-      "auto": false,
-      "max_turns": 8,
-      "prompt": "Die Projektdatei heisst auf der Platte 'AgeofempiresClone.Core.csproj' (kleines o, kleines e). Git und alle vier Plattformprojekte sowie die .sln verweisen dagegen auf die kanonische Schreibweise 'AgeOfEvolutions.Core.csproj'. Unter Windows faellt das nicht auf, weil das Dateisystem Gross- und Kleinschreibung ignoriert - auf Linux und macOS bricht der Build.\n\nBenenne die Datei mit rename_file um:\n  von: AgeOfEvolutions/AgeOfEvolutions.Core/AgeofempiresClone.Core.csproj\n  nach: AgeOfEvolutions/AgeOfEvolutions.Core/AgeOfEvolutions.Core.csproj\n\nDer Inhalt der Datei bleibt unveraendert. Aendere sonst nichts.",
-      "context_files": [],
-      "allow_write": [
-        "AgeOfEvolutions/AgeOfEvolutions.Core/*.csproj"
-      ],
-      "verify": [
-        "dotnet build AgeOfEvolutions/AgeOfEvolutions.DesktopGL/AgeOfEvolutions.DesktopGL.csproj -v q --nologo",
-        "py -c \"import pathlib,sys; d=pathlib.Path('AgeOfEvolutions/AgeOfEvolutions.Core'); names=[p.name for p in d.iterdir() if p.suffix=='.csproj']; ok = names==['AgeOfEvolutions.Core.csproj']; print('csproj-Dateien:', names); sys.exit(0 if ok else 1)\""
       ]
     },
     {
@@ -1888,6 +1838,90 @@
         "dotnet run --project tools/spielablauf -v q --nologo -- wind bauen feld",
         "py tools/ollama-agent/checks/g9_baeume.py",
         "py tools/ollama-agent/checks/g7_weizen.py",
+        "py tools/ollama-agent/checks/start_rts.py gl",
+        "py tools/ollama-agent/checks/start_rts.py dx"
+      ]
+    },
+    {
+      "id": "H1",
+      "title": "Rechnungen für natürlicheres Gehen",
+      "auto": false,
+      "max_turns": 20,
+      "prompt": "Aufgabe H1: Rechnungen für natürlicheres Gehen. Dorfbewohner, Schafe und Wild sollen natürlicher gehen; dafür braucht es zuerst die Rechnungen, die der Spielbildschirm später benutzt.\n\nTEIL A - AgeOfEvolutions/AgeOfEvolutions.Core/Screens/Gait.cs (vorgeladen): Die Klasse Gait hat sieben Methoden mit leerem Rumpf (throw new NotImplementedException();): WalkFrame, Bob, Approach, ArrivalSpeed, Lean, Ease, EaseSpeed. Über jeder steht ein XML-Kommentar mit VERTRAG - die genaue Vorgabe, oft schon mit Formel. Ersetze in jeder Methode nur die throw-Zeile durch die Umsetzung. Da die throw-Zeile siebenmal gleich dasteht: jeden Suchtext mit der Signaturzeile der Methode beginnen lassen, etwa\n    public static float Bob(float walked, float stride)\n    {\n        throw new NotImplementedException();\nund durch Signatur, { und die neuen Zeilen ersetzen. C#, net10.0: MathF.Sin, MathF.Exp, MathF.Floor, MathF.PI, Math.Clamp stehen bereit.\nHinweise:\n- WalkFrame: Doppelschritt-Anteil c = walked / (2 * stride), davon nur der Nachkommaanteil, auch für negative walked im Bereich 0 bis 1 (c - MathF.Floor(c)); Bild = (int)MathF.Floor(c * 4 + 0.5f) % 4. So liegt walked = 0 mitten im Bild 0.\n- Approach: bei dt <= 0 current zurückgeben.\n- ArrivalSpeed, Lean, Ease, EaseSpeed: Formeln stehen im Vertrag; Grenzen mit Math.Clamp.\n\nTEIL B - AgeOfEvolutions/AgeOfEvolutions.Core/Data/TileMap.cs: Die Methode IsSegmentWalkable hat einen leeren Rumpf; Vertrag im XML-Kommentar darüber. Die Datei ist über 1100 Zeilen lang: NICHT ganz lesen. Suchtext (genau so in der Datei):\n    public bool IsSegmentWalkable(Vector2 from, Vector2 to, float clearance)\n    {\n        throw new NotImplementedException();\n    }\nUmsetzung:\n- eine lokale Funktion bool Frei(Vector2 p): p.X >= 0 und p.Y >= 0 und IsWalkable((int)(p.X / TileSize), (int)(p.Y / TileSize)).\n- var d = to - from; float len = d.Length(); ist len < 0.0001f, nur Frei(from) zurückgeben.\n- int n = (int)MathF.Ceiling(len / 4f); var quer = new Vector2(-d.Y, d.X) / len * clearance;\n- für i von 0 bis n einschließlich: p = from + d * (i / (float)n); ist einer von Frei(p), Frei(p + quer), Frei(p - quer) falsch, false zurückgeben.\n- sonst true.\n\nDanach sofort finish - die Abnahme baut und prüft selbst (tools/spielablauf, Gruppe gang).",
+      "context_files": [
+        "AgeOfEvolutions/AgeOfEvolutions.Core/Screens/Gait.cs"
+      ],
+      "allow_write": [
+        "AgeOfEvolutions/AgeOfEvolutions.Core/Screens/Gait.cs",
+        "AgeOfEvolutions/AgeOfEvolutions.Core/Data/TileMap.cs"
+      ],
+      "verify": [
+        "dotnet build AgeOfEvolutions/AgeOfEvolutions.Core/AgeOfEvolutions.Core.csproj -v q --nologo",
+        "dotnet run --project tools/spielablauf -v q --nologo -- gang",
+        "py tools/ollama-agent/checks/h_gang.py h1"
+      ]
+    },
+    {
+      "id": "H2",
+      "title": "Dorfbewohner gehen natürlicher",
+      "auto": false,
+      "max_turns": 25,
+      "prompt": "Aufgabe H2: Dorfbewohner gehen natürlicher. Bisher kippelte ein gehender Dorfbewohner bei jedem Schritt von Seite zu Seite, seine Laufbilder wechselten im festen Takt der Uhr (bei anderem Tempo rutschten die Füße), er sprang mit vollem Tempo los, blieb ohne Abbremsen stehen und folgte dem Zickzack der Kachelmitten. Die Rechnungen dafür stehen schon in AgeOfEvolutions/AgeOfEvolutions.Core/Screens/Gait.cs (Klasse Gait: WalkFrame, Bob, Approach, ArrivalSpeed, Lean, VILLAGER_STRIDE) und TileMap.IsSegmentWalkable - hier werden sie eingebaut.\n\nAlles mit replace_in_file. AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs ist über 4000 Zeilen lang: NICHT ganz lesen - die Suchtexte unten stehen genau so in den Dateien. Kommentare deutsch. Nach dem letzten Schritt sofort finish.\n\n1. AgeOfEvolutions/AgeOfEvolutions.Core/Data/Unit.cs: Suchtext:\n    public List<Vector2> Path { get; set; } = new List<Vector2>();\nDahinter eine Leerzeile und eine neue Eigenschaft mit XML-Kommentar (Wie schnell die Einheit gerade geht, als Anteil an ihrem vollen Tempo: sie fährt an und bremst vor dem Ziel, siehe Gait.Approach und Gait.ArrivalSpeed):\n    public float Pace { get; set; }\n\n2. AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs, StepAlongPath, Anfang. Suchtext:\n        if (unit.Path.Count == 0)\n            return true;\n\n        var nextPosition = unit.Path[0];\nErsetzen: ist der Weg leer, unit.Pace = 0f setzen und true zurückgeben (mit geschweiften Klammern). Danach, vor var nextPosition: Wegpunkte überspringen, solange der übernächste geradeaus erreichbar ist - while (unit.Path.Count >= 2 && tileMap.IsSegmentWalkable(unit.Position, unit.Path[1], 6f)) unit.Path.RemoveAt(0); - mit einer Kommentarzeile: über freies Land geradeaus statt im Zickzack der Kachelmitten.\n\n3. AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs, StepAlongPath, Bewegung. Suchtext:\n        direction.Normalize();\n        var before = tileMap.WorldToGrid(unit.Position);\n        unit.Position += direction * unit.MovementSpeed * 40 * dt;\nErsetzen: davor die restliche Strecke bis zum Ziel ausrechnen - float remaining = distance; dann für jeden weiteren Wegpunkt (i von 1 bis unit.Path.Count - 1) remaining += Vector2.Distance(unit.Path[i - 1], unit.Path[i]); - und das Tempo nachführen: unit.Pace = Gait.Approach(unit.Pace, Gait.ArrivalSpeed(remaining), dt); mit Kommentar (anfahren, vor dem Ziel abbremsen). Danach die drei Zeilen wie bisher, nur die Bewegung mal unit.Pace: unit.Position += direction * unit.MovementSpeed * 40 * unit.Pace * dt;\n\n4. AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs, Feld der Bewegung je Einheit. Suchtext:\n        public float MovingFor;    // gilt noch so viele Sekunden als in Bewegung\nDahinter eine Zeile:\n        public float Walked;       // gelaufene Strecke in Welteinheiten - Takt der Laufbilder\n\n5. AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs, UpdateUnitMotion. Suchtext:\n            if (delta.LengthSquared() > 0.0001f)\n            {\n                motion.MovingFor = 0.15f;\nErsetzen: dieselben Zeilen, aber vor motion.MovingFor = 0.15f; die Zeile motion.Walked += delta.Length();\n\n6. AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs, DrawVillager. Suchtext:\n            float step = t * VILLAGER_STEP_RATE;\n            bob = MathF.Abs(MathF.Sin(step)) * 1.5f * cameraZoom;\n            tilt = MathF.Sin(step) * 0.05f;\nErsetzen durch zwei Zeilen mit Kommentar (er wippt im Takt seiner Schritte, nach der gelaufenen Strecke, und neigt sich beim Gehen leicht nach vorn, statt von Seite zu Seite zu kippeln):\n            bob = Gait.Bob(motion.Walked, Gait.VILLAGER_STRIDE) * 1.2f * cameraZoom;\n            tilt = Gait.Lean(unit.Pace);\n\n7. AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs, DrawVillager. Suchtext:\n            figure = walk[VillagerWalkPhase(t)];\nersetzen durch:\n            figure = walk[VillagerWalkPhase(motion.Walked)];\n\n8. AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs, VillagerWalkPhase samt Kommentar. Suchtext:\n    /// <summary>\n    /// Welches Laufbild ein gehender Dorfbewohner zur Zeit t zeigt: 0 bis 3 für\n    /// Schritt, Stand, Gegenschritt, Stand. Ein Schritt dauert eine halbe Welle des\n    /// Wippens (VILLAGER_STEP_RATE): gespreizt, wenn die Figur unten ist, im Stand,\n    /// wenn sie oben ist.\n    /// </summary>\n    private int VillagerWalkPhase(float t)\n        => (int)MathF.Floor((t * VILLAGER_STEP_RATE + MathF.PI / 4f) / (MathF.PI / 2f)) % 4;\nErsetzen: neuer XML-Kommentar (welches Laufbild ein Dorfbewohner zeigt, der walked Welteinheiten gegangen ist: 0 bis 3 für Schritt, Stand, Gegenschritt, Stand, je Schrittlänge Gait.VILLAGER_STRIDE ein Schritt - nach der Strecke, nicht nach der Uhr, damit die Füße nicht rutschen) und\n    private int VillagerWalkPhase(float walked) => Gait.WalkFrame(walked, Gait.VILLAGER_STRIDE);\n\n9. AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs: die nun unbenutzte Konstante löschen. Suchtext (eine Zeile, samt Zeilenende):\n    private const float VILLAGER_STEP_RATE = 10f;   // Schritttakt beim Gehen, Bogenmaß je Sekunde\nersetzen durch nichts (leerer ERSATZ).",
+      "context_files": [],
+      "allow_write": [
+        "AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs",
+        "AgeOfEvolutions/AgeOfEvolutions.Core/Data/Unit.cs"
+      ],
+      "verify": [
+        "dotnet build AgeOfEvolutions/AgeOfEvolutions.DesktopGL/AgeOfEvolutions.DesktopGL.csproj -v q --nologo",
+        "dotnet build AgeOfEvolutions/AgeOfEvolutions.WindowsDX/AgeOfEvolutions.WindowsDX.csproj -v q --nologo",
+        "dotnet run --project tools/spielablauf -v q --nologo -- gehen gang bewegen bauen weiterbauen linksklick farm schafe pfad turm werkzeug",
+        "py tools/ollama-agent/checks/h_gang.py h2",
+        "py tools/ollama-agent/checks/c7v_gehen.py",
+        "py tools/ollama-agent/checks/start_rts.py gl",
+        "py tools/ollama-agent/checks/start_rts.py dx"
+      ]
+    },
+    {
+      "id": "H3",
+      "title": "Schafe und Wild gehen natürlicher",
+      "auto": false,
+      "max_turns": 15,
+      "prompt": "Aufgabe H3: Schafe und Wild (Rehe, Kaninchen, Wildschweine) gehen natürlicher. Bisher glitt jedes Tier in genau einer Sekunde gleichmäßig von Kachel zu Kachel - mit vollem Tempo los, auf der Stelle stehen. Jetzt fährt es weich an und bremst weich ab (Gait.Ease), setzt die Beine nach der wirklich gegangenen Strecke (sonst rutschten sie) und wippt nur, solange es Fahrt hat (Gait.EaseSpeed). Gait steht in AgeOfEvolutions/AgeOfEvolutions.Core/Screens/Gait.cs: Ease(progress) liefert die zurückgelegte Strecke 0 bis 1 eines Schritts, EaseSpeed(progress) das Tempo 0 bis 1 (0 am Anfang und Ende, 1 in der Mitte).\n\nAlles mit replace_in_file in AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs. Die Datei ist über 4000 Zeilen lang: NICHT ganz lesen - die Suchtexte stehen genau so darin. Kommentare deutsch. Nach dem letzten Schritt sofort finish.\n\n1. DrawAnimal, Lage und Wippen. Suchtext:\n        float rest = MathHelper.Clamp(tier.Glide / TileMap.WILD_STEP_SECONDS, 0f, 1f);\n        var foot = new Vector2(tileRect.Center.X + jx + tier.FromX * rest * tileRect.Width,\n                               tileRect.Bottom - tileRect.Height / 4 + jy + tier.FromY * rest * tileRect.Height);\n        float bob = rest > 0f ? MathF.Abs(MathF.Sin(rest * MathF.PI * 2f * WALK_CYCLES_PER_STEP)) * 1.5f * cameraZoom : 0f;\nErsetzen:\n- die erste Zeile bleibt;\n- danach: float progress = 1f - rest; und float left = 1f - Gait.Ease(progress); mit Kommentar (weich angefahren und abgebremst: left ist der Teil des Schritts, der noch fehlt);\n- in foot statt tier.FromX * rest und tier.FromY * rest jeweils tier.FromX * left und tier.FromY * left;\n- bob: nur solange rest > 0f, sonst 0f; dann MathF.Abs(MathF.Sin(Gait.Ease(progress) * MathF.PI * 2f * WALK_CYCLES_PER_STEP)) * 1.5f * cameraZoom * Gait.EaseSpeed(progress) - mit Kommentar (es wippt im Takt der Beine und nur, solange es Fahrt hat).\n\n2. WalkPhase. Suchtext:\n        float gelaufen = 1f - MathHelper.Clamp(glide / TileMap.WILD_STEP_SECONDS, 0f, 1f);\nersetzen durch eine Kommentarzeile (die Beine folgen der weich gegangenen Strecke, sonst rutschten sie beim Anfahren und Abbremsen) und:\n        float gelaufen = Gait.Ease(1f - MathHelper.Clamp(glide / TileMap.WILD_STEP_SECONDS, 0f, 1f));\n\n3. Im XML-Kommentar über DrawAnimal einen Halbsatz ergänzen. Suchtext:\n    /// und läuft jeden Schritt sichtbar von der alten zur neuen Kachel: es\nersetzen durch:\n    /// und läuft jeden Schritt sichtbar von der alten zur neuen Kachel, weich\n    /// angefahren und abgebremst (Gait.Ease): es\n\nRÜCKMELDUNG ZUM ERSTEN VERSUCH (abgelehnt, sonst alles richtig): Die Prüfung Gangbild (tools/spielablauf, Gruppe herde) erwartet je Kachelschritt genau die Bilder 0,1,2,3,0,1,2,3 und bekam 0,1,2,3,0,1,2,3,0. Grund: Gait.Ease ist am Ende des Schritts flach und rundet kurz vor dem Ende auf genau 1,0 - dann ist gelaufen * WALK_CYCLES_PER_STEP * 4 genau 8, und % 4 springt auf 0. In WalkPhase deshalb zusätzlich den Bildindex auf das letzte Bild des Schritts begrenzen. Die letzte Zeile von WalkPhase lautet heute:\n        return (int)(gelaufen * WALK_CYCLES_PER_STEP * 4) % 4;\nErsetzen durch:\n        return Math.Min((int)(gelaufen * WALK_CYCLES_PER_STEP * 4), WALK_CYCLES_PER_STEP * 4 - 1) % 4;\n(Schritte 1 bis 3 wie oben, dies als Schritt 4.)",
+      "context_files": [],
+      "allow_write": [
+        "AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs"
+      ],
+      "verify": [
+        "dotnet build AgeOfEvolutions/AgeOfEvolutions.DesktopGL/AgeOfEvolutions.DesktopGL.csproj -v q --nologo",
+        "dotnet build AgeOfEvolutions/AgeOfEvolutions.WindowsDX/AgeOfEvolutions.WindowsDX.csproj -v q --nologo",
+        "dotnet run --project tools/spielablauf -v q --nologo -- herde schafe wild gang gehen",
+        "py tools/ollama-agent/checks/h_gang.py h3",
+        "py tools/ollama-agent/checks/c7t_tiere.py",
+        "py tools/ollama-agent/checks/c7w_gehen.py",
+        "py tools/ollama-agent/checks/start_rts.py gl",
+        "py tools/ollama-agent/checks/start_rts.py dx"
+      ]
+    },
+    {
+      "id": "J",
+      "title": "Figuren blicken in Laufrichtung (Seitenansicht)",
+      "auto": false,
+      "max_turns": 25,
+      "prompt": "Aufgabe J: Dorfbewohner, Schafe und Wild sollen in die Richtung blicken, in die sie gehen - und bei der Arbeit zu dem, woran sie arbeiten. Die Figuren gibt es nur von der Seite: nach rechts gemalt, nach links gespiegelt (FacingLeft). Bisher blickte ein fast senkrecht gehender Dorfbewohner in die zufällig zuletzt gehabte Richtung, und er arbeitete oft genau über oder unter Baum, Stein oder Gold und schlug seitlich ins Leere; Tiere gingen seitwärts gewandt nach oben oder unten.\n\nDie Verträge stehen schon als XML-Kommentar über den Methoden (VERTRAG). Alles mit replace_in_file. AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs (über 4000 Zeilen) und AgeOfEvolutions/AgeOfEvolutions.Core/Data/TileMap.cs (über 1100) NICHT ganz lesen - die Suchtexte unten stehen genau so darin. Kommentare deutsch. Nach dem letzten Schritt sofort finish.\n\n1. AgeOfEvolutions/AgeOfEvolutions.Core/Screens/Gait.cs (vorgeladen): Rumpf von FacingLeft nach Vertrag. Suchtext beginnt mit der Signaturzeile\n    public static bool FacingLeft(Microsoft.Xna.Framework.Vector2 step, Microsoft.Xna.Framework.Vector2 toward, bool current)\ngefolgt von { und throw new NotImplementedException(); und }. Umsetzung: ist MathF.Abs(step.X) > 0.3f * step.Length(), dann step.X < 0f; sonst ist MathF.Abs(toward.X) > 8f, dann toward.X < 0f; sonst current.\n\n2. AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs, UpdateUnitMotion. Suchtext:\n            var delta = unit.Position - motion.Last;\n            if (delta.LengthSquared() > 0.0001f)\n            {\n                motion.Walked += delta.Length();\n                motion.MovingFor = 0.15f;\n                if (Math.Abs(delta.X) > 0.01f)\n                    motion.FacingLeft = delta.X < 0;\n            }\n            else\n            {\n                motion.MovingFor = Math.Max(0f, motion.MovingFor - dt);\n            }\nErsetzen: die alte Blickregel (die zwei Zeilen mit Math.Abs(delta.X)) fällt weg; bool moved = delta.LengthSquared() > 0.0001f; vorab ausrechnen und im if benutzen. Nach dem if/else den Punkt bestimmen, auf den die Einheit zugeht oder an dem sie arbeitet - var toward = Vector2.Zero; dann:\n   - hat sie noch einen Weg (unit.Path.Count > 0): toward = unit.Path[unit.Path.Count - 1] - unit.Position;\n   - sonst, wenn sie sammelt (unit.Job?.Phase == GatherPhase.Gathering): toward = GridToWorld(new Vector2(unit.Job.Source.X, unit.Job.Source.Y)) - unit.Position;\n   - sonst, wenn sie baut (unit.State == UnitState.Building && unit.BuildSite is { } site): toward = Mitte der Baustelle - unit.Position, Mitte = new Vector2((site.X + site.Width / 2f) * tileMap.TileSize, (site.Y + site.Height / 2f) * tileMap.TileSize);\n   und motion.FacingLeft = Gait.FacingLeft(moved ? delta : Vector2.Zero, toward, motion.FacingLeft); - mit einem Kommentar, warum.\n\n3. AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs, StandCell nach dem neuen Vertrag im XML-Kommentar darüber. Suchtext (der Anfang des Rumpfs):\n        if (tileMap.IsWalkable(cell.X, cell.Y))\n            return new Vector2(cell.X, cell.Y);\n\n        Vector2? best = null;\nErsetzen: var source = tileMap.GetTile(cell.X, cell.Y); bool onTile = source != null && (source.Farm || source.Animal != null); nur wenn begehbar UND onTile die Kachel selbst zurückgeben; danach Vector2? best = null; wie bisher.\nUnd Suchtext (in derselben Methode):\n                float distance = Vector2.DistanceSquared(GridToWorld(neighbour), from);\n                if (distance < bestDistance)\nErsetzen: nach der distance-Zeile Kachel darüber oder darunter (dx == 0) zurückstellen - if (dx == 0) distance += 1e9f; - mit Kommentar; dann wie bisher.\nUnd am Ende von StandCell: vor dem return best; einfügen: ist best == null und die Kachel selbst begehbar, die Kachel selbst zurückgeben (new Vector2(cell.X, cell.Y)). Suchtext dafür (eindeutig, das Ende von StandCell samt Anfang des nächsten Kommentars):\n        return best;\n    }\n\n    /// <summary>\n    /// Die Einheit hat das Ziel ihres Sammelauftrags erreicht.\n\n4. AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs, SiteStandCell nach dem Zusatz im Vertrag. Suchtext:\n                var cell = new Vector2(x, y);\n                float distance = Vector2.DistanceSquared(GridToWorld(cell), unit.Position);\nDahinter: Kacheln, die nicht links oder rechts der Baustelle liegen (x != site.X - 1 && x != site.X + site.Width), zurückstellen - distance += 1e9f; - mit Kommentar.\n\n5. AgeOfEvolutions/AgeOfEvolutions.Core/Data/TileMap.cs, WanderStep nach dem Zusatz im Vertrag. Suchtext:\n            if (dx == 0 && dy == 0) continue;\n            int nx = t.X + dx, ny = t.Y + dy;\nDazwischen: if (dx == 0 && attempt < 8) continue; - mit Kommentar.",
+      "context_files": [
+        "AgeOfEvolutions/AgeOfEvolutions.Core/Screens/Gait.cs"
+      ],
+      "allow_write": [
+        "AgeOfEvolutions/AgeOfEvolutions.Core/Screens/Gait.cs",
+        "AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs",
+        "AgeOfEvolutions/AgeOfEvolutions.Core/Data/TileMap.cs"
+      ],
+      "verify": [
+        "dotnet build AgeOfEvolutions/AgeOfEvolutions.DesktopGL/AgeOfEvolutions.DesktopGL.csproj -v q --nologo",
+        "dotnet build AgeOfEvolutions/AgeOfEvolutions.WindowsDX/AgeOfEvolutions.WindowsDX.csproj -v q --nologo",
+        "dotnet run --project tools/spielablauf -v q --nologo -- blick gang gehen bauen weiterbauen linksklick farm schafe wild herde pfad werkzeug turm feld",
+        "py tools/ollama-agent/checks/j_blick.py",
         "py tools/ollama-agent/checks/start_rts.py gl",
         "py tools/ollama-agent/checks/start_rts.py dx"
       ]

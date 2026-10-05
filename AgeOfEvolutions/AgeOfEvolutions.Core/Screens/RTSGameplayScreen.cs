@@ -259,7 +259,6 @@ public class RTSGameplayScreen : GameScreen
     // Laufbilder (dorfbewohner_lauf1, _lauf2 im Ordner des Standbilds), deckungsgleich
     // mit dem Standbild zugeschnitten: Schritt, Stand, Gegenschritt, Stand
     private readonly Dictionary<(Age Age, int Owner), Texture2D[]> _villagerWalk = new();
-    private const float VILLAGER_STEP_RATE = 10f;   // Schritttakt beim Gehen, Bogenmaß je Sekunde
     private Texture2D _shadowTex;          // weicher Schatten unter den Füßen
 
     // Werkzeuge der Dorfbewohner (tools/bilder, Gruppe werkzeuge): waagerecht,
@@ -348,6 +347,7 @@ public class RTSGameplayScreen : GameScreen
         public Vector2 Last;       // Lage im letzten Update
         public bool FacingLeft;    // zuletzt nach links gelaufen
         public float MovingFor;    // gilt noch so viele Sekunden als in Bewegung
+        public float Walked;       // gelaufene Strecke in Welteinheiten - Takt der Laufbilder
     }
     private readonly Dictionary<Unit, UnitMotion> _unitMotion = new();
     private float animationTime;   // Sekunden seit Spielbeginn, Takt der Animation
@@ -1679,13 +1679,24 @@ public class RTSGameplayScreen : GameScreen
 
     /// <summary>
     /// Die Kachel, auf die sich eine Einheit stellt, um an <paramref name="cell"/>
-    /// zu arbeiten: die Kachel selbst, wenn sie begehbar ist, sonst die
-    /// begehbare Nachbarkachel, die <paramref name="from"/> am nächsten liegt –
-    /// so wird Fisch vom Ufer aus gefangen. Null, wenn ringsum nichts begehbar ist.
+    /// zu arbeiten. Die Figuren zeigen sich nur von der Seite - wer über oder unter
+    /// seiner Arbeit steht, schlägt seitlich ins Leere. Deshalb:
+    /// VERTRAG:
+    /// - Auf Feldern (Tile.Farm) und bei Tieren (Tile.Animal nicht null) die Kachel
+    ///   selbst, wenn sie begehbar ist.
+    /// - Sonst (Bäume, Stein, Gold, Beeren, Fisch, alles Unbegehbare) eine begehbare
+    ///   Nachbarkachel: bevorzugt eine links oder rechts davon (dx ungleich 0, auch
+    ///   schräg), davon die, die <paramref name="from"/> am nächsten liegt; nur wenn
+    ///   keine solche begehbar ist, die nächste darüber oder darunter. So wird Fisch vom
+    ///   Ufer aus gefangen.
+    /// - Ist keine Nachbarkachel begehbar, die Kachel selbst, wenn sie begehbar ist,
+    ///   sonst null.
     /// </summary>
     private Vector2? StandCell(CorePosition cell, Vector2 from)
     {
-        if (tileMap.IsWalkable(cell.X, cell.Y))
+        var source = tileMap.GetTile(cell.X, cell.Y);
+        bool onTile = source != null && (source.Farm || source.Animal != null);
+        if (tileMap.IsWalkable(cell.X, cell.Y) && onTile)
             return new Vector2(cell.X, cell.Y);
 
         Vector2? best = null;
@@ -1699,6 +1710,12 @@ public class RTSGameplayScreen : GameScreen
                     continue;
 
                 float distance = Vector2.DistanceSquared(GridToWorld(neighbour), from);
+                // Kacheln darüber oder darunter (dx == 0) zurückstellen: die
+                // Figuren zeigen sich nur von der Seite und würden seitlich ins
+                // Leere schlagen - sie kommen nur dran, wenn keine seitliche
+                // begehbar ist.
+                if (dx == 0)
+                    distance += 1e9f;
                 if (distance < bestDistance)
                 {
                     best = neighbour;
@@ -1706,6 +1723,8 @@ public class RTSGameplayScreen : GameScreen
                 }
             }
         }
+        if (best == null && tileMap.IsWalkable(cell.X, cell.Y))
+            return new Vector2(cell.X, cell.Y);
         return best;
     }
 
@@ -1978,6 +1997,10 @@ public class RTSGameplayScreen : GameScreen
     /// derselben Baustelle zuläuft, kommen nur dran, wenn keine andere frei
     /// ist - so verteilen sich mehrere um das Gebäude. null, wenn keine
     /// Randkachel begehbar ist.
+    /// VERTRAG (zusätzlich): Kacheln links und rechts der Baustelle (Spalten
+    /// site.X - 1 und site.X + site.Width) gehen allen anderen vor - die Figuren
+    /// zeigen sich nur von der Seite und hämmern sonst ins Leere; erst wenn dort
+    /// keine begehbar ist, kommen die Reihen darüber und darunter dran.
     /// </summary>
     private Vector2? SiteStandCell(Building site, Unit unit)
     {
@@ -1994,6 +2017,12 @@ public class RTSGameplayScreen : GameScreen
 
                 var cell = new Vector2(x, y);
                 float distance = Vector2.DistanceSquared(GridToWorld(cell), unit.Position);
+                // Kacheln, die nicht links oder rechts der Baustelle liegen,
+                // zurückstellen: die Figuren zeigen sich nur von der Seite und
+                // hämmern sonst seitlich ins Leere - erst wenn dort keine
+                // begehbar ist, kommen die Reihen darüber und darunter dran.
+                if (x != site.X - 1 && x != site.X + site.Width)
+                    distance += 1e9f;
                 if (distance < bestDistance)
                 {
                     best = cell;
@@ -2199,7 +2228,14 @@ public class RTSGameplayScreen : GameScreen
     private bool StepAlongPath(Unit unit, float dt)
     {
         if (unit.Path.Count == 0)
+        {
+            unit.Pace = 0f;
             return true;
+        }
+
+        // über freies Land geradeaus statt im Zickzack der Kachelmitten
+        while (unit.Path.Count >= 2 && tileMap.IsSegmentWalkable(unit.Position, unit.Path[1], 6f))
+            unit.Path.RemoveAt(0);
 
         var nextPosition = unit.Path[0];
         var direction = nextPosition - unit.Position;
@@ -2212,8 +2248,13 @@ public class RTSGameplayScreen : GameScreen
         }
 
         direction.Normalize();
+        // anfahren, vor dem Ziel abbremsen
+        float remaining = distance;
+        for (int i = 1; i < unit.Path.Count; i++)
+            remaining += Vector2.Distance(unit.Path[i - 1], unit.Path[i]);
+        unit.Pace = Gait.Approach(unit.Pace, Gait.ArrivalSpeed(remaining), dt);
         var before = tileMap.WorldToGrid(unit.Position);
-        unit.Position += direction * unit.MovementSpeed * 40 * dt;
+        unit.Position += direction * unit.MovementSpeed * 40 * unit.Pace * dt;
         // Wer eine Kachel betritt, tritt sie weiter aus - so entstehen Trampelpfade
         var after = tileMap.WorldToGrid(unit.Position);
         if (after != before)
@@ -2809,7 +2850,8 @@ public class RTSGameplayScreen : GameScreen
     /// es steht mit den Hufen im unteren Teil seiner Kachel, Bild und Versatz
     /// kommen aus WildAnimal.Look und bleiben beim Wandern gleich. Es blickt in
     /// Laufrichtung (die Bilder sind nach rechts gemalt und werden gespiegelt)
-    /// und läuft jeden Schritt sichtbar von der alten zur neuen Kachel: es
+    /// und läuft jeden Schritt sichtbar von der alten zur neuen Kachel, weich
+    /// angefahren und abgebremst (Gait.Ease): es
     /// setzt dabei die Beine (Laufbilder im Wechsel, WalkPhase) und wippt
     /// leicht. Ein weicher Schatten verankert es auf dem Gras. Ein
     /// geschlachtetes Tier (WildAnimal.Slaughtered) zeigt nur noch sein Fleisch.
@@ -2844,9 +2886,13 @@ public class RTSGameplayScreen : GameScreen
         int jx = ((tier.Look >> 8) % 9 - 4) * tileRect.Width / 32;
         int jy = ((tier.Look >> 12) % 7 - 3) * tileRect.Width / 32;
         float rest = MathHelper.Clamp(tier.Glide / TileMap.WILD_STEP_SECONDS, 0f, 1f);
-        var foot = new Vector2(tileRect.Center.X + jx + tier.FromX * rest * tileRect.Width,
-                               tileRect.Bottom - tileRect.Height / 4 + jy + tier.FromY * rest * tileRect.Height);
-        float bob = rest > 0f ? MathF.Abs(MathF.Sin(rest * MathF.PI * 2f * WALK_CYCLES_PER_STEP)) * 1.5f * cameraZoom : 0f;
+        // Weich angefahren und abgebremst: left ist der Teil des Schritts, der noch fehlt.
+        float progress = 1f - rest;
+        float left = 1f - Gait.Ease(progress);
+        var foot = new Vector2(tileRect.Center.X + jx + tier.FromX * left * tileRect.Width,
+                               tileRect.Bottom - tileRect.Height / 4 + jy + tier.FromY * left * tileRect.Height);
+        // Es wippt im Takt der Beine und nur, solange es Fahrt hat.
+        float bob = rest > 0f ? MathF.Abs(MathF.Sin(Gait.Ease(progress) * MathF.PI * 2f * WALK_CYCLES_PER_STEP)) * 1.5f * cameraZoom * Gait.EaseSpeed(progress) : 0f;
 
         var target = new Rectangle((int)(foot.X - width / 2f), (int)(foot.Y - height - bob), width, height);
         if (!target.Intersects(screenBounds))
@@ -2928,8 +2974,9 @@ public class RTSGameplayScreen : GameScreen
     private int WalkPhase(float glide)
     {
         if (glide <= 0f) return -1;
-        float gelaufen = 1f - MathHelper.Clamp(glide / TileMap.WILD_STEP_SECONDS, 0f, 1f);
-        return (int)(gelaufen * WALK_CYCLES_PER_STEP * 4) % 4;
+        // Die Beine folgen der weich gegangenen Strecke, sonst rutschten sie beim Anfahren und Abbremsen.
+        float gelaufen = Gait.Ease(1f - MathHelper.Clamp(glide / TileMap.WILD_STEP_SECONDS, 0f, 1f));
+        return Math.Min((int)(gelaufen * WALK_CYCLES_PER_STEP * 4), WALK_CYCLES_PER_STEP * 4 - 1) % 4;
     }
 
     /// <summary>
@@ -3516,16 +3563,33 @@ public class RTSGameplayScreen : GameScreen
             if (!_unitMotion.TryGetValue(unit, out var motion))
                 motion.Last = unit.Position;
             var delta = unit.Position - motion.Last;
-            if (delta.LengthSquared() > 0.0001f)
+            bool moved = delta.LengthSquared() > 0.0001f;
+            if (moved)
             {
+                motion.Walked += delta.Length();
                 motion.MovingFor = 0.15f;
-                if (Math.Abs(delta.X) > 0.01f)
-                    motion.FacingLeft = delta.X < 0;
             }
             else
             {
                 motion.MovingFor = Math.Max(0f, motion.MovingFor - dt);
             }
+            // Blickrichtung: die Figuren zeigen sich nur von der Seite, also
+            // blickt die Einheit in die Seite, in die sie geht - und bei der
+            // Arbeit zu dem, woran sie arbeitet, statt in die zuletzt gehabte
+            // Richtung. toward ist der Weg zu dem Punkt, auf den sie zugeht
+            // oder an dem sie arbeitet.
+            var toward = Vector2.Zero;
+            if (unit.Path.Count > 0)
+                toward = unit.Path[unit.Path.Count - 1] - unit.Position;
+            else if (unit.Job?.Phase == GatherPhase.Gathering)
+                toward = GridToWorld(new Vector2(unit.Job.Source.X, unit.Job.Source.Y)) - unit.Position;
+            else if (unit.State == UnitState.Building && unit.BuildSite is { } site)
+            {
+                var center = new Vector2((site.X + site.Width / 2f) * tileMap.TileSize,
+                                         (site.Y + site.Height / 2f) * tileMap.TileSize);
+                toward = center - unit.Position;
+            }
+            motion.FacingLeft = Gait.FacingLeft(moved ? delta : Vector2.Zero, toward, motion.FacingLeft);
             motion.Last = unit.Position;
             _unitMotion[unit] = motion;
         }
@@ -3551,9 +3615,9 @@ public class RTSGameplayScreen : GameScreen
         float bob = 0f, tilt = 0f, stretch = 1f;
         if (moving)
         {
-            float step = t * VILLAGER_STEP_RATE;
-            bob = MathF.Abs(MathF.Sin(step)) * 1.5f * cameraZoom;
-            tilt = MathF.Sin(step) * 0.05f;
+            // er wippt im Takt seiner Schritte, nach der gelaufenen Strecke, und neigt sich beim Gehen leicht nach vorn, statt von Seite zu Seite zu kippeln
+            bob = Gait.Bob(motion.Walked, Gait.VILLAGER_STRIDE) * 1.2f * cameraZoom;
+            tilt = Gait.Lean(unit.Pace);
         }
         else if (working && !hasTool)
         {
@@ -3568,7 +3632,7 @@ public class RTSGameplayScreen : GameScreen
 
         // Beim Gehen setzt er die Beine, im Takt des Wippens: gespreizt unten, im Stand oben
         if (moving && _villagerWalk.TryGetValue((AgeOf(unit.OwnerId), unit.OwnerId), out var walk))
-            figure = walk[VillagerWalkPhase(t)];
+            figure = walk[VillagerWalkPhase(motion.Walked)];
 
         // Schatten unter den Füßen - er bleibt am Boden, während die Figur wippt
         if (_shadowTex != null)
@@ -3615,13 +3679,11 @@ public class RTSGameplayScreen : GameScreen
     }
 
     /// <summary>
-    /// Welches Laufbild ein gehender Dorfbewohner zur Zeit t zeigt: 0 bis 3 für
-    /// Schritt, Stand, Gegenschritt, Stand. Ein Schritt dauert eine halbe Welle des
-    /// Wippens (VILLAGER_STEP_RATE): gespreizt, wenn die Figur unten ist, im Stand,
-    /// wenn sie oben ist.
+    /// Welches Laufbild ein Dorfbewohner zeigt, der walked Welteinheiten gegangen ist:
+    /// 0 bis 3 für Schritt, Stand, Gegenschritt, Stand, je Schrittlänge Gait.VILLAGER_STRIDE
+    /// ein Schritt - nach der Strecke, nicht nach der Uhr, damit die Füße nicht rutschen.
     /// </summary>
-    private int VillagerWalkPhase(float t)
-        => (int)MathF.Floor((t * VILLAGER_STEP_RATE + MathF.PI / 4f) / (MathF.PI / 2f)) % 4;
+    private int VillagerWalkPhase(float walked) => Gait.WalkFrame(walked, Gait.VILLAGER_STRIDE);
 
     /// <summary>
     /// Das Werkzeug zur Arbeit: Hammer am Bau, Axt im Wald, Spitzhacke an Stein

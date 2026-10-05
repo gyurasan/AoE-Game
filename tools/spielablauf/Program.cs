@@ -1,6 +1,6 @@
 // Spielablauf: stellt Abläufe aus RTSGameplayScreen ohne Grafik nach und prüft sie.
 //
-//   dotnet run --project tools/spielablauf -- bauen weiterbauen linksklick farm schafe wild herde bewegen minimap zoom leiste zeitalter turm menue animation fenster werkzeug feld fahne gehen karten pfad wind
+//   dotnet run --project tools/spielablauf -- bauen weiterbauen linksklick farm schafe wild herde bewegen minimap zoom leiste zeitalter turm menue animation fenster werkzeug feld fahne gehen karten pfad wind gang blick
 //
 // Jede genannte Gruppe läuft auf drei frisch erzeugten Karten. Die Spielschleife
 // läuft Bild für Bild (60 je Sekunde) mit denselben Methoden, die Update() im Spiel
@@ -99,6 +99,10 @@ for (int karte = 1; karte <= KARTEN; karte++)
         Pruefe("Animation", () => Animation(verstoesse));
     if (gruppen.Contains("gehen") && karte == 1)
         Pruefe("Gehen", () => Gehen(verstoesse));
+    if (gruppen.Contains("blick") && karte == 1)
+        Pruefe("Blick", () => Blick(verstoesse));
+    if (gruppen.Contains("gang") && karte == 1)
+        Pruefe("Gang", () => Gang(verstoesse));
     // Das Hauptmenü braucht keine Karte
     if (gruppen.Contains("menue") && karte == 1)
         Pruefe("Hauptmenü", () => Hauptmenue(verstoesse));
@@ -629,41 +633,361 @@ static void TierSchritt(int karte, List<string> verstoesse)
         Console.WriteLine($"  ok  {wer}: Schritt um ({-vonX}, {-vonY}) in {schritt:0.0} s, das Tier blickt in Laufrichtung");
 }
 
-// Gehen (C7v): ein gehender Dorfbewohner wechselt die Laufbilder in der Folge
-// Schritt, Stand, Gegenschritt, Stand; gespreizt, wenn er beim Wippen unten ist,
-// im Stand, wenn er oben ist.
+// Gehen (C7v, H2): ein Dorfbewohner, der zwölf Kacheln weit geschickt wird, fährt an
+// statt mit vollem Tempo loszuspringen, tritt nie auf eine Kachel, die er nicht
+// betreten darf, kommt an und geht dabei nicht weiter als der Weg der Wegsuche -
+// über freies Land gerade statt im Zickzack der Kachelmitten. Die Laufbilder folgen
+// der Strecke (Schritt, Stand, Gegenschritt, Stand je zwei Schrittlängen), gespreizt,
+// wenn er beim Wippen unten ist, im Stand, wenn er oben ist.
 static void Gehen(List<string> verstoesse)
 {
     const string wer = "Gehen";
     int vorher = verstoesse.Count;
+
+    // Laufbilder nach Strecke
     var w = new Welt();
-    float takt = (float)typeof(RTSGameplayScreen).GetField("VILLAGER_STEP_RATE", BindingFlags.NonPublic | BindingFlags.Static)!.GetValue(null)!;
-    int Phase(float t) => (int)w.Call("VillagerWalkPhase", t);
+    int Phase(float gelaufen) => (int)w.Call("VillagerWalkPhase", gelaufen);
+    float schritt = Gait.VILLAGER_STRIDE;
     var folge = new List<int>();
-    float umlauf = MathHelper.TwoPi / takt;   // ein Doppelschritt: Schritt, Stand, Gegenschritt, Stand
-    for (float t = 0.001f; t < 2f * umlauf; t += umlauf / 200f)
+    for (float s = 0f; s < 4f * schritt; s += schritt / 40f)
     {
-        int p = Phase(t);
-        if (p < 0 || p > 3)
-        {
-            verstoesse.Add($"{wer}: Laufbild {p} außerhalb 0 bis 3");
-            break;
-        }
+        int p = Phase(s);
         if (folge.Count == 0 || folge[^1] != p) folge.Add(p);
-        float wippen = MathF.Abs(MathF.Sin(t * takt));
         bool gespreizt = p is 0 or 2;
-        if (gespreizt && wippen > 0.75f || !gespreizt && wippen < 0.65f)
+        float hoehe = Gait.Bob(s, schritt);
+        if (gespreizt && hoehe > 0.75f || !gespreizt && hoehe < 0.25f)
         {
-            verstoesse.Add($"{wer}: bei t={t:0.000} Laufbild {p}, die Figur wippt aber auf {wippen:0.00} - Beine und Wippen passen nicht zusammen");
+            verstoesse.Add($"{wer}: nach {s:0.0} Welteinheiten Laufbild {p}, die Figur ist aber {hoehe:0.00} hoch - Beine und Wippen passen nicht zusammen");
             break;
         }
     }
-    var erwartet = new List<int> { 0, 1, 2, 3, 0, 1, 2, 3, 0 };
-    if (!folge.SequenceEqual(erwartet.Take(folge.Count)) || folge.Count < 8)
-        verstoesse.Add($"{wer}: Laufbilder {string.Join(",", folge)} statt 0,1,2,3,0,1,2,3");
+    if (!folge.SequenceEqual(new List<int> { 0, 1, 2, 3, 0, 1, 2, 3, 0 }))
+        verstoesse.Add($"{wer}: Laufbilder über zwei Doppelschritte {string.Join(",", folge)} statt 0,1,2,3,0,1,2,3,0");
+
+    // Ein Gang über zwölf Kacheln
+    var v = w.Dorfbewohner().First();
+    var ziel = w.FreieKachel(v, 12);
+    var start = v.Position;
+    var weg = w.Map.FindPath(start, w.Map.GridToWorld(ziel));
+    float wegLaenge = 0f;
+    var vorigerPunkt = start;
+    foreach (var punkt in weg)
+    {
+        wegLaenge += Vector2.Distance(vorigerPunkt, punkt);
+        vorigerPunkt = punkt;
+    }
+    w.Waehle(new List<Unit> { v });
+    w.Linksklick(w.Map.GridToWorld(ziel));
+    float voll = v.MovementSpeed * 40f / 60f;   // volle Strecke je Bild
+    float erstes = -1f, gelaufen = 0f;
+    var zuletzt = v.Position;
+    string fehltritt = null;
+    float dauer = w.LaufeBis(() =>
+    {
+        float d = Vector2.Distance(zuletzt, v.Position);
+        if (erstes < 0f && d > 0f) erstes = d;
+        gelaufen += d;
+        zuletzt = v.Position;
+        var c = w.Map.WorldToGrid(v.Position);
+        if (fehltritt == null && !w.Map.IsWalkable((int)c.X, (int)c.Y))
+            fehltritt = $"({(int)c.X},{(int)c.Y}) {w.Map.GetTile((int)c.X, (int)c.Y)?.Type}";
+        return v.State == UnitState.Idle;
+    }, 60);
+    if (v.State != UnitState.Idle)
+        verstoesse.Add($"{wer}: nach {dauer:0} s noch nicht angekommen");
+    if (fehltritt != null)
+        verstoesse.Add($"{wer}: tritt unterwegs auf die Kachel {fehltritt}");
+    if (erstes < 0f || erstes > 0.4f * voll)
+        verstoesse.Add($"{wer}: im ersten Bild {erstes:0.00} Welteinheiten, volles Tempo wären {voll:0.00} - er fährt nicht an");
+    if (weg.Count > 0 && gelaufen > wegLaenge + 2f)
+        verstoesse.Add($"{wer}: {gelaufen:0} Welteinheiten gegangen, der Weg der Wegsuche ist nur {wegLaenge:0} lang");
+    if (Vector2.Distance(v.Position, w.Map.GridToWorld(ziel)) > 16f)
+        verstoesse.Add($"{wer}: steht {Vector2.Distance(v.Position, w.Map.GridToWorld(ziel)):0} Welteinheiten neben dem Ziel");
+
     if (verstoesse.Count == vorher)
-        Console.WriteLine($"  ok  {wer}: Schritt, Stand, Gegenschritt, Stand im Takt des Wippens ({takt:0} rad/s)");
+        Console.WriteLine($"  ok  {wer}: Laufbilder nach Strecke, fährt an, {gelaufen:0} statt {wegLaenge:0} Welteinheiten, nur begehbare Kacheln, {dauer:0.0} s");
 }
+
+// Gang (H1): die Rechnungen fürs Gehen (Gait) und die gerade Strecke über freies Land
+// (TileMap.IsSegmentWalkable), jede gegen ihren Vertrag.
+static void Gang(List<string> verstoesse)
+{
+    const string wer = "Gang";
+    int vorher = verstoesse.Count;
+    void Soll(bool ok, string was)
+    {
+        if (!ok) verstoesse.Add($"{wer}: {was}");
+    }
+
+    // WalkFrame: Viertel eines Doppelschritts, walked = 0 mitten im Bild 0
+    foreach (var (s, bild) in new[] { (0f, 0), (2.4f, 0), (2.6f, 1), (7.4f, 1), (7.6f, 2), (12.4f, 2), (12.6f, 3),
+                                      (17.4f, 3), (17.6f, 0), (20f, 0), (-2.4f, 0), (-2.6f, 3), (1000f, 0), (1005f, 1), (1010f, 2) })
+        Soll(Gait.WalkFrame(s, 10f) == bild, $"WalkFrame({s}, 10) = {Gait.WalkFrame(s, 10f)} statt {bild}");
+    for (float s = -50f; s < 50f; s += 0.37f)
+    {
+        int b = Gait.WalkFrame(s, 10f);
+        if (b < 0 || b > 3) { Soll(false, $"WalkFrame({s:0.00}, 10) = {b} liegt nicht zwischen 0 und 3"); break; }
+    }
+
+    // Bob: sin²(π walked / stride)
+    for (float s = -20f; s < 40f; s += 0.53f)
+    {
+        float soll = MathF.Pow(MathF.Sin(MathF.PI * s / 10f), 2f);
+        if (MathF.Abs(Gait.Bob(s, 10f) - soll) > 0.0005f) { Soll(false, $"Bob({s:0.00}, 10) = {Gait.Bob(s, 10f):0.000} statt {soll:0.000}"); break; }
+    }
+
+    // Approach: exponentiell, nie über das Ziel
+    float a = Gait.Approach(0f, 1f, Gait.ACCELERATION_TIME);
+    Soll(MathF.Abs(a - (1f - MathF.Exp(-1f))) < 0.001f, $"Approach(0, 1, ACCELERATION_TIME) = {a:0.000} statt {1f - MathF.Exp(-1f):0.000}");
+    Soll(Gait.Approach(0.9f, 1f, 100f) <= 1f, "Approach schießt über das Ziel hinaus");
+    float ab = Gait.Approach(0.5f, 0.2f, 0.1f);
+    Soll(ab < 0.5f && ab >= 0.2f, $"Approach(0.5, 0.2, 0.1) = {ab:0.000} - bremst nicht richtig");
+    Soll(Gait.Approach(0.3f, 1f, 0f) == 0.3f && Gait.Approach(0.3f, 1f, -1f) == 0.3f, "Approach ändert das Tempo ohne verstrichene Zeit");
+
+    // ArrivalSpeed
+    foreach (var (rest, soll) in new[] { (20f, 1f), (10f, 1f), (5f, 0.7f), (0f, 0.4f), (-3f, 0.4f) })
+        Soll(MathF.Abs(Gait.ArrivalSpeed(rest) - soll) < 0.001f, $"ArrivalSpeed({rest}) = {Gait.ArrivalSpeed(rest):0.000} statt {soll}");
+
+    // Lean
+    foreach (var (tempo, soll) in new[] { (0f, 0f), (1f, Gait.LEAN), (2f, Gait.LEAN), (-1f, 0f), (0.5f, Gait.LEAN / 2f) })
+        Soll(MathF.Abs(Gait.Lean(tempo) - soll) < 0.0001f, $"Lean({tempo}) = {Gait.Lean(tempo):0.0000} statt {soll:0.0000}");
+
+    // Ease und EaseSpeed
+    foreach (var (p, e, v) in new[] { (0f, 0f, 0f), (1f, 1f, 0f), (0.5f, 0.5f, 1f), (0.25f, 0.15625f, 0.75f), (-1f, 0f, 0f), (2f, 1f, 0f) })
+    {
+        Soll(MathF.Abs(Gait.Ease(p) - e) < 0.0001f, $"Ease({p}) = {Gait.Ease(p):0.0000} statt {e}");
+        Soll(MathF.Abs(Gait.EaseSpeed(p) - v) < 0.0001f, $"EaseSpeed({p}) = {Gait.EaseSpeed(p):0.0000} statt {v}");
+    }
+    float vorige = -1f;
+    for (float p = 0f; p <= 1f; p += 0.01f)
+    {
+        float e = Gait.Ease(p);
+        if (e < vorige) { Soll(false, $"Ease fällt bei {p:0.00}"); break; }
+        vorige = e;
+    }
+
+    // IsSegmentWalkable auf echten Karten
+    for (int karte = 1; karte <= 3; karte++)
+    {
+        var w = new Welt();
+        var m = w.Map;
+        Vector2 Mitte(int x, int y) => m.GridToWorld(new Vector2(x, y));
+        bool Frei(int x, int y) => m.IsWalkable(x, y);
+        // eine Reihe aus sieben freien Kacheln, auch darüber und darunter frei
+        bool gerade = false, ueberWasser = false, quer = false;
+        for (int y = 2; y < m.Height - 2 && !gerade; y++)
+            for (int x = 1; x < m.Width - 8 && !gerade; x++)
+                if (Enumerable.Range(x, 7).All(i => Frei(i, y) && Frei(i, y - 1) && Frei(i, y + 1)))
+                {
+                    gerade = true;
+                    Soll(m.IsSegmentWalkable(Mitte(x, y), Mitte(x + 6, y), 6f),
+                         $"Karte {karte}: die freie Reihe ({x},{y}) bis ({x + 6},{y}) gilt nicht als begehbar");
+                    Soll(m.IsSegmentWalkable(Mitte(x, y), Mitte(x, y), 6f), $"Karte {karte}: ein Punkt auf freier Kachel gilt nicht als begehbar");
+                }
+        // zwei freie Kacheln mit einer gesperrten dazwischen
+        for (int y = 1; y < m.Height - 1 && !ueberWasser; y++)
+            for (int x = 1; x < m.Width - 3 && !ueberWasser; x++)
+                if (Frei(x, y) && !Frei(x + 1, y) && Frei(x + 2, y))
+                {
+                    ueberWasser = true;
+                    Soll(!m.IsSegmentWalkable(Mitte(x, y), Mitte(x + 2, y), 0f),
+                         $"Karte {karte}: die Strecke ({x},{y}) bis ({x + 2},{y}) über die gesperrte Kachel ({x + 1},{y}) gilt als begehbar");
+                    Soll(!m.IsSegmentWalkable(Mitte(x, y), Mitte(x + 1, y), 0f),
+                         $"Karte {karte}: eine Strecke, die auf der gesperrten Kachel ({x + 1},{y}) endet, gilt als begehbar");
+                }
+        // eine freie Reihe direkt über einer gesperrten Kachel: mit Abstand nicht, ohne schon
+        for (int y = 1; y < m.Height - 2 && !quer; y++)
+            for (int x = 1; x < m.Width - 4 && !quer; x++)
+                if (Enumerable.Range(x, 3).All(i => Frei(i, y) && Frei(i, y - 1)) && !Frei(x + 1, y + 1))
+                {
+                    quer = true;
+                    Soll(m.IsSegmentWalkable(Mitte(x, y), Mitte(x + 2, y), 0f),
+                         $"Karte {karte}: die freie Reihe ({x},{y}) bis ({x + 2},{y}) gilt ohne Abstand nicht als begehbar");
+                    Soll(!m.IsSegmentWalkable(Mitte(x, y), Mitte(x + 2, y), 20f),
+                         $"Karte {karte}: mit 20 Welteinheiten Abstand streift die Reihe ({x},{y}) die gesperrte Kachel ({x + 1},{y + 1}) - gilt aber als begehbar");
+                }
+        Soll(gerade && ueberWasser && quer, $"Karte {karte}: keine passende Stelle gefunden (gerade {gerade}, gesperrt {ueberWasser}, Abstand {quer})");
+        Soll(!m.IsSegmentWalkable(new Vector2(-5f, 40f), new Vector2(40f, 40f), 0f), "eine Strecke, die links außerhalb der Karte beginnt, gilt als begehbar");
+    }
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: Laufbilder, Wippen, Anfahren, Abbremsen, Vorlage und weicher Tierschritt nach Vertrag; gerade Strecken auf drei Karten");
+}
+
+// Blick (J1, J2): die Figuren zeigen sich nur von der Seite. Sie blicken zur Seite,
+// in die sie gehen - fast senkrecht zur Seite ihres Ziels -, und bei der Arbeit zu
+// dem, woran sie arbeiten. Dafür stellen sich Dorfbewohner neben Quelle und Baustelle
+// bevorzugt seitlich statt darüber oder darunter, und Schafe und Wild machen kaum
+// rein senkrechte Schritte. Entstanden am 2026-10-05: der Nutzer sah Figuren, die nicht
+// in Laufrichtung blickten; eine Messung fand Dorfbewohner, die genau über ihrem Baum
+// standen und mit der Axt zur Seite ins Leere schlugen.
+static void Blick(List<string> verstoesse)
+{
+    const string wer = "Blick";
+    int vorher = verstoesse.Count;
+    void Soll(bool ok, string was)
+    {
+        if (!ok) verstoesse.Add($"{wer}: {was}");
+    }
+
+    // Die Regel selbst
+    Soll(Gait.FacingLeft(new Vector2(-1f, 0.2f), Vector2.Zero, false), "nach links gehend blickt sie nicht nach links");
+    Soll(!Gait.FacingLeft(new Vector2(1f, -0.5f), new Vector2(-50f, 0f), true), "nach rechts gehend blickt sie zum Ziel statt in Laufrichtung");
+    Soll(Gait.FacingLeft(new Vector2(0.1f, 1f), new Vector2(-40f, 200f), false), "fast senkrecht gehend blickt sie nicht zur Seite ihres Ziels (links)");
+    Soll(!Gait.FacingLeft(new Vector2(-0.1f, -1f), new Vector2(40f, -200f), true), "fast senkrecht gehend blickt sie nicht zur Seite ihres Ziels (rechts)");
+    Soll(Gait.FacingLeft(new Vector2(0f, 1f), new Vector2(5f, 100f), true) && !Gait.FacingLeft(new Vector2(0f, 1f), new Vector2(5f, 100f), false),
+         "liegt das Ziel genau darunter, ändert sich die Blickrichtung");
+    Soll(Gait.FacingLeft(Vector2.Zero, new Vector2(-20f, 0f), false), "im Stand blickt sie nicht zu ihrer Arbeit links");
+    Soll(Gait.FacingLeft(Vector2.Zero, Vector2.Zero, true) && !Gait.FacingLeft(Vector2.Zero, Vector2.Zero, false),
+         "ohne Bewegung und Ziel ändert sich die Blickrichtung");
+
+    bool Links(Welt w, Unit u)
+    {
+        var m = ((System.Collections.IDictionary)w.Get("_unitMotion"))[u]!;
+        return (bool)m.GetType().GetField("FacingLeft")!.GetValue(m)!;
+    }
+
+    // Gehen in alle Richtungen
+    {
+        var w = new Welt();
+        var v = w.Dorfbewohner().First();
+        w.Waehle(new List<Unit> { v });
+        int seitlich = 0, seitlichFalsch = 0, senkrecht = 0, senkrechtRichtig = 0;
+        var rng = new Random(11);
+        for (int lauf = 0; lauf < 16; lauf++)
+        {
+            var hier = w.Map.WorldToGrid(v.Position);
+            float winkel = lauf * MathF.Tau / 16f + (float)rng.NextDouble() * 0.3f;
+            var wunsch = hier + new Vector2(MathF.Cos(winkel), MathF.Sin(winkel)) * (5 + rng.Next(6));
+            var ziel = Enumerable.Range(0, w.Map.Width).SelectMany(x => Enumerable.Range(0, w.Map.Height).Select(y => new Vector2(x, y)))
+                .Where(c => w.Map.IsWalkable((int)c.X, (int)c.Y) && w.Map.GetTile((int)c.X, (int)c.Y).ResourceType == null)
+                .OrderBy(c => Vector2.Distance(c, wunsch)).First();
+            var endpunkt = w.Map.GridToWorld(ziel);
+            w.Linksklick(endpunkt);
+            var zuletzt = v.Position;
+            w.LaufeBis(() =>
+            {
+                w.Call("UpdateUnitMotion", 1f / 60f);
+                var d = v.Position - zuletzt;
+                zuletzt = v.Position;
+                if (d.Length() < 0.01f) return v.State == UnitState.Idle;
+                bool links = Links(w, v);
+                if (MathF.Abs(d.X) > 0.3f * d.Length())
+                {
+                    seitlich++;
+                    if ((d.X < 0) != links) seitlichFalsch++;
+                }
+                else if (MathF.Abs(endpunkt.X - v.Position.X) > 8f)
+                {
+                    senkrecht++;
+                    if ((endpunkt.X < v.Position.X) == links) senkrechtRichtig++;
+                }
+                return v.State == UnitState.Idle;
+            }, 60);
+        }
+        Soll(seitlich > 100 && seitlichFalsch == 0, $"seitwärts gehend {seitlichFalsch} von {seitlich} Bildern mit falscher Blickrichtung");
+        Soll(senkrecht == 0 || senkrechtRichtig >= 0.95f * senkrecht,
+             $"fast senkrecht gehend blickt er nur in {senkrechtRichtig} von {senkrecht} Bildern zur Seite seines Ziels");
+        if (verstoesse.Count == vorher)
+            Console.WriteLine($"  ok  {wer}: Gehen - seitwärts {seitlich} Bilder richtig, fast senkrecht {senkrechtRichtig} von {senkrecht} zur Seite des Ziels");
+    }
+
+    // Arbeit an Holz, Stein und Gold: seitlich neben der Quelle, Blick zu ihr
+    int arbeiten = 0, darueber = 0;
+    for (int karte = 1; karte <= 3; karte++)
+    {
+        foreach (var res in new[] { Resource.Wood, Resource.Stone, Resource.Gold })
+        {
+            var w = new Welt();
+            var v = w.Dorfbewohner().First();
+            var start = w.Map.WorldToGrid(v.Position);
+            var quellen = Enumerable.Range(0, w.Map.Width).SelectMany(x => Enumerable.Range(0, w.Map.Height).Select(y => (x, y)))
+                .Where(p => w.Map.GetTile(p.x, p.y) is { } t && t.ResourceType == res && t.ResourceAmount > 0)
+                .OrderBy(p => Vector2.Distance(new Vector2(p.x, p.y), start)).ToList();
+            if (quellen.Count == 0) continue;
+            var q = quellen[0];
+            // Direkt als Auftrag: ein Klick sammelt nur an schon erkundeten Kacheln
+            v.Job = new GatherJob(0, res, new CorePosition(q.x, q.y));
+            w.Call("FollowJob", v);
+            w.LaufeBis(() => { w.Call("UpdateUnitMotion", 1f / 60f); return v.Job?.Phase == AoE.Core.Economy.GatherPhase.Gathering; }, 60);
+            if (v.Job?.Phase != AoE.Core.Economy.GatherPhase.Gathering) continue;
+            for (int i = 0; i < 30; i++) w.Call("UpdateUnitMotion", 1f / 60f);
+            var quelle = v.Job.Source;
+            var stand = w.Map.WorldToGrid(v.Position);
+            bool seiteFrei = w.Map.IsWalkable(quelle.X - 1, quelle.Y) || w.Map.IsWalkable(quelle.X + 1, quelle.Y)
+                             || Enumerable.Range(-1, 3).Any(dy => w.Map.IsWalkable(quelle.X - 1, quelle.Y + dy) || w.Map.IsWalkable(quelle.X + 1, quelle.Y + dy));
+            arbeiten++;
+            if ((int)stand.X == quelle.X)
+            {
+                darueber++;
+                Soll(!seiteFrei, $"{res}: steht genau über/unter der Quelle ({quelle.X},{quelle.Y}), obwohl daneben Platz ist");
+            }
+            else
+            {
+                float qx = quelle.X * 32 + 16;
+                Soll((qx < v.Position.X) == Links(w, v), $"{res}: arbeitet an ({quelle.X},{quelle.Y}) und blickt von ihr weg");
+            }
+        }
+    }
+    Soll(arbeiten >= 6, $"nur {arbeiten} Sammelaufträge kamen zustande");
+
+    // Am Bau: Blick zur Baustelle
+    {
+        var w = new Welt();
+        var v = w.Dorfbewohner().First();
+        var platz = w.Bauplatz(BuildingType.House, v, 6);
+        w.Waehle(new List<Unit> { v });
+        w.Call("PlaceBuilding", BuildingType.House, platz);
+        w.LaufeBis(() => { w.Call("UpdateUnitMotion", 1f / 60f); return v.State == UnitState.Building; }, 60);
+        for (int i = 0; i < 30; i++) w.Call("UpdateUnitMotion", 1f / 60f);
+        if (v.State == UnitState.Building && v.BuildSite is { } site)
+        {
+            float mitte = (site.X + site.Width / 2f) * 32f;
+            if (MathF.Abs(mitte - v.Position.X) > 8f)
+                Soll((mitte < v.Position.X) == Links(w, v), "baut und blickt von der Baustelle weg");
+            Soll(WorldToGridX(w, v) < site.X || WorldToGridX(w, v) >= site.X + site.Width,
+                 "steht über oder unter der Baustelle, obwohl ihre Seiten frei sind");
+        }
+        else
+            Soll(false, "der Bauauftrag kam nicht zustande");
+    }
+
+    // Schafe und Wild: kaum rein senkrechte Schritte, Blick in Schrittrichtung
+    {
+        var w = new Welt();
+        int schritte = 0, senkrecht = 0, falsch = 0;
+        var lage = new Dictionary<WildAnimal, (int x, int y)>();
+        w.LaufeBis(() =>
+        {
+            for (int x = 0; x < w.Map.Width; x++)
+                for (int y = 0; y < w.Map.Height; y++)
+                {
+                    var tile = w.Map.GetTile(x, y);
+                    var tier = tile?.Animal;
+                    if (tier == null || tier.Slaughtered) continue;
+                    if (lage.TryGetValue(tier, out var alt) && alt != (x, y))
+                    {
+                        schritte++;
+                        int dx = x - alt.x;
+                        if (dx == 0) senkrecht++;
+                        else if ((dx < 0) != tier.FacingLeft) falsch++;
+                    }
+                    lage[tier] = (x, y);
+                }
+            return false;
+        }, 90);
+        Soll(schritte >= 30, $"in 90 s nur {schritte} Tierschritte");
+        Soll(falsch == 0, $"{falsch} von {schritte} Tierschritten mit falscher Blickrichtung");
+        Soll(senkrecht <= 0.1f * schritte, $"{senkrecht} von {schritte} Tierschritten rein senkrecht - dabei zeigt das Tier die Seite");
+        if (falsch == 0)
+            Console.WriteLine($"  ok  {wer}: Tiere - {schritte} Schritte, {senkrecht} rein senkrecht, alle in Blickrichtung");
+    }
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: Arbeit ({arbeiten} Aufträge, {darueber} genau über/unter der Quelle, wo seitlich kein Platz war), Bau - Blick zur Arbeit");
+}
+
+static int WorldToGridX(Welt w, Unit u) => (int)w.Map.WorldToGrid(u.Position).X;
 
 // Fahne und Windrad (C6a): das Fahnentuch steht am Mast fest und schlägt zum freien
 // Ende hin aus, höchstens eine Ausschlagbreite, und es bewegt sich mit der Zeit;
