@@ -705,6 +705,114 @@ public class TileMap
     }
 
     /// <summary>
+    /// Ob Spieler <paramref name="playerId"/> die Kachel (x, y) für begehbar halten darf:
+    /// hat er sie noch nie gesehen, ja - sonst verriete die Wegsuche, was im Dunkeln
+    /// liegt; hat er sie gesehen, wie sie ist (IsWalkable).
+    /// VERTRAG: !IsTileExplored(x, y, playerId) || IsWalkable(x, y); außerhalb der Karte false.
+    /// </summary>
+    public bool IsKnownWalkable(int x, int y, int playerId)
+    {
+        return GetTile(x, y) != null && (!IsTileExplored(x, y, playerId) || IsWalkable(x, y));
+    }
+
+    /// <summary>
+    /// Der Weg für einen Laufbefehl von Spieler <paramref name="playerId"/> - geplant nur
+    /// mit dem, was er weiß (IsKnownWalkable). Ein Klick ins Schwarze wirkt so immer,
+    /// egal was darunter liegt, und der Weg macht keinen Bogen um ein Hindernis, das
+    /// noch niemand gesehen hat. Stößt die Einheit unterwegs darauf, plant der
+    /// Spielbildschirm neu.
+    /// VERTRAG:
+    /// - Gesucht wird auf einem eigenen MapGrid (Width × Height), dessen IsPassable genau
+    ///   IsKnownWalkable(x, y, playerId) ist, mit CorePathfinding.FindPath (vier Richtungen).
+    /// - Das Ziel ist die Kachel unter <paramref name="end"/>, wenn sie von der Kachel unter
+    ///   <paramref name="start"/> aus auf diesem Gitter erreichbar ist; sonst die erreichbare
+    ///   Kachel, die ihr am nächsten liegt (Abstand der Kachelmitten; bei Gleichstand die,
+    ///   die die Breitensuche vom Start aus zuerst findet). Erreichbar heißt: per
+    ///   Breitensuche in vier Richtungen über passierbare Kacheln.
+    /// - Rückgabe wie FindPath: Wegpunkte als Kachelmitten (GridToWorld) ohne die
+    ///   Startkachel; ist das Ziel die Kachel unter end, liegt der letzte Wegpunkt genau
+    ///   auf end. Ist das Ziel die Startkachel selbst, eine leere Liste.
+    /// </summary>
+    // Gitter für das Wissen des Spielers, wird wiederverwendet.
+    private MapGrid _knownGrid;
+
+    public List<Vector2> FindPathKnown(int playerId, Vector2 start, Vector2 end)
+    {
+        var path = new List<Vector2>();
+
+        _knownGrid ??= new MapGrid(Width, Height);
+        for (int x = 0; x < Width; x++)
+        {
+            for (int y = 0; y < Height; y++)
+            {
+                _knownGrid.GetTile(x, y).IsPassable = IsKnownWalkable(x, y, playerId);
+            }
+        }
+
+        // Startkachel, auf die Karte begrenzt
+        var gridStart = WorldToGrid(start);
+        int startX = Math.Clamp((int)gridStart.X, 0, Width - 1);
+        int startY = Math.Clamp((int)gridStart.Y, 0, Height - 1);
+
+        // Zielkachel unter end, ebenfalls begrenzt
+        int zielX = Math.Clamp((int)MathF.Floor(end.X / TileSize), 0, Width - 1);
+        int zielY = Math.Clamp((int)MathF.Floor(end.Y / TileSize), 0, Height - 1);
+
+        // Breitensuche vom Start in vier Richtungen über passierbare Kacheln;
+        // dabei die besuchte Kachel mit dem kleinsten quadrierten Abstand zur
+        // Zielkachel merken (bei Gleichstand gewinnt die zuerst gefundene).
+        var visited = new bool[Width, Height];
+        var queue = new Queue<(int x, int y)>();
+        queue.Enqueue((startX, startY));
+        visited[startX, startY] = true;
+        var best = (x: startX, y: startY);
+        int bestDist = (startX - zielX) * (startX - zielX) + (startY - zielY) * (startY - zielY);
+        var dirs = new[] { (0, -1), (1, 0), (0, 1), (-1, 0) };
+        while (queue.Count > 0)
+        {
+            var (cx, cy) = queue.Dequeue();
+            foreach (var (dx, dy) in dirs)
+            {
+                int nx = cx + dx, ny = cy + dy;
+                if (nx < 0 || ny < 0 || nx >= Width || ny >= Height) continue;
+                if (visited[nx, ny]) continue;
+                if (!_knownGrid.GetTile(nx, ny).IsPassable) continue;
+                visited[nx, ny] = true;
+                queue.Enqueue((nx, ny));
+                int dist = (nx - zielX) * (nx - zielX) + (ny - zielY) * (ny - zielY);
+                if (dist < bestDist)
+                {
+                    bestDist = dist;
+                    best = (nx, ny);
+                }
+            }
+        }
+
+        // Beste Kachel ist die Startkachel: kein Weg
+        if (best.x == startX && best.y == startY)
+            return path;
+
+        var steps = CorePathfinding.FindPath(
+            _knownGrid,
+            new CorePosition(startX, startY),
+            new CorePosition(best.x, best.y));
+
+        if (steps == null || steps.Count == 0)
+            return path;
+
+        // Die erste Kachel ist die, auf der die Einheit bereits steht.
+        for (int i = 1; i < steps.Count; i++)
+            path.Add(GridToWorld(new Vector2(steps[i].X, steps[i].Y)));
+
+        // Ist die beste Kachel genau die Zielkachel, den letzten Wegpunkt
+        // durch end ersetzen, damit die Einheit genau dort ankommt.
+        if (best.x == zielX && best.y == zielY && path.Count > 0)
+            path[path.Count - 1] = end;
+
+        return path;
+    }
+
+    /// <summary>
     /// Ob eine Figur geradeaus von <paramref name="from"/> nach <paramref name="to"/>
     /// gehen kann (Weltkoordinaten), ohne Wasser, Wald, Felsen oder Gebäude zu streifen.
     /// Damit laufen Dorfbewohner über freies Land gerade, statt dem Zickzack der
@@ -716,10 +824,16 @@ public class TileMap
     /// Punkte mit negativer Koordinate gelten als nicht begehbar - WorldToGrid schneidet
     /// dort zur Null hin ab und landete sonst auf Kachel 0. Sind from und to gleich,
     /// zählt nur dieser Punkt (ohne Querpunkte).
+    /// Mit <paramref name="playerId"/> zählt statt IsWalkable, was dieser Spieler für
+    /// begehbar halten darf (IsKnownWalkable) - für Laufbefehle, die nichts verraten sollen.
     /// </summary>
-    public bool IsSegmentWalkable(Vector2 from, Vector2 to, float clearance)
+    public bool IsSegmentWalkable(Vector2 from, Vector2 to, float clearance, int? playerId = null)
     {
-        bool Frei(Vector2 p) => p.X >= 0 && p.Y >= 0 && IsWalkable((int)(p.X / TileSize), (int)(p.Y / TileSize));
+        // Ist playerId gesetzt, zählt, was dieser Spieler für begehbar halten darf;
+        // sonst die echte Begehbarkeit.
+        bool Frei(Vector2 p) => p.X >= 0 && p.Y >= 0 && (playerId is int pid
+            ? IsKnownWalkable((int)(p.X / TileSize), (int)(p.Y / TileSize), pid)
+            : IsWalkable((int)(p.X / TileSize), (int)(p.Y / TileSize)));
 
         var d = to - from;
         float len = d.Length();

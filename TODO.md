@@ -807,6 +807,11 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
       und stehen dafür bevorzugt seitlich daneben statt darüber, darunter oder mitten im
       Haufen (`Gait.FacingLeft`, `StandCell`, `SiteStandCell`); Schafe und Wild machen kaum
       rein senkrechte Schritte (`WanderStep`). Gruppe `blick` in `tools/spielablauf` *(Agent J)*
+- [x] Ein Klick ins Schwarze wirkt immer: Laufbefehle planen nur mit dem, was der Spieler weiß
+      (`TileMap.FindPathKnown`, nie gesehene Kacheln gelten als begehbar) - vorher blieb die
+      Einheit stehen, wenn darunter Wasser oder ein fremdes Gebäude lag, und verriet es so.
+      Stößt sie unterwegs auf ein Hindernis, plant sie neu, statt es zu betreten; ist das Ziel
+      gesperrt, hält sie so nah wie möglich. Gruppe `dunkel` in `tools/spielablauf` *(Agent K)*
 
 ### C10 · Kamera [R]
 

@@ -1621,7 +1621,8 @@ public class RTSGameplayScreen : GameScreen
             {
                 unit.Job = null;
                 unit.TargetPosition = GridToWorld(gridPos);
-                unit.Path = tileMap.FindPath(unit.Position, unit.TargetPosition);
+                // geplant nur mit dem Wissen des Spielers, damit ein Klick ins Schwarze nicht verrät, was darunter liegt
+                unit.Path = tileMap.FindPathKnown(unit.OwnerId, unit.Position, unit.TargetPosition);
                 unit.State = UnitState.Moving;
             }
         }
@@ -2234,7 +2235,9 @@ public class RTSGameplayScreen : GameScreen
         }
 
         // über freies Land geradeaus statt im Zickzack der Kachelmitten
-        while (unit.Path.Count >= 2 && tileMap.IsSegmentWalkable(unit.Position, unit.Path[1], 6f))
+        // ein freier Laufbefehl, kein Sammel- oder Bauweg
+        bool free = unit.Job == null && unit.BuildSite == null;
+        while (unit.Path.Count >= 2 && tileMap.IsSegmentWalkable(unit.Position, unit.Path[1], 6f, free ? unit.OwnerId : null))
             unit.Path.RemoveAt(0);
 
         var nextPosition = unit.Path[0];
@@ -2254,7 +2257,16 @@ public class RTSGameplayScreen : GameScreen
             remaining += Vector2.Distance(unit.Path[i - 1], unit.Path[i]);
         unit.Pace = Gait.Approach(unit.Pace, Gait.ArrivalSpeed(remaining), dt);
         var before = tileMap.WorldToGrid(unit.Position);
-        unit.Position += direction * unit.MovementSpeed * 40 * unit.Pace * dt;
+        var next = unit.Position + direction * unit.MovementSpeed * 40 * unit.Pace * dt;
+        var nextCell = tileMap.WorldToGrid(next);
+        // dort ist etwas, das die Einheit erst jetzt sieht: nicht betreten, neuen Weg suchen
+        if (nextCell != before && !tileMap.IsWalkable((int)nextCell.X, (int)nextCell.Y))
+        {
+            unit.Path = free ? tileMap.FindPathKnown(unit.OwnerId, unit.Position, unit.TargetPosition)
+                             : tileMap.FindPath(unit.Position, unit.TargetPosition);
+            return false;
+        }
+        unit.Position = next;
         // Wer eine Kachel betritt, tritt sie weiter aus - so entstehen Trampelpfade
         var after = tileMap.WorldToGrid(unit.Position);
         if (after != before)

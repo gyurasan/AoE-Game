@@ -1,6 +1,6 @@
 // Spielablauf: stellt Abläufe aus RTSGameplayScreen ohne Grafik nach und prüft sie.
 //
-//   dotnet run --project tools/spielablauf -- bauen weiterbauen linksklick farm schafe wild herde bewegen minimap zoom leiste zeitalter turm menue animation fenster werkzeug feld fahne gehen karten pfad wind gang blick
+//   dotnet run --project tools/spielablauf -- bauen weiterbauen linksklick farm schafe wild herde bewegen minimap zoom leiste zeitalter turm menue animation fenster werkzeug feld fahne gehen karten pfad wind gang blick dunkel
 //
 // Jede genannte Gruppe läuft auf drei frisch erzeugten Karten. Die Spielschleife
 // läuft Bild für Bild (60 je Sekunde) mit denselben Methoden, die Update() im Spiel
@@ -99,6 +99,8 @@ for (int karte = 1; karte <= KARTEN; karte++)
         Pruefe("Animation", () => Animation(verstoesse));
     if (gruppen.Contains("gehen") && karte == 1)
         Pruefe("Gehen", () => Gehen(verstoesse));
+    if (gruppen.Contains("dunkel"))
+        Pruefe($"Karte {karte}, Dunkel", () => Dunkel(karte, verstoesse));
     if (gruppen.Contains("blick") && karte == 1)
         Pruefe("Blick", () => Blick(verstoesse));
     if (gruppen.Contains("gang") && karte == 1)
@@ -988,6 +990,117 @@ static void Blick(List<string> verstoesse)
 }
 
 static int WorldToGridX(Welt w, Unit u) => (int)w.Map.WorldToGrid(u.Position).X;
+
+// Dunkel (K): ein Klick ins Schwarze wirkt immer, egal was darunter liegt - sonst
+// verriete er, dass dort Wasser, Wald oder ein fremdes Gebäude ist. Der Weg wird nur mit
+// dem geplant, was der Spieler weiß (TileMap.FindPathKnown): nie gesehene Kacheln gelten
+// als begehbar, der Weg ist so lang wie auf dieser Karte nötig, kein Bogen um Unbekanntes.
+// Stößt die Einheit unterwegs auf ein Hindernis, plant sie neu - betreten wird es nie,
+// und sie hält so nah am Ziel, wie es wirklich geht. Entstanden am 2026-10-05: der
+// Nutzer klickte ins Schwarze, und manchmal geschah nichts.
+static void Dunkel(int karte, List<string> verstoesse)
+{
+    string wer = $"Karte {karte}, Dunkel";
+    int vorher = verstoesse.Count;
+    void Soll(bool ok, string was)
+    {
+        if (!ok) verstoesse.Add($"{wer}: {was}");
+    }
+
+    var w = new Welt();
+    var m = w.Map;
+    bool Bekannt(int x, int y) => !m.IsTileExplored(x, y, 0) || m.IsWalkable(x, y);
+    var richtungen = new[] { (0, -1), (1, 0), (0, 1), (-1, 0) };
+    Dictionary<(int, int), int> Abstaende((int x, int y) von, Func<int, int, bool> frei)
+    {
+        var d = new Dictionary<(int, int), int> { [von] = 0 };
+        var q = new Queue<(int x, int y)>();
+        q.Enqueue(von);
+        while (q.Count > 0)
+        {
+            var c = q.Dequeue();
+            foreach (var (dx, dy) in richtungen)
+            {
+                var n = (c.x + dx, c.y + dy);
+                if (n.Item1 < 0 || n.Item2 < 0 || n.Item1 >= m.Width || n.Item2 >= m.Height) continue;
+                if (d.ContainsKey(n) || !frei(n.Item1, n.Item2)) continue;
+                d[n] = d[c] + 1;
+                q.Enqueue(n);
+            }
+        }
+        return d;
+    }
+    float Naechster(Dictionary<(int, int), int> erreichbar, (int x, int y) ziel)
+        => erreichbar.Keys.Min(k => MathF.Sqrt((k.Item1 - ziel.x) * (k.Item1 - ziel.x) + (k.Item2 - ziel.y) * (k.Item2 - ziel.y)));
+    (int x, int y) Kachel(Vector2 welt) => ((int)m.WorldToGrid(welt).X, (int)m.WorldToGrid(welt).Y);
+
+    var v = w.Dorfbewohner().First();
+    var s = Kachel(v.Position);
+    var alle = Enumerable.Range(0, m.Width).SelectMany(x => Enumerable.Range(0, m.Height).Select(y => (x, y))).ToList();
+    float Weite((int x, int y) k) => MathF.Sqrt((k.x - s.x) * (k.x - s.x) + (k.y - s.y) * (k.y - s.y));
+    (int x, int y) verborgen = alle.Where(k => !m.IsTileExplored(k.x, k.y, 0) && !m.IsWalkable(k.x, k.y) && Weite(k) >= 8 && Weite(k) <= 60)
+                        .OrderBy(Weite).FirstOrDefault((-1, -1));
+    (int x, int y) gesehen = alle.Where(k => m.IsTileExplored(k.x, k.y, 0) && !m.IsWalkable(k.x, k.y) && Weite(k) >= 2)
+                      .OrderBy(Weite).FirstOrDefault((-1, -1));
+    Soll(verborgen.x >= 0, "keine verborgene gesperrte Kachel in 8 bis 60 Kacheln gefunden");
+    Soll(gesehen.x >= 0, "keine gesehene gesperrte Kachel gefunden");
+    if (verborgen.x < 0 || gesehen.x < 0) return;
+
+    // Planung ins Schwarze: geradewegs, so kurz wie auf der Karte des Spielers
+    var bekanntAb = Abstaende(s, Bekannt);
+    var ziel = m.GridToWorld(new Vector2(verborgen.x, verborgen.y));
+    var weg = m.FindPathKnown(0, v.Position, ziel);
+    Soll(weg.Count > 0 && weg[^1] == ziel, $"ins Schwarze auf ({verborgen.x},{verborgen.y}) {m.GetTile(verborgen.x, verborgen.y).Type}: kein Weg bis genau zum Klick");
+    Soll(weg.All(p => Bekannt(Kachel(p).x, Kachel(p).y)), "der Weg führt über eine Kachel, die der Spieler als gesperrt kennt");
+    Soll(bekanntAb.TryGetValue(verborgen, out int soll) && weg.Count == soll,
+         $"der Weg ins Schwarze hat {weg.Count} Schritte, auf der Karte des Spielers sind es {(bekanntAb.TryGetValue(verborgen, out var b) ? b : -1)} - er nutzt Wissen, das der Spieler nicht hat");
+
+    // Planung zu einer gesehenen Sperre: so nah wie auf der Karte des Spielers möglich
+    var zuGesehen = m.FindPathKnown(0, v.Position, m.GridToWorld(new Vector2(gesehen.x, gesehen.y)));
+    float bestes = Naechster(bekanntAb, gesehen);
+    (int x, int y) ende = zuGesehen.Count > 0 ? Kachel(zuGesehen[^1]) : s;
+    float erreicht = MathF.Sqrt((ende.x - gesehen.x) * (ende.x - gesehen.x) + (ende.y - gesehen.y) * (ende.y - gesehen.y));
+    Soll(MathF.Abs(erreicht - bestes) < 0.01f,
+         $"zur gesehenen Sperre ({gesehen.x},{gesehen.y}) endet der Weg {erreicht:0.0} Kacheln entfernt, möglich wären {bestes:0.0}");
+
+    // Verhalten: Klick ins Schwarze auf die verborgene Sperre
+    var echtAb = Abstaende(s, (x, y) => m.IsWalkable(x, y));
+    float moeglich = Naechster(echtAb, verborgen);
+    w.Waehle(new List<Unit> { v });
+    w.Linksklick(ziel);
+    var start = v.Position;
+    w.LaufeBis(() => false, 1f);
+    Soll(Vector2.Distance(start, v.Position) >= 10f,
+         $"nach dem Klick ins Schwarze auf ({verborgen.x},{verborgen.y}) {m.GetTile(verborgen.x, verborgen.y).Type} hat er sich in 1 s nur {Vector2.Distance(start, v.Position):0.0} Welteinheiten bewegt");
+    string fehltritt = null;
+    w.LaufeBis(() =>
+    {
+        var c = Kachel(v.Position);
+        if (fehltritt == null && !m.IsWalkable(c.x, c.y))
+            fehltritt = $"({c.x},{c.y}) {m.GetTile(c.x, c.y)?.Type}";
+        return v.State == UnitState.Idle;
+    }, 120);
+    Soll(v.State == UnitState.Idle, "nach 120 s noch unterwegs");
+    Soll(fehltritt == null, $"betritt unterwegs die gesperrte Kachel {fehltritt}");
+    var halt = Kachel(v.Position);
+    float abstand = MathF.Sqrt((halt.x - verborgen.x) * (halt.x - verborgen.x) + (halt.y - verborgen.y) * (halt.y - verborgen.y));
+    Soll(abstand <= moeglich + 1.5f, $"hält {abstand:0.0} Kacheln vom Ziel, möglich wären {moeglich:0.0}");
+
+    // Verhalten: Klick auf das verborgene Stadtzentrum des Gegners
+    var w2 = new Welt();
+    var v2 = w2.Dorfbewohner().First();
+    var feind = w2.Map.Buildings.First(g => g.OwnerId != 0);
+    Soll(!w2.Map.IsTileExplored(feind.X, feind.Y, 0), "das gegnerische Stadtzentrum ist schon erkundet - der Ablauf prüft dann nichts");
+    w2.Waehle(new List<Unit> { v2 });
+    var start2 = v2.Position;
+    w2.Linksklick(w2.Map.GridToWorld(new Vector2(feind.X + 1, feind.Y + 1)));
+    w2.LaufeBis(() => false, 1f);
+    Soll(Vector2.Distance(start2, v2.Position) >= 10f,
+         $"nach dem Klick auf das verborgene gegnerische Stadtzentrum hat er sich in 1 s nur {Vector2.Distance(start2, v2.Position):0.0} Welteinheiten bewegt");
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: ins Schwarze auf {m.GetTile(verborgen.x, verborgen.y).Type} geplant wie mit dem Wissen des Spielers ({weg.Count} Schritte), gelaufen ohne Fehltritt, hält {abstand:0.0} Kacheln vom Ziel (möglich {moeglich:0.0}); verborgenes Stadtzentrum: läuft los");
+}
 
 // Fahne und Windrad (C6a): das Fahnentuch steht am Mast fest und schlägt zum freien
 // Ende hin aus, höchstens eine Ausschlagbreite, und es bewegt sich mit der Zeit;
