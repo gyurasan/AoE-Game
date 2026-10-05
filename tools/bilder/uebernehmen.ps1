@@ -22,6 +22,11 @@
 #                         auf dasselbe Rechteck beschneiden: die Vereinigung ihrer
 #                         sichtbaren Flächen. So bleiben die Laufbilder eines Tiers
 #                         deckungsgleich mit seinem Standbild. Ersetzt "zuschneiden".
+#   programmsymbol true   das Symbol der Exe: auf den sichtbaren Bereich beschneiden,
+#                         quadratisch machen und als <ziel>.ico mit 16 bis 256 px
+#                         schreiben, dazu <ziel>.bmp mit 256 px (Fenstersymbol, MonoGame
+#                         lädt es als eingebettete Ressource Icon.bmp) und icon-1024.png
+#                         daneben (Vorlage der Symbol-Skripte für macOS)
 #
 # Neue Ziele muss danach noch jemand in Content/AgeOfEvolutions.mgcb eintragen.
 param([string]$Gruppe = "")
@@ -153,6 +158,110 @@ public static class Nachbearbeitung
         Schreiben(b, d, px);
         return b;
     }
+
+    /// Auf den sichtbaren Bereich beschneiden und mittig auf ein durchsichtiges
+    /// Quadrat setzen, das ringsum "rand" (Anteil der Kante) Luft lässt.
+    public static Bitmap Quadratisch(Bitmap quelle, byte schwelle, double rand)
+    {
+        var r = Sichtbar(quelle, schwelle);
+        int kante = (int)Math.Ceiling(Math.Max(r.Width, r.Height) / (1 - 2 * rand));
+        var ziel = new Bitmap(kante, kante, PixelFormat.Format32bppArgb);
+        using (var g = Graphics.FromImage(ziel))
+        {
+            g.Clear(Color.Transparent);
+            g.DrawImage(quelle, new Rectangle((kante - r.Width) / 2, (kante - r.Height) / 2, r.Width, r.Height),
+                r, GraphicsUnit.Pixel);
+        }
+        return ziel;
+    }
+
+    /// Hochwertig auf kante x kante verkleinern; Alpha bleibt.
+    public static Bitmap Quadrat(Bitmap quelle, int kante)
+    {
+        var ziel = new Bitmap(kante, kante, PixelFormat.Format32bppArgb);
+        using (var g = Graphics.FromImage(ziel))
+        using (var a = new ImageAttributes())
+        {
+            g.CompositingMode = CompositingMode.SourceCopy;
+            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+            a.SetWrapMode(WrapMode.TileFlipXY);
+            g.DrawImage(quelle, new Rectangle(0, 0, kante, kante), 0, 0, quelle.Width, quelle.Height, GraphicsUnit.Pixel, a);
+        }
+        return ziel;
+    }
+
+    /// Die Pixel von unten nach oben als BGRA, wie DIBs sie erwarten.
+    static byte[] VonUnten(Bitmap b)
+    {
+        BitmapData d; var px = Lesen(b, out d);
+        b.UnlockBits(d);
+        int zeile = b.Width * 4;
+        var aus = new byte[zeile * b.Height];
+        for (int y = 0; y < b.Height; y++)
+            Array.Copy(px, y * d.Stride, aus, (b.Height - 1 - y) * zeile, zeile);
+        return aus;
+    }
+
+    /// Windows-Symbol: bis 128 px als 32-Bit-DIB mit UND-Maske, 256 px als PNG -
+    /// dieselbe Aufteilung wie das Icon.ico der MonoGame-Vorlage.
+    public static void IcoSpeichern(Bitmap quelle, string ziel, int[] groessen)
+    {
+        var bilder = new byte[groessen.Length][];
+        for (int i = 0; i < groessen.Length; i++)
+            using (var b = Quadrat(quelle, groessen[i]))
+            using (var m = new System.IO.MemoryStream())
+            using (var w = new System.IO.BinaryWriter(m))
+            {
+                int n = groessen[i];
+                if (n >= 256) b.Save(m, ImageFormat.Png);
+                else
+                {
+                    var px = VonUnten(b);
+                    int maskenzeile = (n + 31) / 32 * 4;
+                    var maske = new byte[maskenzeile * n];
+                    for (int y = 0; y < n; y++)
+                        for (int x = 0; x < n; x++)
+                            if (px[(y * n + x) * 4 + 3] == 0) maske[y * maskenzeile + x / 8] |= (byte)(0x80 >> (x % 8));
+                    w.Write(40); w.Write(n); w.Write(2 * n); w.Write((short)1); w.Write((short)32);
+                    w.Write(0); w.Write(px.Length + maske.Length); w.Write(0); w.Write(0); w.Write(0); w.Write(0);
+                    w.Write(px); w.Write(maske);
+                }
+                w.Flush();
+                bilder[i] = m.ToArray();
+            }
+        using (var f = new System.IO.BinaryWriter(System.IO.File.Create(ziel)))
+        {
+            f.Write((short)0); f.Write((short)1); f.Write((short)groessen.Length);
+            int versatz = 6 + 16 * groessen.Length;
+            for (int i = 0; i < groessen.Length; i++)
+            {
+                byte k = (byte)(groessen[i] >= 256 ? 0 : groessen[i]);
+                f.Write(k); f.Write(k); f.Write((byte)0); f.Write((byte)0);
+                f.Write((short)1); f.Write((short)32); f.Write(bilder[i].Length); f.Write(versatz);
+                versatz += bilder[i].Length;
+            }
+            foreach (var daten in bilder) f.Write(daten);
+        }
+    }
+
+    /// 32-Bit-BMP mit BITMAPV5HEADER und Alphamaske, wie das Icon.bmp der Vorlage:
+    /// Bitmap.Save schriebe ein BMP ohne Alpha, SDL zeigte das Symbol dann eckig.
+    public static void BmpSpeichern(Bitmap quelle, string ziel)
+    {
+        var px = VonUnten(quelle);
+        using (var f = new System.IO.BinaryWriter(System.IO.File.Create(ziel)))
+        {
+            f.Write((byte)'B'); f.Write((byte)'M'); f.Write(14 + 124 + px.Length); f.Write(0); f.Write(14 + 124);
+            f.Write(124); f.Write(quelle.Width); f.Write(quelle.Height); f.Write((short)1); f.Write((short)32);
+            f.Write(3); f.Write(px.Length); f.Write(2835); f.Write(2835); f.Write(0); f.Write(0);
+            f.Write(0x00FF0000); f.Write(0x0000FF00); f.Write(0x000000FF); f.Write(unchecked((int)0xFF000000));
+            f.Write(0x73524742);                      // LCS_sRGB
+            f.Write(new byte[36 + 12]);               // Farbraum-Endpunkte und Gamma: bei sRGB ungenutzt
+            f.Write(4); f.Write(0); f.Write(0); f.Write(0);   // LCS_GM_IMAGES, kein Profil
+            f.Write(px);
+        }
+    }
 }
 "@
 
@@ -191,6 +300,20 @@ foreach ($g in $katalog.PSObject.Properties) {
 
         $bild = [System.Drawing.Bitmap]::new($quelle)
         try {
+            if (Wert $e $g.Value "programmsymbol") {
+                $basis = [System.IO.Path]::ChangeExtension($ziel, $null).TrimEnd('.')
+                $quadrat = [Nachbearbeitung]::Quadratisch($bild, 8, 0.02)
+                try {
+                    [Nachbearbeitung]::IcoSpeichern($quadrat, "$basis.ico", [int[]](16, 20, 24, 32, 40, 48, 64, 128, 256))
+                    $klein = [Nachbearbeitung]::Quadrat($quadrat, 256)
+                    [Nachbearbeitung]::BmpSpeichern($klein, "$basis.bmp"); $klein.Dispose()
+                    $gross = [Nachbearbeitung]::Quadrat($quadrat, 1024)
+                    $gross.Save((Join-Path (Split-Path $ziel) "icon-1024.png"), [System.Drawing.Imaging.ImageFormat]::Png)
+                    $gross.Dispose()
+                } finally { $quadrat.Dispose() }
+                Write-Output ("{0,-34} -> {1} (ico 16-256, bmp 256, icon-1024.png)" -f (Split-Path $quelle -Leaf), $e.ziel)
+                continue
+            }
             $groesse = Wert $e $g.Value "zielgroesse"
             if ($groesse) {
                 $w = [int]$groesse[0]; $h = [int]$groesse[1]

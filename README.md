@@ -89,7 +89,7 @@ dotnet test tests/AoE.Tests/AoE.Tests.csproj
 
 ## Grafik
 
-Menübild, Tastensymbole, Gebäude und Dorfbewohner je Zeitalter, Boden, Felder, Bäume, Stein, Gold, Schafe,
+Programmsymbol, Menübild, Tastensymbole, Gebäude und Dorfbewohner je Zeitalter, Boden, Felder, Bäume, Stein, Gold, Schafe,
 Rehe, Kaninchen und Wildschweine sind mit Qwen-Image erzeugt,
 lokal über ComfyUI. Prompts, Seeds und die Werkzeuge dafür liegen in `tools/bilder`, jedes
 Bild lässt sich damit genau so wieder erzeugen; Einzelheiten in der

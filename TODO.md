@@ -665,6 +665,9 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
       Leiste; solange der Aufstieg läuft, bildet das Stadtzentrum nicht aus *(Agent C4b)*
 - [x] Kosten 500N · 800N+200G · 1000N+800G, Dauer 130 / 160 / 190 s — `AgeRules` und
       `AgeProgress` in AoE.Core (`Economy/Ages.cs`, 46 Tests) *(Agent C4a)*
+- [ ] **Gold für die Imperialzeit auf 300 senken** (Wunsch 2026-10-04): Kosten werden
+      1000N + **300G** statt 1000N + 800G — `Economy/Ages.cs`, die dazu gehörigen Tests und
+      die `zeitalter`-Gruppe in `tools/spielablauf` umstellen
 - [ ] Jedes Zeitalter schaltet Gebäude und Einheiten frei — die Regel steht
       (`AgeRules.RequiredAgeOf`, Baumenü und Tasten richten sich danach). Erstes
       Gebäude der Feudalzeit: **Wachturm** (Taste T, 50 Holz + 125 Stein, 80 s, sieht
@@ -814,6 +817,57 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
 ### C9 · Basis-KI [X]
 
 - [ ] Einheit sucht nächste Ressourcenquelle und sammelt
+
+### C12 · Straßen ab Ritterzeit [R]
+
+- [ ] Baustufe „Straße“ (Taste frei zu vergeben) ab der **Ritterzeit** freigeschaltet —
+  `AgeRules.RequiredAgeOf`, Baumenü und Befehlstasten wie beim Wachturm
+- [ ] Dorfbewohner bauen Straßen kachelweise (Bauzeit je Kachel, nicht je Gebäude) —
+  Platz ist jede bebaubare Kachel, auch neben anderen Straßen
+- [ ] Wegsuche bevorzugt vorhandene Straßen: A* bekommt einen Bonus für Straßenkacheln,
+  sodass Dorfbewohner auf ihrem Weg immer eine Straße nehmen, wenn eine dazwischenliegt;
+  ohne Straße bleibt der bisherige Lauf
+- [ ] Straße sichtbar zeichnen (kachelbares Bild, wie Gras/Weizen), auch unter Nebel
+- [ ] Abnahme: neue Gruppe `strassen` in `tools/spielablauf` — Dorf auf Ritterzeit,
+  Straße bauen, beobachten dass sich ein laufender Dorfbewohner auf der Route die Straße
+  nimmt und nicht mehr im Gras
+
+### C13 · Dorfkern, Kaserne, Mauern und Krieger (Feudalzeit) [X]
+
+- [ ] **Dorfkern** ab der Feudalzeit neu baubar: ein zweiter (weiteres) Dorfzentrum,
+  in dem Dorfbewohner — also auch Krieger — ausgebildet werden; **teuer** wie im AoE II:
+  400 Holz, Bauzeit 150 s (Richtwerte sind bereits in AoE-II-Tabelle eingeplant)
+  *(Agent C5a)*. `AgeRules.RequiredAgeOf`, Baumenü, Taste, eigene Grafik je Zeitalter
+  wie Wachturm. Platz wie jedes andere Gebäude (`TileMap.CanPlaceBuilding`)
+- [ ] **Kaserne** ab der **Feudalzeit** baubar (Analogie Wachturm: `AgeRules`, Baumenü,
+  Taste, eigene Grafik je Zeitalter unter `Content/Gebaeude/<zeitalter>/`); Bauzeit
+  50 s ist bereits in den AoE-II-Richtwerten eingeplant *(Agent C5a)*
+- [ ] Dorfkerne und Kasernen sind wie das Start-Stadtzentrum auswählbar (Klick) und
+  bilden Dorfbewohner aus
+- [ ] **Mauern** ab der Feudalzeit baubar: `StoneWall` (Bau `PalisadeWall` ist im
+  `BuildingType`-Enum schon da, aber nicht verdrahtet), mit **Stein** kachelweise bauen
+  wie Straßen (C12: `AgeRules.RequiredAgeOf`, Baumenü, Taste). Mauern sind für
+  **jeden** unpassierbar — Dorf- wie Feindbewohner laufen nur drum herum
+- [ ] Mauer ist zerstörbare Struktur (wie Gebäude HP aus dem `BuildingType`-Werten):
+  nur ein angreifender Feind, der ein Stück Mauer **zerstört**, kommt durch; nach
+  Zerstörung ist die Kachel wieder begehbar
+- [ ] Abbauen eigener Mauern: ein eigener Dorfbewohner kann (wie bei Gebäuden)
+  ein eigenes Mauerstück **zerstören** — Taste/Befehl auf das Mauerstück, dann
+  wird es Stück für Stück abgerissen und die Kachel ist wieder frei; die eigene
+  Mauer ist danach für niemanden mehr eine Barriere. Abnahme in `tools/spielablauf`,
+  Gruppe `mauern` (bauen, Feind läuft an → muss umlaufen; eigener Dorfbewohner
+  reißt ein Stück ab → die Lücke ist für beide Seiten frei durchgängig)
+- [ ] Ausgebildete Dorfbewohner stehen **neben dem ausgebildeten Gebäude**, nicht auf
+  ihm
+- [ ] **Krieger** als neue Einheit, ab dem **Feudalzeitalter** in Dorfzentrums/Kern
+  auszubildbar (Kaserne optional):
+  - können nichts abbauen/sammeln (reine Kämpfer)
+  - kämpfen besser als Dorfbewohner (`DamageCalculator`/Stats in AoE.Core),
+    Ausbildung teurer als ein Dorfbewohner
+  - eigenes Sprite (Stand + Lauf), Färbung wie Dorfbewohner
+  - zählt gegen das Bevölkerungslimit (C2)
+  - Abnahme: `krieger`-Gruppe in `tools/spielablauf` — zweiter Dorfkern bauen,
+    Krieger bilden, stehen neben dem Dorfzentrum, kämpfen stärker als ein Dorfbewohner
 
 ---
 

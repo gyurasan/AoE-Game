@@ -87,6 +87,61 @@
    }
   ]
  },
+ "spielicon": {
+  "groesse": [
+   1024,
+   1024
+  ],
+  "schritte": 30,
+  "cfg": 3.0,
+  "freistellen": true,
+  "programmsymbol": true,
+  "stil": "Video game application icon: one bold emblem centered and filling most of the image, a clear simple silhouette that stays readable at very small sizes, thick dark outline, rich saturated colors, soft golden light from the upper left, polished painted style like classic 1990s strategy game box art. Isolated on a plain white background, no text.",
+  "negativ": "text, letters, numbers, words, watermark, signature, frame, border, photo, landscape, scenery, multiple objects, cluttered, cut off, cropped, blurry, low resolution, deformed",
+  "bilder": [
+   {
+    "name": "wappen_turm",
+    "seed": 10001,
+    "prompt": "A royal blue heraldic shield with a thick golden rim, a sturdy stone castle tower with battlements in its center."
+   },
+   {
+    "name": "wappen_sanduhr",
+    "seed": 10002,
+    "prompt": "A royal blue heraldic shield with a thick golden rim, a golden hourglass in its center."
+   },
+   {
+    "name": "medaillon_burg",
+    "seed": 10003,
+    "prompt": "A round golden medallion showing a small stone castle with a blue banner on a green hill."
+   },
+   {
+    "name": "helm_lorbeer",
+    "seed": 10004,
+    "prompt": "A medieval steel knight helmet with a blue plume, in front of a golden laurel wreath."
+   },
+   {
+    "name": "turm_fahne",
+    "seed": 10005,
+    "prompt": "A stone watchtower with battlements and a blue flag on a tall pole on top, the flag flying to the right, standing on a small round patch of green grass."
+   },
+   {
+    "name": "dorfbewohner_wappen",
+    "seed": 10021,
+    "ziel": "Icon.ico",
+    "prompt": "Head and shoulders of a friendly medieval peasant villager with a wide straw hat and a bright blue tunic, a wooden hoe over his shoulder, in front of a royal blue heraldic shield with a thick golden rim."
+   },
+   {
+    "name": "dorfbewohner_kopf",
+    "seed": 10031,
+    "prompt": "Head and shoulders portrait of a friendly smiling medieval peasant villager with a wide golden straw hat and a bright blue tunic with a brown collar."
+   },
+   {
+    "name": "dorfbewohner_figur",
+    "seed": 10041,
+    "prompt": "A friendly medieval peasant villager in a bright blue tunic with a brown belt and a wide straw hat, carrying a wooden hoe over the shoulder, standing upright, full body."
+   }
+  ]
+ },
  "gebaeude": {
   "groesse": [
    1024,

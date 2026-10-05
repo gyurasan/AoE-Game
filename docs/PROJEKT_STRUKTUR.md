@@ -68,6 +68,12 @@ Bewegung der Dorfbewohner (Gehen, Stehen), den Schwung ihrer Werkzeuge und den S
 der Tiere rechnet das Spiel selbst (`RTSGameplayScreen.DrawVillager`, `DrawTool`, `DrawAnimal`). Fehlt eine Grafik, zeichnet das Spiel wie früher
 prozedural. Bilder des Spiels liegen in `docs/bilder/`.
 
+Das Programmsymbol (Dorfbewohner vor dem Wappenschild, Gruppe `spielicon`) schreibt
+`uebernehmen.ps1` als `Content/Icon.ico` mit 16 bis 256 px, das beide Exe-Projekte als
+`ApplicationIcon` einbinden, und als `Content/Icon.bmp` für das Fenster: MonoGame lädt
+das Fenstersymbol aus der eingebetteten Ressource `Icon.bmp`, ohne sie zeigt es sein
+eigenes Logo.
+
 ## Build-Status
 
 | Projekt | Ziel | Status |

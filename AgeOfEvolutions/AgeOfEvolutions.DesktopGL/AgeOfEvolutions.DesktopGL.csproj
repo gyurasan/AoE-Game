@@ -11,6 +11,10 @@
     <RuntimeIdentifiers>win-x64;osx-x64;osx-arm64;linux-x64</RuntimeIdentifiers>
   </PropertyGroup>
   <ItemGroup>
+    <!-- Fenstersymbol: MonoGame sucht die Ressource Icon.bmp, sonst zeigt es sein eigenes Logo -->
+    <EmbeddedResource Include="../AgeOfEvolutions.Core/Content/Icon.bmp" LogicalName="Icon.bmp" />
+  </ItemGroup>
+  <ItemGroup>
     <MonoGameContentReference Include="..\AgeOfEvolutions.Core\Content\AgeOfEvolutions.mgcb">
       <Link>Content\AgeOfEvolutions.mgcb</Link>
     </MonoGameContentReference>
