@@ -17,6 +17,14 @@ mit `4f85314` (2026-10-03). Commits macht der Nutzer selbst.
 
 Zuletzt fertiggestellt:
 
+- **Boden aus einem Guss (2026-10-05)** — Gras, Sand und Wasser zeichnet ein Shader
+  (`Content/Effects/Boden.fx`) in einem Durchgang: weiche, unregelmäßige Ufer und Strände
+  statt Kachelkanten, nasser Sand am Wasser, Wasser mit Tiefe, Wellen, Glanz, Schaum und
+  Fischschwärmen unter der Oberfläche, Gras mit großflächigen Farbschwankungen und dunkler
+  unter Bäumen. Wo Figuren oft laufen, entstehen Trampelpfade, die ohne Verkehr wieder
+  zuwachsen (`Tile.Wear`, `TileMap.Trample`, `TileMap.RegrowGrass`; Gruppe `pfad` in
+  `tools/spielablauf`). Seen liegen nicht mehr in den Startzonen - das Räumen schnitt
+  sonst gerade Ufer hinein *(G5)*
 - **README-Bilder (2026-10-04)** — Hauptmenü, Spielszene und Karte neu aufgenommen, dazu
   `docs/bilder/zeitalter.jpg`: dieselbe Siedlung in allen vier Zeitaltern. Aufgenommen im
   Fenstermodus - im Vollbild liefert `checks/_fenster.ps1` nur ein eingefrorenes, fast
@@ -776,6 +784,18 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
       über Kachelgrenzen hinweg *(Agent G1, G3)*
 - [x] Wasser: zwei überlagerte Wellen in drei Varianten, festes Rauschen ohne Flimmern,
       Uferlinie mit Schaumstrich *(Agent G2, G4)*
+- [x] Boden aus einem Shader: weiche Ufer und Strände, Wassertiefe, Wellen, Schaum und
+      Fische unter der Oberfläche, Gras mit Farbschwankungen, Trampelpfade *(Agent G5)*
+- [x] Fische, die man als Fische erkennt: Körper, gegabelte Schwanzflosse, Brustflossen
+      und Schwanzschlag, jeder auf seiner eigenen Bahn, mit Schatten auf dem Grund und
+      Ringen an der Oberfläche (`FishPath`, `FishMask`, `FishRing` in Boden.fx) *(Agent G6)*
+- [x] Weizen im Wind: die Ähren neigen sich, Böen laufen als helle Bänder über die Felder,
+      der Zaun steht still (`Content/Effects/Weizen.fx`, `WheatWind`, `DrawWheat`)
+      *(Agent G7, G7f)*; die Felder zeigen ihr Bild ohne den hellen Grasrand außerhalb
+      des Zauns (`FieldPart`) *(Agent G8)*
+- [x] Bäume im Wind: jeder Baum wiegt sich, der Stammfuß steht, die Krone schwingt aus -
+      in denselben Böen wie der Weizen (`Wind.Gust`, `Wind.TreeSway`, `Wind.SwayStrips`;
+      Gruppe `wind` in `tools/spielablauf`) *(Agent G9)*
 
 ### C10 · Kamera [R]
 

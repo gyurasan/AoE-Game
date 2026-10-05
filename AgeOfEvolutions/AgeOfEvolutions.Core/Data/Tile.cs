@@ -56,6 +56,14 @@ public class Tile
     /// Objekt mit ihm auf die neue Kachel.
     /// </summary>
     public WildAnimal Animal { get; set; }
+
+    /// <summary>
+    /// Wie ausgetreten der Boden ist, von 0 (unberührt) bis 1 (nackte Erde). Jede
+    /// Figur, die die Kachel betritt, tritt sie weiter aus (TileMap.Trample); ohne
+    /// Verkehr wächst das Gras langsam nach (TileMap.RegrowGrass). Der
+    /// Spielbildschirm zeichnet daraus Trampelpfade.
+    /// </summary>
+    public float Wear { get; set; }
     
     /// <summary>
     /// Ob die Kachel Teil eines angelegten Feldes ist (Farm). Jede Kachel eines

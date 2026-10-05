@@ -1,6 +1,6 @@
 // Spielablauf: stellt Abläufe aus RTSGameplayScreen ohne Grafik nach und prüft sie.
 //
-//   dotnet run --project tools/spielablauf -- bauen weiterbauen linksklick farm schafe wild herde bewegen minimap zoom leiste zeitalter turm menue animation fenster werkzeug feld fahne gehen karten
+//   dotnet run --project tools/spielablauf -- bauen weiterbauen linksklick farm schafe wild herde bewegen minimap zoom leiste zeitalter turm menue animation fenster werkzeug feld fahne gehen karten pfad wind
 //
 // Jede genannte Gruppe läuft auf drei frisch erzeugten Karten. Die Spielschleife
 // läuft Bild für Bild (60 je Sekunde) mit denselben Methoden, die Update() im Spiel
@@ -104,6 +104,11 @@ for (int karte = 1; karte <= KARTEN; karte++)
         Pruefe("Hauptmenü", () => Hauptmenue(verstoesse));
     if (gruppen.Contains("karten") && karte == 1)
         Pruefe("Kartengrößen", () => Kartengroessen(verstoesse));
+    if (gruppen.Contains("pfad"))
+        Pruefe($"Karte {karte}, Trampelpfad", () => Pfad(karte, verstoesse));
+    // Der Wind hängt nicht von der Karte ab
+    if (gruppen.Contains("wind") && karte == 1)
+        Pruefe("Wind", () => WindProbe(verstoesse));
 }
 
 if (verstoesse.Count > 0)
@@ -960,6 +965,192 @@ static void NichtDurchWasser(int karte, List<string> verstoesse)
     }
 }
 
+// Wind (G9): Böen ziehen von links über das Land, dieselben wie über den Weizen
+// (WheatWind in Weizen.fx), und die Bäume wiegen sich darin - jeder für sich, im
+// Mittel mit dem Wind geneigt. SwayStrips schneidet ein Baumbild in Streifen, die
+// lückenlos aneinanderschließen: der Fuß steht, die Spitze schwingt aus.
+static void WindProbe(List<string> verstoesse)
+{
+    const string wer = "Wind";
+    int vorher = verstoesse.Count;
+
+    // Gust rechnet genau wie gust in WheatWind
+    static float Welle(Vector2 p, float t, Vector2 d, float lambda)
+        => MathF.Pow(MathF.Max(MathF.Sin((Vector2.Dot(p, Vector2.Normalize(d)) - 1.2f * t) * MathF.Tau / lambda), 0f), 3f);
+    float groessteAbweichung = 0f;
+    for (float x = -3f; x <= 30f; x += 1.7f)
+        for (float y = -2f; y <= 20f; y += 2.3f)
+            for (float t = 0f; t <= 40f; t += 3.1f)
+            {
+                var p = new Vector2(x, y);
+                float soll = MathF.Max(Welle(p, t, new Vector2(1f, 0.2f), 4f), Welle(p, t, new Vector2(1f, 0.5f), 6f))
+                             * (0.7f + 0.3f * MathF.Sin(0.4f * t));
+                float ist = Wind.Gust(p, t);
+                if (ist < 0f || ist > 1f)
+                {
+                    verstoesse.Add($"{wer}: Gust({x:0.0}, {y:0.0}, t={t:0.0}) = {ist:0.000} liegt nicht zwischen 0 und 1");
+                    return;
+                }
+                groessteAbweichung = MathF.Max(groessteAbweichung, MathF.Abs(ist - soll));
+            }
+    if (groessteAbweichung > 0.001f)
+        verstoesse.Add($"{wer}: Gust weicht bis {groessteAbweichung:0.0000} von der Rechnung in WheatWind ab - Weizen und Bäume liefen nicht in denselben Böen");
+
+    // TreeSway: in den Grenzen, stetig, im Mittel mit dem Wind, jeder Baum anders
+    var baum = new Vector2(12.3f, 7.8f);
+    float summe = 0f, kleinste = float.MaxValue, groesste = float.MinValue;
+    int bilder = 0;
+    for (float t = 0f; t < 120f; t += 1f / 60f, bilder++)
+    {
+        float s = Wind.TreeSway(baum, t, 4711);
+        if (MathF.Abs(s) > 0.05f)
+        {
+            verstoesse.Add($"{wer}: TreeSway {s:0.000} bei t={t:0.00} - höchstens 0,05 erlaubt");
+            break;
+        }
+        float naechstes = Wind.TreeSway(baum, t + 1f / 60f, 4711);
+        if (MathF.Abs(naechstes - s) > 0.004f)
+        {
+            verstoesse.Add($"{wer}: TreeSway springt bei t={t:0.00} von {s:0.000} auf {naechstes:0.000} in einem Bild");
+            break;
+        }
+        summe += s;
+        kleinste = MathF.Min(kleinste, s);
+        groesste = MathF.Max(groesste, s);
+    }
+    if (summe / bilder <= 0.002f)
+        verstoesse.Add($"{wer}: im Mittel neigt sich der Baum nicht mit dem Wind nach rechts ({summe / bilder:0.0000})");
+    if (groesste - kleinste < 0.015f)
+        verstoesse.Add($"{wer}: der Baum schwingt kaum ({kleinste:0.000} bis {groesste:0.000})");
+    if (Wind.TreeSway(baum, 33.3f, 4711) != Wind.TreeSway(baum, 33.3f, 4711))
+        verstoesse.Add($"{wer}: TreeSway liefert bei gleichen Eingaben verschiedene Werte");
+    int verschieden = 0;
+    for (float t = 0f; t < 10f; t += 0.5f)
+        if (MathF.Abs(Wind.TreeSway(baum, t, 4711) - Wind.TreeSway(baum, t, 90210)) > 0.002f)
+            verschieden++;
+    if (verschieden < 5)
+        verstoesse.Add($"{wer}: zwei Bäume an derselben Stelle schwingen gleich - look ändert nichts");
+
+    // SwayStrips: lückenlos, Fuß fest, Spitze ausgelenkt
+    var ziel = new Rectangle(100, 200, 60, 120);
+    var streifen = Wind.SwayStrips(ziel, 64, 128, 0.04f).ToList();
+    if (streifen.Count != Wind.TREE_STRIPS)
+        verstoesse.Add($"{wer}: {streifen.Count} Streifen statt {Wind.TREE_STRIPS}");
+    else
+    {
+        int oben = 0;
+        float hoch = ziel.Height / 128f;
+        foreach (var (quelle, lage, mass) in streifen)
+        {
+            if (quelle.X != 0 || quelle.Width != 64 || quelle.Y != oben)
+            {
+                verstoesse.Add($"{wer}: Streifen {quelle} schließt nicht an (erwartet X 0, Breite 64, Y {oben})");
+                break;
+            }
+            if (MathF.Abs(lage.Y - (ziel.Y + oben * hoch)) > 0.01f)
+            {
+                verstoesse.Add($"{wer}: Streifen ab Bildzeile {oben} liegt bei y {lage.Y:0.00} statt {ziel.Y + oben * hoch:0.00}");
+                break;
+            }
+            if (MathF.Abs(mass.X - 60f / 64f) > 0.001f || MathF.Abs(mass.Y - hoch) > 0.001f)
+            {
+                verstoesse.Add($"{wer}: Streifen ab Bildzeile {oben} mit Maßstab {mass} statt ({60f / 64f:0.000}, {hoch:0.000})");
+                break;
+            }
+            float mitte = 1f - (oben + quelle.Height / 2f) / 128f;   // Höhe über dem Fuß
+            float soll = ziel.X + 0.04f * ziel.Height * MathF.Pow(mitte, 1.5f);
+            if (MathF.Abs(lage.X - soll) > 0.05f)
+            {
+                verstoesse.Add($"{wer}: Streifen ab Bildzeile {oben} bei x {lage.X:0.00} statt {soll:0.00} - die Biegung folgt nicht h^1,5");
+                break;
+            }
+            oben += quelle.Height;
+        }
+        if (oben != 128)
+            verstoesse.Add($"{wer}: die Streifen decken {oben} von 128 Bildzeilen");
+    }
+    if (Wind.SwayStrips(ziel, 64, 128, 0f).Any(s => MathF.Abs(s.Position.X - ziel.X) > 0.001f))
+        verstoesse.Add($"{wer}: ohne Wind sind die Streifen verschoben");
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: Böen wie über dem Weizen, Bäume neigen sich im Mittel mit dem Wind ({kleinste:0.000} bis {groesste:0.000}), Streifen lückenlos");
+}
+
+// Trampelpfade (G5): wer eine Kachel betritt, tritt sie aus (TileMap.Trample). Ein
+// Dorfbewohner läuft zwölfmal zwischen zwei Kacheln hin und her; der Ablauf zählt
+// selbst, wie oft er welche Kachel betritt. Jede Kachel ist danach so ausgetreten,
+// wie es ihren Schritten entspricht, abzüglich dessen, was in der Zeit nachwuchs -
+// und keine, die er nicht betreten hat. Ohne Verkehr wächst das Gras gleichmäßig
+// nach, in WEAR_REGROW_SECONDS ganz.
+static void Pfad(int karte, List<string> verstoesse)
+{
+    var w = new Welt();
+    string wer = $"Karte {karte}, Trampelpfad";
+    int vorher = verstoesse.Count;
+    var v = w.Dorfbewohner().First();
+    var start = w.Map.WorldToGrid(v.Position);
+    var ziel = w.FreieKachel(v, 10);
+    w.Waehle(new List<Unit> { v });
+    var schritte = new Dictionary<(int, int), int>();
+    var zuletzt = ((int)start.X, (int)start.Y);
+    float dauer = 0f;
+    for (int lauf = 0; lauf < 12; lauf++)
+    {
+        w.Linksklick(w.Map.GridToWorld(lauf % 2 == 0 ? ziel : start));
+        dauer += w.LaufeBis(() =>
+        {
+            var c = w.Map.WorldToGrid(v.Position);
+            var kachel = ((int)c.X, (int)c.Y);
+            if (kachel != zuletzt)
+            {
+                schritte[kachel] = schritte.GetValueOrDefault(kachel) + 1;
+                zuletzt = kachel;
+            }
+            return v.State == UnitState.Idle;
+        }, 60);
+    }
+
+    var abgenutzt = new List<Tile>();
+    for (int x = 0; x < w.Map.Width; x++)
+        for (int y = 0; y < w.Map.Height; y++)
+            if (w.Map.GetTile(x, y).Wear > 0f)
+                abgenutzt.Add(w.Map.GetTile(x, y));
+    float nachgewachsen = dauer / TileMap.WEAR_REGROW_SECONDS;
+    foreach (var (kachel, n) in schritte)
+    {
+        var t = w.Map.GetTile(kachel.Item1, kachel.Item2);
+        float soll = MathF.Min(1f, n * TileMap.WEAR_PER_STEP);
+        if (t.Wear > soll + 0.001f || t.Wear < soll - nachgewachsen - 0.001f)
+        {
+            verstoesse.Add($"{wer}: ({t.X},{t.Y}) {n}-mal betreten, Abnutzung {t.Wear:0.000} statt {soll - nachgewachsen:0.000} bis {soll:0.000}");
+            break;
+        }
+    }
+    foreach (var t in abgenutzt.Where(t => !schritte.ContainsKey((t.X, t.Y))).Take(3))
+        verstoesse.Add($"{wer}: Kachel ({t.X},{t.Y}) ist ausgetreten ({t.Wear:0.00}), obwohl niemand sie betreten hat");
+    int oft = schritte.Count(s => s.Value >= 10);
+    if (oft == 0)
+        verstoesse.Add($"{wer}: keine Kachel zehnmal betreten - der Dorfbewohner lief nicht hin und her");
+    int pfad = abgenutzt.Count(t => t.Wear >= 0.4f);
+
+    var stand = abgenutzt.ToDictionary(t => t, t => t.Wear);
+    w.Map.RegrowGrass(TileMap.WEAR_REGROW_SECONDS / 2f);
+    foreach (var (t, wear) in stand)
+    {
+        if (MathF.Abs(t.Wear - MathF.Max(0f, wear - 0.5f)) > 0.001f)
+        {
+            verstoesse.Add($"{wer}: nach halber Nachwachszeit {t.Wear:0.000} statt {MathF.Max(0f, wear - 0.5f):0.000} auf ({t.X},{t.Y})");
+            break;
+        }
+    }
+    w.Map.RegrowGrass(TileMap.WEAR_REGROW_SECONDS);
+    if (abgenutzt.Any(t => t.Wear > 0f))
+        verstoesse.Add($"{wer}: nach voller Nachwachszeit noch Abnutzung übrig");
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: {abgenutzt.Count} Kacheln ausgetreten, {pfad} davon als Pfad, nur auf dem Weg; wächst wieder zu");
+}
+
 // Minimap rechts in der unteren Leiste, in derselben Ansicht wie die Spielkarte
 // (Draufsicht, Norden oben), mit ganzen Pixeln je Kachel und so groß, wie die
 // Leiste es zulässt; ein Klick in die Minimap stellt die Kamera mittig über den
@@ -1598,13 +1789,14 @@ static void Feld(List<string> verstoesse)
     if (tint != Color.White)
         verstoesse.Add($"{wer}: reifer Weizen zeigt das Feldbild nicht unverfälscht (R{tint.R} G{tint.G} B{tint.B})");
 
-    // Jede Feldkachel zeigt ihren eigenen Teil des Feldbilds, zusammen genau das ganze Bild
+    // Jede Feldkachel zeigt ihren eigenen Teil des Feldbilds, zusammen das ganze Feld ohne
+    // den Grasrand außerhalb des Zauns (links und oben 8, rechts und unten 3 von 384 Bildpunkten)
     var feldteile = new HashSet<Rectangle>();
     for (int fx = 1; fx <= 3; fx++)
         for (int fy = 1; fy <= 3; fy++)
         {
             var feldteil = (Rectangle)w.Call("FieldPart", w.Map.GetTile(fx, fy)!, 384, 384);
-            if (feldteil != new Rectangle((fx - 1) * 128, (fy - 1) * 128, 128, 128))
+            if (feldteil != new Rectangle(8 + (fx - 1) * 124, 8 + (fy - 1) * 124, 124, 124))
                 verstoesse.Add($"{wer}: Feldkachel ({fx}, {fy}) zeigt den Bildteil {feldteil} statt Spalte {fx - 1}, Zeile {fy - 1}");
             feldteile.Add(feldteil);
         }
@@ -1800,6 +1992,7 @@ class Welt
             Call("UpdateConstruction", dt);
             Call("UpdateSheepClaims");
             Map.RegrowCrop(dt);
+            Map.RegrowGrass(dt);
             Map.UpdateSheep(dt);
             Map.UpdateDeer(dt);
             Map.UpdateRabbits(dt);

@@ -28,7 +28,7 @@ demo/DemoApp.csproj - net10.0, kleine Konsolen-Testapp
 tools/ollama-agent/ - Harness, der TODO-Punkte an ein lokales Ollama-Modell verteilt
 tools/kartenpruefung/ - prüft Regeln des Kartengenerators über 50 erzeugte Karten
 tools/bilder/ - erzeugt Spielgrafiken mit Qwen-Image über ComfyUI; Prompts und Seeds in bilder.json, uebernehmen.ps1 bereitet die gewählten Bilder für Content/ auf
-tools/spielablauf/ - lässt die Spielschleife ohne Grafik laufen und prüft Abläufe (Bauen, Weiterbauen, Linksklick, Farm, Schafe, Bewegen, Minimap, Zoom, Leiste, Zeitalter, Wachturm, Hauptmenü, Animation, Fenster, Werkzeug, Feld)
+tools/spielablauf/ - lässt die Spielschleife ohne Grafik laufen und prüft Abläufe (Bauen, Weiterbauen, Linksklick, Farm, Schafe, Bewegen, Minimap, Zoom, Leiste, Zeitalter, Wachturm, Hauptmenü, Animation, Fenster, Werkzeug, Feld, Trampelpfad)
 ```
 
 ## Wichtige Dateien
@@ -48,12 +48,12 @@ tools/spielablauf/ - lässt die Spielschleife ohne Grafik laufen und prüft Abl�
 | Resource.cs | src/AoE.Core/Entities/Resource.cs | 32 Zeilen |
 | VisibilitySystem.cs | src/AoE.Core/Map/VisibilitySystem.cs | 413 Zeilen, enthält AUCH MapGrid; Gebäude spenden Sicht wie Einheiten, Baustellen noch nicht |
 | Pathfinding.cs | src/AoE.Core/Pathfinding/Pathfinding.cs | 316 Zeilen, A-Stern und Formationsbewegung |
-| TileMap.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/TileMap.cs | 1152 Zeilen, Kartengenerierung mit Seen, Ressourcenklumpen, PvP-Startpositionen; Gebäude beliebiger Kantenlänge und `CanPlaceBuilding` |
+| TileMap.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/TileMap.cs | 1217 Zeilen, Kartengenerierung mit Seen (nicht in den Startzonen), Ressourcenklumpen, PvP-Startpositionen; Gebäude beliebiger Kantenlänge und `CanPlaceBuilding`; Trampelpfade (`Trample`, `RegrowGrass`) |
 | TileMapGatherWorld.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/TileMapGatherWorld.cs | 144 Zeilen, setzt IGatherWorld auf die Kachelkarte um: Quellen, Abgabestellen am Gebäuderand, nur fertig gebaute |
 | Unit.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/Unit.cs | 199 Zeilen, Spieleinheit; hält über `Unit.Core` eine `UnitEntity` aus AoE.Core und reicht Kampfwerte, Lebenspunkte und Zustand durch; hält den Sammelauftrag (`Job`) und die Baustelle (`BuildSite`) |
 | CoreUnits.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/CoreUnits.cs | 101 Zeilen, bildet alle 17 Einheitentypen des Spiels auf Klassen aus AoE.Core ab |
 | CoreBuildings.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/CoreBuildings.cs | 33 Zeilen, bildet die Gebäudetypen des Spiels auf BuildingEntity aus AoE.Core ab |
-| RTSGameplayScreen.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs | 4008 Zeilen, prozedurale Texturen und Spielschleife; Gebäude- und Dorfbewohnerbilder je Zeitalter des Besitzers; Ausbildung (Taste Q), Zeitalter (A), Baumenü (H, M, F, B, G, T), Baustellen, Minimap und die Klick-Entscheidung (`LeftClick`) |
+| RTSGameplayScreen.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs | 4348 Zeilen, prozedurale Texturen und Spielschleife; Gras, Sand und Wasser aus dem Bodenshader (`DrawGroundShaded`), Weizen (`DrawWheat`) und Bäume (`DrawTrees`, Wind.cs) im Wind; Gebäude- und Dorfbewohnerbilder je Zeitalter des Besitzers; Ausbildung (Taste Q), Zeitalter (A), Baumenü (H, M, F, B, G, T), Baustellen, Minimap und die Klick-Entscheidung (`LeftClick`) |
 
 ## Grafik
 
@@ -66,7 +66,10 @@ Spieler 2 rot und macht Bodenbilder kachelbar. Die Ergebnisse liegen in
 `AgeOfEvolutions.Core/Content/` und sind in `AgeOfEvolutions.mgcb` eingetragen. Die
 Bewegung der Dorfbewohner (Gehen, Stehen), den Schwung ihrer Werkzeuge und den Schritt
 der Tiere rechnet das Spiel selbst (`RTSGameplayScreen.DrawVillager`, `DrawTool`, `DrawAnimal`). Fehlt eine Grafik, zeichnet das Spiel wie früher
-prozedural. Bilder des Spiels liegen in `docs/bilder/`.
+prozedural. Gras, Sand und Wasser setzt der Bodenshader `Content/Effects/Boden.fx` in einem
+Durchgang aus Gras- und Sandbild zusammen: weiche Ufer und Strände, Wassertiefe, Wellen,
+Schaum, Fischschwärme und Trampelpfade. Im Wind wiegen sich der Weizen (`Content/Effects/Weizen.fx`)
+und die Bäume (`Screens/Wind.cs`), in denselben Böen. Bilder des Spiels liegen in `docs/bilder/`.
 
 Das Programmsymbol (Dorfbewohner vor dem Wappenschild, Gruppe `spielicon`) schreibt
 `uebernehmen.ps1` als `Content/Icon.ico` mit 16 bis 256 px, das beide Exe-Projekte als

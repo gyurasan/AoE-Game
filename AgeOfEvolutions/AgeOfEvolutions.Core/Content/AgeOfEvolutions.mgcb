@@ -1359,6 +1359,18 @@
 /processorParam:TextureFormat=Color
 /build:Boden/gras.png
 
+#begin Effects/Boden.fx
+/importer:EffectImporter
+/processor:EffectProcessor
+/processorParam:DebugMode=Auto
+/build:Effects/Boden.fx
+
+#begin Effects/Weizen.fx
+/importer:EffectImporter
+/processor:EffectProcessor
+/processorParam:DebugMode=Auto
+/build:Effects/Weizen.fx
+
 #begin Baeume/laubbaum.png
 /importer:TextureImporter
 /processor:TextureProcessor

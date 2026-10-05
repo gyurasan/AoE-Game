@@ -105,9 +105,18 @@ public class TileMap
         int count = _random.Next(Settings.LakesMin, Settings.LakesMax + 1);
         for (int i = 0; i < count; i++)
         {
-            int r = _random.Next(3, 6);
-            int cx = _random.Next(4, Width - 4 - r);
-            int cy = _random.Next(4, Height - 4 - r);
+            // Kein See in die Startzonen: ClearStartArea räumte ihn danach zu einem
+            // Quadrat aus Wiese aus, mit schnurgeraden Ufern und Stränden. Ein See,
+            // der hineinreicht, wird neu ausgewürfelt
+            int r, cx, cy, tries = 0;
+            do
+            {
+                r = _random.Next(3, 6);
+                cx = _random.Next(4, Width - 4 - r);
+                cy = _random.Next(4, Height - 4 - r);
+            } while (NearStartArea(cx, cy, r) && ++tries < 20);
+            if (NearStartArea(cx, cy, r))
+                continue;
             for (int x = cx - r; x <= cx + r; x++)
             {
                 for (int y = cy - r; y <= cy + r; y++)
@@ -130,6 +139,22 @@ public class TileMap
         }
     }
     
+    /// <summary>
+    /// Ob ein See um (cx, cy) mit Radius r in eine der beiden Startzonen reicht
+    /// (ClearStartArea: 8 × 8 Kacheln ab zwei Kacheln vor dem Stadtzentrum) - mit
+    /// Luft für den ausgefransten Rand und den Strand.
+    /// </summary>
+    private bool NearStartArea(int cx, int cy, int r)
+    {
+        foreach (var (sx, sy) in new[] { (4.5f, 4.5f), (Width - 2.5f, Height - 2.5f) })
+        {
+            float dx = cx - sx, dy = cy - sy;
+            if (dx * dx + dy * dy < (r + 7f) * (r + 7f))
+                return true;
+        }
+        return false;
+    }
+
     // Sandstrand um jede Wasserkante (wie in AoE1).
     private void AddBeaches()
     {
@@ -710,6 +735,46 @@ public class TileMap
                 t.Walkable = true;
                 t.Buildable = false;
             }
+        }
+    }
+
+    /// <summary>
+    /// Wie weit ein Schritt auf eine Kachel sie austritt: nach rund zwanzig
+    /// Durchgängen ist dort nackte Erde.
+    /// </summary>
+    public const float WEAR_PER_STEP = 0.05f;
+
+    /// <summary>
+    /// In so vielen Sekunden wächst ein ganz ausgetretener Pfad ohne Verkehr
+    /// wieder zu.
+    /// </summary>
+    public const float WEAR_REGROW_SECONDS = 900f;
+
+    /// <summary>
+    /// Eine Figur betritt die Kachel (x, y) und tritt den Boden dort um
+    /// <see cref="WEAR_PER_STEP"/> weiter aus, höchstens bis 1. Wasser und
+    /// Kacheln außerhalb der Karte bleiben unberührt.
+    /// </summary>
+    public void Trample(int x, int y)
+    {
+        var tile = GetTile(x, y);
+        if (tile == null || tile.Type == TileType.Water)
+            return;
+        tile.Wear = Math.Min(1f, tile.Wear + WEAR_PER_STEP);
+    }
+
+    /// <summary>
+    /// Ohne Verkehr wächst das Gras nach: jede ausgetretene Kachel erholt sich
+    /// gleichmäßig, eine ganz ausgetretene in <see cref="WEAR_REGROW_SECONDS"/>.
+    /// Wer oft denselben Weg geht, hält den Pfad offen.
+    /// </summary>
+    public void RegrowGrass(float dt)
+    {
+        float step = dt / WEAR_REGROW_SECONDS;
+        foreach (var tile in tiles)
+        {
+            if (tile.Wear > 0f)
+                tile.Wear = Math.Max(0f, tile.Wear - step);
         }
     }
 

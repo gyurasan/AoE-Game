@@ -308,6 +308,7 @@ public class RTSGameplayScreen : GameScreen
     private Texture2D _waterGroundTex;    // Wasserbild; waterTex sind die gezeichneten Wasserkacheln
     private Texture2D _soilTex;           // abgeerntetes Feld (Felder/acker), ein Bild je Feld
     private Texture2D _wheatTex;          // dasselbe Feld mit reifem Weizen (Felder/weizen)
+    private Effect _wheatEffect;          // Weizen im Wind (Effects/Weizen); fehlt er, steht der Weizen still.
     private Texture2D[] _treeSprites = Array.Empty<Texture2D>();
     private Texture2D[] _stoneSprites = Array.Empty<Texture2D>();
     private Texture2D[] _goldSprites = Array.Empty<Texture2D>();
@@ -325,6 +326,20 @@ public class RTSGameplayScreen : GameScreen
     private Texture2D _rabbitMeat;
     private Texture2D _boarMeat;
     private const int GROUND_TEXELS = 4;   // Bildpixel der Bodenbilder je Welteinheit
+
+    // Boden aus einem Guss (Effects/Boden): Gras, Sand und Wasser gehen weich
+    // ineinander über, das Wasser hat Tiefe, Wellen und Schaum, viel begangene
+    // Kacheln zeigen Trampelpfade. Fehlt der Effekt oder ein Bodenbild, zeichnet
+    // DrawGround den Boden wie bisher Kachel für Kachel.
+    private Effect _groundEffect;
+    private Texture2D _groundControl;     // Steuerbild: Sand, Wasser, Tiefe (BuildGroundControl)
+    private Texture2D _groundLive;        // je Kachel: ausgetreten, Wald - ändert sich im Spiel
+    private Color[] _groundLiveData;
+    private float _groundLiveTimer;
+    private Texture2D _groundNoise;
+    private const int GROUND_CONTROL_TEXELS = 4;       // Texel des Steuerbilds je Kachel und Richtung
+    private const float GROUND_SMOOTHING = 0.45f;      // Glättung der Kachelgrenzen, in Kacheln
+    private const float GROUND_LIVE_INTERVAL = 0.25f;  // so oft übernimmt das Lebendbild die Karte
 
     // Bewegung je Einheit, aus der Lage zwischen zwei Updates abgeleitet - die
     // Einheit selbst speichert weder Blickrichtung noch Tempo
@@ -457,6 +472,28 @@ public class RTSGameplayScreen : GameScreen
         _soilTex = LoadOptional("Felder/acker");
         _wheatTex = LoadOptional("Felder/weizen");
         _waterGroundTex = LoadOptional("Boden/wasser");
+        try
+        {
+            _groundEffect = ScreenManager.Game.Content.Load<Effect>("Effects/Boden");
+        }
+        catch (Microsoft.Xna.Framework.Content.ContentLoadException)
+        {
+        }
+        try
+        {
+            _wheatEffect = ScreenManager.Game.Content.Load<Effect>("Effects/Weizen");
+        }
+        catch (Microsoft.Xna.Framework.Content.ContentLoadException)
+        {
+        }
+        if (_groundEffect != null && _grassTex != null && _sandTex != null)
+        {
+            _groundNoise = BuildNoiseTexture(graphicsDevice);
+            _groundControl = BuildGroundControl(graphicsDevice);
+            _groundLive = new Texture2D(graphicsDevice, tileMap.Width, tileMap.Height);
+            _groundLiveData = new Color[tileMap.Width * tileMap.Height];
+            RefreshGroundLive();
+        }
         _treeSprites = TreeAssets.Select(LoadOptional).Where(t => t != null).ToArray();
         _stoneSprites = StoneAssets.Select(LoadOptional).Where(t => t != null).ToArray();
         _goldSprites = GoldAssets.Select(LoadOptional).Where(t => t != null).ToArray();
@@ -529,6 +566,9 @@ public class RTSGameplayScreen : GameScreen
         crownTex = Array.Empty<Texture2D>();
         foreach (var t in unitTex.Values) t?.Dispose();
         unitTex.Clear();
+        _groundControl?.Dispose(); _groundControl = null;
+        _groundLive?.Dispose(); _groundLive = null;
+        _groundNoise?.Dispose(); _groundNoise = null;
     }
 
     // Fester Seed: die prozeduralen Texturen sollen bei jedem Start gleich aussehen.
@@ -565,6 +605,7 @@ public class RTSGameplayScreen : GameScreen
         UpdateAges((float)gameTime.ElapsedGameTime.TotalSeconds);
         UpdateConstruction((float)gameTime.ElapsedGameTime.TotalSeconds);
         tileMap.RegrowCrop((float)gameTime.ElapsedGameTime.TotalSeconds);
+        tileMap.RegrowGrass((float)gameTime.ElapsedGameTime.TotalSeconds);
         UpdateSheepClaims();    // Reservierung = der einzige Dorfbewohner, der gerade erntet
         tileMap.UpdateSheep((float)gameTime.ElapsedGameTime.TotalSeconds);
         tileMap.UpdateDeer((float)gameTime.ElapsedGameTime.TotalSeconds);
@@ -583,6 +624,14 @@ public class RTSGameplayScreen : GameScreen
         }
 
         UpdateResources(gameTime);
+
+        // Trampelpfade und gefällter Wald: das Lebendbild des Bodens nachziehen
+        _groundLiveTimer -= (float)gameTime.ElapsedGameTime.TotalSeconds;
+        if (_groundLive != null && _groundLiveTimer <= 0f)
+        {
+            _groundLiveTimer = GROUND_LIVE_INTERVAL;
+            RefreshGroundLive();
+        }
 
         // Wasser-Animation: alle ~400 ms ein Frame weiter (2,5 fps-Loop)
         waterAnimTimer += (float)gameTime.ElapsedGameTime.TotalMilliseconds;
@@ -2163,7 +2212,12 @@ public class RTSGameplayScreen : GameScreen
         }
 
         direction.Normalize();
+        var before = tileMap.WorldToGrid(unit.Position);
         unit.Position += direction * unit.MovementSpeed * 40 * dt;
+        // Wer eine Kachel betritt, tritt sie weiter aus - so entstehen Trampelpfade
+        var after = tileMap.WorldToGrid(unit.Position);
+        if (after != before)
+            tileMap.Trample((int)after.X, (int)after.Y);
         return false;
     }
 
@@ -2182,11 +2236,17 @@ public class RTSGameplayScreen : GameScreen
         // Deliberately drawn without ScreenManager.GlobalTransformation: this screen
         // renders in raw backbuffer space so that mouse coordinates and drawn pixels
         // line up for unit selection.
-        // Der Boden kommt zuerst, in einem eigenen Durchgang mit wiederholender
-        // Abtastung - siehe DrawGround
+        // Der Boden kommt zuerst: Gras, Sand und Wasser aus dem Bodenshader, dann in
+        // einem eigenen Durchgang mit wiederholender Abtastung die Felder - siehe
+        // DrawGround. Ohne Shader zeichnet DrawGround alles Kachel für Kachel
+        if (GroundShaded)
+            DrawGroundShaded(spriteBatch);
         spriteBatch.Begin(samplerState: SamplerState.LinearWrap);
         DrawGround(spriteBatch);
         spriteBatch.End();
+        // Der Weizen im Wind über dem Acker, den DrawGround gezeichnet hat.
+        if (_wheatEffect != null && _soilTex != null && _wheatTex != null)
+            DrawWheat(spriteBatch);
 
         spriteBatch.Begin();
 
@@ -2241,6 +2301,8 @@ public class RTSGameplayScreen : GameScreen
             {
                 var tile = tileMap.GetTile(x, y);
                 if (tile == null) continue;
+                // Gras, Sand und Wasser hat DrawGroundShaded schon gezeichnet
+                if (GroundShaded && !tile.Farm) continue;
 
                 var rect = TileScreenRect(x, y);
                 if (!rect.Intersects(screenBounds)) continue;
@@ -2261,6 +2323,227 @@ public class RTSGameplayScreen : GameScreen
                     DrawShore(spriteBatch, x, y, rect);
             }
         }
+    }
+
+    /// <summary>Ob der Boden aus dem Bodenshader kommt (Effects/Boden geladen).</summary>
+    private bool GroundShaded => _groundControl != null;
+
+    /// <summary>
+    /// Gras, Sand und Wasser in einem Zug mit dem Bodenshader: das Steuerbild über
+    /// die ganze Karte gelegt, der Shader rechnet daraus jeden Bildpunkt. Felder
+    /// legt DrawGround danach darüber.
+    /// </summary>
+    private void DrawGroundShaded(SpriteBatch spriteBatch)
+    {
+        var p = _groundEffect.Parameters;
+        p["MapTiles"]?.SetValue(new Vector2(tileMap.Width, tileMap.Height));
+        p["Time"]?.SetValue(animationTime);
+        p["DetailScale"]?.SetValue(tileMap.TileSize * GROUND_TEXELS / (float)_grassTex.Width);
+        p["LiveTexture"]?.SetValue(_groundLive);
+        p["GrassTexture"]?.SetValue(_grassTex);
+        p["SandTexture"]?.SetValue(_sandTex);
+        p["NoiseTexture"]?.SetValue(_groundNoise);
+        spriteBatch.Begin(SpriteSortMode.Immediate, BlendState.Opaque, SamplerState.LinearClamp,
+                          null, null, _groundEffect);
+        spriteBatch.Draw(_groundControl, TileScreenRect(0, 0, tileMap.Width, tileMap.Height), Color.White);
+        spriteBatch.End();
+    }
+
+    /// <summary>
+    /// Das Steuerbild des Bodenshaders: je Kachel GROUND_CONTROL_TEXELS² Texel, rot
+    /// Sand, grün Wasser, blau die Wassertiefe. Jeder Texel mittelt die Kacheln um
+    /// sich mit einer Glockenkurve (GROUND_SMOOTHING): auf einer Kachelgrenze steht
+    /// so genau die Hälfte, und der Shader zieht dort, mit Rauschen verschoben,
+    /// eine weiche, unregelmäßige Grenze statt einer Kachelkante. Die Tiefe wächst
+    /// mit dem Abstand zum Land, voll ab vier Kacheln. Sand und Wasser ändern sich
+    /// im Spiel nicht - das Bild entsteht einmal je Karte.
+    /// </summary>
+    private Texture2D BuildGroundControl(GraphicsDevice gd)
+    {
+        int w = tileMap.Width, h = tileMap.Height, r = GROUND_CONTROL_TEXELS;
+        var fields = new float[3, w, h];   // Sand, Wasser, Tiefe je Kachel
+        var dist = new int[w, h];          // Abstand zum Land in Schritten, auch schräg
+        var queue = new Queue<(int x, int y)>();
+        for (int x = 0; x < w; x++)
+        {
+            for (int y = 0; y < h; y++)
+            {
+                var type = tileMap.GetTile(x, y).Type;
+                fields[0, x, y] = type == TileType.Sand ? 1f : 0f;
+                fields[1, x, y] = type == TileType.Water ? 1f : 0f;
+                dist[x, y] = type == TileType.Water ? int.MaxValue : 0;
+                if (type != TileType.Water)
+                    queue.Enqueue((x, y));
+            }
+        }
+        while (queue.Count > 0)
+        {
+            var (x, y) = queue.Dequeue();
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                for (int dy = -1; dy <= 1; dy++)
+                {
+                    int nx = x + dx, ny = y + dy;
+                    if (nx < 0 || ny < 0 || nx >= w || ny >= h || dist[nx, ny] <= dist[x, y] + 1)
+                        continue;
+                    dist[nx, ny] = dist[x, y] + 1;
+                    queue.Enqueue((nx, ny));
+                }
+            }
+        }
+        for (int x = 0; x < w; x++)
+        {
+            for (int y = 0; y < h; y++)
+            {
+                fields[2, x, y] = fields[1, x, y] > 0f ? Math.Clamp((dist[x, y] - 1) / 3f, 0f, 1f) : 0f;
+                // Stein und Gold am Wasser liegen auf dem Strand - der Kartenbau macht
+                // nur Wiese am Ufer zu Sand, und der Haufen stand auf einem Grasfleck
+                var type = tileMap.GetTile(x, y).Type;
+                if (type is TileType.Mountain or TileType.GoldMine && dist[x, y] == 0 && NextToWater(x, y))
+                    fields[0, x, y] = 1f;
+            }
+        }
+
+        // Gewichte je Lage im Kachelinneren und Nachbarkachel (-2 bis 2)
+        var weight = new float[r, 5];
+        for (int s = 0; s < r; s++)
+        {
+            for (int k = 0; k < 5; k++)
+            {
+                float d = k - 2 + 0.5f - (s + 0.5f) / r;
+                weight[s, k] = MathF.Exp(-d * d / (2f * GROUND_SMOOTHING * GROUND_SMOOTHING));
+            }
+        }
+        var data = new Color[w * r * h * r];
+        var sum = new float[3];
+        for (int ty = 0; ty < h * r; ty++)
+        {
+            int cy = ty / r, sy = ty % r;
+            for (int tx = 0; tx < w * r; tx++)
+            {
+                int cx = tx / r, sx = tx % r;
+                float total = 0f;
+                sum[0] = sum[1] = sum[2] = 0f;
+                for (int j = 0; j < 5; j++)
+                {
+                    int ny = Math.Clamp(cy + j - 2, 0, h - 1);
+                    for (int i = 0; i < 5; i++)
+                    {
+                        int nx = Math.Clamp(cx + i - 2, 0, w - 1);
+                        float k = weight[sx, i] * weight[sy, j];
+                        total += k;
+                        for (int f = 0; f < 3; f++)
+                            sum[f] += k * fields[f, nx, ny];
+                    }
+                }
+                data[ty * w * r + tx] = new Color(sum[0] / total, sum[1] / total, sum[2] / total, 1f);
+            }
+        }
+        var tex = new Texture2D(gd, w * r, h * r);
+        tex.SetData(data);
+        return tex;
+    }
+
+    /// <summary>Ob eine der acht Nachbarkacheln von (x, y) Wasser ist.</summary>
+    private bool NextToWater(int x, int y)
+    {
+        for (int dx = -1; dx <= 1; dx++)
+            for (int dy = -1; dy <= 1; dy++)
+                if ((dx != 0 || dy != 0) && tileMap.GetTile(x + dx, y + dy)?.Type == TileType.Water)
+                    return true;
+        return false;
+    }
+
+    /// <summary>
+    /// Kachelbares Rauschen für den Bodenshader, 256² Texel, in jedem Farbkanal ein
+    /// eigenes: Wertrauschen in vier Oktaven ab einem 8×8-Gitter, auf gleichmäßig
+    /// verteilte Werte von 0 bis 1 gebracht - so trifft eine Schwelle im Shader einen
+    /// vorhersehbaren Anteil der Fläche. Mit Mipmaps, damit es beim Herauszoomen
+    /// nicht flimmert; fester Seed, derselbe Boden bei jedem Start.
+    /// </summary>
+    private static Texture2D BuildNoiseTexture(GraphicsDevice gd)
+    {
+        const int size = 256;
+        var rng = new Random(4711);
+        var level = new Vector4[size * size];
+        for (int c = 0; c < 4; c++)
+        {
+            var v = new float[size * size];
+            float amp = 1f;
+            for (int cells = 8; cells <= 64; cells *= 2, amp *= 0.5f)
+            {
+                var grid = new float[cells * cells];
+                for (int i = 0; i < grid.Length; i++)
+                    grid[i] = (float)rng.NextDouble();
+                float cell = size / (float)cells;
+                for (int y = 0; y < size; y++)
+                {
+                    int y0 = (int)(y / cell), y1 = (y0 + 1) % cells;
+                    float fy = MathHelper.SmoothStep(0f, 1f, y / cell - y0);
+                    for (int x = 0; x < size; x++)
+                    {
+                        int x0 = (int)(x / cell), x1 = (x0 + 1) % cells;
+                        float fx = MathHelper.SmoothStep(0f, 1f, x / cell - x0);
+                        float top = MathHelper.Lerp(grid[y0 * cells + x0], grid[y0 * cells + x1], fx);
+                        float bottom = MathHelper.Lerp(grid[y1 * cells + x0], grid[y1 * cells + x1], fx);
+                        v[y * size + x] += amp * MathHelper.Lerp(top, bottom, fy);
+                    }
+                }
+            }
+            // Rang statt Wert: gleichmäßig verteilt
+            var order = Enumerable.Range(0, v.Length).OrderBy(i => v[i]).ToArray();
+            for (int i = 0; i < order.Length; i++)
+            {
+                float rank = i / (float)(order.Length - 1);
+                ref var texel = ref level[order[i]];
+                if (c == 0) texel.X = rank;
+                else if (c == 1) texel.Y = rank;
+                else if (c == 2) texel.Z = rank;
+                else texel.W = rank;
+            }
+        }
+        var tex = new Texture2D(gd, size, size, true, SurfaceFormat.Color);
+        for (int lv = 0, s = size; lv < tex.LevelCount; lv++, s /= 2)
+        {
+            tex.SetData(lv, null, level.Select(t => new Color(t)).ToArray(), 0, s * s);
+            if (s == 1)
+                break;
+            // nächste Stufe: je 2×2 Texel gemittelt
+            int n = s / 2;
+            var next = new Vector4[n * n];
+            for (int y = 0; y < n; y++)
+            {
+                for (int x = 0; x < n; x++)
+                {
+                    next[y * n + x] = (level[2 * y * s + 2 * x] + level[2 * y * s + 2 * x + 1]
+                                       + level[(2 * y + 1) * s + 2 * x] + level[(2 * y + 1) * s + 2 * x + 1]) / 4f;
+                }
+            }
+            level = next;
+        }
+        return tex;
+    }
+
+    /// <summary>
+    /// Überträgt, was sich am Boden im Spiel ändert, ins Lebendbild des
+    /// Bodenshaders: rot wie ausgetreten die Kachel ist (Tile.Wear), grün Wald -
+    /// gefällter Wald wird wieder Wiese -, blau ein Fischschwarm, solange er
+    /// Nahrung trägt.
+    /// </summary>
+    private void RefreshGroundLive()
+    {
+        int w = tileMap.Width;
+        for (int y = 0; y < tileMap.Height; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                var tile = tileMap.GetTile(x, y);
+                bool fish = tile.Food == FoodSource.Fish && tile.ResourceAmount > 0;
+                _groundLiveData[y * w + x] = new Color(tile.Wear, tile.Type == TileType.Forest ? 1f : 0f,
+                                                       fish ? 1f : 0f, 1f);
+            }
+        }
+        _groundLive.SetData(_groundLiveData);
     }
 
     private void DrawTileMap(SpriteBatch spriteBatch)
@@ -2296,10 +2579,19 @@ public class RTSGameplayScreen : GameScreen
                     continue;
                 if (isFarm)
                     spriteBatch.Draw(px, rect, new Color(70, 55, 30));
+                else if (GroundShaded)
+                {
+                    // Der Grund kommt schon aus dem Bodenshader - ein Grasquadrat
+                    // darüber stünde als Flicken in der Wiese
+                }
                 else if (!isFish && _grassTex != null)
                     DrawGroundImage(spriteBatch, _grassTex, x, y, rect);
                 else if (!isFish && tileTex.TryGetValue(TileType.Grassland, out var grass))
                     spriteBatch.Draw(grass, rect, Color.White);
+
+                // Fischschwärme zieht der Bodenshader unter der Wasseroberfläche
+                if (isFish && GroundShaded)
+                    continue;
 
                 var objTex = isFarm ? BuildFarmTextureCached()
                            : isFish ? BuildFishTextureCached()
@@ -2405,19 +2697,58 @@ public class RTSGameplayScreen : GameScreen
     {
         spriteBatch.Draw(_soilTex, rect, FieldPart(tile, _soilTex.Width, _soilTex.Height), Color.White);
         var (growth, tint) = WheatLook(tile);
-        if (growth > 0f)
+        // Sonst zeichnet DrawWheat den Weizen im Wind.
+        if (growth > 0f && _wheatEffect == null)
             spriteBatch.Draw(_wheatTex, rect, FieldPart(tile, _wheatTex.Width, _wheatTex.Height), tint * growth);
     }
 
     /// <summary>
-    /// Der Ausschnitt einer Feldkachel aus einem Bild, das das ganze Feld zeigt:
+    /// Zeichnet den Weizen aller Feldkacheln mit dem Effekt Effects/Weizen, Kachel für Kachel,
+    /// weil PartRect und TileOrigin je Kachel gelten.
+    /// </summary>
+    private void DrawWheat(SpriteBatch spriteBatch)
+    {
+        _wheatEffect.Parameters["Time"]?.SetValue(animationTime);
+        spriteBatch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, SamplerState.LinearClamp, null, null, _wheatEffect);
+        for (int x = 0; x < tileMap.Width; x++)
+        {
+            for (int y = 0; y < tileMap.Height; y++)
+            {
+                var tile = tileMap.GetTile(x, y);
+                if (tile == null || !tile.Farm)
+                    continue;
+                var rect = TileScreenRect(x, y);
+                if (!rect.Intersects(screenBounds))
+                    continue;
+                var (growth, tint) = WheatLook(tile);
+                if (growth <= 0f)
+                    continue;
+                var part = FieldPart(tile, _wheatTex.Width, _wheatTex.Height);
+                _wheatEffect.Parameters["PartRect"]?.SetValue(new Vector4(part.X / (float)_wheatTex.Width, part.Y / (float)_wheatTex.Height, part.Width / (float)_wheatTex.Width, part.Height / (float)_wheatTex.Height));
+                _wheatEffect.Parameters["TileOrigin"]?.SetValue(new Vector2(x, y));
+                spriteBatch.Draw(_wheatTex, rect, part, tint * growth);
+            }
+        }
+        spriteBatch.End();
+    }
+
+    // Die Feldbilder zeigen außerhalb des Holzzauns noch einen schmalen Grasrand,
+    // der neben dem dunkleren Gras des Bodenshaders als heller Rahmen wirkt.
+    private const float FIELD_MARGIN_NEAR = 8f / 384f;   // Grasrand links und oben, Anteil an der Bildgröße
+    private const float FIELD_MARGIN_FAR = 3f / 384f;    // Grasrand rechts und unten
+
+    /// <summary>
+    /// Der Ausschnitt einer Feldkachel aus einem Bild, das das ganze Feld zeigt -
+    /// ohne den Grasrand außerhalb des Zauns;
     /// Spalte FarmCol und Zeile FarmRow von FarmSize × FarmSize gleichen Teilen.
     /// </summary>
     private Rectangle FieldPart(Data.Tile tile, int imageWidth, int imageHeight)
     {
         int size = Math.Max(1, tile.FarmSize);
-        int w = imageWidth / size, h = imageHeight / size;
-        return new Rectangle(tile.FarmCol * w, tile.FarmRow * h, w, h);
+        int left = (int)MathF.Round(imageWidth * FIELD_MARGIN_NEAR), top = (int)MathF.Round(imageHeight * FIELD_MARGIN_NEAR);
+        int right = imageWidth - (int)MathF.Round(imageWidth * FIELD_MARGIN_FAR), bottom = imageHeight - (int)MathF.Round(imageHeight * FIELD_MARGIN_FAR);
+        int w = (right - left) / size, h = (bottom - top) / size;
+        return new Rectangle(left + tile.FarmCol * w, top + tile.FarmRow * h, w, h);
     }
 
     /// <summary>
@@ -2640,25 +2971,34 @@ public class RTSGameplayScreen : GameScreen
     /// Bäume als Sprites an den Stellen der Kronen: anderthalb Kronen breit,
     /// mit dem Stammfuß eine halbe Krone unter der Kronenmitte. Die Kachel wird
     /// von oben nach unten gezeichnet - tiefer stehende Bäume überdecken höhere.
+    /// Jeder Baum wiegt sich im Wind, in Streifen gezeichnet (Wind.SwayStrips).
     /// </summary>
     private void DrawTrees(SpriteBatch spriteBatch, int x, int y, int crownSize)
     {
         int hash = unchecked(x * 73856093 ^ y * 19349663) & 0x7FFFFFFF;
-        var spots = new List<(Vector2 Foot, Texture2D Tex)>();
+        var spots = new List<(Vector2 Foot, Texture2D Tex, Vector2 Tile, int Look)>();
         for (int k = 0; k < CrownSpots.Length; k++)
         {
             int jx = (hash >> (k * 4)) % 7 - 3;
             int jy = (hash >> (k * 4 + 2)) % 7 - 3;
             var center = WorldToScreen(new Vector2(x * tileMap.TileSize + CrownSpots[k].X + jx,
                                                    y * tileMap.TileSize + CrownSpots[k].Y + jy));
-            spots.Add((center + new Vector2(0, crownSize / 2f), _treeSprites[(hash >> k) % _treeSprites.Length]));
+            var tile = new Vector2(x * tileMap.TileSize + CrownSpots[k].X + jx,
+                                   y * tileMap.TileSize + CrownSpots[k].Y + jy) / tileMap.TileSize;
+            spots.Add((center + new Vector2(0, crownSize / 2f), _treeSprites[(hash >> k) % _treeSprites.Length], tile, hash ^ (k * 7919)));
         }
-        foreach (var (foot, tex) in spots.OrderBy(s => s.Foot.Y))
+        foreach (var (foot, tex, tile, look) in spots.OrderBy(s => s.Foot.Y))
         {
             int treeWidth = (int)(crownSize * 1.5f);
             int treeHeight = treeWidth * tex.Height / tex.Width;
-            spriteBatch.Draw(tex, new Rectangle((int)foot.X - treeWidth / 2, (int)foot.Y - treeHeight,
-                                                treeWidth, treeHeight), Color.White);
+            // Der Baum wiegt sich im Wind - der Fuß steht, die Krone schwingt aus (Wind.TreeSway, Wind.SwayStrips).
+            var target = new Rectangle((int)foot.X - treeWidth / 2, (int)foot.Y - treeHeight,
+                                       treeWidth, treeHeight);
+            float sway = Wind.TreeSway(tile, animationTime, look);
+            foreach (var strip in Wind.SwayStrips(target, tex.Width, tex.Height, sway))
+            {
+                spriteBatch.Draw(tex, strip.Position, strip.Source, Color.White, 0f, Vector2.Zero, strip.Scale, SpriteEffects.None, 0f);
+            }
         }
     }
 
