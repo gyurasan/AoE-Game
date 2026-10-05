@@ -28,7 +28,13 @@ Spielbar ist die Wirtschaft der Dunklen Zeit und der Aufstieg durch die Zeitalte
 - Ausbildung im Stadtzentrum, Bevölkerungsgrenze aus den Gebäuden
 - Zeitalter: Feudal-, Ritter- und Imperialzeit, je mit Kosten und Forschungszeit; Gebäude und Dorfbewohner
   sehen in jedem Zeitalter anders aus
-- Nebel des Krieges, Minimap, Zoom und Kamera
+- Nebel des Krieges, Minimap, Zoom und Kamera; ein Klick ins Schwarze wirkt immer - die Wegsuche
+  plant nur mit dem, was der Spieler schon gesehen hat
+- Lebendige Landschaft: weiche Ufer und Sandstrände, Wasser mit Tiefe, Wellen, Schaum und
+  Fischschwärmen; Gras mit natürlichen Farbschwankungen und Trampelpfaden, wo oft jemand läuft;
+  Weizen und Bäume wiegen sich in denselben Windböen
+- Dorfbewohner, Schafe und Wild gehen natürlich: Schritte nach der gelaufenen Strecke, Anfahren
+  und Abbremsen, gerade Wege über freies Land, Blick in Laufrichtung und zur Arbeit
 - Drei Kartengrößen, im Hauptmenü wählbar: Standard (64×64), Groß (90×90), Maximal (128×128)
 
 Kampf und eine KI für den Gegner gibt es noch nicht, siehe [TODO](TODO.md).
@@ -93,7 +99,9 @@ Programmsymbol, Menübild, Tastensymbole, Gebäude und Dorfbewohner je Zeitalter
 Rehe, Kaninchen und Wildschweine sind mit Qwen-Image erzeugt,
 lokal über ComfyUI. Prompts, Seeds und die Werkzeuge dafür liegen in `tools/bilder`, jedes
 Bild lässt sich damit genau so wieder erzeugen; Einzelheiten in der
-[Projektstruktur](docs/PROJEKT_STRUKTUR.md#grafik).
+[Projektstruktur](docs/PROJEKT_STRUKTUR.md#grafik). Gras, Sand und Wasser setzt ein Shader
+(`Content/Effects/Boden.fx`) aus diesen Bildern zusammen, der Weizen wiegt sich in
+`Content/Effects/Weizen.fx`; Gehen, Wind und Fische rechnet das Spiel selbst.
 
 ## Dokumentation
 
