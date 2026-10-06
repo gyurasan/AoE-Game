@@ -133,7 +133,7 @@ public sealed class TileMapGatherWorld : IGatherWorld
     /// Lager je ihre Ressource. Welche Abgabestelle ein Gebäude ist, weiß sein
     /// Core-Gebäude; Lager baut der Spieler seit C5 selbst.
     /// </summary>
-    private static bool Accepts(ResourceDropOff dropOff, Resource resource) => dropOff switch
+    internal static bool Accepts(ResourceDropOff dropOff, Resource resource) => dropOff switch
     {
         ResourceDropOff.TownCenter => true,
         ResourceDropOff.Mill => resource == Resource.Food,

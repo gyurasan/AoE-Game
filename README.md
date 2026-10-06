@@ -4,20 +4,29 @@ Ein Age-of-Empires-I-artiges Echtzeitstrategiespiel, implementiert in C# mit Mon
 
 ![Hauptmenü](docs/bilder/hauptmenue.jpg)
 
-![Am Stadtzentrum der Dunklen Zeit: ein Feld mit Weizen, ein Dorfbewohner bei der Ernte, Mühle, Haus und Lager, Schafe und Rehe](docs/bilder/spielszene.jpg)
+![Am Stadtzentrum der Dunklen Zeit: das ausgewählte Langhaus bildet Dorfbewohner aus, an der Mühle wird ein Feld mit Weizen geerntet, daneben Haus, Holzfäller- und Bergbaulager und Rehe](docs/bilder/spielszene.jpg)
 
-*In der Dunklen Zeit ist das Stadtzentrum ein strohgedecktes Langhaus: ein Dorfbewohner erntet das Feld,
-daneben stehen Mühle, Haus, Holzfäller- und Bergbaulager; Schafe und Rehe grasen, rundherum noch Nebel.*
+*In der Dunklen Zeit ist das Stadtzentrum ein strohgedecktes Langhaus, hier ausgewählt: grüner Rahmen,
+Lebensbalken und unten in der Leiste sein Status - es bildet gerade Dorfbewohner aus. Zwei Dorfbewohner
+ernten das Feld an der Mühle, andere fällen Holz und brechen Stein an ihren Lagern; Rehe ziehen über die
+Wiese aus vier Grassorten, rundherum liegt abgedunkelter Nebel.*
 
 ![Kartenausschnitt ohne Nebel](docs/bilder/karte.jpg)
 
 *Ein Kartenausschnitt, für die Aufnahme ohne Nebel: Wald, zwei Seen mit Strand, Steinbrüche, Goldadern
-und Schafe auf der Wiese.*
+und dazwischen die Wiese aus vier Grassorten - frisches, trockenes und dunkles Gras mit Klee, Blumen in
+Büscheln.*
 
 ![Dieselbe Siedlung in den vier Zeitaltern](docs/bilder/zeitalter.jpg)
 
 *Dieselbe Siedlung in allen vier Zeitaltern: Gebäude und Kleidung der Dorfbewohner wechseln mit dem
 Aufstieg — vom Langhaus mit Strohdach über Holzbau und Burg bis zum Rathaus aus hellem Haustein.*
+
+![Alle Gebäude der Imperialzeit mit Mauerreihen, unten die zwei Tastenreihen der Dorfbewohner](docs/bilder/gebaeude.jpg)
+
+*In der Imperialzeit steht jedes Gebäude bereit: Kaserne, Schießstand, Stall, Schmiede, Markt, ein
+weiteres Stadtzentrum, Belagerungswerkstatt, Universität, Kloster, Burg und das Wunder, davor je eine
+Mauer aus Palisaden und aus Stein. Mit ausgewählten Dorfbewohnern zeigt die Leiste beide Tastenreihen.*
 
 ## Spielstand
 

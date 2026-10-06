@@ -4,11 +4,11 @@
 
 ## Wiederaufnahme — hier weitermachen
 
-Zuletzt angefasst: **Die Wiese** (2026-10-06, G10) — das Gras sah künstlich aus (Hinweis
-des Nutzers): ein Pixelkunst-Bild mit gleichmäßig verstreuten Blütenpunkten, großflächig nur
-getönt. Jetzt vier Grassorten aus Qwen-Image, nach Halmhöhe ineinander geblendet. Davor
-**die übrigen Gebäude** (L1, L2): alle Gebäude aus `Buildings.cs` sind baubar, in einer
-zweiten Tastenreihe; sie stehen nur, Einheiten, Forschung und Handel fehlen noch.
+Zuletzt angefasst: **Abliefern an der Tür** (2026-10-06, T1) — die Dorfbewohner liefen
+beim Abliefern nicht nah genug ans Gebäude (Hinweis des Nutzers). Jetzt stehen sie direkt
+vor der Tür. Davor **die Wiese** (G10, vier Grassorten nach Halmhöhe geblendet) und **die
+übrigen Gebäude** (L1, L2, zweite Tastenreihe; sie stehen nur, Einheiten, Forschung und
+Handel fehlen noch).
 Uncommittet im Arbeitsbaum; Commit macht der Nutzer.
 
 Alles baut und läuft: `dotnet build AgeOfEvolutions.slnx` (0 Fehler, 0 Warnungen),
@@ -19,6 +19,18 @@ mit `4f85314` (2026-10-03). Commits macht der Nutzer selbst.
 
 Zuletzt fertiggestellt:
 
+- **README-Bilder (2026-10-06)** — Spielszene, Karte und Zeitalter neu aufgenommen, mit der Wiese
+  aus vier Grassorten und einem ausgewählten Stadtzentrum samt Status; neu `docs/bilder/gebaeude.jpg`:
+  alle Gebäude der Imperialzeit mit Mauerreihen und beiden Tastenreihen. Aufgenommen im Spiel selbst
+  (Render-Target), für Szene und Zeitalter mit aufgedecktem Umkreis um die Siedlung *(D27)*
+- **Abliefern an der Tür (2026-10-06)** — `FollowJob` stellte die Dorfbewohner beim
+  Abliefern per `StandCell` neben die Ringkachel, die der Sammelauftrag gewählt hatte: bis
+  zu vier Kacheln neben der Tür und bis zu zwei vom Gebäude. Jetzt läuft jeder zu
+  `DropOffStand`: die Kachel direkt unter der Tür, die Füße an der Gebäudekante, mehrere
+  leicht nebeneinander; ist sie verstellt, die freie Ringkachel, die der Tür am nächsten
+  liegt. Die Türmitte ist je Bild gemessen (`DoorCenters`, Stadtzentrum, Mühle, Holzfäller-
+  und Bergbaulager je Zeitalter). Wer die Tür nicht erreicht, liefert nicht ab. Gruppe
+  `tuer` in `tools/spielablauf`, Abnahme `t1_tueren.py` *(T1)*
 - **Wiese aus vier Grassorten (2026-10-06)** — Grundgras, trockenes Gras mit Erdflecken,
   dunkles Gras mit Klee und eine Blumenwiese (Qwen-Image, Gruppe `gras`, im
   handgemalten Stil der Gebäude statt der bisherigen Pixelkunst). `Boden.fx` blendet sie in

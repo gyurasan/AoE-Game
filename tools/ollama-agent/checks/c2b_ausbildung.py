@@ -52,13 +52,15 @@ eingabe = rumpf("HandleRtsInput")
 verlangt(eingabe, r"IsKeyUp\s*\(\s*Keys\.Q\s*\)", "Taste Q fehlt oder loest bei gehaltener Taste jeden Frame aus")
 verlangt(eingabe, r"TrainVillager\s*\(", "Taste Q ruft TrainVillager nicht auf")
 
-verlangt(rumpf("TrainVillager"), r"\.Enqueue\s*\(", "TrainVillager reiht nichts ein")
+# Seit P1 reiht TrainVillager über die allgemeine Ausbildung Train(Gebäude, Einheit) ein
+verlangt(rumpf("TrainVillager"), r"\.Enqueue\s*\(|\bTrain\s*\(", "TrainVillager reiht nichts ein")
 verlangt(rumpf("UpdatePopulationLimits"), r"Capacity\s*\(", "die Grenze kommt nicht aus Population.Capacity")
 training = rumpf("UpdateTraining")
 for muster, was in (
     (r"\.Training\.Update\s*\(", "UpdateTraining ruft TrainingQueue.Update nicht auf"),
     (r"SpawnCell\s*\(", "UpdateTraining sucht keine freie Kachel"),
-    (r"AddVillager\s*\(", "UpdateTraining setzt keinen Dorfbewohner auf die Karte"),
+    # seit P1 setzt tileMap.AddUnit jede ausgebildete Einheit ab, auch Soldaten
+    (r"AddVillager\s*\(|tileMap\.AddUnit\s*\(", "UpdateTraining setzt keine Einheit auf die Karte"),
     (r"AddUnit\s*\(", "der neue Dorfbewohner zaehlt nicht zur Bevoelkerung (AddUnit)"),
 ):
     verlangt(training, muster, was)

@@ -2,7 +2,8 @@
 //
 //   dotnet run --project tools/spielablauf -- bauen weiterbauen linksklick farm schafe wild herde bewegen minimap zoom leiste zeitalter turm menue animation fenster werkzeug feld fahne gehen karten pfad wind gang blick dunkel
 //
-// Dazu neubauten (Gebäude der zweiten Tastenreihe).
+// Dazu neubauten (Gebäude der zweiten Tastenreihe), tuer (Abliefern vor der Tür) und
+// auswahl (Gebäude auswählen) und angriff (Gebäude angreifen).
 //
 // Jede genannte Gruppe läuft auf drei frisch erzeugten Karten. Die Spielschleife
 // läuft Bild für Bild (60 je Sekunde) mit denselben Methoden, die Update() im Spiel
@@ -93,6 +94,12 @@ for (int karte = 1; karte <= KARTEN; karte++)
         Pruefe($"Karte {karte}, Wachturm", () => Turm(karte, verstoesse));
     if (gruppen.Contains("neubauten"))
         Pruefe($"Karte {karte}, Neubauten", () => Neubauten(karte, verstoesse));
+    if (gruppen.Contains("tuer"))
+        Pruefe($"Karte {karte}, Türen", () => Tueren(karte, verstoesse));
+    if (gruppen.Contains("auswahl"))
+        Pruefe($"Karte {karte}, Gebäudeauswahl", () => Auswahl(karte, verstoesse));
+    if (gruppen.Contains("angriff"))
+        Pruefe($"Karte {karte}, Angriff", () => Angriff(karte, verstoesse));
     if (gruppen.Contains("fenster") && karte == 1)
         Pruefe("Fenster", () => Fenster(verstoesse));
     if (gruppen.Contains("werkzeug") && karte == 1)
@@ -1724,9 +1731,15 @@ static void Leiste(int karte, List<string> verstoesse)
     w.Waehle(new List<Unit>());
     w.Call("LayoutButtons");
     var ohne = w.Tasten().Select(t => t.Label).ToList();
-    if (!ohne.SequenceEqual(new[] { "Q", "A", "." }))
-        verstoesse.Add($"{wer}: ohne Auswahl Tasten [{string.Join(" ", ohne)}], erwartet nur Q, A und .");
+    if (!ohne.SequenceEqual(new[] { "." }))
+        verstoesse.Add($"{wer}: ohne Auswahl Tasten [{string.Join(" ", ohne)}], erwartet nur .");
 
+    // Q und A gehören dem ausgewählten Stadtzentrum (B1)
+    w.Call("SelectBuilding", w.Map.Buildings.First(b => b.OwnerId == 0 && b.Type == "Stadtzentrum"));
+    w.Call("LayoutButtons");
+    var mitTc = w.Tasten().Select(t => t.Label).ToList();
+    if (!mitTc.SequenceEqual(new[] { "Q", "A", "." }))
+        verstoesse.Add($"{wer}: mit Stadtzentrum Tasten [{string.Join(" ", mitTc)}], erwartet Q, A und .");
     int nahrung = w.P1.Resources[Resource.Food];
     w.Klick(w.Tasten().First(t => t.Label == "Q").Rect.Center);
     if (w.P1.Resources[Resource.Food] != nahrung - 25)
@@ -1735,9 +1748,11 @@ static void Leiste(int karte, List<string> verstoesse)
     w.Waehle(new List<Unit> { w.Dorfbewohner().First() });
     w.Call("LayoutButtons");
     var mit = w.Tasten().Select(t => t.Label).ToList();
-    foreach (var soll in new[] { "Q", "A", "H", "M", "F", "B", "G", "." })
+    foreach (var soll in new[] { "H", "M", "F", "B", "G", "." })
         if (!mit.Contains(soll))
             verstoesse.Add($"{wer}: mit Dorfbewohner fehlt die Taste {soll} (da: {string.Join(" ", mit)})");
+    if (mit.Contains("Q") || mit.Contains("A"))
+        verstoesse.Add($"{wer}: mit Dorfbewohner auch Q oder A (da: {string.Join(" ", mit)}) - die gehören dem Stadtzentrum");
     if (mit.Contains("H"))
     {
         w.Klick(w.Tasten().First(t => t.Label == "H").Rect.Center);
@@ -1759,7 +1774,7 @@ static void Leiste(int karte, List<string> verstoesse)
         verstoesse.Add($"{wer}: Klick in die Minimap-Mitte - Bildmitte auf Kachelreihe {mitteY:0.0}, erwartet {w.Map.Height / 2f}");
 
     if (verstoesse.Count == vorher)
-        Console.WriteLine($"  ok  {wer}: ohne Auswahl Q, A und ., mit Dorfbewohner alle Tasten; Q, H und Minimap per Klick");
+        Console.WriteLine($"  ok  {wer}: ohne Auswahl nur ., mit Stadtzentrum Q A ., mit Dorfbewohner die Bautasten; Q, H und Minimap per Klick");
 }
 
 // Zeitalter (C4): die Taste „A" in der Leiste startet im Stadtzentrum den
@@ -1778,6 +1793,7 @@ static void Zeitalter(List<string> verstoesse)
     w.P1.Resources.Add(Resource.Food, 600);      // 800: Aufstieg (500) und ein Dorfbewohner
 
     w.Waehle(new List<Unit>());
+    w.Call("SelectBuilding", w.Map.Buildings.First(b => b.OwnerId == 0 && b.Type == "Stadtzentrum"));
     w.Call("LayoutButtons");
     var a = w.Tasten().FirstOrDefault(t => t.Label == "A");
     if (a.Label == null)
@@ -1987,8 +2003,8 @@ static void Neubauten(int karte, List<string> verstoesse)
         var tasten = w.Tasten();
         var oben = tasten.Where(t => t.Rect.Y == obenY).ToList();
         var unten = tasten.Where(t => t.Rect.Y != obenY).ToList();
-        var obenSoll = new[] { "Q", "A", "H", "M", "F", "B", "G", "T", "." }
-            .Where(l => (l != "A" || age != Age.Imperial) && (l != "T" || age >= Age.Feudal)).ToArray();
+        var obenSoll = new[] { "H", "M", "F", "B", "G", "T", "." }
+            .Where(l => l != "T" || age >= Age.Feudal).ToArray();
         var untenSoll = neu.Where(e => e.Ab <= age).Select(e => e.Taste.ToString()).ToArray();
         if (!oben.Select(t => t.Label).SequenceEqual(obenSoll))
             verstoesse.Add($"{wer}, {age}: erste Reihe [{string.Join(" ", oben.Select(t => t.Label))}], erwartet [{string.Join(" ", obenSoll)}]");
@@ -2087,6 +2103,496 @@ static void Neubauten(int karte, List<string> verstoesse)
 
     if (verstoesse.Count == vorher)
         Console.WriteLine($"  ok  {wer}: zweite Reihe je Zeitalter, Tasten, 13 Gebäude gesetzt, Palisade fertig nach {dauer:0.0} s");
+}
+
+// Türen (T1): wer abliefert, steht direkt vor der Tür der Abgabestelle - an der
+// Unterkante der Grundfläche, in der Spalte der Tür (DoorFraction, am Bild gemessen),
+// nicht irgendwo im Ring ums Gebäude oder eine Kachel daneben. Ist die Türkachel
+// verstellt, steht er so nah an der Tür wie möglich, mit den Füßen am Gebäude.
+static void Tueren(int karte, List<string> verstoesse)
+{
+    string wer = $"Karte {karte}, Türen";
+    int vorher = verstoesse.Count;
+    const int T = 32;
+    var notiz = new List<string>();
+
+    static bool Nimmt(Building g, Resource r) => g.Core.DropOffType switch
+    {
+        AoE.Core.Entities.ResourceDropOff.TownCenter => true,
+        AoE.Core.Entities.ResourceDropOff.Mill => r == Resource.Food,
+        AoE.Core.Entities.ResourceDropOff.LumberCamp => r == Resource.Wood,
+        AoE.Core.Entities.ResourceDropOff.MiningCamp => r is Resource.Gold or Resource.Stone,
+        _ => false,
+    };
+
+    static float Abstand(Vector2 p, Building g)
+    {
+        float dx = Math.Max(Math.Max(g.X * T - p.X, 0), p.X - (g.X + g.Width) * T);
+        float dy = Math.Max(Math.Max(g.Y * T - p.Y, 0), p.Y - (g.Y + g.Height) * T);
+        return MathF.Sqrt(dx * dx + dy * dy);
+    }
+
+    // Wo der Dorfbewohner beim Abliefern steht (sein Ort in dem Bild, in dem die
+    // Traglast gutgeschrieben wird) und an welchem Gebäude
+    (Vector2 Ort, Building Ziel)? Abgabe(Welt w, Unit u, Resource r, float sekunden)
+    {
+        int traglast = 0;
+        Vector2? ort = null;
+        w.LaufeBis(() =>
+        {
+            int jetzt = u.Job?.Carrying ?? 0;
+            if (traglast > 0 && jetzt == 0 && u.Job != null)
+                ort = u.Position;
+            traglast = jetzt;
+            return ort != null;
+        }, sekunden);
+        if (ort == null)
+            return null;
+        var ziel = w.Map.Buildings.Where(g => g.OwnerId == 0 && g.IsComplete && Nimmt(g, r))
+            .OrderBy(g => Abstand(ort.Value, g)).First();
+        return (ort.Value, ziel);
+    }
+
+    void Pruefe(Welt w, string fall, (Vector2 Ort, Building Ziel)? ergebnis, string erwartet)
+    {
+        if (ergebnis is not { } e)
+        {
+            verstoesse.Add($"{wer}, {fall}: keine Abgabe beobachtet");
+            return;
+        }
+        var b = e.Ziel;
+        if (b.Type != erwartet)
+            verstoesse.Add($"{wer}, {fall}: abgeliefert an {b.Type}, erwartet {erwartet}");
+        float anteil = (float)w.Call("DoorFraction", b);
+        float tuerX = (b.X + anteil * b.Width) * T, kante = (b.Y + b.Height) * T;
+        int spalte = Math.Clamp((int)(tuerX / T), b.X, b.X + b.Width - 1);
+        if (w.Map.IsWalkable(spalte, b.Y + b.Height))
+        {
+            if (Math.Abs(e.Ort.X - tuerX) > 0.3f * T)
+                verstoesse.Add($"{wer}, {fall}: steht {e.Ort.X - tuerX:+0;-0} px neben der Tür von {b.Type} (Tür bei x {tuerX:0}, er bei {e.Ort.X:0})");
+            if (e.Ort.Y < kante || e.Ort.Y > kante + 0.2f * T)
+                verstoesse.Add($"{wer}, {fall}: steht nicht an der Unterkante von {b.Type} (Kante y {kante:0}, er bei {e.Ort.Y:0})");
+        }
+        else
+        {
+            // Ersatz: die begehbare Ringkachel, deren Mitte der Tür am nächsten liegt
+            var tuer = new Vector2(tuerX, kante);
+            var ersatz = Enumerable.Range(b.X - 1, b.Width + 2)
+                .SelectMany(x => Enumerable.Range(b.Y - 1, b.Height + 2).Select(y => (x, y)))
+                .Where(c => (c.x == b.X - 1 || c.x == b.X + b.Width || c.y == b.Y - 1 || c.y == b.Y + b.Height)
+                            && w.Map.IsWalkable(c.x, c.y))
+                .OrderBy(c => Vector2.Distance(w.Map.GridToWorld(new Vector2(c.x, c.y)), tuer))
+                .First();
+            if (w.Map.WorldToGrid(e.Ort) != new Vector2(ersatz.x, ersatz.y))
+                verstoesse.Add($"{wer}, {fall}: Türkachel verstellt - steht in Kachel {w.Map.WorldToGrid(e.Ort)}, die der Tür nächste freie ist ({ersatz.x}, {ersatz.y})");
+            if (Abstand(e.Ort, b) > 0.2f * T)
+                verstoesse.Add($"{wer}, {fall}: Türkachel verstellt, aber {Abstand(e.Ort, b):0} px vom Gebäude entfernt");
+        }
+        notiz.Add($"{fall} {e.Ort.X - tuerX:+0;-0}/{e.Ort.Y - kante:0} px");
+    }
+
+    // Ein Dorfbewohner holt Holz vom nächsten Wald und bringt es zurück
+    Unit Holzholer(Welt w)
+    {
+        var u = w.Dorfbewohner().First();
+        var start = w.Map.WorldToGrid(u.Position);
+        Vector2? baum = null;
+        float best = float.MaxValue;
+        for (int x = 0; x < w.Map.Width; x++)
+            for (int y = 0; y < w.Map.Height; y++)
+            {
+                var t = w.Map.GetTile(x, y);
+                if (t?.ResourceType != Resource.Wood || t.ResourceAmount <= 0)
+                    continue;
+                float d = Vector2.Distance(start, new Vector2(x, y));
+                if (d < best && Enumerable.Range(-1, 3).Any(dx => w.Map.IsWalkable(x + dx, y)))
+                {
+                    best = d;
+                    baum = new Vector2(x, y);
+                }
+            }
+        w.Waehle(new List<Unit> { u });
+        w.Linksklick(w.Map.GridToWorld(baum ?? throw new InvalidOperationException("kein Wald")));
+        return u;
+    }
+
+    TileMap.TestNoFog = true;
+    try
+    {
+        // Stadtzentrum, Dunkle Zeit
+        var w = new Welt();
+        var u = Holzholer(w);
+        Pruefe(w, "Stadtzentrum", Abgabe(w, u, Resource.Wood, 120f), "Stadtzentrum");
+
+        // Stadtzentrum, Imperialzeit - dort liegt die Tür woanders
+        w = new Welt();
+        var ages = (AgeProgress)(typeof(Player).GetProperty("Ages")?.GetValue(w.P1)
+            ?? throw new InvalidOperationException("Player.Ages nicht gefunden"));
+        foreach (var r in new[] { Resource.Food, Resource.Gold, Resource.Wood, Resource.Stone })
+            w.P1.Resources.Add(r, 20000);
+        for (int i = 0; i < 3; i++)
+        {
+            ages.TryStart(w.P1.Resources);
+            ages.Update(1000f);
+        }
+        u = Holzholer(w);
+        Pruefe(w, "Stadtzentrum Imperialzeit", Abgabe(w, u, Resource.Wood, 120f), "Stadtzentrum");
+
+        // Türkachel verstellt: so nah an der Tür wie möglich, am Gebäude
+        w = new Welt();
+        var tc = w.Map.Buildings.First(g => g.OwnerId == 0 && g.Type == "Stadtzentrum");
+        float f = (float)w.Call("DoorFraction", tc);
+        int sp = Math.Clamp((int)(tc.X + f * tc.Width), tc.X, tc.X + tc.Width - 1);
+        if (w.Map.IsWalkable(sp, tc.Y + tc.Height))
+            w.Map.AddBuilding(sp, tc.Y + tc.Height, "Haus", 0, 1);
+        u = Holzholer(w);
+        Pruefe(w, "Tür verstellt", Abgabe(w, u, Resource.Wood, 120f), "Stadtzentrum");
+
+        // Eingesperrt: wer die Abgabestelle nicht erreichen kann, liefert nicht ab -
+        // der Auftrag endet, die Traglast bleibt
+        w = new Welt();
+        u = Holzholer(w);
+        w.LaufeBis(() => u.Job?.Phase == AoE.Core.Economy.GatherPhase.ToDropOff, 120f);
+        var zelle = w.Map.WorldToGrid(u.Position);
+        for (int dx = -1; dx <= 1; dx++)
+            for (int dy = -1; dy <= 1; dy++)
+                if ((dx != 0 || dy != 0) && w.Map.IsWalkable((int)zelle.X + dx, (int)zelle.Y + dy))
+                    w.Map.AddBuilding((int)zelle.X + dx, (int)zelle.Y + dy, "Haus", 0, 1);
+        int holzVorher = w.P1.Resources[Resource.Wood];
+        int last = u.Job?.Carrying ?? 0;
+        w.Call("FollowJob", u);
+        w.LaufeBis(() => false, 10f);
+        if (last == 0)
+            verstoesse.Add($"{wer}, eingesperrt: Dorfbewohner trug nichts");
+        else if (w.P1.Resources[Resource.Wood] != holzVorher)
+            verstoesse.Add($"{wer}, eingesperrt: lieferte {w.P1.Resources[Resource.Wood] - holzVorher} Holz ab, obwohl die Abgabestelle nicht erreichbar ist");
+
+        // Holzfällerlager: die Erbauer sammeln danach Holz und liefern dort ab
+        w = new Welt();
+        var arbeiter = w.Dorfbewohner().ToList();
+        w.Waehle(arbeiter);
+        var platz = w.Bauplatz(BuildingType.LumberCamp, arbeiter[0], 3, waldImUmkreis: 5);
+        w.Call("PlaceBuilding", BuildingType.LumberCamp, platz);
+        var lager = w.Map.Buildings.Last();
+        w.LaufeBis(() => lager.IsComplete, 60f);
+        if (!lager.IsComplete)
+            verstoesse.Add($"{wer}: Holzfällerlager nach 60 s nicht fertig");
+        else
+        {
+            // Die Karten sind jedes Mal neu: liegt der Baum näher am Stadtzentrum, liefert
+            // der Dorfbewohner zu Recht dort ab. Jede Abgabe prüft die Tür ihres Gebäudes;
+            // das Lager kommt dran, sobald er es anläuft
+            bool amLager = false;
+            for (int i = 0; i < 4 && !amLager; i++)
+            {
+                var abgabe = Abgabe(w, arbeiter[0], Resource.Wood, 120f);
+                amLager = abgabe?.Ziel == lager;
+                Pruefe(w, amLager ? "Holzfällerlager" : $"Abgabe {i + 1} am Stadtzentrum", abgabe,
+                       amLager ? "Holzfällerlager" : "Stadtzentrum");
+            }
+            if (!amLager)
+                Console.WriteLine($"  --  {wer}: in vier Abgaben nie am Holzfällerlager - der Wald liegt näher am Stadtzentrum");
+        }
+    }
+    finally
+    {
+        TileMap.TestNoFog = false;
+    }
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: abgeliefert direkt vor der Tür ({string.Join(", ", notiz)})");
+}
+
+// Gebäude auswählen (B1): ein Rechtsklick auf ein Gebäude wählt es aus und hebt die
+// Einheitenauswahl auf; ein Linksklick ebenso, solange nichts ausgewählt ist - mit
+// Dorfbewohnern bleibt er ein Befehl. Q (Dorfbewohner) und A (Zeitalter) gibt es nur
+// mit ausgewähltem eigenen Stadtzentrum, ein zweites Stadtzentrum bildet selbst aus.
+// Fremde Gebäude nur, wenn erkundet; sie zeigen ihren Status, aber keine Tasten.
+static void Auswahl(int karte, List<string> verstoesse)
+{
+    const int bw = 2406, bh = 1353;
+    string wer = $"Karte {karte}, Gebäudeauswahl";
+    int vorher = verstoesse.Count;
+    var w = new Welt();
+    w.Set("screenBounds", new Rectangle(0, 0, bw, bh));
+    const float zoom = 2f;   // bei Zoom 1 läge ein Stadtzentrum in der Kartenecke unter der Minimap
+    w.Set("cameraZoom", zoom);
+    w.Set("cameraPosition", Vector2.Zero);
+    w.P1.Resources.Add(Resource.Food, 2000);
+    var ages = (AgeProgress)(typeof(Player).GetProperty("Ages")?.GetValue(w.P1)
+        ?? throw new InvalidOperationException("Player.Ages nicht gefunden"));
+    var tc = w.Map.Buildings.First(b => b.OwnerId == 0 && b.Type == "Stadtzentrum");
+    var fremd = w.Map.Buildings.First(b => b.OwnerId != 0 && b.Type == "Stadtzentrum");
+    var dorf = w.Dorfbewohner().ToList();
+    int T = w.Map.TileSize;
+    Vector2 Mitte(Building b) => new Vector2((b.X + b.Width / 2f) * T, (b.Y + b.Height / 2f) * T);
+    object Gewaehlt() => w.Get("selectedBuilding");
+    List<string> Tasten() { w.Call("LayoutButtons"); return w.Tasten().Select(t => t.Label).ToList(); }
+    string Status(Building b) => (string)w.Call("BuildingStatus", b);
+    var gt = new GameTime(TimeSpan.Zero, TimeSpan.FromSeconds(1.0 / 60));
+    void Maus(Vector2 p, ButtonState links, ButtonState rechts)
+        => w.Call("HandleRtsInput", gt, new KeyboardState(),
+                  new MouseState((int)p.X, (int)p.Y, 0, links, ButtonState.Released, rechts, ButtonState.Released, ButtonState.Released));
+    // Kamera so, dass der Weltpunkt mitten über der Karte steht (nicht unter der Leiste);
+    // die Maus dabei in der Bildmitte, damit kein Kantenscrollen auslöst. Zurück kommt
+    // der Bildschirmpunkt des Weltpunkts nach ClampCamera
+    Vector2 ZeigeAuf(Vector2 welt)
+    {
+        w.Set("cameraPosition", new Vector2(bw / 2f, (bh - 200) / 2f) / zoom - welt);
+        Maus(new Vector2(bw / 2f, (bh - 200) / 2f), ButtonState.Released, ButtonState.Released);
+        return (welt + (Vector2)w.Get("cameraPosition")) * zoom;
+    }
+    // Ein Punkt des Gebäudes, der nach dem Ausrichten nicht unter Leiste oder Minimap
+    // liegt - ein Stadtzentrum in der Kartenecke kann die Kamera nicht mittig zeigen
+    Vector2 Sichtbar(Building b)
+    {
+        foreach (float fy in new[] { 0.5f, 0.3f, 0.1f })
+            foreach (float fx in new[] { 0.5f, 0.3f, 0.1f })
+            {
+                var welt = new Vector2((b.X + fx * b.Width) * T, (b.Y + fy * b.Height) * T);
+                var bild = ZeigeAuf(welt);
+                if (!(bool)w.Call("IsOverHud", new Point((int)bild.X, (int)bild.Y)))
+                    return welt;
+            }
+        verstoesse.Add($"{wer}: Testaufbau - kein Punkt von {b.Type} bei {b.X},{b.Y} liegt frei im Bild");
+        return Mitte(b);
+    }
+    void Rechtsklick(Vector2 welt)
+    {
+        var p = ZeigeAuf(welt);
+        Maus(p, ButtonState.Released, ButtonState.Pressed);
+        Maus(p, ButtonState.Released, ButtonState.Released);
+    }
+    void Linksklick(Vector2 welt)
+    {
+        var p = ZeigeAuf(welt);
+        Maus(p, ButtonState.Pressed, ButtonState.Released);
+        Maus(p, ButtonState.Released, ButtonState.Released);
+    }
+    void Taste(Keys k)
+    {
+        var maus = new MouseState(bw / 2, bh / 2, 0, ButtonState.Released, ButtonState.Released,
+                                  ButtonState.Released, ButtonState.Released, ButtonState.Released);
+        w.Call("HandleRtsInput", gt, new KeyboardState(k), maus);
+        w.Call("HandleRtsInput", gt, new KeyboardState(), maus);
+    }
+
+    // Unerkundet: das fremde Stadtzentrum lässt sich nicht auswählen
+    if (w.Map.IsTileExplored(fremd.X, fremd.Y, 0))
+        Console.WriteLine($"  --  {wer}: fremdes Stadtzentrum schon erkundet, Fall unerkundet übersprungen");
+    else
+    {
+        Rechtsklick(Mitte(fremd));
+        if (Gewaehlt() != null)
+            verstoesse.Add($"{wer}: unerkundetes fremdes Stadtzentrum ausgewählt");
+    }
+
+    // Rechtsklick aufs Stadtzentrum, während Dorfbewohner ausgewählt sind
+    Rechtsklick(dorf[0].Position - new Vector2(0, 10));
+    if (!w.Auswahl().Contains(dorf[0]))
+        verstoesse.Add($"{wer}: Rechtsklick auf einen Dorfbewohner wählt ihn nicht aus");
+    Rechtsklick(Mitte(tc));
+    if (Gewaehlt() != tc)
+        verstoesse.Add($"{wer}: Rechtsklick aufs Stadtzentrum wählt es nicht aus");
+    if (w.Auswahl().Count > 0 || dorf.Any(u => u.IsSelected))
+        verstoesse.Add($"{wer}: mit dem Stadtzentrum bleiben Einheiten ausgewählt");
+    // Auch oben im Bild, über der Grundfläche: dort sieht man das Gebäude
+    w.Call("SelectBuilding", new object[] { null });
+    Rechtsklick(new Vector2((tc.X + tc.Width / 2f) * T, (tc.Y + tc.Height) * T - 2));
+    if (Gewaehlt() != tc)
+        verstoesse.Add($"{wer}: Rechtsklick knapp über der Unterkante trifft das Stadtzentrum nicht");
+    var mitTc = Tasten();
+    if (!mitTc.SequenceEqual(new[] { "Q", "A", "." }))
+        verstoesse.Add($"{wer}: mit Stadtzentrum Tasten [{string.Join(" ", mitTc)}], erwartet Q A .");
+    string s = Status(tc);
+    if (!s.StartsWith("Stadtzentrum") || !s.Contains($"{tc.Health}/{tc.MaxHealth} LP"))
+        verstoesse.Add($"{wer}: Status '{s}' nennt nicht Name und Lebenspunkte");
+
+    // Q bildet aus, der Status zeigt es
+    Taste(Keys.Q);
+    Taste(Keys.Q);
+    if (tc.Training.Count != 2)
+        verstoesse.Add($"{wer}: zweimal Q - {tc.Training.Count} in der Ausbildung, erwartet 2");
+    w.LaufeBis(() => false, 5f);
+    s = Status(tc);
+    if (!s.Contains("bildet aus: Dorfbewohner") || !s.Contains("%") || !s.Contains("+1 in der Warteschlange"))
+        verstoesse.Add($"{wer}: Status während der Ausbildung '{s}'");
+    if (s.Any(c => c < 32 || c > 254))
+        verstoesse.Add($"{wer}: Status enthält Zeichen außerhalb 32 bis 254 ('{s}')");
+
+    // Ein Dorfbewohner ausgewählt: kein Q, kein A, Q bildet nicht aus
+    Rechtsklick(dorf[0].Position - new Vector2(0, 10));
+    if (Gewaehlt() != null)
+        verstoesse.Add($"{wer}: Rechtsklick auf einen Dorfbewohner lässt das Gebäude ausgewählt");
+    var mitDorf = Tasten();
+    if (mitDorf.Contains("Q") || mitDorf.Contains("A") || !mitDorf.Contains("H"))
+        verstoesse.Add($"{wer}: mit Dorfbewohner Tasten [{string.Join(" ", mitDorf)}], erwartet Bautasten ohne Q und A");
+    int inAusbildung = tc.Training.Count;
+    Taste(Keys.Q);
+    if (tc.Training.Count != inAusbildung)
+        verstoesse.Add($"{wer}: Q ohne ausgewähltes Stadtzentrum bildet aus");
+
+    // Linksklick mit Dorfbewohnern aufs Stadtzentrum ist ein Befehl, keine Auswahl
+    Linksklick(Mitte(tc));
+    if (Gewaehlt() != null)
+        verstoesse.Add($"{wer}: Linksklick mit Dorfbewohnern wählt das Stadtzentrum aus");
+
+    // Rechtsklick ins Leere: nichts ausgewählt, nur die Taste "."
+    var leer = w.Map.GridToWorld(w.FreieKachel(dorf[0], 8));
+    Rechtsklick(leer);
+    var ohne = Tasten();
+    if (Gewaehlt() != null || w.Auswahl().Count > 0 || !ohne.SequenceEqual(new[] { "." }))
+        verstoesse.Add($"{wer}: nach Rechtsklick ins Leere Gebäude {Gewaehlt() ?? "keins"}, Tasten [{string.Join(" ", ohne)}]");
+
+    // Ohne Auswahl wählt auch ein Linksklick das Gebäude
+    Linksklick(Mitte(tc));
+    if (Gewaehlt() != tc)
+        verstoesse.Add($"{wer}: Linksklick ohne Auswahl wählt das Stadtzentrum nicht aus");
+
+    // A startet den Aufstieg, der Status zeigt ihn
+    Taste(Keys.A);
+    if (ages.Target != Age.Feudal)
+        verstoesse.Add($"{wer}: A mit Stadtzentrum startet keinen Aufstieg");
+    else if (!Status(tc).Contains("Aufstieg in die Feudalzeit"))
+        verstoesse.Add($"{wer}: Status während des Aufstiegs '{Status(tc)}'");
+
+    TileMap.TestNoFog = true;
+    try
+    {
+        // Fremd und erkundet: auswählbar, Status mit (Gegner), keine Tasten, Q wirkungslos
+        Rechtsklick(Sichtbar(fremd));
+        if (Gewaehlt() != fremd)
+            verstoesse.Add($"{wer}: erkundetes fremdes Stadtzentrum nicht auswählbar");
+        else
+        {
+            if (!Status(fremd).Contains("(Gegner)"))
+                verstoesse.Add($"{wer}: Status fremd '{Status(fremd)}' ohne (Gegner)");
+            var tf = Tasten();
+            if (!tf.SequenceEqual(new[] { "." }))
+                verstoesse.Add($"{wer}: mit fremdem Gebäude Tasten [{string.Join(" ", tf)}], erwartet nur .");
+            int nahrung = w.P1.Resources[Resource.Food];
+            Taste(Keys.Q);
+            if (fremd.Training.Count != 0 || w.P1.Resources[Resource.Food] != nahrung)
+                verstoesse.Add($"{wer}: Q bei fremdem Stadtzentrum bildet aus");
+        }
+
+        // Ein zweites Stadtzentrum bildet selbst aus
+        var platz = w.Bauplatz(BuildingType.TownCenter, dorf[0], 10);
+        var zweites = w.Map.AddBuilding((int)platz.X, (int)platz.Y, "Stadtzentrum", 0, 4);
+        Rechtsklick(Sichtbar(zweites));
+        int ersteVorher = tc.Training.Count;
+        Taste(Keys.Q);
+        if (Gewaehlt() != zweites || zweites.Training.Count != 1 || tc.Training.Count != ersteVorher)
+            verstoesse.Add($"{wer}: zweites Stadtzentrum - ausgewählt {Gewaehlt() == zweites}, Ausbildung dort {zweites.Training.Count}, im ersten {tc.Training.Count} (vorher {ersteVorher})");
+
+        // Eine Baustelle zeigt ihren Fortschritt
+        w.Waehle(new List<Unit> { dorf[1] });
+        w.Set("selectedBuilding", null);
+        var hausPlatz = w.Bauplatz(BuildingType.House, dorf[1], 4);
+        w.Call("PlaceBuilding", BuildingType.House, hausPlatz);
+        var haus = w.Map.Buildings.Last();
+        w.LaufeBis(() => haus.Construction?.Progress > 0.1f, 30f);
+        Rechtsklick(Sichtbar(haus));
+        if (Gewaehlt() != haus || !Status(haus).Contains("Bau ") || !Status(haus).Contains("%"))
+            verstoesse.Add($"{wer}: Baustelle - ausgewählt {Gewaehlt() == haus}, Status '{Status(haus)}'");
+    }
+    finally
+    {
+        TileMap.TestNoFog = false;
+    }
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: Rechts- und Linksklick, Q/A nur am eigenen Stadtzentrum, zweites bildet aus, fremd nur erkundet, Status mit Ausbildung, Aufstieg und Bau");
+}
+
+// Angriff (K2): mit Dorfbewohnern ausgewählt wählt ein Linksklick auf ein erkundetes
+// fremdes Gebäude den Angriff. Sie laufen hin, schlagen alle 2 s zu, die Gebäudestärke
+// sinkt sichtbar, bei 0 ist das Gebäude weg und seine Kacheln sind wieder frei. Eigene
+// Gebäude greift man so nicht an, und ein neuer Befehl bricht den Angriff ab.
+static void Angriff(int karte, List<string> verstoesse)
+{
+    string wer = $"Karte {karte}, Angriff";
+    int vorher = verstoesse.Count;
+    var w = new Welt();
+    w.Set("cameraZoom", 1f);
+    w.Set("cameraPosition", Vector2.Zero);
+    var dorf = w.Dorfbewohner().ToList();
+    int T = w.Map.TileSize;
+    Vector2 Mitte(Building b) => new Vector2((b.X + b.Width / 2f) * T, (b.Y + b.Height / 2f) * T);
+    var buildings = w.Map.Buildings;
+
+    // Ein fremdes Haus in der Nähe, erkundet
+    var platz = w.Bauplatz(BuildingType.House, dorf[0], 6);
+    var haus = w.Map.AddBuilding((int)platz.X, (int)platz.Y, "Haus", 1, 2);
+    w.Map.UpdateFogOfWarForPlayer(0, w.Map.Units);
+    if (!w.Map.IsTileExplored(haus.X, haus.Y, 0))
+    {
+        verstoesse.Add($"{wer}: Testaufbau - fremdes Haus nicht erkundet");
+        return;
+    }
+    int voll = haus.Health;
+
+    w.Waehle(dorf);
+    w.Linksklick(Mitte(haus));
+    if (dorf.Any(u => u.AttackTarget != haus))
+        verstoesse.Add($"{wer}: Linksklick aufs fremde Haus - nicht alle greifen an ({string.Join(", ", dorf.Select(u => u.AttackTarget?.Type ?? "nichts"))})");
+
+    w.LaufeBis(() => false, 20f);
+    int nach20 = haus.Health;
+    if (nach20 >= voll)
+        verstoesse.Add($"{wer}: nach 20 s Stärke {nach20}/{voll} - sinkt nicht");
+    if (dorf.Count(u => u.State == UnitState.Attacking) < dorf.Count)
+        verstoesse.Add($"{wer}: nach 20 s greifen nur {dorf.Count(u => u.State == UnitState.Attacking)} von {dorf.Count} an");
+    foreach (var u in dorf)
+    {
+        float dx = Math.Max(Math.Max(haus.X * T - u.Position.X, 0), u.Position.X - (haus.X + haus.Width) * T);
+        float dy = Math.Max(Math.Max(haus.Y * T - u.Position.Y, 0), u.Position.Y - (haus.Y + haus.Height) * T);
+        if (MathF.Sqrt(dx * dx + dy * dy) > 0.25f * T)
+            verstoesse.Add($"{wer}: ein Angreifer steht {MathF.Sqrt(dx * dx + dy * dy):0} px vom Haus entfernt");
+    }
+    var status = (string)w.Call("BuildingStatus", haus);
+    if (!status.Contains($"{haus.Health}/{voll} LP"))
+        verstoesse.Add($"{wer}: Status '{status}' zeigt die gesunkene Stärke nicht");
+    w.LaufeBis(() => false, 10f);
+    if (haus.Health >= nach20 && buildings.Contains(haus))
+        verstoesse.Add($"{wer}: Stärke sinkt nicht weiter ({nach20} -> {haus.Health})");
+
+    float dauer = 30f + w.LaufeBis(() => !buildings.Contains(haus), 200f);
+    if (buildings.Contains(haus))
+        verstoesse.Add($"{wer}: Haus nach {dauer:0} s noch da ({haus.Health}/{voll})");
+    else
+    {
+        for (int x = haus.X; x < haus.X + haus.Width; x++)
+            for (int y = haus.Y; y < haus.Y + haus.Height; y++)
+                if (!w.Map.IsWalkable(x, y) || !string.IsNullOrEmpty(w.Map.GetTile(x, y).Building))
+                    verstoesse.Add($"{wer}: Kachel {x},{y} nach der Zerstörung nicht frei");
+        if (dorf.Any(u => u.AttackTarget != null || u.State != UnitState.Idle))
+            verstoesse.Add($"{wer}: nach der Zerstörung nicht alle untätig ({string.Join(", ", dorf.Select(u => u.State))})");
+    }
+
+    // Ein eigenes Gebäude greift ein Linksklick nicht an
+    var eigen = w.Map.AddBuilding((int)platz.X, (int)platz.Y, "Haus", 0, 2);
+    int eigenVoll = eigen.Health;
+    w.Waehle(dorf);
+    w.Linksklick(Mitte(eigen));
+    w.LaufeBis(() => false, 10f);
+    if (dorf.Any(u => u.AttackTarget != null) || eigen.Health < eigenVoll)
+        verstoesse.Add($"{wer}: Linksklick aufs eigene Haus greift es an");
+
+    // Ein neuer Befehl bricht den Angriff ab
+    var zweites = w.Map.AddBuilding((int)platz.X + 3, (int)platz.Y, "Haus", 1, 2);
+    w.Map.UpdateFogOfWarForPlayer(0, w.Map.Units);
+    if (w.Map.CanPlaceBuilding(zweites.X, zweites.Y, 1) || !buildings.Contains(zweites))
+        verstoesse.Add($"{wer}: Testaufbau - zweites Haus nicht gesetzt");
+    w.Waehle(dorf);
+    w.Linksklick(Mitte(zweites));
+    w.LaufeBis(() => false, 3f);
+    w.Linksklick(w.Map.GridToWorld(w.FreieKachel(dorf[0], 6)));
+    if (dorf.Any(u => u.AttackTarget != null))
+        verstoesse.Add($"{wer}: ein Laufbefehl bricht den Angriff nicht ab");
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: Stärke {voll} -> {nach20} nach 20 s, Haus nach {dauer:0} s zerstört, Kacheln frei; eigenes Haus unberührt, neuer Befehl bricht ab");
 }
 
 // Kartengrößen (C11): Standard 64, Groß 90, Maximal 128 Kacheln Seitenlänge; beide
@@ -2540,6 +3046,9 @@ class Welt
             u.IsSelected = true;
             sel.Add(u);
         }
+        // Wie im Spiel: Einheiten und Gebäude sind nie zugleich ausgewählt (B1)
+        if (auswahl.Count > 0)
+            T.GetField("selectedBuilding", F)?.SetValue(_screen, null);
     }
 
     /// <summary>

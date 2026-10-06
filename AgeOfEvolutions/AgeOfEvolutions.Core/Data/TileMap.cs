@@ -631,6 +631,38 @@ public class TileMap
     }
     
     /// <summary>
+    /// Nimmt ein zerstörtes Gebäude von der Karte (K2).
+    /// VERTRAG: entfernt es aus Buildings; jede Kachel seiner Grundfläche trägt danach kein
+    /// Gebäude mehr (Building null) und ist wieder begehbar und bebaubar (Walkable und
+    /// Buildable true - unter Gebäuden liegt nur Wiese oder Sand); die Wegsuche erfährt es
+    /// (_navDirty = true), und das Sichtsystem vergisst das Gebäude
+    /// (NavGrid.RemoveBuilding(building.Core)). Ein Gebäude, das nicht auf der Karte steht,
+    /// ändert nichts.
+    /// </summary>
+    public void RemoveBuilding(Building building)
+    {
+        // Nicht auf der Karte: nichts tun
+        if (!Buildings.Remove(building))
+            return;
+
+        // Kacheln der Grundfläche freigeben: kein Gebäude mehr, wieder begehbar
+        // und bebaubar (unter Gebäuden liegt nur Wiese oder Sand)
+        for (int bx = building.X; bx < building.X + building.Width && bx < Width; bx++)
+        {
+            for (int by = building.Y; by < building.Y + building.Height && by < Height; by++)
+            {
+                tiles[bx, by].Building = null;
+                tiles[bx, by].Walkable = true;
+                tiles[bx, by].Buildable = true;
+                _navDirty = true;
+            }
+        }
+
+        // Das Sichtsystem vergisst das Gebäude
+        NavGrid.RemoveBuilding(building.Core);
+    }
+
+    /// <summary>
     /// Ob ein quadratisches Gebäude mit der linken oberen Ecke auf (x, y) Platz
     /// hat: jede Kachel der Grundfläche liegt auf der Karte, ist Wiese oder
     /// Sand, begehbar und bebaubar und trägt weder Gebäude noch Ressource.

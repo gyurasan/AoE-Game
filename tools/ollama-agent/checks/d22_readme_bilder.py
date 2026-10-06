@@ -26,14 +26,15 @@ szene = abschnitt("docs/bilder/spielszene.jpg")
 if szene is None:
     fehler.append("spielszene.jpg: Bild mit kursiver Bildunterschrift darunter fehlt")
 else:
-    for begriff in ("Feld", "ernte", "Schafe", "Reh", "Nebel"):
+    # Die Aufnahmen vom 2026-10-06 (D27) zeigen keine Schafe mehr
+    for begriff in ("Feld", "ernte", "Reh", "Nebel"):
         if begriff.lower() not in szene.lower():
             fehler.append(f"spielszene.jpg: Alternativtext oder Bildunterschrift nennt '{begriff}' nicht")
 karte = abschnitt("docs/bilder/karte.jpg")
 if karte is None:
     fehler.append("karte.jpg: Bild mit kursiver Bildunterschrift darunter fehlt")
 else:
-    for begriff in ("zwei Seen", "Schafe", "ohne Nebel"):
+    for begriff in ("zwei Seen", "ohne Nebel"):
         if begriff.lower() not in karte.lower():
             fehler.append(f"karte.jpg: Alternativtext oder Bildunterschrift nennt '{begriff}' nicht")
 if "Spielbeginn: Stadtzentrum und Dorfbewohner, rundherum noch Nebel" in readme:

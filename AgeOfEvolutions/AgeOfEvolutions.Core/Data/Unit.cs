@@ -117,6 +117,12 @@ public class Unit
     /// wie viele dort gerade arbeiten (BuildingRules.SpeedFactor).
     /// </summary>
     public Building BuildSite { get; set; }
+
+    /// <summary>Das fremde Gebäude, das die Einheit auf Befehl angreift, oder null (K2).</summary>
+    public Building AttackTarget { get; set; }
+
+    /// <summary>Sekunden seit dem letzten Schlag; ein Schlag alle BuildingCombat.RELOAD_SECONDS.</summary>
+    public float AttackTimer { get; set; }
     
     // Constructor
     public Unit(UnitType type, int ownerId)

@@ -85,6 +85,9 @@ public class RTSGameplayScreen : GameScreen
 
     // Selection
     private List<Unit> selectedUnits = new List<Unit>();
+    // Das ausgewählte Gebäude, oder null. Gebäude und Einheiten sind nie zugleich
+    // ausgewählt (SelectBuilding, SelectSingleUnit, SelectUnitsInRectangle)
+    internal Data.Building selectedBuilding;
     private Vector2? selectionStart = null;
     private Rectangle selectionRectangle = Rectangle.Empty;
 
@@ -357,6 +360,26 @@ public class RTSGameplayScreen : GameScreen
         ["Gebaeude/imperial/burg"] = new(270, 12, 143, 66),
         ["Gebaeude/imperial/wunder"] = new(428, 39, 163, 119),
     };
+    // Türmitte der Abgabestellen je Bild, als Anteil der Bildbreite, am Bild gemessen
+    private static readonly Dictionary<string, float> DoorCenters = new()
+    {
+        ["Gebaeude/dunkel/stadtzentrum"] = 0.33f,
+        ["Gebaeude/feudal/stadtzentrum"] = 0.32f,
+        ["Gebaeude/ritter/stadtzentrum"] = 0.31f,
+        ["Gebaeude/imperial/stadtzentrum"] = 0.39f,
+        ["Gebaeude/dunkel/muehle_ohne"] = 0.33f,
+        ["Gebaeude/feudal/muehle_ohne"] = 0.48f,
+        ["Gebaeude/ritter/muehle_ohne"] = 0.50f,
+        ["Gebaeude/imperial/muehle_ohne"] = 0.50f,
+        ["Gebaeude/dunkel/holzfaellerlager"] = 0.30f,
+        ["Gebaeude/feudal/holzfaellerlager"] = 0.37f,
+        ["Gebaeude/ritter/holzfaellerlager"] = 0.33f,
+        ["Gebaeude/imperial/holzfaellerlager"] = 0.35f,
+        ["Gebaeude/dunkel/bergbaulager"] = 0.31f,
+        ["Gebaeude/feudal/bergbaulager"] = 0.40f,
+        ["Gebaeude/ritter/bergbaulager"] = 0.29f,
+        ["Gebaeude/imperial/bergbaulager"] = 0.30f,
+    };
     private readonly Dictionary<Texture2D, Rectangle> _flagCloths = new();
     private const float FLAG_WAVE = 0.18f;
     private const float FLAG_SPEED = 5f;
@@ -468,6 +491,7 @@ public class RTSGameplayScreen : GameScreen
     private int _buttonsLayoutHeight;    // Fensterhöhe, für die _buttons angelegt sind
     private bool _buttonsLayoutBuilders; // ob dabei ein Dorfbewohner ausgewählt war
     private Age _buttonsLayoutAge;       // und welches Zeitalter galt
+    private Data.Building _buttonsLayoutBuilding;   // und welches Gebäude ausgewählt war
     private Rectangle _minimapRect;      // das gezeichnete Minimap-Feld (Klickfläche)
 
     // Abstand der Minimap zur Unterkante der Leiste; der 2-px-Rahmen liegt darin.
@@ -760,6 +784,9 @@ public class RTSGameplayScreen : GameScreen
             graphicsDevice.PresentationParameters.BackBufferHeight);
 
         SyncZoomToWindow();
+        // Ist das ausgewählte Gebäude zerstört worden, fällt die Auswahl weg
+        if (selectedBuilding != null && !tileMap.Buildings.Contains(selectedBuilding))
+            selectedBuilding = null;
         HandleRtsInput(gameTime);
         UpdateUnits(gameTime);
         UpdateUnitMotion((float)gameTime.ElapsedGameTime.TotalSeconds);
@@ -1661,6 +1688,10 @@ public class RTSGameplayScreen : GameScreen
 
         // Remove units no longer in list
         selectedUnits.RemoveAll(u => !u.IsSelected);
+
+        // Sind Einheiten ausgewählt, ist kein Gebäude ausgewählt
+        if (selectedUnits.Count > 0)
+            selectedBuilding = null;
     }
 
     private void SelectSingleUnit(Vector2 worldPos)
@@ -1673,9 +1704,203 @@ public class RTSGameplayScreen : GameScreen
         var u = OwnUnitAt(worldPos);
         if (u != null)
         {
+            selectedBuilding = null;
             selectedUnits.Add(u);
             u.IsSelected = true;
         }
+        else
+        {
+            // Liegt dort keine eigene Einheit, wählt das Gebäude darunter
+            // (oder mit null keins)
+            SelectBuilding(BuildingUnder(worldPos));
+        }
+    }
+
+    /// <summary>Höhe des Gebäudebilds in Weltpixeln - so hoch zeichnet DrawBuilding es
+    /// über der Unterkante der Grundfläche; ohne Bild (tools/spielablauf) die Grundfläche.</summary>
+    private float BuildingSpriteHeight(Data.Building b)
+    {
+        float width = b.Width * tileMap.TileSize;
+        if (b.IsComplete && _buildingSprites.TryGetValue((b.Type, AgeOf(b.OwnerId), b.OwnerId), out var sprite))
+            return Math.Max(b.Height * tileMap.TileSize, width * sprite.Height / sprite.Width);
+        return b.Height * tileMap.TileSize;
+    }
+
+    /// <summary>
+    /// Das Gebäude, das unter <paramref name="worldPos"/> gezeichnet ist, oder null.
+    /// VERTRAG:
+    /// - Getroffen ist ein Gebäude, wenn der Punkt waagrecht in seiner Grundfläche liegt
+    ///   (b.X * TileSize bis (b.X + b.Width) * TileSize) und senkrecht zwischen der Unterkante
+    ///   (b.Y + b.Height) * TileSize und BuildingSpriteHeight(b) darüber - das Bild ragt über
+    ///   die Grundfläche hinaus, gezählt wird alles, was man vom Gebäude sieht.
+    /// - Fremde Gebäude (OwnerId ungleich 0) nur, wenn Spieler 0 mindestens eine Kachel ihrer
+    ///   Grundfläche erkundet hat (tileMap.IsTileExplored(x, y, 0)); eigene immer.
+    /// - Treffen sich mehrere, gewinnt das mit der größten Unterkante (b.Y + b.Height): es
+    ///   steht weiter vorn und überdeckt die anderen.
+    /// </summary>
+    internal Data.Building BuildingUnder(Vector2 worldPos)
+    {
+        int ts = tileMap.TileSize;
+        Data.Building best = null;
+        int bestBottom = int.MinValue;
+        foreach (var b in tileMap.Buildings)
+        {
+            // Waagrecht in der Grundfläche, senkrecht zwischen Unterkante und
+            // Bildoberkante: das Bild ragt über die Grundfläche hinaus, gezählt
+            // wird alles, was man vom Gebäude sieht
+            if (worldPos.X < b.X * ts || worldPos.X >= (b.X + b.Width) * ts)
+                continue;
+            float bottom = (b.Y + b.Height) * ts;
+            if (worldPos.Y < bottom - BuildingSpriteHeight(b) || worldPos.Y >= bottom)
+                continue;
+            // Fremde Gebäude nur, wenn Spieler 0 mindestens eine Kachel ihrer
+            // Grundfläche erkundet hat; eigene immer
+            if (b.OwnerId != 0)
+            {
+                bool explored = false;
+                for (int x = b.X; x < b.X + b.Width && !explored; x++)
+                    for (int y = b.Y; y < b.Y + b.Height && !explored; y++)
+                        explored = tileMap.IsTileExplored(x, y, 0);
+                if (!explored)
+                    continue;
+            }
+            // Treffen sich mehrere, gewinnt das mit der größten Unterkante: es
+            // steht weiter vorn und überdeckt die anderen
+            int bottomRow = b.Y + b.Height;
+            if (bottomRow > bestBottom)
+            {
+                bestBottom = bottomRow;
+                best = b;
+            }
+        }
+        return best;
+    }
+
+    /// <summary>
+    /// Wählt ein Gebäude aus, mit null keins.
+    /// VERTRAG: hebt die Auswahl aller Einheiten auf (IsSelected false, selectedUnits leer),
+    /// setzt selectedBuilding und beendet einen Setzmodus (placing = null).
+    /// </summary>
+    internal void SelectBuilding(Data.Building b)
+    {
+        // Gebäude und Einheiten sind nie zugleich ausgewählt
+        foreach (var u in selectedUnits)
+            u.IsSelected = false;
+        selectedUnits.Clear();
+        selectedBuilding = b;
+        placing = null;
+    }
+
+    /// <summary>Das ausgewählte Gebäude, wenn es ein fertiges eigenes Stadtzentrum ist,
+    /// sonst null - nur dann gibt es Q (Dorfbewohner) und A (Zeitalter).</summary>
+    private Data.Building SelectedOwnTownCenter()
+        => selectedBuilding is { OwnerId: 0, IsComplete: true } b && b.Core.BuildingType == BuildingType.TownCenter
+            ? b : null;
+
+    /// <summary>
+    /// Der Status eines Gebäudes für die Leiste, solange es ausgewählt ist.
+    /// VERTRAG - Teile mit drei Leerzeichen "   " getrennt (WrapHudText bricht dort um), nur
+    /// Zeichen 32 bis 254 (kein Gedankenstrich, keine Pfeile):
+    /// - Zuerst der Name (b.Type), bei fremden Gebäuden (OwnerId ungleich 0) mit " (Gegner)".
+    /// - Dann "{b.Health}/{b.MaxHealth} LP".
+    /// - Eine Baustelle (nicht IsComplete): dann noch "Bau {p} %" mit p =
+    ///   (int)(b.Construction.Progress * 100), sonst nichts.
+    /// - Fertig, und es ist ein Stadtzentrum, dessen Besitzer gerade aufsteigt (Ages.Target
+    ///   nicht null): "Aufstieg in die {AgeRules.NameOf(Target)} {p} %" mit Ages.Progress.
+    /// - Sonst, wenn b.Training.Count > 0: steht die Ausbildung (Training.IsBlocked),
+    ///   "wartet auf Platz (Häuser bauen)", sonst "bildet aus: {Name} {p} %" mit dem Namen
+    ///   der ersten Einheit (Training.Units[0]; UnitType.Villager heißt "Dorfbewohner",
+    ///   andere ihr Enum-Name) und p aus Training.Progress; stehen weitere in der
+    ///   Warteschlange, dahinter "+{Count - 1} in der Warteschlange".
+    /// </summary>
+    internal string BuildingStatus(Data.Building b)
+    {
+        // Name, bei fremden Gebäuden mit Hinweis auf den Gegner
+        string text = b.Type + (b.OwnerId != 0 ? " (Gegner)" : "");
+        text += $"   {b.Health}/{b.MaxHealth} LP";
+
+        // Baustelle: Bau-Fortschritt
+        if (!b.IsComplete)
+        {
+            text += $"   Bau {(int)(b.Construction.Progress * 100)} %";
+            return text;
+        }
+
+        // Fertiges Stadtzentrum, dessen Besitzer gerade aufsteigt
+        var ages = (b.OwnerId == 0 ? player1 : player2).Ages;
+        if (b.Core.BuildingType == BuildingType.TownCenter && ages.Target is { } target)
+        {
+            text += $"   Aufstieg in die {AgeRules.NameOf(target)} {(int)(ages.Progress * 100)} %";
+            return text;
+        }
+
+        // Ausbildung in der Warteschlange
+        if (b.Training.Count > 0)
+        {
+            if (b.Training.IsBlocked)
+            {
+                text += "   wartet auf Platz (Häuser bauen)";
+            }
+            else
+            {
+                // Dorfbewohner heißt so, andere Einheiten tragen ihren Enum-Namen
+                string unitName = b.Training.Units[0] == UnitType.Villager ? "Dorfbewohner" : b.Training.Units[0].ToString();
+                text += $"   bildet aus: {unitName} {(int)(b.Training.Progress * 100)} %";
+                if (b.Training.Count > 1)
+                    text += $"   +{b.Training.Count - 1} in der Warteschlange";
+            }
+        }
+        return text;
+    }
+
+    /// <summary>
+    /// Markierung des ausgewählten Gebäudes, VOR dem Gebäudebild gezeichnet (DrawTileMap):
+    /// VERTRAG: ein Rahmen in der Auswahlfarbe der Einheiten (80, 255, 80), Linienstärke
+    /// Math.Max(2, (int)(2 * cameraZoom)), um die Grundfläche TileScreenRect(b.X, b.Y, b.Width,
+    /// b.Height), nach außen um 3 * cameraZoom Pixel vergrößert - das Bild überdeckt, was
+    /// hinter dem Gebäude liegt, vorn und an den Seiten bleibt der Rahmen sichtbar.
+    /// </summary>
+    private void DrawBuildingSelection(SpriteBatch spriteBatch, Data.Building b)
+    {
+        // Rahmen in der Auswahlfarbe der Einheiten, um die Grundfläche, nach
+        // außen vergrößert: das Bild überdeckt, was hinter dem Gebäude liegt,
+        // vorn und an den Seiten bleibt der Rahmen sichtbar
+        var rect = TileScreenRect(b.X, b.Y, b.Width, b.Height);
+        int pad = (int)(3 * cameraZoom);
+        int line = Math.Max(2, (int)(2 * cameraZoom));
+        var frame = new Rectangle(rect.X - pad, rect.Y - pad, rect.Width + 2 * pad, rect.Height + 2 * pad);
+        var color = new Color(80, 255, 80);
+        spriteBatch.Draw(px, new Rectangle(frame.X, frame.Y, frame.Width, line), color);
+        spriteBatch.Draw(px, new Rectangle(frame.X, frame.Bottom - line, frame.Width, line), color);
+        spriteBatch.Draw(px, new Rectangle(frame.X, frame.Y, line, frame.Height), color);
+        spriteBatch.Draw(px, new Rectangle(frame.Right - line, frame.Y, line, frame.Height), color);
+    }
+
+    /// <summary>
+    /// Lebensbalken über einem Gebäude, NACH allen Gebäudebildern gezeichnet.
+    /// VERTRAG: wie bei den Einheiten ein dunkler Balken (20, 20, 20) und darüber der grüne
+    /// Anteil b.Health / b.MaxHealth (Color.Green; unter einem Drittel Color.Red), Höhe
+    /// Math.Max(4, (int)(4 * cameraZoom)), halb so breit wie die Grundfläche auf dem
+    /// Bildschirm und waagrecht mittig über ihr, 6 Pixel über der Oberkante des Bilds (die
+    /// Unterkante der Grundfläche minus BuildingSpriteHeight(b) * cameraZoom).
+    /// </summary>
+    private void DrawBuildingHealth(SpriteBatch spriteBatch, Data.Building b)
+    {
+        // Dunkler Balken und darüber der grüne Anteil (unter einem Drittel rot),
+        // halb so breit wie die Grundfläche und waagerecht mittig über ihr,
+        // 6 Pixel über der Oberkante des Bilds
+        var rect = TileScreenRect(b.X, b.Y, b.Width, b.Height);
+        int barHeight = Math.Max(4, (int)(4 * cameraZoom));
+        int barWidth = rect.Width / 2;
+        int barX = rect.X + (rect.Width - barWidth) / 2;
+        int barY = rect.Bottom - (int)(BuildingSpriteHeight(b) * cameraZoom) - barHeight - 6;
+        var barRect = new Rectangle(barX, barY, barWidth, barHeight);
+        spriteBatch.Draw(px, barRect, new Color(20, 20, 20));
+        float fraction = b.MaxHealth > 0 ? (float)b.Health / b.MaxHealth : 0f;
+        int healthWidth = (int)(barWidth * fraction);
+        if (healthWidth > 0)
+            spriteBatch.Draw(px, new Rectangle(barX, barY, healthWidth, barHeight),
+                             fraction < 1f / 3f ? Color.Red : Color.Green);
     }
 
     /// <summary>
@@ -1703,8 +1928,153 @@ public class RTSGameplayScreen : GameScreen
             PlaceBuilding(placing.Value, gridPos);
         else if (OwnUnitAt(worldPos) != null)
             SelectSingleUnit(worldPos);
+        else if (selectedUnits.Count == 0 && BuildingUnder(worldPos) is { } building)
+            // Ist keine Einheit ausgewählt und liegt unter dem Klick ein Gebäude,
+            // wählt der Linksklick es aus; mit Dorfbewohnern bleibt er ein Befehl
+            SelectBuilding(building);
         else
             IssueCommand(gridPos);
+    }
+
+    /// <summary>
+    /// Schickt Einheiten gegen ein fremdes Gebäude (K2).
+    /// VERTRAG: für jede Einheit aus <paramref name="attackers"/> mit Angriff (AttackPower
+    /// größer 0): Sammelauftrag und Baustelle ab (Job null, BuildSite null), AttackTarget =
+    /// target, AttackTimer = 0. Ihr Standplatz ist AttackStand(unit, target); gibt es keinen,
+    /// bleibt sie stehen (AttackTarget null, Idle). Steht sie schon dort (weniger als 2 Pixel),
+    /// greift sie sofort an (State Attacking, Path leer); sonst TargetPosition = Standplatz,
+    /// Path = tileMap.FindPath(...), State Moving - ist der Weg leer, auch AttackTarget null
+    /// und Idle.
+    /// </summary>
+    internal void AttackBuilding(List<Unit> attackers, Building target)
+    {
+        foreach (var unit in attackers)
+        {
+            // Nur Einheiten mit einem Angriff greifen an
+            if (unit.AttackPower <= 0)
+                continue;
+
+            // Sammelauftrag und Baustelle ab
+            unit.Job = null;
+            unit.BuildSite = null;
+            unit.AttackTarget = target;
+            unit.AttackTimer = 0f;
+
+            // Standplatz am Gebäude; gibt es keinen, bleibt die Einheit stehen
+            var stand = AttackStand(unit, target);
+            if (stand == null)
+            {
+                unit.AttackTarget = null;
+                unit.State = UnitState.Idle;
+                continue;
+            }
+
+            // Steht sie schon dort, greift sie sofort an
+            if (Vector2.Distance(unit.Position, stand.Value) < 2f)
+            {
+                unit.Path.Clear();
+                unit.State = UnitState.Attacking;
+                continue;
+            }
+
+            unit.TargetPosition = stand.Value;
+            unit.Path = tileMap.FindPath(unit.Position, unit.TargetPosition);
+            if (unit.Path.Count > 0)
+            {
+                unit.State = UnitState.Moving;
+            }
+            else
+            {
+                // Kein Weg: der Standplatz ist nicht erreichbar
+                unit.AttackTarget = null;
+                unit.State = UnitState.Idle;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Wo sich eine Einheit hinstellt, um <paramref name="target"/> anzugreifen, in
+    /// Weltkoordinaten, oder null.
+    /// VERTRAG:
+    /// - Kandidaten sind begehbare Kacheln (tileMap.IsWalkable), deren Abstand zur Grundfläche
+    ///   des Gebäudes in Kacheln (Chebyshev: max von waagrechtem und senkrechtem Abstand zum
+    ///   Rechteck b.X .. b.X + b.Width - 1, b.Y .. b.Y + b.Height - 1) höchstens
+    ///   max(1, unit.AttackRange) beträgt - Nahkampf also der Ring direkt um das Gebäude,
+    ///   Fernkampf auch weiter weg.
+    /// - Davon die, deren Mitte (GridToWorld) der Einheit am nächsten liegt.
+    /// - Zurück kommt der Punkt dieser Kachel, der dem Gebäude (dem Rechteck seiner
+    ///   Grundfläche in Weltpixeln) am nächsten liegt, mit 2 Pixeln Abstand zu den
+    ///   Kachelrändern - die Einheit steht am Gebäude, nicht mitten in der Kachel.
+    /// </summary>
+    internal Vector2? AttackStand(Unit unit, Building target)
+    {
+        int ts = tileMap.TileSize;
+        int ring = Math.Max(1, unit.AttackRange);
+
+        // Begehbare Kacheln im Ring um die Grundfläche, deren Mitte der
+        // Einheit am nächsten liegt
+        Vector2? bestCell = null;
+        float bestDistance = float.MaxValue;
+        for (int x = target.X - ring; x <= target.X + target.Width - 1 + ring; x++)
+        {
+            for (int y = target.Y - ring; y <= target.Y + target.Height - 1 + ring; y++)
+            {
+                // Nur der Ring selbst, nicht das Innere der Grundfläche
+                bool onRing = x < target.X || x >= target.X + target.Width
+                            || y < target.Y || y >= target.Y + target.Height;
+                if (!onRing || !tileMap.IsWalkable(x, y))
+                    continue;
+
+                var cell = new Vector2(x, y);
+                float distance = Vector2.DistanceSquared(GridToWorld(cell), unit.Position);
+                if (distance < bestDistance)
+                {
+                    bestDistance = distance;
+                    bestCell = cell;
+                }
+            }
+        }
+        if (bestCell == null)
+            return null;
+
+        // Punkt in der Kachel, der der Grundfläche am nächsten liegt, mit
+        // 2 Pixeln Abstand zu den Kachelrändern
+        float left = bestCell.Value.X * ts + 2f;
+        float right = (bestCell.Value.X + 1) * ts - 2f;
+        float top = bestCell.Value.Y * ts + 2f;
+        float bottom = (bestCell.Value.Y + 1) * ts - 2f;
+        float px = MathHelper.Clamp(target.X * ts, left, right);
+        float py = MathHelper.Clamp((target.Y + target.Height) * ts, top, bottom);
+        return new Vector2(px, py);
+    }
+
+    /// <summary>
+    /// Ein Gebäude ist zerstört (K2).
+    /// VERTRAG: tileMap.RemoveBuilding(b); jede Einheit, die es angriff oder an ihm baute
+    /// (AttackTarget oder BuildSite gleich b), lässt davon ab (beides null, Path leer,
+    /// State Idle); war es ausgewählt, ist nichts mehr ausgewählt (selectedBuilding null);
+    /// die Leiste meldet "{b.Type} zerstört" (ShowHudMessage).
+    /// </summary>
+    internal void DestroyBuilding(Building b)
+    {
+        tileMap.RemoveBuilding(b);
+
+        // Alle Einheiten, die es angriffen oder an ihm bauten, lassen davon ab
+        foreach (var unit in units)
+        {
+            if (unit.AttackTarget != b && unit.BuildSite != b)
+                continue;
+            unit.AttackTarget = null;
+            unit.BuildSite = null;
+            unit.Path.Clear();
+            unit.State = UnitState.Idle;
+        }
+
+        // War es ausgewählt, ist nichts mehr ausgewählt
+        if (selectedBuilding == b)
+            selectedBuilding = null;
+
+        ShowHudMessage($"{b.Type} zerstört");
     }
 
     /// <summary>
@@ -1758,6 +2128,7 @@ public class RTSGameplayScreen : GameScreen
         foreach (var selected in selectedUnits)
             selected.IsSelected = false;
         selectedUnits.Clear();
+        selectedBuilding = null;
         villager.IsSelected = true;
         selectedUnits.Add(villager);
         // WorldToScreen = (welt + cameraPosition) * cameraZoom: so landet er in der Bildmitte
@@ -1794,6 +2165,19 @@ public class RTSGameplayScreen : GameScreen
     /// </summary>
     internal void IssueCommand(int ownerId, List<Unit> selectedUnits, Vector2 gridPos)
     {
+        // Linksklick auf ein erkundetes fremdes Gebäude: die Auswahl greift es an
+        var attackTarget = BuildingAt(gridPos);
+        if (attackTarget != null && attackTarget.OwnerId != ownerId
+            && tileMap.IsTileExplored((int)gridPos.X, (int)gridPos.Y, ownerId))
+        {
+            AttackBuilding(selectedUnits, attackTarget);
+            return;
+        }
+
+        // Jeder andere Befehl bricht einen laufenden Angriff ab
+        foreach (var unit in selectedUnits)
+            unit.AttackTarget = null;
+
         var tile = tileMap.GetTile((int)gridPos.X, (int)gridPos.Y);
         // Nur Erforschtes lässt sich gezielt ernten; ein Klick in den Nebel ist ein Laufbefehl
         bool isSource = tile != null && tile.ResourceType.HasValue && tile.ResourceAmount > 0
@@ -1844,8 +2228,32 @@ public class RTSGameplayScreen : GameScreen
                 unit.State = UnitState.Gathering;
                 break;
 
-            case GatherPhase.ToSource:
             case GatherPhase.ToDropOff:
+                // abgeliefert wird direkt vor der Tür
+                var door = DropOffStand(job.DropOff.Value, unit);
+                unit.TargetPosition = door;
+                unit.Path = tileMap.FindPath(unit.Position, door);
+                // Schon in der Kachel der Tür: die letzten Pixel direkt. Sonst heißt
+                // ein leerer Weg, dass die Tür nicht erreichbar ist
+                if (unit.Path.Count == 0 && WorldToGrid(unit.Position) == WorldToGrid(door)
+                    && Vector2.Distance(unit.Position, door) >= 2f)
+                    unit.Path = new List<Vector2> { door };
+                if (unit.Path.Count > 0)
+                {
+                    unit.State = UnitState.Returning;
+                }
+                else if (WorldToGrid(unit.Position) == WorldToGrid(door))
+                {
+                    ArriveWithJob(unit);
+                }
+                else
+                {
+                    job.Unreachable();
+                    FollowJob(unit);
+                }
+                break;
+
+            case GatherPhase.ToSource:
                 var stand = StandCell(job.Destination.Value, unit.Position);
                 if (stand == null)
                 {
@@ -1860,7 +2268,7 @@ public class RTSGameplayScreen : GameScreen
 
                 if (unit.Path.Count > 0)
                 {
-                    unit.State = job.Phase == GatherPhase.ToDropOff ? UnitState.Returning : UnitState.Moving;
+                    unit.State = UnitState.Moving;
                 }
                 else if (WorldToGrid(unit.Position) == cellVector)
                 {
@@ -1879,6 +2287,146 @@ public class RTSGameplayScreen : GameScreen
                 unit.State = UnitState.Idle;
                 break;
         }
+    }
+
+    /// <summary>
+    /// Wo die Tür eines Gebäudes liegt: Mitte der Tür als Anteil seiner Breite von links,
+    /// 0 bis 1. Die Türen sitzen auf der Vorderseite (unten), aber je Bild woanders.
+    /// VERTRAG:
+    /// - Maßgeblich ist das Bild, das DrawBuilding für das Gebäude im Zeitalter seines
+    ///   Besitzers (AgeOf) zeichnet: sein Name aus BuildingSprites, für "Mühle" stattdessen
+    ///   "Gebaeude/muehle_ohne" (gezeichnet wird die Mühle ohne Flügel, das Flügelkreuz
+    ///   dreht sich davor). Mit AgeAsset auf das Zeitalter gebracht ist er der Schlüssel in
+    ///   DoorCenters.
+    /// - Hat dieses Zeitalter keinen Eintrag, gilt das nächstältere mit Eintrag - wie bei
+    ///   den Bildern selbst; gibt es keinen, 0.5 (Mitte der Vorderseite). Ebenso für Typen
+    ///   ohne Bild.
+    /// - Nur über Namen, ohne Texturen: tools/spielablauf läuft ohne Grafik.
+    /// </summary>
+    internal float DoorFraction(Data.Building b)
+    {
+        // Bildname aus BuildingSprites; die Mühle wird ohne Flügel gezeichnet
+        string asset = null;
+        foreach (var (type, name) in BuildingSprites)
+            if (type == b.Type)
+            {
+                asset = name;
+                break;
+            }
+        if (asset == null)
+            return 0.5f;
+        if (b.Type == "Mühle")
+            asset = "Gebaeude/muehle_ohne";
+
+        // Zeitalter des Besitzers; fehlt dort ein Eintrag, gilt das
+        // nächstältere mit Eintrag - wie bei den Bildern selbst
+        int age = (int)AgeOf(b.OwnerId);
+        for (int a = age; a >= 0; a--)
+            if (DoorCenters.TryGetValue(AgeAsset(asset, a), out float fraction))
+                return fraction;
+        return 0.5f;
+    }
+
+    /// <summary>
+    /// Der Punkt, an den ein Dorfbewohner zum Abliefern läuft: direkt vor die Tür.
+    /// <paramref name="dropOff"/> ist die Kachel, die sein Sammelauftrag gewählt hat
+    /// (GatherJob.DropOff, eine begehbare Kachel im Ring um die Abgabestelle).
+    /// VERTRAG:
+    /// - Das Gebäude: ein fertiges (IsComplete) Gebäude des Besitzers der Einheit, das die
+    ///   Ressource ihres Auftrags annimmt (TileMapGatherWorld.Accepts mit
+    ///   Core.DropOffType) und dessen Ring dropOff enthält, also b.X - 1 &lt;= dropOff.X
+    ///   &lt;= b.X + b.Width und b.Y - 1 &lt;= dropOff.Y &lt;= b.Y + b.Height. Gibt es keins: die
+    ///   Mitte von dropOff (GridToWorld).
+    /// - Die Tür liegt auf der Unterkante der Grundfläche: in Weltkoordinaten
+    ///   doorX = (b.X + DoorFraction(b) * b.Width) * TileSize, doorY = (b.Y + b.Height) *
+    ///   TileSize. Die Türkachel ist die Kachel direkt darunter, Spalte (int)(doorX /
+    ///   TileSize), begrenzt auf b.X bis b.X + b.Width - 1, Zeile b.Y + b.Height.
+    /// - Ist die Türkachel begehbar (tileMap.IsWalkable), steht der Dorfbewohner in ihr.
+    ///   Sonst in der begehbaren Kachel des Rings um das Gebäude, deren Mitte (GridToWorld)
+    ///   der Tür (doorX, doorY) am nächsten liegt; ist keine begehbar, in dropOff.
+    /// - Zurück kommt der Punkt dieser Kachel, der (doorX, doorY) am nächsten liegt, mit
+    ///   2 Pixeln Abstand zu jedem Kachelrand: vor der Tür also die Füße an der Gebäudekante,
+    ///   in einer Ersatzkachel am Gebäude so nah an der Tür wie möglich.
+    /// - Damit mehrere Dorfbewohner vor der Tür nicht auf einem Punkt stehen: in der
+    ///   Türkachel liegt der Punkt um (units.IndexOf(unit) % 5 - 2) * 0.08 * TileSize
+    ///   waagrecht versetzt, bevor er auf die Kachel begrenzt wird.
+    /// </summary>
+    internal Vector2 DropOffStand(CorePosition dropOff, Unit unit)
+    {
+        int ts = tileMap.TileSize;
+
+        // Das passende Gebäude: fertig, des Besitzers, nimmt die Ressource an
+        // und enthält dropOff im Ring um seine Grundfläche
+        Data.Building building = null;
+        foreach (var b in tileMap.Buildings)
+        {
+            if (b.OwnerId != unit.OwnerId || !b.IsComplete)
+                continue;
+            if (!TileMapGatherWorld.Accepts(b.Core.DropOffType, unit.Job.Resource))
+                continue;
+            if (dropOff.X < b.X - 1 || dropOff.X > b.X + b.Width
+                || dropOff.Y < b.Y - 1 || dropOff.Y > b.Y + b.Height)
+                continue;
+            building = b;
+            break;
+        }
+        if (building == null)
+            return GridToWorld(new Vector2(dropOff.X, dropOff.Y));
+
+        // Tür auf der Unterkante der Grundfläche, in Weltkoordinaten
+        float doorX = (building.X + DoorFraction(building) * building.Width) * ts;
+        float doorY = (building.Y + building.Height) * ts;
+
+        // Türkachel: direkt unter der Tür, Spalte begrenzt auf die Grundfläche
+        int doorCol = MathHelper.Clamp((int)(doorX / ts), building.X, building.X + building.Width - 1);
+        int doorRow = building.Y + building.Height;
+
+        // Kachel, in der der Dorfbewohner steht: die Türkachel, wenn begehbar,
+        // sonst die begehbare Ringkachel mit der Mitte am nächsten an der Tür
+        Vector2 standCell;
+        if (tileMap.IsWalkable(doorCol, doorRow))
+        {
+            standCell = new Vector2(doorCol, doorRow);
+        }
+        else
+        {
+            standCell = new Vector2(dropOff.X, dropOff.Y);
+            float bestDistance = float.MaxValue;
+            for (int x = building.X - 1; x <= building.X + building.Width; x++)
+            {
+                for (int y = building.Y - 1; y <= building.Y + building.Height; y++)
+                {
+                    bool onRing = x == building.X - 1 || x == building.X + building.Width
+                                || y == building.Y - 1 || y == building.Y + building.Height;
+                    if (!onRing || !tileMap.IsWalkable(x, y))
+                        continue;
+                    var cell = new Vector2(x, y);
+                    float distance = Vector2.DistanceSquared(GridToWorld(cell), new Vector2(doorX, doorY));
+                    if (distance < bestDistance)
+                    {
+                        bestDistance = distance;
+                        standCell = cell;
+                    }
+                }
+            }
+        }
+
+        // Punkt in der Kachel, der der Tür am nächsten liegt, 2 Pixel Abstand
+        // zu jedem Kachelrand
+        float left = standCell.X * ts + 2f;
+        float right = (standCell.X + 1) * ts - 2f;
+        float top = standCell.Y * ts + 2f;
+        float bottom = (standCell.Y + 1) * ts - 2f;
+        float px = MathHelper.Clamp(doorX, left, right);
+        float py = MathHelper.Clamp(doorY, top, bottom);
+
+        // Mehrere Dorfbewohner vor der Tür: waagrechter Versatz, bevor der
+        // Punkt auf die Kachel begrenzt wird
+        if (tileMap.IsWalkable(doorCol, doorRow))
+            px += (units.IndexOf(unit) % 5 - 2) * 0.08f * ts;
+        px = MathHelper.Clamp(px, left, right);
+
+        return new Vector2(px, py);
     }
 
     /// <summary>
@@ -1977,9 +2525,13 @@ public class RTSGameplayScreen : GameScreen
     /// </summary>
     private void TrainVillager()
     {
-        var townCenter = TownCenterOf(0);
+        // Ausgebildet wird im ausgewählten Stadtzentrum, nicht immer im ersten
+        var townCenter = SelectedOwnTownCenter();
         if (townCenter == null)
+        {
+            ShowHudMessage("Erst das Stadtzentrum auswählen");
             return;
+        }
 
         if (townCenter.Training.Count >= AoE.Core.Economy.TrainingQueue<UnitType>.MAX_LENGTH)
             ShowHudMessage("Warteschlange voll");
@@ -2024,8 +2576,12 @@ public class RTSGameplayScreen : GameScreen
     private void AdvanceAge()
     {
         var ages = player1.Ages;
-        if (TownCenterOf(0) == null)
+        // Aufstieg nur im ausgewählten Stadtzentrum, nicht immer im ersten
+        if (SelectedOwnTownCenter() == null)
+        {
+            ShowHudMessage("Erst das Stadtzentrum auswählen");
             return;
+        }
 
         if (ages.Target is { } target)
             ShowHudMessage($"Aufstieg in die {AgeRules.NameOf(target)} läuft ({(int)(ages.Progress * 100)} %)");
@@ -2431,6 +2987,8 @@ public class RTSGameplayScreen : GameScreen
                     {
                         if (unit.Job != null)
                             ArriveWithJob(unit);
+                        else if (unit.AttackTarget != null)
+                            unit.State = UnitState.Attacking;   // am Gebäude angekommen
                         else if (unit.BuildSite != null && !unit.BuildSite.IsComplete)
                             unit.State = UnitState.Building;   // am Bauplatz angekommen
                         else
@@ -2438,6 +2996,24 @@ public class RTSGameplayScreen : GameScreen
                             unit.BuildSite = null;
                             unit.State = UnitState.Idle;
                         }
+                    }
+                    break;
+
+                case UnitState.Attacking:
+                    // Das Ziel ist weg (zerstört oder null): Angriff abbrechen
+                    if (unit.AttackTarget == null || !tileMap.Buildings.Contains(unit.AttackTarget))
+                    {
+                        unit.AttackTarget = null;
+                        unit.State = UnitState.Idle;
+                        break;
+                    }
+                    // Schlagtakt: alle RELOAD_SECONDS ein Schlag, der die Stärke senkt
+                    unit.AttackTimer += dt;
+                    if (unit.AttackTimer >= AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS)
+                    {
+                        unit.AttackTimer -= AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS;
+                        if (AoE.Core.Combat.BuildingCombat.Hit(unit.Core, unit.AttackTarget.Core))
+                            DestroyBuilding(unit.AttackTarget);   // zerstört
                     }
                     break;
 
@@ -2970,7 +3546,22 @@ public class RTSGameplayScreen : GameScreen
         // Gebäude (Stadtzentrum = 4×4 Kacheln)
         foreach (var b in tileMap.Buildings)
         {
+            // Der Auswahlrahmen liegt unter dem Bild: vorn und an den Seiten
+            // bleibt er sichtbar, das Bild überdeckt, was dahinter liegt
+            if (b == selectedBuilding)
+                DrawBuildingSelection(spriteBatch, b);
             DrawBuilding(spriteBatch, b);
+        }
+
+        // Lebensbalken über allen Gebäudebildern: das ausgewählte Gebäude und
+        // jedes fertige, beschädigte; fremde nur, wenn Spieler 0 sie gerade sieht
+        foreach (var b in tileMap.Buildings)
+        {
+            bool show = b == selectedBuilding
+                        || (b.IsComplete && b.Health < b.MaxHealth
+                            && (b.OwnerId == 0 || tileMap.IsTileVisible(b.X, b.Y, 0)));
+            if (show)
+                DrawBuildingHealth(spriteBatch, b);
         }
     }
 
@@ -3871,6 +4462,13 @@ public class RTSGameplayScreen : GameScreen
                 toward = unit.Path[unit.Path.Count - 1] - unit.Position;
             else if (unit.Job?.Phase == GatherPhase.Gathering)
                 toward = GridToWorld(new Vector2(unit.Job.Source.X, unit.Job.Source.Y)) - unit.Position;
+            else if (unit.State == UnitState.Attacking && unit.AttackTarget is { } target)
+            {
+                // Blickrichtung zum Ziel: Mitte der Grundfläche des Gebäudes
+                var center = new Vector2((target.X + target.Width / 2f) * tileMap.TileSize,
+                                         (target.Y + target.Height / 2f) * tileMap.TileSize);
+                toward = center - unit.Position;
+            }
             else if (unit.State == UnitState.Building && unit.BuildSite is { } site)
             {
                 var center = new Vector2((site.X + site.Width / 2f) * tileMap.TileSize,
@@ -3894,7 +4492,7 @@ public class RTSGameplayScreen : GameScreen
     {
         var motion = _unitMotion.GetValueOrDefault(unit);
         bool moving = motion.MovingFor > 0f;
-        bool working = !moving && (unit.Job?.Phase == GatherPhase.Gathering || unit.State == UnitState.Building);
+        bool working = !moving && (unit.Job?.Phase == GatherPhase.Gathering || unit.State == UnitState.Building || unit.State == UnitState.Attacking);
         // Jede Einheit im eigenen Takt, sonst wippt das ganze Dorf im Gleichschritt
         float t = animationTime + (unit.GetHashCode() & 0xFF) / 40f;
         var tool = ToolFor(unit);
@@ -3982,6 +4580,9 @@ public class RTSGameplayScreen : GameScreen
     {
         if (unit.State == UnitState.Building)
             return Tool.Hammer;
+        // Wer angreift, schlägt mit der Axt zu
+        if (unit.State == UnitState.Attacking)
+            return Tool.Axe;
         if (unit.Job is not { } job)
             return Tool.Hoe;
         return job.Resource switch
@@ -4211,6 +4812,8 @@ public class RTSGameplayScreen : GameScreen
         string infoLine;
         if (hovered.Name != null)
             infoLine = $"{hovered.Name} ({hovered.Label}): {hovered.Hint}";
+        else if (selectedBuilding != null && selectedUnits.Count == 0)
+            infoLine = BuildingStatus(selectedBuilding);
         else if (selectedUnits.Count > 1)
             infoLine = $"{selectedUnits.Count} Einheiten ausgewählt";
         else if (selectedUnits.Count == 1)
@@ -4283,18 +4886,25 @@ public class RTSGameplayScreen : GameScreen
         bool builders = VillagerSelected();
         var age = player1.Ages.Current;
         if (_buttons.Count > 0 && _buttonsLayoutHeight == screenBounds.Height
-            && _buttonsLayoutBuilders == builders && _buttonsLayoutAge == age)
+            && _buttonsLayoutBuilders == builders && _buttonsLayoutAge == age
+            && _buttonsLayoutBuilding == selectedBuilding)
             return;
         _buttons.Clear();
         _buttonsLayoutHeight = screenBounds.Height;
         _buttonsLayoutBuilders = builders;
         _buttonsLayoutAge = age;
+        _buttonsLayoutBuilding = selectedBuilding;
         int size = 60, gap = 6;
         int x = 10, y = screenBounds.Height - HUD_BOTTOM_HEIGHT + 14;
-        AddButton(ref x, size, gap, y, "Q", "Dorfbewohner", "25 Nahrung, 25 s", TrainVillager);
-        if (AgeRules.Next(age) is { } next)
-            AddButton(ref x, size, gap, y, "A", "Zeitalter",
-                      $"{AgeRules.NameOf(next)}, {CostText(AgeRules.CostOf(next))}", AdvanceAge);
+        // Q (Dorfbewohner) und A (Zeitalter) gibt es nur mit ausgewähltem
+        // eigenem Stadtzentrum
+        if (SelectedOwnTownCenter() != null)
+        {
+            AddButton(ref x, size, gap, y, "Q", "Dorfbewohner", "25 Nahrung, 25 s", TrainVillager);
+            if (AgeRules.Next(age) is { } next)
+                AddButton(ref x, size, gap, y, "A", "Zeitalter",
+                          $"{AgeRules.NameOf(next)}, {CostText(AgeRules.CostOf(next))}", AdvanceAge);
+        }
         if (builders)
         {
             // Erste Tastenreihe: nur die Einträge mit Row 0

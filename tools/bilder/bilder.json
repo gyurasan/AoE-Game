@@ -3783,5 +3783,248 @@
     "prompt": "Wildflower meadow seen from above: green grass with small loose clusters of tiny white, yellow and pale violet wildflowers, grass between the clusters."
    }
   ]
+ },
+ "soldaten": {
+  "groesse": [
+   1024,
+   1024
+  ],
+  "schritte": 30,
+  "cfg": 3.0,
+  "freistellen": true,
+  "zuschneiden": true,
+  "zielbreite": 128,
+  "spielerfarben": true,
+  "stil": "Game character sprite for a top-down 2D strategy game, three-quarter view from the front, full body from head to feet, standing upright, detailed 16-bit pixel art, crisp pixels, warm medieval colors, soft light from the upper left. One single character centered, fully visible, isolated on a plain white background, no shadow on the background, no text.",
+  "negativ": "text, letters, logo, watermark, frame, border, multiple characters, crowd, building, landscape, scenery, cut off feet, cropped, blurry, photo, 3d render",
+  "bilder": [
+   {
+    "name": "miliz",
+    "seed": 4601,
+    "ziel": "Einheiten/miliz.png",
+    "prompt": "A medieval militia foot soldier in a bright blue padded gambeson with a brown belt, brown trousers, leather boots and a round iron helmet, a short sword in his right hand and a round wooden shield on his left arm, determined face, standing pose turned slightly to the right.",
+    "figur": "miliz"
+   },
+   {
+    "name": "bogenschuetze",
+    "seed": 4612,
+    "ziel": "Einheiten/bogenschuetze.png",
+    "prompt": "A medieval archer in a bright blue tunic with a brown leather belt, brown trousers, leather boots and a green hood, a quiver of arrows on his back and a wooden longbow in his left hand, focused face, standing pose turned slightly to the right.",
+    "figur": "bogenschuetze"
+   },
+   {
+    "name": "spaeher",
+    "seed": 4621,
+    "ziel": "Einheiten/spaeher.png",
+    "prompt": "A medieval scout rider on a brown horse, the rider in a bright blue tunic with a light leather cap and a short spear, the horse with a simple saddle and bridle, the whole horse visible from ears to hooves, standing pose turned slightly to the right.",
+    "figur": "spaeher"
+   }
+  ]
+ },
+ "soldaten_lauf": {
+  "groesse": [
+   1024,
+   1024
+  ],
+  "schritte": 30,
+  "cfg": 3.0,
+  "freistellen": true,
+  "zuschneiden": true,
+  "zielbreite": 128,
+  "spielerfarben": true,
+  "stil": "Game character sprite for a top-down 2D strategy game, three-quarter view from the front, full body from head to feet, walking, detailed 16-bit pixel art, crisp pixels, warm medieval colors, soft light from the upper left. One single character centered, fully visible, isolated on a plain white background, no shadow on the background, no text.",
+  "negativ": "text, letters, logo, watermark, frame, border, multiple characters, crowd, building, landscape, scenery, cut off feet, cropped, blurry, photo, 3d render, extra legs, three legs, missing leg",
+  "bilder": [
+   {
+    "name": "miliz_lauf1",
+    "seed": 4712,
+    "ziel": "Einheiten/miliz_lauf1.png",
+    "figur": "miliz",
+    "vorlage": "../soldaten/miliz_4601_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       300,
+       720,
+       340,
+       270
+      ]
+     ]
+    },
+    "prompt": "A medieval militia foot soldier in a bright blue padded gambeson with a brown belt, brown trousers, leather boots and a round iron helmet, a short sword in his right hand and a round wooden shield on his left arm, determined face. Walking to the right. His legs are in mid-stride: the front leg steps far forward with the heel down, the back leg pushes off far behind on its toes."
+   },
+   {
+    "name": "miliz_lauf2",
+    "seed": 4722,
+    "ziel": "Einheiten/miliz_lauf2.png",
+    "figur": "miliz",
+    "vorlage": "../soldaten/miliz_4601_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       300,
+       720,
+       340,
+       270
+      ]
+     ]
+    },
+    "prompt": "A medieval militia foot soldier in a bright blue padded gambeson with a brown belt, brown trousers, leather boots and a round iron helmet, a short sword in his right hand and a round wooden shield on his left arm, determined face. Walking to the right. His legs pass each other: one leg stands straight under the body carrying the weight, the other knee is bent and that foot is lifted, swinging forward."
+   },
+   {
+    "name": "bogenschuetze_lauf1",
+    "seed": 4734,
+    "ziel": "Einheiten/bogenschuetze_lauf1.png",
+    "figur": "bogenschuetze",
+    "vorlage": "../soldaten/bogenschuetze_4612_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       320,
+       650,
+       360,
+       330
+      ]
+     ]
+    },
+    "prompt": "A medieval archer in a bright blue tunic with a brown leather belt, brown trousers, leather boots and a green hood, a quiver of arrows on his back and a wooden longbow in his left hand, focused face. Walking to the right. His legs are in mid-stride: the front leg steps far forward with the heel down, the back leg pushes off far behind on its toes."
+   },
+   {
+    "name": "bogenschuetze_lauf2",
+    "seed": 4744,
+    "ziel": "Einheiten/bogenschuetze_lauf2.png",
+    "figur": "bogenschuetze",
+    "vorlage": "../soldaten/bogenschuetze_4612_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       320,
+       650,
+       360,
+       330
+      ]
+     ]
+    },
+    "prompt": "A medieval archer in a bright blue tunic with a brown leather belt, brown trousers, leather boots and a green hood, a quiver of arrows on his back and a wooden longbow in his left hand, focused face. Walking to the right. His legs pass each other: one leg stands straight under the body carrying the weight, the other knee is bent and that foot is lifted, swinging forward."
+   },
+   {
+    "name": "spaeher_lauf1",
+    "seed": 4752,
+    "ziel": "Einheiten/spaeher_lauf1.png",
+    "figur": "spaeher",
+    "vorlage": "../soldaten/spaeher_4621_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       180,
+       640,
+       600,
+       370
+      ]
+     ]
+    },
+    "prompt": "A medieval scout rider on a brown horse, the rider in a bright blue tunic with a light leather cap and a short spear, the horse with a simple saddle and bridle, the whole horse visible from ears to hooves. The horse walks to the right: one front leg is lifted and reaches forward with the hoof off the ground, the opposite hind leg pushes off far behind."
+   },
+   {
+    "name": "spaeher_lauf2",
+    "seed": 4762,
+    "ziel": "Einheiten/spaeher_lauf2.png",
+    "figur": "spaeher",
+    "vorlage": "../soldaten/spaeher_4621_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       180,
+       640,
+       600,
+       370
+      ]
+     ]
+    },
+    "prompt": "A medieval scout rider on a brown horse, the rider in a bright blue tunic with a light leather cap and a short spear, the horse with a simple saddle and bridle, the whole horse visible from ears to hooves. The horse walks to the right: its legs pass each other, one front leg and the opposite hind leg stand straight under the body, the other two are bent and lifted, swinging forward."
+   }
+  ]
+ },
+ "icons_herstellung": {
+  "groesse": [
+   1024,
+   1024
+  ],
+  "zielgroesse": [
+   128,
+   128
+  ],
+  "schritte": 30,
+  "cfg": 3.0,
+  "stil": "Game user interface icon in 16-bit pixel art style, crisp square pixels, limited warm color palette, one single object centered and filling most of the image, three-quarter view, plain flat dark brown background, no text.",
+  "negativ": "text, letters, numbers, words, watermark, logo, signature, frame, border, photo, realistic, 3d render, multiple objects, cluttered background, blurry",
+  "bilder": [
+   {
+    "name": "miliz",
+    "seed": 4801,
+    "ziel": "Icons/miliz.png",
+    "prompt": "A medieval militia foot soldier with a round iron helmet and a blue padded tunic, holding a short sword and a round wooden shield."
+   },
+   {
+    "name": "bogenschuetze",
+    "seed": 4811,
+    "ziel": "Icons/bogenschuetze.png",
+    "prompt": "A medieval archer in a green hood and blue tunic drawing a wooden longbow."
+   },
+   {
+    "name": "spaeher",
+    "seed": 4822,
+    "ziel": "Icons/spaeher.png",
+    "prompt": "A medieval scout on a brown horse, the rider in a blue tunic holding a short spear."
+   },
+   {
+    "name": "webstuhl",
+    "seed": 4831,
+    "ziel": "Icons/webstuhl.png",
+    "prompt": "A small wooden weaving loom with blue cloth on it."
+   },
+   {
+    "name": "pferdekummet",
+    "seed": 4842,
+    "ziel": "Icons/pferdekummet.png",
+    "prompt": "A padded leather horse collar with brass buckles, lying beside a small sheaf of wheat."
+   },
+   {
+    "name": "doppelaxt",
+    "seed": 4851,
+    "ziel": "Icons/doppelaxt.png",
+    "prompt": "A double-bladed iron woodcutter's axe with a wooden handle, stuck in a log."
+   },
+   {
+    "name": "goldbergbau",
+    "seed": 4862,
+    "ziel": "Icons/goldbergbau.png",
+    "prompt": "An iron pickaxe resting on a pile of shiny gold nuggets."
+   },
+   {
+    "name": "schmiedekunst",
+    "seed": 4872,
+    "ziel": "Icons/schmiedekunst.png",
+    "prompt": "A blacksmith hammer striking a glowing red-hot sword blade on an iron anvil, sparks flying."
+   },
+   {
+    "name": "befiederte_pfeile",
+    "seed": 4881,
+    "ziel": "Icons/befiederte_pfeile.png",
+    "prompt": "Three wooden arrows with long feather fletching and sharp iron tips, crossed."
+   },
+   {
+    "name": "schuppenpanzer",
+    "seed": 4891,
+    "ziel": "Icons/schuppenpanzer.png",
+    "prompt": "A shirt of iron scale armor with overlapping metal scales."
+   },
+   {
+    "name": "maurerkunst",
+    "seed": 4902,
+    "ziel": "Icons/maurerkunst.png",
+    "prompt": "A mason's trowel and a stack of cut stone blocks with mortar."
+   }
+  ]
  }
 }
