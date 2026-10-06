@@ -31,9 +31,14 @@ def testzahlen() -> dict[str, int]:
     Gezaehlt wird wie 'dotnet test': jedes [Fact] ein Fall, jede [InlineData]-Zeile
     einer [Theory] ebenfalls. Die erste Fassung zaehlte [Theory] einmal und kam
     seit C1t/C2a auf 65, waehrend der Testlauf 72 meldete.
+
+    Auch Unterordner zaehlen (AI/EconomyAiTests.cs): die zweite Fassung sah nur die
+    oberste Ebene und kam auf 195, waehrend der Testlauf 215 meldete.
     """
+    dateien = [f for f in Path("tests/AoE.Tests").rglob("*.cs")
+               if not {"bin", "obj"} & set(f.parts)]
     return {f.name: len(re.findall(r"\[(?:Fact|InlineData)\b", f.read_text(encoding="utf-8-sig")))
-            for f in sorted(Path("tests/AoE.Tests").glob("*.cs"))}
+            for f in sorted(dateien)}
 
 
 def abschnitt(lines: list[str], kopf: str) -> list[str]:

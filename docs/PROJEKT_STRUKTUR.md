@@ -22,13 +22,13 @@ AgeOfEvolutions/ - das MonoGame-Spiel:
         Content/ - Backgrounds/menu.png, Icons/, Gebaeude/ (je Zeitalter in dunkel/, feudal/, ritter/, imperial/), Einheiten/ (ab der Feudalzeit je Zeitalter in feudal/, ritter/, imperial/), Werkzeuge/, Boden/, Felder/, Baeume/, Rohstoffe/, Tiere/ (aus tools/bilder), Fonts/Hud und Fonts/Menu
     AgeOfEvolutions.DesktopGL/ (net10.0) - Windows, macOS, Linux; RuntimeIdentifiers win-x64, osx-x64, osx-arm64, linux-x64
     AgeOfEvolutions.WindowsDX/ (net10.0-windows) - nur Windows
-tests/AoE.Tests/ - net10.0, xUnit, 159 Tests, alle grün
-    UnitTests.cs (15), CounterTriangleTests.cs (5), PathfindingTests.cs (3), FogOfWarTests.cs (8), GatherJobTests.cs (21), TrainingTests.cs (22), ConstructionTests.cs (39), AgeTests.cs (46)
+tests/AoE.Tests/ - net10.0, xUnit, 215 Tests, alle grün
+    UnitTests.cs (15), CounterTriangleTests.cs (5), PathfindingTests.cs (3), FogOfWarTests.cs (8), GatherJobTests.cs (21), TrainingTests.cs (22), ConstructionTests.cs (74), AgeTests.cs (46), AI/EconomyAiTests.cs (20), DebugBuild2.cs (1)
 demo/DemoApp.csproj - net10.0, kleine Konsolen-Testapp
 tools/ollama-agent/ - Harness, der TODO-Punkte an ein lokales Ollama-Modell verteilt
 tools/kartenpruefung/ - prüft Regeln des Kartengenerators über 50 erzeugte Karten
 tools/bilder/ - erzeugt Spielgrafiken mit Qwen-Image über ComfyUI; Prompts und Seeds in bilder.json, uebernehmen.ps1 bereitet die gewählten Bilder für Content/ auf
-tools/spielablauf/ - lässt die Spielschleife ohne Grafik laufen und prüft Abläufe (Bauen, Weiterbauen, Linksklick, Farm, Schafe, Bewegen, Minimap, Zoom, Leiste, Zeitalter, Wachturm, Hauptmenü, Animation, Fenster, Werkzeug, Feld, Trampelpfad, Wind, Gang, Blick, Dunkel)
+tools/spielablauf/ - lässt die Spielschleife ohne Grafik laufen und prüft Abläufe (Bauen, Weiterbauen, Linksklick, Farm, Schafe, Bewegen, Minimap, Zoom, Leiste, Zeitalter, Wachturm, Hauptmenü, Animation, Fenster, Werkzeug, Feld, Trampelpfad, Wind, Gang, Blick, Dunkel, Neubauten)
 ```
 
 ## Wichtige Dateien
@@ -38,22 +38,22 @@ tools/spielablauf/ - lässt die Spielschleife ohne Grafik laufen und prüft Abl�
 | DamageCalculator.cs | src/AoE.Core/Combat/DamageCalculator.cs | 233 Zeilen |
 | VillagerLogic.cs | src/AoE.Core/Economy/VillagerLogic.cs | 331 Zeilen, enthält ResourcePool |
 | Training.cs | src/AoE.Core/Economy/Training.cs | 154 Zeilen, `Population` (Grenze aus den Gebäuden, höchstens 200) und `TrainingQueue<T>` (Ausbildung, steht bei voller Bevölkerung still) |
-| Construction.cs | src/AoE.Core/Economy/Construction.cs | 107 Zeilen, `BuildingRules` (Kosten, Bauzeit, Größe, abnehmender Ertrag) und `Construction` (Baustelle) |
+| Construction.cs | src/AoE.Core/Economy/Construction.cs | 131 Zeilen, `BuildingRules` (Kosten, Bauzeit und Größe jedes Gebäudetyps, abnehmender Ertrag) und `Construction` (Baustelle) |
 | Ages.cs | src/AoE.Core/Economy/Ages.cs | 176 Zeilen, `Age`, `AgeRules` (Kosten, Dauer, ab welchem Zeitalter ein Gebäude baubar ist) und `AgeProgress` (der Aufstieg eines Spielers) |
 | GatherJob.cs | src/AoE.Core/Economy/GatherJob.cs | 264 Zeilen, Sammelauftrag: hinlaufen, sammeln bis Traglast 10, abliefern, zurück; Schnittstelle IGatherWorld |
-| Buildings.cs | src/AoE.Core/Entities/Buildings.cs | 473 Zeilen, Gebäudetypen und Fabriken; Holzfäller- und Bergbaulager seit C5, Wachturm seit C4c; Baustellen ohne Sicht seit C7b |
+| Buildings.cs | src/AoE.Core/Entities/Buildings.cs | 541 Zeilen, Gebäudetypen und Fabriken; Holzfäller- und Bergbaulager seit C5, Wachturm seit C4c; Baustellen ohne Sicht seit C7b; `Create` für jeden Typ mit Werten nach AoE II seit L1 |
 | UnitEntity.cs | src/AoE.Core/Entities/UnitEntity.cs | 238 Zeilen |
 | UnitTypes.cs | src/AoE.Core/Entities/UnitTypes.cs | 379 Zeilen |
 | UnitClass.cs | src/AoE.Core/Entities/UnitClass.cs | 57 Zeilen |
 | Resource.cs | src/AoE.Core/Entities/Resource.cs | 32 Zeilen |
 | VisibilitySystem.cs | src/AoE.Core/Map/VisibilitySystem.cs | 413 Zeilen, enthält AUCH MapGrid; Gebäude spenden Sicht wie Einheiten, Baustellen noch nicht |
 | Pathfinding.cs | src/AoE.Core/Pathfinding/Pathfinding.cs | 316 Zeilen, A-Stern und Formationsbewegung |
-| TileMap.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/TileMap.cs | 1371 Zeilen, Kartengenerierung mit Seen (nicht in den Startzonen), Ressourcenklumpen, PvP-Startpositionen; Gebäude beliebiger Kantenlänge und `CanPlaceBuilding`; Trampelpfade (`Trample`, `RegrowGrass`); gerade Wege über freies Land (`IsSegmentWalkable`); Laufbefehle nach dem Wissen des Spielers (`FindPathKnown`) |
+| TileMap.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/TileMap.cs | 1386 Zeilen, Kartengenerierung mit Seen (nicht in den Startzonen), Ressourcenklumpen, PvP-Startpositionen; Gebäude beliebiger Kantenlänge und `CanPlaceBuilding`; Trampelpfade (`Trample`, `RegrowGrass`); gerade Wege über freies Land (`IsSegmentWalkable`); Laufbefehle nach dem Wissen des Spielers (`FindPathKnown`) |
 | TileMapGatherWorld.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/TileMapGatherWorld.cs | 144 Zeilen, setzt IGatherWorld auf die Kachelkarte um: Quellen, Abgabestellen am Gebäuderand, nur fertig gebaute |
 | Unit.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/Unit.cs | 205 Zeilen, Spieleinheit; hält über `Unit.Core` eine `UnitEntity` aus AoE.Core und reicht Kampfwerte, Lebenspunkte und Zustand durch; hält den Sammelauftrag (`Job`) und die Baustelle (`BuildSite`) |
 | CoreUnits.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/CoreUnits.cs | 101 Zeilen, bildet alle 17 Einheitentypen des Spiels auf Klassen aus AoE.Core ab |
-| CoreBuildings.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/CoreBuildings.cs | 33 Zeilen, bildet die Gebäudetypen des Spiels auf BuildingEntity aus AoE.Core ab |
-| RTSGameplayScreen.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs | 4422 Zeilen, prozedurale Texturen und Spielschleife; Gras, Sand und Wasser aus dem Bodenshader (`DrawGroundShaded`), Weizen (`DrawWheat`) und Bäume (`DrawTrees`, Wind.cs) im Wind; Gehen nach Strecke mit Anfahren und Abbremsen (Gait.cs); Gebäude- und Dorfbewohnerbilder je Zeitalter des Besitzers; Ausbildung (Taste Q), Zeitalter (A), Baumenü (H, M, F, B, G, T), Baustellen, Minimap und die Klick-Entscheidung (`LeftClick`) |
+| CoreBuildings.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/CoreBuildings.cs | 50 Zeilen, bildet alle Gebäude des Baumenüs auf BuildingEntity aus AoE.Core ab |
+| RTSGameplayScreen.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs | 4728 Zeilen, prozedurale Texturen und Spielschleife; Gras, Sand und Wasser aus dem Bodenshader (`DrawGroundShaded`), Weizen (`DrawWheat`) und Bäume (`DrawTrees`, Wind.cs) im Wind; Gehen nach Strecke mit Anfahren und Abbremsen (Gait.cs); Gebäude- und Dorfbewohnerbilder je Zeitalter des Besitzers; Ausbildung (Taste Q), Zeitalter (A), Baumenü in zwei Tastenreihen (H, M, F, B, G, T; darunter die zweite Reihe K, P, S, L, E, R, W, Z, X, U, O, C, N), Baustellen, Minimap und die Klick-Entscheidung (`LeftClick`) |
 
 ## Grafik
 
@@ -67,8 +67,12 @@ Spieler 2 rot und macht Bodenbilder kachelbar. Die Ergebnisse liegen in
 Bewegung der Dorfbewohner (Gehen, Stehen), den Schwung ihrer Werkzeuge und den Schritt
 der Tiere rechnet das Spiel selbst (`RTSGameplayScreen.DrawVillager`, `DrawTool`, `DrawAnimal`). Fehlt eine Grafik, zeichnet das Spiel wie früher
 prozedural. Gras, Sand und Wasser setzt der Bodenshader `Content/Effects/Boden.fx` in einem
-Durchgang aus Gras- und Sandbild zusammen: weiche Ufer und Strände, Wassertiefe, Wellen,
-Schaum, Fischschwärme und Trampelpfade. Im Wind wiegen sich der Weizen (`Content/Effects/Weizen.fx`)
+Durchgang aus Gras- und Sandbildern zusammen: weiche Ufer und Strände, Wassertiefe, Wellen,
+Schaum, Fischschwärme und Trampelpfade. Das Gras ist eine Wiese aus vier Sorten
+(`Boden/gras`, `gras_trocken`, `gras_dunkel`, `gras_blumen`, Gruppe `gras`): je Bildpunkt
+gewinnt die Sorte mit dem größten Gewicht plus Halmhöhe (`Meadow`, `GrassHeight`), so
+schieben sich an den Grenzen die Halme ineinander; Blumen wachsen nur in Flecken, am Wald
+das dunkle Gras mit Klee. Im Wind wiegen sich der Weizen (`Content/Effects/Weizen.fx`)
 und die Bäume (`Screens/Wind.cs`), in denselben Böen. Bilder des Spiels liegen in `docs/bilder/`.
 
 Das Programmsymbol (Dorfbewohner vor dem Wappenschild, Gruppe `spielicon`) schreibt
@@ -82,7 +86,7 @@ eigenes Logo.
 | Projekt | Ziel | Status |
 |---|---|---|
 | AoE.Core | net10.0 | baut fehlerfrei |
-| AoE.Tests | net10.0 | 159/159 grün |
+| AoE.Tests | net10.0 | 215/215 grün |
 | DemoApp | net10.0 | in Ordnung |
 | AgeOfEvolutions.Core | net10.0 | fehlerfrei |
 | DesktopGL | net10.0 | fehlerfrei, keine Warnungen |

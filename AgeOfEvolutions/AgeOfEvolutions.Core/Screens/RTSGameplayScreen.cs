@@ -254,6 +254,11 @@ public class RTSGameplayScreen : GameScreen
         ("Q", "Icons/dorfbewohner"), ("A", "Icons/zeitalter"), ("H", "Icons/haus"),
         ("M", "Icons/muehle"), ("F", "Icons/holzfaellerlager"), ("B", "Icons/bergbaulager"),
         ("G", "Icons/farm"), ("T", "Icons/wachturm"), (".", "Icons/untaetig"),
+        ("K", "Icons/kaserne"), ("P", "Icons/palisade"), ("S", "Icons/schiessstand"),
+        ("L", "Icons/stall"), ("E", "Icons/schmiede"), ("R", "Icons/markt"),
+        ("W", "Icons/steinmauer"), ("Z", "Icons/stadtzentrum"), ("X", "Icons/belagerungswerkstatt"),
+        ("U", "Icons/universitaet"), ("O", "Icons/kloster"), ("C", "Icons/burg"),
+        ("N", "Icons/wunder"),
     };
     private readonly Dictionary<string, Texture2D> _buttonIcons = new();
 
@@ -269,6 +274,12 @@ public class RTSGameplayScreen : GameScreen
         ("Stadtzentrum", "Gebaeude/stadtzentrum"), ("Haus", "Gebaeude/haus"),
         ("Mühle", "Gebaeude/muehle"), ("Holzfällerlager", "Gebaeude/holzfaellerlager"),
         ("Bergbaulager", "Gebaeude/bergbaulager"), ("Wachturm", "Gebaeude/wachturm"),
+        ("Kaserne", "Gebaeude/kaserne"), ("Palisadenmauer", "Gebaeude/palisade"),
+        ("Schießstand", "Gebaeude/schiessstand"), ("Stall", "Gebaeude/stall"),
+        ("Schmiede", "Gebaeude/schmiede"), ("Markt", "Gebaeude/markt"),
+        ("Steinmauer", "Gebaeude/steinmauer"), ("Belagerungswerkstatt", "Gebaeude/belagerungswerkstatt"),
+        ("Universität", "Gebaeude/universitaet"), ("Kloster", "Gebaeude/kloster"),
+        ("Burg", "Gebaeude/burg"), ("Wunder", "Gebaeude/wunder"),
     };
     private static readonly string[] AgeFolders = { "dunkel", "feudal", "ritter", "imperial" };   // Index = Age
     private readonly Dictionary<(string Type, Age Age, int Owner), Texture2D> _buildingSprites = new();
@@ -321,6 +332,30 @@ public class RTSGameplayScreen : GameScreen
         ["Gebaeude/imperial/holzfaellerlager"] = new(92, 9, 29, 19),
         ["Gebaeude/imperial/bergbaulager"] = new(223, 122, 33, 22),
         ["Gebaeude/imperial/wachturm"] = new(131, 7, 56, 37),
+        ["Gebaeude/dunkel/kaserne"] = new(344, 103, 39, 25),
+        ["Gebaeude/feudal/kaserne"] = new(336, 80, 47, 34),
+        ["Gebaeude/feudal/schiessstand"] = new(335, 137, 49, 41),
+        ["Gebaeude/feudal/stall"] = new(316, 46, 68, 37),
+        ["Gebaeude/feudal/schmiede"] = new(321, 78, 63, 51),
+        ["Gebaeude/feudal/markt"] = new(457, 104, 55, 50),
+        ["Gebaeude/ritter/kaserne"] = new(327, 223, 56, 33),
+        ["Gebaeude/ritter/schiessstand"] = new(338, 229, 45, 37),
+        ["Gebaeude/ritter/stall"] = new(347, 139, 37, 30),
+        ["Gebaeude/ritter/schmiede"] = new(334, 160, 50, 35),
+        ["Gebaeude/ritter/markt"] = new(447, 66, 64, 52),
+        ["Gebaeude/ritter/belagerungswerkstatt"] = new(405, 155, 72, 38),
+        ["Gebaeude/ritter/kloster"] = new(327, 79, 39, 29),
+        ["Gebaeude/ritter/burg"] = new(271, 12, 156, 84),
+        ["Gebaeude/imperial/kaserne"] = new(342, 223, 42, 26),
+        ["Gebaeude/imperial/schiessstand"] = new(336, 88, 48, 48),
+        ["Gebaeude/imperial/stall"] = new(282, 38, 55, 35),
+        ["Gebaeude/imperial/schmiede"] = new(317, 92, 66, 46),
+        ["Gebaeude/imperial/markt"] = new(433, 85, 79, 44),
+        ["Gebaeude/imperial/belagerungswerkstatt"] = new(441, 165, 68, 44),
+        ["Gebaeude/imperial/universitaet"] = new(367, 158, 90, 45),
+        ["Gebaeude/imperial/kloster"] = new(278, 78, 52, 42),
+        ["Gebaeude/imperial/burg"] = new(270, 12, 143, 66),
+        ["Gebaeude/imperial/wunder"] = new(428, 39, 163, 119),
     };
     private readonly Dictionary<Texture2D, Rectangle> _flagCloths = new();
     private const float FLAG_WAVE = 0.18f;
@@ -380,6 +415,8 @@ public class RTSGameplayScreen : GameScreen
     private const int WALK_CYCLES_PER_STEP = 2;   // Doppelschritte der Beine je Kachelschritt
     private Texture2D _grassTex;
     private Texture2D _sandTex;
+    // Die drei weiteren Grassorten für die Wiese im Bodenshader
+    private Texture2D _dryGrassTex, _lushGrassTex, _flowerGrassTex;
     private Texture2D _waterGroundTex;    // Wasserbild; waterTex sind die gezeichneten Wasserkacheln
     private Texture2D _soilTex;           // abgeerntetes Feld (Felder/acker), ein Bild je Feld
     private Texture2D _wheatTex;          // dasselbe Feld mit reifem Weizen (Felder/weizen)
@@ -441,14 +478,28 @@ public class RTSGameplayScreen : GameScreen
     // Bauen (C5): Dorfbewohner wählen, Taste drücken, Bauplatz anklicken.
     // Kosten, Bauzeit und Größe kommen aus AoE.Core (BuildingRules); der Name
     // ist zugleich der Gebäudetyp der Karte (TileMap.AddBuilding).
-    private static readonly (Keys Key, BuildingType Type, string Name)[] BuildMenu =
+    // Row: 0 = erste Tastenreihe, 1 = zweite Reihe darunter.
+    private static readonly (Keys Key, BuildingType Type, string Name, int Row)[] BuildMenu =
     {
-        (Keys.H, BuildingType.House, "Haus"),
-        (Keys.M, BuildingType.Mill, "Mühle"),
-        (Keys.F, BuildingType.LumberCamp, "Holzfällerlager"),
-        (Keys.B, BuildingType.MiningCamp, "Bergbaulager"),
-        (Keys.G, BuildingType.Farm, "Farm"),
-        (Keys.T, BuildingType.Tower, "Wachturm"),   // ab der Feudalzeit
+        (Keys.H, BuildingType.House, "Haus", 0),
+        (Keys.M, BuildingType.Mill, "Mühle", 0),
+        (Keys.F, BuildingType.LumberCamp, "Holzfällerlager", 0),
+        (Keys.B, BuildingType.MiningCamp, "Bergbaulager", 0),
+        (Keys.G, BuildingType.Farm, "Farm", 0),
+        (Keys.T, BuildingType.Tower, "Wachturm", 0),   // ab der Feudalzeit
+        (Keys.K, BuildingType.Barracks, "Kaserne", 1),
+        (Keys.P, BuildingType.PalisadeWall, "Palisadenmauer", 1),
+        (Keys.S, BuildingType.ArcheryRange, "Schießstand", 1),
+        (Keys.L, BuildingType.Stable, "Stall", 1),
+        (Keys.E, BuildingType.Blacksmith, "Schmiede", 1),
+        (Keys.R, BuildingType.Market, "Markt", 1),
+        (Keys.W, BuildingType.StoneWall, "Steinmauer", 1),
+        (Keys.Z, BuildingType.TownCenter, "Stadtzentrum", 1),
+        (Keys.X, BuildingType.SiegeWorkshop, "Belagerungswerkstatt", 1),
+        (Keys.U, BuildingType.University, "Universität", 1),
+        (Keys.O, BuildingType.Monastery, "Kloster", 1),
+        (Keys.C, BuildingType.Castle, "Burg", 1),
+        (Keys.N, BuildingType.Wonder, "Wunder", 1),
     };
     private BuildingType? placing;   // was gerade gesetzt wird, oder null
     private Vector2 mouseGridCell;
@@ -563,6 +614,9 @@ public class RTSGameplayScreen : GameScreen
 
         _grassTex = LoadOptional("Boden/gras");
         _sandTex = LoadOptional("Boden/sand");
+        _dryGrassTex = LoadOptional("Boden/gras_trocken");
+        _lushGrassTex = LoadOptional("Boden/gras_dunkel");
+        _flowerGrassTex = LoadOptional("Boden/gras_blumen");
         _soilTex = LoadOptional("Felder/acker");
         _wheatTex = LoadOptional("Felder/weizen");
         _waterGroundTex = LoadOptional("Boden/wasser");
@@ -1451,7 +1505,8 @@ public class RTSGameplayScreen : GameScreen
             AdvanceAge();
 
         // Baumenü: H Haus, M Mühle, F Holzfällerlager, B Bergbaulager, G Farm,
-        // ab der Feudalzeit T Wachturm.
+        // ab der Feudalzeit T Wachturm. Die Gebäude der zweiten Reihe ebenso,
+        // je mit dem Buchstaben ihrer Taste (BuildMenu).
         // Dieselbe Taste noch einmal schaltet den Setzmodus aus; identisch
         // erledigen die quadratischen Befehlstasten in der unteren Leiste.
         foreach (var entry in BuildMenu)
@@ -2104,7 +2159,13 @@ public class RTSGameplayScreen : GameScreen
         if (!owner.Resources.PayCost(cost))
             return false;
         if (ownerId == 0)
-            placing = null;   // Setzmodus nur für die menschliche Spielweise
+        {
+            // Nach einem Mauerstück bleibt der Setzmodus an, damit der Spieler
+            // mit weiteren Klicks eine Mauerreihe legt; nach jedem anderen
+            // Gebäude wird er wie bisher ausgeschaltet.
+            if (type != BuildingType.PalisadeWall && type != BuildingType.StoneWall)
+                placing = null;   // Setzmodus nur für die menschliche Spielweise
+        }
 
         var villagers = builders.Where(u => u.Core is CoreVillager).ToList();
 
@@ -2606,6 +2667,10 @@ public class RTSGameplayScreen : GameScreen
         p["LiveTexture"]?.SetValue(_groundLive);
         p["GrassTexture"]?.SetValue(_grassTex);
         p["SandTexture"]?.SetValue(_sandTex);
+        // Fehlt ein Bild, steht das Grundgras dafür
+        p["DryGrassTexture"]?.SetValue(_dryGrassTex ?? _grassTex);
+        p["LushGrassTexture"]?.SetValue(_lushGrassTex ?? _grassTex);
+        p["FlowerGrassTexture"]?.SetValue(_flowerGrassTex ?? _grassTex);
         p["NoiseTexture"]?.SetValue(_groundNoise);
         spriteBatch.Begin(SpriteSortMode.Immediate, BlendState.Opaque, SamplerState.LinearClamp,
                           null, null, _groundEffect);
@@ -4164,11 +4229,13 @@ public class RTSGameplayScreen : GameScreen
         }
         else
         {
-            infoLine = "Links: bewegen/sammeln/bauen   Rechts: auswählen   Ziehen: Karte   Q/H/M/F/B/G/T: Befehle oben   A: Zeitalter   .: untätig";
+            infoLine = "Links: bewegen/sammeln/bauen   Rechts: auswählen   Ziehen: Karte   Buchstaben: Befehle links unten   A: Zeitalter   .: untätig";
         }
         // Im kleinsten Fenster ist der Platz schmaler als der Hilfetext - dann
         // bricht er an den Dreifach-Leerzeichen um, statt unter die Minimap zu laufen
-        int infoLeft = _buttons[^1].Rect.Right + 24;
+        // Rechts neben der breitesten Tastenreihe: die letzte Taste liegt jetzt
+        // in der zweiten Reihe, die erste kann breiter sein
+        int infoLeft = _buttons.Max(b => b.Rect.Right) + 24;
         float infoWidth = minimapRect.Left - 24 - infoLeft;
         var lines = WrapHudText(infoLine, infoWidth);
         for (int i = 0; i < lines.Count; i++)
@@ -4230,13 +4297,24 @@ public class RTSGameplayScreen : GameScreen
                       $"{AgeRules.NameOf(next)}, {CostText(AgeRules.CostOf(next))}", AdvanceAge);
         if (builders)
         {
-            foreach (var e in BuildMenu.Where(e => AgeRules.IsUnlocked(e.Type, age)))
+            // Erste Tastenreihe: nur die Einträge mit Row 0
+            foreach (var e in BuildMenu.Where(e => e.Row == 0 && AgeRules.IsUnlocked(e.Type, age)))
                 AddButton(ref x, size, gap, y, e.Key.ToString().ToUpperInvariant(),
                           e.Name, CostText(BuildingRules.CostOf(e.Type)), e.Type,
                           () => TogglePlacing(e.Type));
         }
         AddButton(ref x, size, gap, y, ".", "Untätig", "nächster untätiger Dorfbewohner",
                   SelectNextIdleVillager);
+        // Zweite Reihe: nur wenn builders, direkt unter der ersten, links bündig
+        if (builders)
+        {
+            int x2 = 10;
+            int y2 = y + size + gap;
+            foreach (var e in BuildMenu.Where(e => e.Row == 1 && AgeRules.IsUnlocked(e.Type, age)))
+                AddButton(ref x2, size, gap, y2, e.Key.ToString().ToUpperInvariant(),
+                          e.Name, CostText(BuildingRules.CostOf(e.Type)), e.Type,
+                          () => TogglePlacing(e.Type));
+        }
     }
 
     private void AddButton(ref int x, int size, int gap, int y, string label, string name,

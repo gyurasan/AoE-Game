@@ -216,7 +216,9 @@ def ausfuehren(graph: dict, ziel: Path) -> float:
 
 
 def erzeuge(eintrag: dict, gruppe: dict, seed: int, ziel: Path) -> Path:
-    stil = gruppe.get("stil", "")
+    # Ein Eintrag kann den Stil der Gruppe ersetzen - etwa beim Ausbessern, wenn
+    # "building" im Gruppenstil das Modell wieder eine Tür in die Maske malen lässt
+    stil = eintrag.get("stil", gruppe.get("stil", ""))
     prompt = f"{eintrag['prompt']} {stil}".strip()
     breite, hoehe = eintrag.get("groesse", gruppe["groesse"])
     # Ein Eintrag kann eigene Negativbegriffe mitbringen, zusätzlich zu denen der Gruppe

@@ -4,19 +4,38 @@
 
 ## Wiederaufnahme — hier weitermachen
 
-Zuletzt angefasst: **Gebäude und Dorfbewohner je Zeitalter** (2026-10-04, C4g, C4h) —
-jedes Gebäude hat für Dunkle, Feudal-, Ritter- und Imperialzeit ein eigenes Bild, und die
-Dorfbewohner kleiden sich nach dem Zeitalter; beides wechselt, sobald der Besitzer aufsteigt.
+Zuletzt angefasst: **Die Wiese** (2026-10-06, G10) — das Gras sah künstlich aus (Hinweis
+des Nutzers): ein Pixelkunst-Bild mit gleichmäßig verstreuten Blütenpunkten, großflächig nur
+getönt. Jetzt vier Grassorten aus Qwen-Image, nach Halmhöhe ineinander geblendet. Davor
+**die übrigen Gebäude** (L1, L2): alle Gebäude aus `Buildings.cs` sind baubar, in einer
+zweiten Tastenreihe; sie stehen nur, Einheiten, Forschung und Handel fehlen noch.
 Uncommittet im Arbeitsbaum; Commit macht der Nutzer.
 
 Alles baut und läuft: `dotnet build AgeOfEvolutions.slnx` (0 Fehler, 0 Warnungen),
-`dotnet test tests/AoE.Tests` → **159/159 grün**.
+`dotnet test tests/AoE.Tests` → **215/215 grün**.
 
 Der Stand vom 2026-09-23 ist mit `4cb57d4` committet, alles bis zu den Gebäude-Sprites
 mit `4f85314` (2026-10-03). Commits macht der Nutzer selbst.
 
 Zuletzt fertiggestellt:
 
+- **Wiese aus vier Grassorten (2026-10-06)** — Grundgras, trockenes Gras mit Erdflecken,
+  dunkles Gras mit Klee und eine Blumenwiese (Qwen-Image, Gruppe `gras`, im
+  handgemalten Stil der Gebäude statt der bisherigen Pixelkunst). `Boden.fx` blendet sie in
+  `Meadow` nach Halmhöhe: je Bildpunkt gewinnt die Sorte mit dem größten Gewicht plus
+  Helligkeit, an den Grenzen greifen die Halme ineinander. Trockene und satte Gegenden
+  folgen großflächigem Rauschen, Blumen wachsen nur in Flecken von zwei bis vier Kacheln,
+  am Wald das dunkle Gras. Das Grundgras liegt zweimal, um 90 Grad gedreht, darüber -
+  es wiederholt sich nicht sichtbar. Abnahme `g10_wiese.py`, dazu Fotos *(G10)*
+- **Die übrigen Gebäude (2026-10-06)** — Kaserne und Palisadenmauer ab der Dunklen Zeit,
+  Schießstand, Stall, Schmiede, Markt und Steinmauer ab der Feudalzeit, ein weiteres
+  Stadtzentrum, Belagerungswerkstatt, Universität, Kloster und Burg ab der Ritterzeit, das
+  Wunder in der Imperialzeit. Kosten laut Spezifikation, Bauzeit, Grundfläche (Mauerstück
+  1×1 bis Wunder 5×5) und Werte nach AoE II in `BuildingRules` und `BuildingEntity.Create`
+  *(L1)*. Im Spiel eine zweite Tastenreihe (K, P, S, L, E, R, W, Z, X, U, O, C, N) mit
+  eigenen Symbolen und Bildern je Zeitalter (Qwen-Image, Gruppen `gebaeude2_*`); nach einem
+  Mauerstück bleibt der Setzmodus an, so legt man eine Mauerreihe. Die Kaserne kommt wie in
+  AoE II schon in der Dunklen Zeit. Neue Gruppe `neubauten` in `tools/spielablauf` *(L2)*
 - **Boden aus einem Guss (2026-10-05)** — Gras, Sand und Wasser zeichnet ein Shader
   (`Content/Effects/Boden.fx`) in einem Durchgang: weiche, unregelmäßige Ufer und Strände
   statt Kachelkanten, nasser Sand am Wasser, Wasser mit Tiefe, Wellen, Glanz, Schaum und
@@ -186,9 +205,10 @@ Nächste sinnvolle Schritte, in dieser Reihenfolge:
 3. **Bedienoberfläche mit der Auflösung skalieren** — Leisten, Schrift, Tasten und Minimap
    haben feste Pixelmaße und wirken in der DX-Fassung (2707 px hoch) halb so groß; dazu
    ein Infokästchen am Mauszeiger statt des Hinweises in der Leistenmitte.
-4. **Weitere Gebäude der Feudalzeit** — die Zeitalter (C4) stehen, freigeschaltet ist
-   bisher nur der Wachturm. Schießstand und Stall brauchen die Kampfschleife, der Markt
-   den Handel.
+4. **Die neuen Gebäude mit Leben füllen** — seit L1/L2 sind alle Gebäude baubar, aber sie
+   stehen nur: Kaserne, Schießstand, Stall, Belagerungswerkstatt und Burg brauchen Einheiten
+   und die Kampfschleife, der Markt den Handel, Schmiede und Universität die Forschung, das
+   Kloster Mönche. Dorfkern, Mauern und Krieger siehe C13.
 5. **Kampfschleife** — `Unit.Attack()` existiert seit B2 und wird nirgends aufgerufen.
    Auf Wunsch des Nutzers zurückgestellt (2026-09-30).
 6. **Veraltete Abnahmen** — `c1n`, `c1c` und `c8a` prüfen Schreibweisen von früher (die
@@ -267,7 +287,7 @@ benennt jemand eine Methode um, meldet es das, statt still falsch zu prüfen.
 | Projekt | Framework | Build | Bemerkung |
 |---|---|---|---|
 | `src/AoE.Core` | net10.0 | OK, 0 Fehler | Reine Logik, keine MonoGame-Abhängigkeit |
-| `tests/AoE.Tests` | net10.0 | **159/159 grün** | Einheiten und Ressourcen (15), Sammelauftrag (21), Ausbildung und Bevölkerung (22), Bauen (39), Zeitalter (46), Konter-Dreieck (5), Wegfindung (3), Nebel (8) |
+| `tests/AoE.Tests` | net10.0 | **215/215 grün** | Einheiten und Ressourcen (15), Sammelauftrag (21), Ausbildung und Bevölkerung (22), Bauen (74), Zeitalter (46), Konter-Dreieck (5), Wegfindung (3), Nebel (8), Wirtschafts-KI (20), Fehlersuche (1) |
 | `demo/DemoApp` | net10.0 | OK | referenziert AoE.Core |
 | `AgeOfEvolutions.Core` | net10.0 | OK, 0 Fehler | Dateiname seit H2 kanonisch |
 | `AgeOfEvolutions.DesktopGL` | net10.0 | OK, 0 Fehler / 0 Warnungen | startbar |
@@ -874,16 +894,21 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
   in dem Dorfbewohner — also auch Krieger — ausgebildet werden; **teuer** wie im AoE II:
   400 Holz, Bauzeit 150 s (Richtwerte sind bereits in AoE-II-Tabelle eingeplant)
   *(Agent C5a)*. `AgeRules.RequiredAgeOf`, Baumenü, Taste, eigene Grafik je Zeitalter
-  wie Wachturm. Platz wie jedes andere Gebäude (`TileMap.CanPlaceBuilding`)
-- [ ] **Kaserne** ab der **Feudalzeit** baubar (Analogie Wachturm: `AgeRules`, Baumenü,
-  Taste, eigene Grafik je Zeitalter unter `Content/Gebaeude/<zeitalter>/`); Bauzeit
-  50 s ist bereits in den AoE-II-Richtwerten eingeplant *(Agent C5a)*
+  wie Wachturm. Platz wie jedes andere Gebäude (`TileMap.CanPlaceBuilding`).
+  Stand L2: ein weiteres Stadtzentrum ist wie in AoE II ab der Ritterzeit baubar (Taste Z,
+  275 Holz und 100 Stein); früher und teurer wie oben beschrieben ist noch offen
+- [x] **Kaserne** baubar - wie in AoE II und `AgeRules` schon ab der Dunklen Zeit, nicht
+  erst ab der Feudalzeit: Taste K in der zweiten Tastenreihe, eigene Grafik je Zeitalter unter
+  `Content/Gebaeude/<zeitalter>/`, Bauzeit 50 s *(Agent C5a, L1, L2)*
 - [ ] Dorfkerne und Kasernen sind wie das Start-Stadtzentrum auswählbar (Klick) und
   bilden Dorfbewohner aus
 - [ ] **Mauern** ab der Feudalzeit baubar: `StoneWall` (Bau `PalisadeWall` ist im
   `BuildingType`-Enum schon da, aber nicht verdrahtet), mit **Stein** kachelweise bauen
   wie Straßen (C12: `AgeRules.RequiredAgeOf`, Baumenü, Taste). Mauern sind für
-  **jeden** unpassierbar — Dorf- wie Feindbewohner laufen nur drum herum
+  **jeden** unpassierbar — Dorf- wie Feindbewohner laufen nur drum herum.
+  Stand L2: Palisadenmauer (Taste P, ab der Dunklen Zeit, 2 Holz) und Steinmauer (W, ab der
+  Feudalzeit, 5 Stein) stehen im Baumenü, je Kachel ein Stück; nach einem Stück bleibt der
+  Setzmodus an. Offen ist die Abnahme `mauern` (Umlaufen, Abreißen)
 - [ ] Mauer ist zerstörbare Struktur (wie Gebäude HP aus dem `BuildingType`-Werten):
   nur ein angreifender Feind, der ein Stück Mauer **zerstört**, kommt durch; nach
   Zerstörung ist die Kachel wieder begehbar
@@ -950,7 +975,7 @@ Enthält reines Azure-Boilerplate ohne jeden Bezug zum Projekt.
 - [x] .NET-10-Migration: AoE.Core, Tests, Demo, Spiel-Core, DesktopGL, WindowsDX
 - [x] Build läuft fehlerfrei durch (AoE.Core + DesktopGL, 0 Warnungen)
 - [x] AoE.Core als Projektverweis eingebunden *(seit Block B im Spiel genutzt)*
-- [x] 159 Unit-Tests grün
+- [x] 215 Unit-Tests grün
 - [x] Kartengenerierung `TileMap.cs`: Seen mit Falloff, Beeren, Schafe, Wildschweine,
       Stein/Gold, PvP-Startpositionen
 - [x] Wasser-Animation
@@ -969,6 +994,9 @@ Enthält reines Azure-Boilerplate ohne jeden Bezug zum Projekt.
   Werkzeug `tools/spielablauf`
 - [x] **C5f Farm** — Getreidefeld (Taste G, 3×3, 175 Nahrung/Kachel, Regrow ~100 s),
   neue `farm`-Gruppe in `tools/spielablauf` als Abnahme *(2026-10-03)*
+- [x] **L1, L2 Die übrigen Gebäude** — Kosten, Bauzeit, Größe und Werte für jeden
+  Gebäudetyp (L1), zweite Tastenreihe mit Symbolen und Bildern je Zeitalter, Mauerreihen,
+  Gruppe `neubauten` in `tools/spielablauf` (L2) *(2026-10-06)*
 
 ---
 

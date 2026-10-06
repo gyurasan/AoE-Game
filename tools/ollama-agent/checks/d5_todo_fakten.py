@@ -20,8 +20,8 @@ VERALTET = {
     r"nichts ist committet": "Commit 4cb57d4 existiert",
     r"im arbeitsbaum entfernt, aber noch nicht aus dem git-index": "Loeschung ist committet",
     r"es gibt \**keine\s*`?\.gitignore": ".gitignore existiert",
-    r"15/15": "es sind 26 Tests",
-    r"15 unit-tests": "es sind 26 Tests",
+    r"\b15/15\b": "es sind 26 Tests",   # Wortgrenze: 215/215 ist richtig
+    r"\b15 unit-tests": "es sind 26 Tests",   # Wortgrenze: 215 Unit-Tests ist richtig
     r"tilemap\.cs:427": "Building steht in Zeile 520",
     r"noch ungenutzt\s*(→|->)\s*block b": "AoE.Core wird seit Block B genutzt",
     r"sichtlogik l(ä|ae)uft seit": "UpdateFogOfWarForPlayer wird nirgends aufgerufen",

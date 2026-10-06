@@ -84,6 +84,84 @@
     "seed": 2009,
     "ziel": "Icons/untaetig.png",
     "prompt": "A tired villager sitting idle on a wooden barrel, yawning, with a hoe leaning against the barrel."
+   },
+   {
+    "name": "stadtzentrum",
+    "seed": 2011,
+    "ziel": "Icons/stadtzentrum.png",
+    "prompt": "A large medieval town center hall of stone and timber with a red tiled roof, small corner towers and a blue banner above the gate."
+   },
+   {
+    "name": "kaserne",
+    "seed": 2011,
+    "ziel": "Icons/kaserne.png",
+    "prompt": "A round wooden shield with an iron rim, a crossed sword and spear behind it."
+   },
+   {
+    "name": "schiessstand",
+    "seed": 2012,
+    "ziel": "Icons/schiessstand.png",
+    "prompt": "A wooden longbow with an arrow in front of a round straw archery target with red rings."
+   },
+   {
+    "name": "stall",
+    "seed": 2013,
+    "ziel": "Icons/stall.png",
+    "prompt": "A brown horse head with a leather bridle above a small heap of golden hay."
+   },
+   {
+    "name": "schmiede",
+    "seed": 2014,
+    "ziel": "Icons/schmiede.png",
+    "prompt": "An iron anvil with a blacksmith hammer lying on it and a few orange sparks."
+   },
+   {
+    "name": "markt",
+    "seed": 2015,
+    "ziel": "Icons/markt.png",
+    "prompt": "A brass balance scale with gold coins in one pan and a small sack of grain in the other."
+   },
+   {
+    "name": "palisade",
+    "seed": 2016,
+    "ziel": "Icons/palisade.png",
+    "prompt": "A short section of a palisade wall of sharpened vertical wooden logs tied with rope."
+   },
+   {
+    "name": "steinmauer",
+    "seed": 2017,
+    "ziel": "Icons/steinmauer.png",
+    "prompt": "A short section of a grey stone castle wall with battlements on top."
+   },
+   {
+    "name": "belagerungswerkstatt",
+    "seed": 2018,
+    "ziel": "Icons/belagerungswerkstatt.png",
+    "prompt": "A wooden medieval catapult on wheels with a round stone in its bucket."
+   },
+   {
+    "name": "universitaet",
+    "seed": 2019,
+    "ziel": "Icons/universitaet.png",
+    "prompt": "An open old book with a feather quill pen and a small ink pot."
+   },
+   {
+    "name": "kloster",
+    "seed": 2020,
+    "ziel": "Icons/kloster.png",
+    "prompt": "A small medieval stone chapel with a bell tower and arched windows."
+   },
+   {
+    "name": "burg",
+    "seed": 2021,
+    "ziel": "Icons/burg.png",
+    "prompt": "A mighty grey stone castle with four round towers, battlements and a small blue flag."
+   },
+   {
+    "name": "wunder",
+    "seed": 2022,
+    "ziel": "Icons/wunder.png",
+    "prompt": "A tall shining gothic cathedral of pale stone with two golden spires."
    }
   ]
  },
@@ -2221,7 +2299,6 @@
    {
     "name": "gras",
     "seed": 5002,
-    "ziel": "Boden/gras.png",
     "prompt": "Short lush green meadow grass with small tufts in a few shades of green and a very few tiny yellow and white flowers scattered evenly."
    },
    {
@@ -3328,5 +3405,383 @@
   "zielbreite": 256,
   "spielerfarben": true,
   "blau_saettigung": 0.6
+ },
+ "gebaeude2_dunkel": {
+  "groesse": [
+   1024,
+   1024
+  ],
+  "schritte": 30,
+  "cfg": 3.0,
+  "freistellen": true,
+  "stil": "Game sprite for a top-down 2D strategy game, three-quarter top-down view from the south: the front facade faces the viewer and the roof is seen from above. Detailed 16-bit pixel art, crisp pixels, soft light from the upper left. Realistic proportions, believable building materials and natural colors, finely detailed pixel shading. One single building centered, fully visible, isolated on a plain white background, no ground plate, no shadow on the background, no text. Clearly visible square pixels, hard pixel edges, like a classic late 1990s strategy game sprite.",
+  "negativ": "text, letters, logo, watermark, frame, border, isometric diamond grid, multiple buildings, people, trees, landscape, scenery, cut off, cropped, blurry, photo, 3d render, realistic, painterly, digital painting, brush strokes, fine hair strands, smooth gradients, smoke, ground, grass, black background, dark background, horses, animals, blue roof, blue walls",
+  "zuschneiden": true,
+  "zielbreite": 256,
+  "spielerfarben": true,
+  "blau_saettigung": 0.6,
+  "bilder": [
+   {
+    "name": "kaserne",
+    "seed": 5060,
+    "prompt": "A medieval barracks: a long low hall of wooden log posts and wattle and daub walls, a thatched roof, a wide wooden door, a rack of wooden spears and round shields in front and a small blue flag on a tall pole beside the building, the flag flying to the right.",
+    "ziel": "Gebaeude/dunkel/kaserne.png",
+    "zielbreite": 384
+   },
+   {
+    "name": "palisade",
+    "seed": 5075,
+    "prompt": "A short straight section of a palisade wall: a row of rough vertical wooden logs with sharpened tips, tied together with rope, seen from the front.",
+    "ziel": "Gebaeude/dunkel/palisade.png",
+    "zielbreite": 128
+   }
+  ]
+ },
+ "gebaeude2_feudal": {
+  "groesse": [
+   1024,
+   1024
+  ],
+  "schritte": 30,
+  "cfg": 3.0,
+  "freistellen": true,
+  "stil": "Game sprite for a top-down 2D strategy game, three-quarter top-down view from the south: the front facade faces the viewer and the roof is seen from above. Detailed 16-bit pixel art, crisp pixels, soft light from the upper left. Realistic proportions, believable building materials and natural colors, finely detailed pixel shading. One single building centered, fully visible, isolated on a plain white background, no ground plate, no shadow on the background, no text. Clearly visible square pixels, hard pixel edges, like a classic late 1990s strategy game sprite.",
+  "negativ": "text, letters, logo, watermark, frame, border, isometric diamond grid, multiple buildings, people, trees, landscape, scenery, cut off, cropped, blurry, photo, 3d render, realistic, painterly, digital painting, brush strokes, fine hair strands, smooth gradients, smoke, ground, grass, black background, dark background, horses, animals, blue roof, blue walls",
+  "zuschneiden": true,
+  "zielbreite": 256,
+  "spielerfarben": true,
+  "blau_saettigung": 0.6,
+  "bilder": [
+   {
+    "name": "kaserne",
+    "seed": 5161,
+    "prompt": "A medieval barracks: a long hall of wooden planks and timber beams on a fieldstone foundation, a wooden shingle roof, a wide wooden gate, a rack of spears and shields and a straw training dummy in front and a small blue flag on a tall pole beside the building, the flag flying to the right.",
+    "ziel": "Gebaeude/feudal/kaserne.png",
+    "zielbreite": 384
+   },
+   {
+    "name": "schiessstand",
+    "seed": 5163,
+    "prompt": "A medieval archery range: an open wooden shed of planks and timber beams with a wooden shingle roof, a rack of longbows and quivers, three round straw archery targets with red rings on wooden stands beside it and a small blue flag on a tall pole beside the building, the flag flying to the right.",
+    "ziel": "Gebaeude/feudal/schiessstand.png",
+    "zielbreite": 384
+   },
+   {
+    "name": "stall",
+    "seed": 5166,
+    "prompt": "A medieval horse stable: a long wooden barn of planks and timber beams on a fieldstone foundation, a wooden shingle roof, a row of half-open wooden stable doors, hay bales and a wooden water trough in front and a small blue flag on a tall pole beside the building, the flag flying to the right.",
+    "ziel": "Gebaeude/feudal/stall.png",
+    "zielbreite": 384
+   },
+   {
+    "name": "schmiede",
+    "seed": 5170,
+    "prompt": "A medieval blacksmith workshop: a wooden building of planks on a fieldstone foundation, a wooden shingle roof, a big fieldstone chimney, an open front with a glowing orange forge, an iron anvil on a tree stump in front and a small blue flag on a tall pole beside the building, the flag flying to the right.",
+    "ziel": "Gebaeude/feudal/schmiede.png",
+    "zielbreite": 384
+   },
+   {
+    "name": "markt",
+    "seed": 5172,
+    "prompt": "A medieval market: a wooden market hall of timber beams on a fieldstone foundation with a wooden shingle roof and an open ground floor, market stalls with red and yellow striped cloth awnings, crates, barrels and sacks of grain and a small blue flag on a tall pole beside the building, the flag flying to the right.",
+    "ziel": "Gebaeude/feudal/markt.png",
+    "zielbreite": 512
+   },
+   {
+    "name": "palisade",
+    "seed": 5176,
+    "prompt": "A square block of a palisade wall: vertical wooden logs with sharpened tips standing close together on all four sides, held together by a horizontal wooden beam, a plank walkway on top. No door, no roof.",
+    "ziel": "Gebaeude/feudal/palisade.png",
+    "zielbreite": 128
+   },
+   {
+    "name": "steinmauer",
+    "seed": 5178,
+    "prompt": "A solid square block of a fieldstone wall, as wide as it is deep, with a flat stone walkway on top. No door, no window, no roof.",
+    "negativ": "door, doorway, entrance, gate, arch, opening, window"
+   },
+   {
+    "name": "steinmauer_zu",
+    "seed": 5180,
+    "vorlage": "steinmauer_5178_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       215,
+       550,
+       85,
+       270
+      ],
+      [
+       300,
+       560,
+       80,
+       290
+      ]
+     ]
+    },
+    "prompt": "Rough fieldstone masonry: rows of tan stone blocks with dark mortar lines, one continuous flat wall surface without any opening.",
+    "negativ": "door, doorway, entrance, gate, arch, opening, window",
+    "ziel": "Gebaeude/feudal/steinmauer.png",
+    "zielbreite": 128,
+    "stil": "Detailed 16-bit pixel art texture, crisp square pixels, hard pixel edges, soft light from the upper left, natural colors."
+   }
+  ]
+ },
+ "gebaeude2_ritter": {
+  "groesse": [
+   1024,
+   1024
+  ],
+  "schritte": 30,
+  "cfg": 3.0,
+  "freistellen": true,
+  "stil": "Game sprite for a top-down 2D strategy game, three-quarter top-down view from the south: the front facade faces the viewer and the roof is seen from above. Detailed 16-bit pixel art, crisp pixels, soft light from the upper left. Realistic proportions, believable building materials and natural colors, finely detailed pixel shading. One single building centered, fully visible, isolated on a plain white background, no ground plate, no shadow on the background, no text. Clearly visible square pixels, hard pixel edges, like a classic late 1990s strategy game sprite.",
+  "negativ": "text, letters, logo, watermark, frame, border, isometric diamond grid, multiple buildings, people, trees, landscape, scenery, cut off, cropped, blurry, photo, 3d render, realistic, painterly, digital painting, brush strokes, fine hair strands, smooth gradients, smoke, ground, grass, black background, dark background, horses, animals, blue roof, blue walls",
+  "zuschneiden": true,
+  "zielbreite": 256,
+  "spielerfarben": true,
+  "blau_saettigung": 0.6,
+  "bilder": [
+   {
+    "name": "kaserne",
+    "seed": 5260,
+    "prompt": "A medieval barracks: a long two-storey building of grey stone masonry with a timber-framed upper floor, a red tiled roof, a heavy arched gate, a rack of spears, swords and shields in front and a small blue flag on a tall pole beside the building, the flag flying to the right.",
+    "ziel": "Gebaeude/ritter/kaserne.png",
+    "zielbreite": 384
+   },
+   {
+    "name": "schiessstand",
+    "seed": 5263,
+    "prompt": "A medieval archery range: a building of grey stone masonry with an open timber gallery and a red tiled roof, a rack of longbows and crossbows, three round straw archery targets with red rings on wooden stands beside it and a small blue flag on a tall pole beside the building, the flag flying to the right.",
+    "ziel": "Gebaeude/ritter/schiessstand.png",
+    "zielbreite": 384
+   },
+   {
+    "name": "stall",
+    "seed": 5266,
+    "prompt": "A medieval horse stable: a long building of grey stone masonry with a timber-framed hay loft, a red tiled roof, a row of arched wooden stable doors, hay bales and a stone water trough in front and a small blue flag on a tall pole beside the building, the flag flying to the right.",
+    "ziel": "Gebaeude/ritter/stall.png",
+    "zielbreite": 384
+   },
+   {
+    "name": "schmiede",
+    "seed": 5271,
+    "prompt": "A medieval blacksmith forge of grey stone masonry with a red tiled roof, a big stone chimney, an open arched front with a glowing orange forge, an iron anvil, hammers and tongs in front and a small blue flag on a tall pole beside the building, the flag flying to the right.",
+    "ziel": "Gebaeude/ritter/schmiede.png",
+    "zielbreite": 384
+   },
+   {
+    "name": "markt",
+    "seed": 5272,
+    "prompt": "A medieval market hall: a timber-framed upper floor resting on stone arches, a red tiled roof, an open arcade below, market stalls with red and yellow striped cloth awnings, crates, barrels and sacks and a small blue flag on a tall pole beside the building, the flag flying to the right.",
+    "ziel": "Gebaeude/ritter/markt.png",
+    "zielbreite": 512
+   },
+   {
+    "name": "palisade",
+    "seed": 5275,
+    "prompt": "A square block of a palisade wall: thick vertical wooden logs with sharpened tips standing close together on all four sides, held together by iron bands, on a low fieldstone base, a plank walkway on top. No door, no roof.",
+    "ziel": "Gebaeude/ritter/palisade.png",
+    "zielbreite": 128
+   },
+   {
+    "name": "steinmauer",
+    "seed": 5278,
+    "prompt": "A solid square block of a thick grey stone castle wall, as wide as it is deep, with battlements around the top edge. No door, no window, no roof.",
+    "negativ": "door, doorway, entrance, gate, arch, opening, window"
+   },
+   {
+    "name": "steinmauer_zu",
+    "seed": 5280,
+    "vorlage": "steinmauer_5278_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       250,
+       630,
+       75,
+       190
+      ],
+      [
+       325,
+       630,
+       80,
+       225
+      ]
+     ]
+    },
+    "prompt": "A solid square block of a thick grey stone castle wall, as wide as it is deep, with battlements around the top edge. No door, no window, no roof. The wall face is one continuous surface of stone blocks.",
+    "negativ": "door, doorway, entrance, gate, arch, opening, window",
+    "ziel": "Gebaeude/ritter/steinmauer.png",
+    "zielbreite": 128
+   },
+   {
+    "name": "belagerungswerkstatt",
+    "seed": 5281,
+    "prompt": "A medieval siege workshop: a large open timber workshop on a grey stone foundation with a red tiled roof and a wide open gate, a half-built wooden catapult, big wooden wheels and stacked beams in front and a small blue flag on a tall pole beside the building, the flag flying to the right.",
+    "ziel": "Gebaeude/ritter/belagerungswerkstatt.png",
+    "zielbreite": 512
+   },
+   {
+    "name": "universitaet",
+    "seed": 5284,
+    "prompt": "A medieval university: a large college building of grey stone masonry with tall arched windows, a red tiled roof, a small bell tower and a grand arched entrance with stone steps and a small blue flag on a tall pole beside the building, the flag flying to the right.",
+    "ziel": "Gebaeude/ritter/universitaet.png",
+    "zielbreite": 512
+   },
+   {
+    "name": "kloster",
+    "seed": 5287,
+    "prompt": "A medieval monastery: a stone church of grey masonry with a red tiled roof, a square bell tower, arched windows, a round rose window above the wooden door and a small blue flag on a tall pole beside the building, the flag flying to the right.",
+    "ziel": "Gebaeude/ritter/kloster.png",
+    "zielbreite": 384
+   },
+   {
+    "name": "burg",
+    "seed": 5290,
+    "prompt": "A mighty medieval castle of grey stone masonry: thick curtain walls with battlements, four big round corner towers, a tall square central keep, a massive gatehouse with a portcullis and a big blue flag on a pole on top of the keep, the flag flying to the right.",
+    "ziel": "Gebaeude/ritter/burg.png",
+    "zielbreite": 512
+   }
+  ]
+ },
+ "gebaeude2_imperial": {
+  "groesse": [
+   1024,
+   1024
+  ],
+  "schritte": 30,
+  "cfg": 3.0,
+  "freistellen": true,
+  "stil": "Game sprite for a top-down 2D strategy game, three-quarter top-down view from the south: the front facade faces the viewer and the roof is seen from above. Detailed 16-bit pixel art, crisp pixels, soft light from the upper left. Realistic proportions, believable building materials and natural colors, finely detailed pixel shading. One single building centered, fully visible, isolated on a plain white background, no ground plate, no shadow on the background, no text. Clearly visible square pixels, hard pixel edges, like a classic late 1990s strategy game sprite.",
+  "negativ": "text, letters, logo, watermark, frame, border, isometric diamond grid, multiple buildings, people, trees, landscape, scenery, cut off, cropped, blurry, photo, 3d render, realistic, painterly, digital painting, brush strokes, fine hair strands, smooth gradients, smoke, ground, grass, black background, dark background, horses, animals, blue roof, blue walls",
+  "zuschneiden": true,
+  "zielbreite": 256,
+  "spielerfarben": true,
+  "blau_saettigung": 0.6,
+  "bilder": [
+   {
+    "name": "kaserne",
+    "seed": 5361,
+    "prompt": "A grand late medieval barracks of pale cream stone with arched windows and a heavy arched gate, a dark slate roof with golden ornaments, a rack of halberds and steel shields in front and a small blue flag on a tall pole beside the building, the flag flying to the right on a golden pole.",
+    "ziel": "Gebaeude/imperial/kaserne.png",
+    "zielbreite": 384
+   },
+   {
+    "name": "schiessstand",
+    "seed": 5363,
+    "prompt": "A grand late medieval archery range of pale cream stone with an open arcade of arches and a dark slate roof with golden ornaments, racks of longbows and crossbows, three round straw archery targets with red rings beside it and a small blue flag on a tall pole beside the building, the flag flying to the right on a golden pole.",
+    "ziel": "Gebaeude/imperial/schiessstand.png",
+    "zielbreite": 384
+   },
+   {
+    "name": "stall",
+    "seed": 5368,
+    "prompt": "A grand late medieval royal stable of pale cream stone with a row of arched stable doors, a dark slate roof with a small cupola and golden ornaments, hay bales and a stone water trough in front and a small blue flag on a tall pole beside the building, the flag flying to the right on a golden pole.",
+    "ziel": "Gebaeude/imperial/stall.png",
+    "zielbreite": 384
+   },
+   {
+    "name": "schmiede",
+    "seed": 5370,
+    "prompt": "A grand late medieval armory forge of pale cream stone with a dark slate roof, two tall stone chimneys, an open arched front with a glowing orange forge, an iron anvil and a rack of armor in front and a small blue flag on a tall pole beside the building, the flag flying to the right on a golden pole.",
+    "ziel": "Gebaeude/imperial/schmiede.png",
+    "zielbreite": 384
+   },
+   {
+    "name": "markt",
+    "seed": 5373,
+    "prompt": "A grand late medieval market hall of pale cream stone with an open arcade of arches, a dark slate roof with a small clock tower and golden ornaments, market stalls with red and yellow striped cloth awnings, crates and barrels and a small blue flag on a tall pole beside the building, the flag flying to the right on a golden pole.",
+    "ziel": "Gebaeude/imperial/markt.png",
+    "zielbreite": 512
+   },
+   {
+    "name": "palisade",
+    "seed": 5375,
+    "prompt": "A square block of a palisade wall: neatly cut thick vertical wooden logs with sharpened tips standing close together on all four sides, held together by iron bands, on a low stone base, a plank walkway on top. No door, no roof.",
+    "ziel": "Gebaeude/imperial/palisade.png",
+    "zielbreite": 128
+   },
+   {
+    "name": "steinmauer",
+    "seed": 5378,
+    "prompt": "A solid square block of a massive fortified wall of pale cream stone blocks, as wide as it is deep, with battlements around the top edge. No door, no window, no roof.",
+    "ziel": "Gebaeude/imperial/steinmauer.png",
+    "zielbreite": 128
+   },
+   {
+    "name": "belagerungswerkstatt",
+    "seed": 5382,
+    "prompt": "A grand late medieval siege engine workshop of pale cream stone with a huge arched open gate and a dark slate roof, a wooden trebuchet frame, big wooden wheels and stacked beams in front and a small blue flag on a tall pole beside the building, the flag flying to the right on a golden pole.",
+    "ziel": "Gebaeude/imperial/belagerungswerkstatt.png",
+    "zielbreite": 512
+   },
+   {
+    "name": "universitaet",
+    "seed": 5385,
+    "prompt": "A magnificent late medieval university of pale cream stone and white marble with tall arched windows, a central domed tower with a golden finial, a dark slate roof and a grand portal with stone steps and a small blue flag on a tall pole beside the building, the flag flying to the right on a golden pole.",
+    "ziel": "Gebaeude/imperial/universitaet.png",
+    "zielbreite": 512
+   },
+   {
+    "name": "kloster",
+    "seed": 5387,
+    "prompt": "A grand late medieval abbey church of pale cream stone with a tall pointed bell tower, a dark slate roof with golden ornaments, tall gothic windows, a rose window above the portal and a small blue flag on a tall pole beside the building, the flag flying to the right on a golden pole.",
+    "ziel": "Gebaeude/imperial/kloster.png",
+    "zielbreite": 384
+   },
+   {
+    "name": "burg",
+    "seed": 5391,
+    "prompt": "A mighty late medieval fortress of pale cream stone: thick curtain walls with battlements, four big round corner towers with dark slate conical roofs, a tall central keep with golden ornaments, a massive gatehouse with a portcullis and a big blue flag on a golden pole on top of the keep, the flag flying to the right.",
+    "ziel": "Gebaeude/imperial/burg.png",
+    "zielbreite": 512
+   },
+   {
+    "name": "wunder",
+    "seed": 5393,
+    "prompt": "A monumental gothic cathedral as a wonder of the world: pale cream stone and white marble, two tall twin spires with golden tops, a huge round rose window, flying buttresses, a grand portal and a big blue flag on a golden pole on top, the flag flying to the right.",
+    "ziel": "Gebaeude/imperial/wunder.png",
+    "zielbreite": 640
+   }
+  ]
+ },
+ "gras": {
+  "groesse": [
+   1024,
+   1024
+  ],
+  "schritte": 30,
+  "cfg": 3.0,
+  "stil": "Seamless ground texture for a top-down 2D strategy game, seen straight from above, finely detailed hand-painted pixel art, natural muted colors, soft even lighting, low contrast, uniform density edge to edge, no objects, no paths, no shadows, no horizon, no text.",
+  "negativ": "text, letters, logo, watermark, frame, border, perspective, horizon, sky, trees, rocks, path, objects, high contrast, vignette, blurry, 3d render, neon green, large flowers",
+  "kachelbar": true,
+  "bilder": [
+   {
+    "name": "gras",
+    "seed": 5406,
+    "ziel": "Boden/gras.png",
+    "prompt": "Lush natural meadow grass seen from above: dense short grass in fresh green and grass green with some olive, fine blades in soft irregular tufts, evenly spread. No flowers, no bushes."
+   },
+   {
+    "name": "gras_trocken",
+    "seed": 5412,
+    "ziel": "Boden/gras_trocken.png",
+    "prompt": "Dry late-summer meadow seen from above: short grass in straw yellow, pale olive and faded green, thin blades, small patches of bare dry earth between the tufts. No flowers."
+   },
+   {
+    "name": "gras_dunkel",
+    "seed": 5425,
+    "ziel": "Boden/gras_dunkel.png",
+    "prompt": "Damp shady grass seen from above: dense deep green grass mixed with small clover leaves, rich dark greens. No flowers, no bushes."
+   },
+   {
+    "name": "gras_blumen",
+    "seed": 5431,
+    "ziel": "Boden/gras_blumen.png",
+    "prompt": "Wildflower meadow seen from above: green grass with small loose clusters of tiny white, yellow and pale violet wildflowers, grass between the clusters."
+   }
+  ]
  }
 }

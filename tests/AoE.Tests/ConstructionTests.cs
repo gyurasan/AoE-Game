@@ -27,12 +27,25 @@ public class ConstructionTests
                      BuildingRules.CostOf(BuildingType.TownCenter));
         Assert.Equal(new Dictionary<Resource, int> { [Resource.Wood] = 50, [Resource.Stone] = 125 },
                      BuildingRules.CostOf(BuildingType.Tower));
+        Assert.Equal(new Dictionary<Resource, int> { [Resource.Wood] = 175 }, BuildingRules.CostOf(BuildingType.ArcheryRange));
+        Assert.Equal(new Dictionary<Resource, int> { [Resource.Wood] = 175 }, BuildingRules.CostOf(BuildingType.Stable));
+        Assert.Equal(new Dictionary<Resource, int> { [Resource.Wood] = 175 }, BuildingRules.CostOf(BuildingType.Market));
+        Assert.Equal(new Dictionary<Resource, int> { [Resource.Wood] = 175 }, BuildingRules.CostOf(BuildingType.Monastery));
+        Assert.Equal(new Dictionary<Resource, int> { [Resource.Wood] = 150 }, BuildingRules.CostOf(BuildingType.Blacksmith));
+        Assert.Equal(new Dictionary<Resource, int> { [Resource.Wood] = 200 }, BuildingRules.CostOf(BuildingType.SiegeWorkshop));
+        Assert.Equal(new Dictionary<Resource, int> { [Resource.Wood] = 200 }, BuildingRules.CostOf(BuildingType.University));
+        Assert.Equal(new Dictionary<Resource, int> { [Resource.Stone] = 650 }, BuildingRules.CostOf(BuildingType.Castle));
+        Assert.Equal(new Dictionary<Resource, int> { [Resource.Wood] = 2 }, BuildingRules.CostOf(BuildingType.PalisadeWall));
+        Assert.Equal(new Dictionary<Resource, int> { [Resource.Stone] = 5 }, BuildingRules.CostOf(BuildingType.StoneWall));
+        Assert.Equal(new Dictionary<Resource, int> { [Resource.Wood] = 1000, [Resource.Stone] = 1000, [Resource.Gold] = 1000 },
+                     BuildingRules.CostOf(BuildingType.Wonder));
     }
 
     [Fact]
-    public void Kosten_UnbekannterTyp_SindLeer()
+    public void Kosten_JederTypKostetEtwas()
     {
-        Assert.Empty(BuildingRules.CostOf(BuildingType.Wonder));
+        foreach (var typ in System.Enum.GetValues<BuildingType>())
+            Assert.NotEmpty(BuildingRules.CostOf(typ));
     }
 
     [Fact]
@@ -53,7 +66,17 @@ public class ConstructionTests
     [InlineData(BuildingType.Barracks, 50f)]
     [InlineData(BuildingType.TownCenter, 150f)]
     [InlineData(BuildingType.Tower, 80f)]
-    [InlineData(BuildingType.Wonder, 60f)]
+    [InlineData(BuildingType.PalisadeWall, 5f)]
+    [InlineData(BuildingType.StoneWall, 8f)]
+    [InlineData(BuildingType.Blacksmith, 40f)]
+    [InlineData(BuildingType.Monastery, 40f)]
+    [InlineData(BuildingType.SiegeWorkshop, 40f)]
+    [InlineData(BuildingType.ArcheryRange, 50f)]
+    [InlineData(BuildingType.Stable, 50f)]
+    [InlineData(BuildingType.Market, 60f)]
+    [InlineData(BuildingType.University, 60f)]
+    [InlineData(BuildingType.Castle, 200f)]
+    [InlineData(BuildingType.Wonder, 3500f)]
     public void Bauzeit_MitEinemArbeiter(BuildingType typ, float sekunden)
     {
         Assert.Equal(sekunden, BuildingRules.BuildSecondsOf(typ));
@@ -68,12 +91,87 @@ public class ConstructionTests
     [InlineData(BuildingType.LumberCamp, 2)]
     [InlineData(BuildingType.MiningCamp, 2)]
     [InlineData(BuildingType.Tower, 2)]
+    [InlineData(BuildingType.PalisadeWall, 1)]
+    [InlineData(BuildingType.StoneWall, 1)]
+    [InlineData(BuildingType.ArcheryRange, 3)]
+    [InlineData(BuildingType.Stable, 3)]
+    [InlineData(BuildingType.Blacksmith, 3)]
+    [InlineData(BuildingType.Monastery, 3)]
+    [InlineData(BuildingType.Market, 4)]
+    [InlineData(BuildingType.SiegeWorkshop, 4)]
+    [InlineData(BuildingType.University, 4)]
+    [InlineData(BuildingType.Castle, 4)]
+    [InlineData(BuildingType.Wonder, 5)]
     public void Groesse_InKacheln(BuildingType typ, int kanten)
     {
         Assert.Equal(kanten, BuildingRules.SizeOf(typ));
     }
 
     // --- Abnehmender Ertrag -------------------------------------------------
+
+    [Theory]
+    [InlineData(BuildingType.ArcheryRange, 1500, 1, 5)]
+    [InlineData(BuildingType.Stable, 1500, 1, 5)]
+    [InlineData(BuildingType.Blacksmith, 1800, 1, 5)]
+    [InlineData(BuildingType.Market, 2100, 1, 6)]
+    [InlineData(BuildingType.SiegeWorkshop, 2100, 1, 5)]
+    [InlineData(BuildingType.University, 2100, 1, 6)]
+    [InlineData(BuildingType.Monastery, 2100, 1, 6)]
+    [InlineData(BuildingType.Castle, 4800, 8, 11)]
+    [InlineData(BuildingType.PalisadeWall, 250, 2, 2)]
+    [InlineData(BuildingType.StoneWall, 1800, 8, 2)]
+    [InlineData(BuildingType.Wonder, 4800, 3, 8)]
+    public void Erzeugen_NeueTypen_WerteNachAoE2(BuildingType typ, int lebenspunkte, int ruestung, int sicht)
+    {
+        var gebaeude = BuildingEntity.Create(typ, 1, new Position(7, 8));
+
+        Assert.Equal(typ, gebaeude.BuildingType);
+        Assert.Equal(1, gebaeude.OwnerId);
+        Assert.Equal(new Position(7, 8), gebaeude.Position);
+        Assert.Equal(lebenspunkte, gebaeude.Stats.HitPoints);
+        Assert.Equal(ruestung, gebaeude.Stats.BaseArmor);
+        Assert.Equal(sicht, gebaeude.Stats.VisionRange);
+    }
+
+    [Fact]
+    public void Erzeugen_Burg_SchiesstWieImOriginal()
+    {
+        var burg = BuildingEntity.Create(BuildingType.Castle, 0, new Position(3, 3));
+        Assert.Equal(11, burg.Stats.BaseAttack);
+        Assert.Equal(8, burg.Stats.Range);
+    }
+
+    [Fact]
+    public void Erzeugen_BisherigeTypen_WieIhreCreateMethode()
+    {
+        var ort = new Position(4, 5);
+        var paare = new (BuildingType Typ, BuildingEntity Bisher)[]
+        {
+            (BuildingType.TownCenter, BuildingEntity.CreateTownCenter(0, ort)),
+            (BuildingType.House, BuildingEntity.CreateHouse(0, ort)),
+            (BuildingType.Mill, BuildingEntity.CreateMill(0, ort)),
+            (BuildingType.LumberCamp, BuildingEntity.CreateLumberCamp(0, ort)),
+            (BuildingType.MiningCamp, BuildingEntity.CreateMiningCamp(0, ort)),
+            (BuildingType.Barracks, BuildingEntity.CreateBarracks(0, ort)),
+            (BuildingType.Tower, BuildingEntity.CreateTower(0, ort)),
+        };
+        foreach (var (typ, bisher) in paare)
+        {
+            var neu = BuildingEntity.Create(typ, 0, ort);
+            Assert.Equal(typ, neu.BuildingType);
+            Assert.Equal(bisher.Stats.HitPoints, neu.Stats.HitPoints);
+            Assert.Equal(bisher.Stats.BaseArmor, neu.Stats.BaseArmor);
+            Assert.Equal(bisher.Stats.VisionRange, neu.Stats.VisionRange);
+            Assert.Equal(bisher.DropOffType, neu.DropOffType);
+        }
+    }
+
+    [Fact]
+    public void Erzeugen_Farm_IstKeinGebaeude()
+    {
+        Assert.Throws<System.ArgumentOutOfRangeException>(
+            () => BuildingEntity.Create(BuildingType.Farm, 0, new Position(1, 1)));
+    }
 
     [Fact]
     public void Wachturm_SiehtZehnKachelnWeit()

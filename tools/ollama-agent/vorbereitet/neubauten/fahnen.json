@@ -1,0 +1,146 @@
+{
+ "Gebaeude/dunkel/kaserne": [
+  344,
+  103,
+  39,
+  25
+ ],
+ "Gebaeude/feudal/kaserne": [
+  336,
+  80,
+  47,
+  34
+ ],
+ "Gebaeude/feudal/schiessstand": [
+  335,
+  137,
+  49,
+  41
+ ],
+ "Gebaeude/feudal/stall": [
+  316,
+  46,
+  68,
+  37
+ ],
+ "Gebaeude/feudal/schmiede": [
+  321,
+  78,
+  63,
+  51
+ ],
+ "Gebaeude/feudal/markt": [
+  457,
+  104,
+  55,
+  50
+ ],
+ "Gebaeude/ritter/kaserne": [
+  327,
+  223,
+  56,
+  33
+ ],
+ "Gebaeude/ritter/schiessstand": [
+  338,
+  229,
+  45,
+  37
+ ],
+ "Gebaeude/ritter/stall": [
+  347,
+  139,
+  37,
+  30
+ ],
+ "Gebaeude/ritter/schmiede": [
+  334,
+  160,
+  50,
+  35
+ ],
+ "Gebaeude/ritter/markt": [
+  447,
+  66,
+  64,
+  52
+ ],
+ "Gebaeude/ritter/belagerungswerkstatt": [
+  405,
+  155,
+  72,
+  38
+ ],
+ "Gebaeude/ritter/kloster": [
+  327,
+  79,
+  39,
+  29
+ ],
+ "Gebaeude/ritter/burg": [
+  271,
+  12,
+  156,
+  84
+ ],
+ "Gebaeude/imperial/kaserne": [
+  342,
+  223,
+  42,
+  26
+ ],
+ "Gebaeude/imperial/schiessstand": [
+  336,
+  88,
+  48,
+  48
+ ],
+ "Gebaeude/imperial/stall": [
+  282,
+  38,
+  55,
+  35
+ ],
+ "Gebaeude/imperial/schmiede": [
+  317,
+  92,
+  66,
+  46
+ ],
+ "Gebaeude/imperial/markt": [
+  433,
+  85,
+  79,
+  44
+ ],
+ "Gebaeude/imperial/belagerungswerkstatt": [
+  441,
+  165,
+  68,
+  44
+ ],
+ "Gebaeude/imperial/universitaet": [
+  367,
+  158,
+  90,
+  45
+ ],
+ "Gebaeude/imperial/kloster": [
+  278,
+  78,
+  52,
+  42
+ ],
+ "Gebaeude/imperial/burg": [
+  270,
+  12,
+  143,
+  66
+ ],
+ "Gebaeude/imperial/wunder": [
+  428,
+  39,
+  163,
+  119
+ ]
+}

@@ -2,6 +2,8 @@
 //
 //   dotnet run --project tools/spielablauf -- bauen weiterbauen linksklick farm schafe wild herde bewegen minimap zoom leiste zeitalter turm menue animation fenster werkzeug feld fahne gehen karten pfad wind gang blick dunkel
 //
+// Dazu neubauten (Gebäude der zweiten Tastenreihe).
+//
 // Jede genannte Gruppe läuft auf drei frisch erzeugten Karten. Die Spielschleife
 // läuft Bild für Bild (60 je Sekunde) mit denselben Methoden, die Update() im Spiel
 // aufruft. Private Felder und Methoden erreicht das Programm per Reflection;
@@ -89,6 +91,8 @@ for (int karte = 1; karte <= KARTEN; karte++)
         Pruefe("Zeitalter", () => Zeitalter(verstoesse));
     if (gruppen.Contains("turm"))
         Pruefe($"Karte {karte}, Wachturm", () => Turm(karte, verstoesse));
+    if (gruppen.Contains("neubauten"))
+        Pruefe($"Karte {karte}, Neubauten", () => Neubauten(karte, verstoesse));
     if (gruppen.Contains("fenster") && karte == 1)
         Pruefe("Fenster", () => Fenster(verstoesse));
     if (gruppen.Contains("werkzeug") && karte == 1)
@@ -1909,6 +1913,180 @@ static void Turm(int karte, List<string> verstoesse)
         Console.WriteLine($"  ok  {wer}: erst ab der Feudalzeit, 50 Holz + 125 Stein, halb gebaut ohne Sicht"
                           + $"{(halb == null ? " (ungeprüft)" : "")}, fertig nach {bauzeit:0} s, sieht "
                           + $"{(probe == null ? "-" : Vector2.Distance(probe.Value, mitte).ToString("0.0"))} Kacheln weit");
+}
+
+// Neue Gebäude (L2): unter der ersten Tastenreihe liegt eine zweite mit den Gebäuden,
+// die das Zeitalter freischaltet - Dunkle Zeit Kaserne und Palisadenmauer, ab der
+// Feudalzeit Schießstand, Stall, Schmiede, Markt und Steinmauer, ab der Ritterzeit
+// Stadtzentrum, Belagerungswerkstatt, Universität, Kloster und Burg, in der
+// Imperialzeit das Wunder. Jedes lässt sich per Taste wählen, kostet laut
+// BuildingRules und steht danach als richtiger Kerntyp auf der Karte; nach einem
+// Mauerstück bleibt der Setzmodus an, damit man eine Reihe legen kann.
+static void Neubauten(int karte, List<string> verstoesse)
+{
+    const int bw = 2406, bh = 1353;
+    string wer = $"Karte {karte}, Neubauten";
+    var w = new Welt();
+    int vorher = verstoesse.Count;
+    w.Set("screenBounds", new Rectangle(0, 0, bw, bh));
+    var ages = (AgeProgress)(typeof(Player).GetProperty("Ages")?.GetValue(w.P1)
+        ?? throw new InvalidOperationException("Player.Ages nicht gefunden"));
+    foreach (var r in new[] { Resource.Wood, Resource.Stone, Resource.Gold, Resource.Food })
+        w.P1.Resources.Add(r, 20000);
+
+    var neu = new (Keys Taste, BuildingType Typ, string Name, Age Ab)[]
+    {
+        (Keys.K, BuildingType.Barracks, "Kaserne", Age.Dark),
+        (Keys.P, BuildingType.PalisadeWall, "Palisadenmauer", Age.Dark),
+        (Keys.S, BuildingType.ArcheryRange, "Schießstand", Age.Feudal),
+        (Keys.L, BuildingType.Stable, "Stall", Age.Feudal),
+        (Keys.E, BuildingType.Blacksmith, "Schmiede", Age.Feudal),
+        (Keys.R, BuildingType.Market, "Markt", Age.Feudal),
+        (Keys.W, BuildingType.StoneWall, "Steinmauer", Age.Feudal),
+        (Keys.Z, BuildingType.TownCenter, "Stadtzentrum", Age.Castle),
+        (Keys.X, BuildingType.SiegeWorkshop, "Belagerungswerkstatt", Age.Castle),
+        (Keys.U, BuildingType.University, "Universität", Age.Castle),
+        (Keys.O, BuildingType.Monastery, "Kloster", Age.Castle),
+        (Keys.C, BuildingType.Castle, "Burg", Age.Castle),
+        (Keys.N, BuildingType.Wonder, "Wunder", Age.Imperial),
+    };
+    var arbeiter = w.Dorfbewohner().Take(3).ToList();
+
+    // Ein Tastendruck, wie das Spiel ihn sieht: ein Bild gedrückt, eines losgelassen
+    void Taste(Keys k)
+    {
+        var gt = new GameTime(TimeSpan.Zero, TimeSpan.FromSeconds(1.0 / 60));
+        var maus = new MouseState(bw / 2, bh / 2, 0, ButtonState.Released, ButtonState.Released,
+                                  ButtonState.Released, ButtonState.Released, ButtonState.Released);
+        w.Call("HandleRtsInput", gt, new KeyboardState(k), maus);
+        w.Call("HandleRtsInput", gt, new KeyboardState(), maus);
+    }
+
+    // Ohne Dorfbewohner gibt es keine Bautasten, also nur die erste Reihe
+    w.Waehle(new List<Unit>());
+    w.Call("LayoutButtons");
+    var ohne = w.Tasten();
+    int obenY = ohne[0].Rect.Y;
+    if (ohne.Any(t => t.Rect.Y != obenY))
+        verstoesse.Add($"{wer}: ohne Auswahl Tasten außerhalb der ersten Reihe ({string.Join(" ", ohne.Select(t => t.Label))})");
+
+    foreach (var age in new[] { Age.Dark, Age.Feudal, Age.Castle, Age.Imperial })
+    {
+        if (age != Age.Dark)
+        {
+            ages.TryStart(w.P1.Resources);
+            ages.Update(1000f);
+        }
+        if (ages.Current != age)
+        {
+            verstoesse.Add($"{wer}: Aufstieg nach {age} gescheitert (jetzt {ages.Current})");
+            return;
+        }
+        w.Waehle(arbeiter);
+        w.Call("LayoutButtons");
+        var tasten = w.Tasten();
+        var oben = tasten.Where(t => t.Rect.Y == obenY).ToList();
+        var unten = tasten.Where(t => t.Rect.Y != obenY).ToList();
+        var obenSoll = new[] { "Q", "A", "H", "M", "F", "B", "G", "T", "." }
+            .Where(l => (l != "A" || age != Age.Imperial) && (l != "T" || age >= Age.Feudal)).ToArray();
+        var untenSoll = neu.Where(e => e.Ab <= age).Select(e => e.Taste.ToString()).ToArray();
+        if (!oben.Select(t => t.Label).SequenceEqual(obenSoll))
+            verstoesse.Add($"{wer}, {age}: erste Reihe [{string.Join(" ", oben.Select(t => t.Label))}], erwartet [{string.Join(" ", obenSoll)}]");
+        if (!unten.Select(t => t.Label).SequenceEqual(untenSoll))
+            verstoesse.Add($"{wer}, {age}: zweite Reihe [{string.Join(" ", unten.Select(t => t.Label))}], erwartet [{string.Join(" ", untenSoll)}]");
+        if (unten.Count == 0 || oben.Count == 0)
+            continue;
+        int y = unten[0].Rect.Y;
+        if (unten.Any(t => t.Rect.Y != y))
+            verstoesse.Add($"{wer}, {age}: die zweite Reihe liegt nicht auf einer Höhe");
+        if (y < oben.Max(t => t.Rect.Bottom))
+            verstoesse.Add($"{wer}, {age}: zweite Reihe (y {y}) nicht unter der ersten (unten {oben.Max(t => t.Rect.Bottom)})");
+        if (unten.Max(t => t.Rect.Bottom) > bh)
+            verstoesse.Add($"{wer}, {age}: zweite Reihe ragt unten aus dem Fenster");
+        if (unten[0].Rect.X != oben[0].Rect.X)
+            verstoesse.Add($"{wer}, {age}: zweite Reihe beginnt bei x {unten[0].Rect.X}, die erste bei {oben[0].Rect.X}");
+        for (int i = 1; i < unten.Count; i++)
+            if (unten[i].Rect.Left < unten[i - 1].Rect.Right)
+                verstoesse.Add($"{wer}, {age}: Tasten {unten[i - 1].Label} und {unten[i].Label} überlappen");
+        foreach (var e in neu)
+        {
+            Taste(e.Taste);
+            bool an = Equals(w.Get("placing"), e.Typ);
+            if (e.Ab <= age && !an)
+                verstoesse.Add($"{wer}, {age}: Taste {e.Taste} setzt nicht {e.Name} (Setzmodus {w.Get("placing") ?? "aus"})");
+            if (e.Ab > age && w.Get("placing") != null)
+                verstoesse.Add($"{wer}, {age}: Taste {e.Taste} - Setzmodus {w.Get("placing")}, {e.Name} gibt es erst ab {e.Ab}");
+            if (an)
+            {
+                Taste(e.Taste);   // dieselbe Taste noch einmal schaltet aus
+                if (w.Get("placing") != null)
+                    verstoesse.Add($"{wer}, {age}: Taste {e.Taste} zweimal - Setzmodus bleibt an");
+            }
+            w.Set("placing", null);
+        }
+        foreach (var t in new[] { "Q", "A", "." })
+            if (tasten.Count(x => x.Label == t) > 1)
+                verstoesse.Add($"{wer}, {age}: Taste {t} doppelt");
+    }
+
+    // Imperialzeit: jedes neue Gebäude setzen. Ohne Nebel - sonst ist das erkundete
+    // Startgebiet nach ein paar großen Gebäuden voll
+    TileMap.TestNoFog = true;
+    try
+    {
+    foreach (var e in neu)
+    {
+        w.Waehle(arbeiter);
+        w.Call("TogglePlacing", e.Typ);
+        var kosten = AoE.Core.Economy.BuildingRules.CostOf(e.Typ);
+        var vor = kosten.Keys.ToDictionary(r => r, r => w.P1.Resources[r]);
+        Vector2 platz;
+        try { platz = w.Bauplatz(e.Typ, arbeiter[0], 6); }
+        catch (InvalidOperationException) { verstoesse.Add($"{wer}: kein Bauplatz für {e.Name}"); continue; }
+        int anzahl = w.Map.Buildings.Count;
+        w.Call("PlaceBuilding", e.Typ, platz);
+        if (w.Map.Buildings.Count != anzahl + 1)
+        {
+            verstoesse.Add($"{wer}: {e.Name} nicht gesetzt");
+            continue;
+        }
+        var b = w.Map.Buildings.Last();
+        if (b.Core.BuildingType != e.Typ || b.Type != e.Name)
+            verstoesse.Add($"{wer}: gesetzt {b.Type}/{b.Core.BuildingType}, erwartet {e.Name}/{e.Typ}");
+        int seite = AoE.Core.Economy.BuildingRules.SizeOf(e.Typ);
+        if (b.Width != seite || b.Height != seite)
+            verstoesse.Add($"{wer}: {e.Name} {b.Width}x{b.Height}, erwartet {seite}x{seite}");
+        foreach (var (r, menge) in kosten)
+            if (w.P1.Resources[r] != vor[r] - menge)
+                verstoesse.Add($"{wer}: {e.Name} - {r} {vor[r]} -> {w.P1.Resources[r]}, erwartet {menge} weniger");
+        if (b.IsComplete || b.Construction == null)
+            verstoesse.Add($"{wer}: {e.Name} ist keine Baustelle");
+        bool mauer = e.Typ is BuildingType.PalisadeWall or BuildingType.StoneWall;
+        if (mauer && !Equals(w.Get("placing"), e.Typ))
+            verstoesse.Add($"{wer}: nach einem Stück {e.Name} ist der Setzmodus aus - für eine Mauerreihe soll er an bleiben");
+        if (!mauer && w.Get("placing") != null)
+            verstoesse.Add($"{wer}: nach {e.Name} bleibt der Setzmodus {w.Get("placing")} an");
+        w.Set("placing", null);
+    }
+    }
+    finally
+    {
+        TileMap.TestNoFog = false;
+    }
+
+    // Ein Mauerstück wird von einem Arbeiter fertig gebaut
+    var w2 = new Welt();
+    var maurer = w2.Dorfbewohner().First();
+    w2.Waehle(new List<Unit> { maurer });
+    var stelle = w2.Bauplatz(BuildingType.PalisadeWall, maurer, 3);
+    w2.Call("PlaceBuilding", BuildingType.PalisadeWall, stelle);
+    var stueck = w2.Map.Buildings.Last();
+    float dauer = w2.LaufeBis(() => stueck.IsComplete, 30f);
+    if (stueck.Core.BuildingType != BuildingType.PalisadeWall || !stueck.IsComplete)
+        verstoesse.Add($"{wer}: Palisadenstück nach 30 s nicht fertig");
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: zweite Reihe je Zeitalter, Tasten, 13 Gebäude gesetzt, Palisade fertig nach {dauer:0.0} s");
 }
 
 // Kartengrößen (C11): Standard 64, Groß 90, Maximal 128 Kacheln Seitenlänge; beide

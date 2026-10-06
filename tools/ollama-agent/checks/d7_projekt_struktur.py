@@ -13,7 +13,7 @@ VERALTET = {
     r"kein einziges": "das Spiel nutzt AoE.Core seit Block B",
     r"im spiel nicht verwendet": "das Spiel nutzt AoE.Core seit Block B",
     r"15/15": "es sind 26 Tests",
-    r"15 tests,\s*alle": "es sind 26 Tests",
+    r"\b15 tests,\s*alle": "es sind 26 Tests",   # Wortgrenze: 215 Tests ist richtig
     r"\b(227|376|461|1233)\b": "alte Zeilenzahl",
     r"zeile 241": "MapGrid beginnt in Zeile 268",
     r"mermaid": "kein Mermaid",

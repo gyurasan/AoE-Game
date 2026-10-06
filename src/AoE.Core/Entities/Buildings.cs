@@ -268,6 +268,74 @@ public sealed class BuildingEntity : UnitEntity
         };
         return new BuildingEntity(BuildingType.Tower, ownerId, position, stats);
     }
+
+    /// <summary>
+    /// Ein Gebäude beliebigen Typs - das Spiel setzt darüber jedes Gebäude des
+    /// Baumenüs. Für Stadtzentrum, Haus, Mühle, Holzfällerlager, Bergbaulager,
+    /// Kaserne und Wachturm genau die Werte der Create-Methode des Typs (sie
+    /// aufrufen). Für die übrigen Typen gelten Werte nach AoE II; BaseAttack,
+    /// Range und Speed sind 0, wo nichts anderes steht:
+    ///
+    ///   Typ             HitPoints  BaseArmor  VisionRange
+    ///   ArcheryRange       1500        1           5
+    ///   Stable             1500        1           5
+    ///   Blacksmith         1800        1           5
+    ///   Market             2100        1           6
+    ///   SiegeWorkshop      2100        1           5
+    ///   University         2100        1           6
+    ///   Monastery          2100        1           6
+    ///   Castle             4800        8          11     BaseAttack 11, Range 8
+    ///   PalisadeWall        250        2           2
+    ///   StoneWall          1800        8           2
+    ///   Wonder             4800        3           8
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="type"/> ist <see cref="BuildingType.Farm"/> - eine Farm ist
+    /// ein Feld, kein Gebäude - oder kein Wert der Aufzählung.
+    /// </exception>
+    public static BuildingEntity Create(BuildingType type, int ownerId, Position position)
+    {
+        // Gebäude mit eigener Create-Methode: deren Werte gelten unverändert.
+        switch (type)
+        {
+            case BuildingType.TownCenter:
+                return CreateTownCenter(ownerId, position);
+            case BuildingType.House:
+                return CreateHouse(ownerId, position);
+            case BuildingType.Mill:
+                return CreateMill(ownerId, position);
+            case BuildingType.LumberCamp:
+                return CreateLumberCamp(ownerId, position);
+            case BuildingType.MiningCamp:
+                return CreateMiningCamp(ownerId, position);
+            case BuildingType.Barracks:
+                return CreateBarracks(ownerId, position);
+            case BuildingType.Tower:
+                return CreateTower(ownerId, position);
+        }
+
+        // Eine Farm ist ein Feld, kein Gebäude.
+        if (type == BuildingType.Farm)
+            throw new ArgumentOutOfRangeException(nameof(type), type, "Eine Farm ist ein Feld, kein Gebäude.");
+
+        // Übrige Gebäude: Werte nach AoE II, BaseAttack und Range 0, außer bei der Burg.
+        var stats = type switch
+        {
+            BuildingType.ArcheryRange => new UnitStats { HitPoints = 1500, BaseAttack = 0, BaseArmor = 1, Range = 0, Speed = 0, VisionRange = 5 },
+            BuildingType.Stable => new UnitStats { HitPoints = 1500, BaseAttack = 0, BaseArmor = 1, Range = 0, Speed = 0, VisionRange = 5 },
+            BuildingType.Blacksmith => new UnitStats { HitPoints = 1800, BaseAttack = 0, BaseArmor = 1, Range = 0, Speed = 0, VisionRange = 5 },
+            BuildingType.Market => new UnitStats { HitPoints = 2100, BaseAttack = 0, BaseArmor = 1, Range = 0, Speed = 0, VisionRange = 6 },
+            BuildingType.SiegeWorkshop => new UnitStats { HitPoints = 2100, BaseAttack = 0, BaseArmor = 1, Range = 0, Speed = 0, VisionRange = 5 },
+            BuildingType.University => new UnitStats { HitPoints = 2100, BaseAttack = 0, BaseArmor = 1, Range = 0, Speed = 0, VisionRange = 6 },
+            BuildingType.Monastery => new UnitStats { HitPoints = 2100, BaseAttack = 0, BaseArmor = 1, Range = 0, Speed = 0, VisionRange = 6 },
+            BuildingType.Castle => new UnitStats { HitPoints = 4800, BaseAttack = 11, BaseArmor = 8, Range = 8, Speed = 0, VisionRange = 11 },
+            BuildingType.PalisadeWall => new UnitStats { HitPoints = 250, BaseAttack = 0, BaseArmor = 2, Range = 0, Speed = 0, VisionRange = 2 },
+            BuildingType.StoneWall => new UnitStats { HitPoints = 1800, BaseAttack = 0, BaseArmor = 8, Range = 0, Speed = 0, VisionRange = 2 },
+            BuildingType.Wonder => new UnitStats { HitPoints = 4800, BaseAttack = 0, BaseArmor = 3, Range = 0, Speed = 0, VisionRange = 8 },
+            _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unbekannter Gebäudetyp.")
+        };
+        return new BuildingEntity(type, ownerId, position, stats);
+    }
 }
 
 /// <summary>

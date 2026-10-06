@@ -24,14 +24,19 @@ Aufstieg — vom Langhaus mit Strohdach über Holzbau und Burg bis zum Rathaus a
 Spielbar ist die Wirtschaft der Dunklen Zeit und der Aufstieg durch die Zeitalter:
 
 - Dorfbewohner sammeln Nahrung, Holz, Gold und Stein und liefern selbstständig ab
-- Bauen: Haus, Mühle, Holzfällerlager, Bergbaulager, Farm; ab der Feudalzeit der Wachturm
+- Bauen: Haus, Mühle, Holzfällerlager, Bergbaulager, Farm, Kaserne und Palisadenmauer; ab der
+  Feudalzeit Wachturm, Schießstand, Stall, Schmiede, Markt und Steinmauer; ab der Ritterzeit ein
+  weiteres Stadtzentrum, Belagerungswerkstatt, Universität, Kloster und Burg; in der Imperialzeit
+  das Wunder. Mauern setzt man Stück für Stück in einer Reihe. Die neuen Gebäude stehen nur -
+  Einheiten, Forschung und Handel darin fehlen noch
 - Ausbildung im Stadtzentrum, Bevölkerungsgrenze aus den Gebäuden
 - Zeitalter: Feudal-, Ritter- und Imperialzeit, je mit Kosten und Forschungszeit; Gebäude und Dorfbewohner
   sehen in jedem Zeitalter anders aus
 - Nebel des Krieges, Minimap, Zoom und Kamera; ein Klick ins Schwarze wirkt immer - die Wegsuche
   plant nur mit dem, was der Spieler schon gesehen hat
 - Lebendige Landschaft: weiche Ufer und Sandstrände, Wasser mit Tiefe, Wellen, Schaum und
-  Fischschwärmen; Gras mit natürlichen Farbschwankungen und Trampelpfaden, wo oft jemand läuft;
+  Fischschwärmen; eine Wiese aus vier Grassorten - frisches, trockenes und dunkles Gras mit Klee,
+  dazu Blumen in Büscheln - und Trampelpfade, wo oft jemand läuft;
   Weizen und Bäume wiegen sich in denselben Windböen
 - Dorfbewohner, Schafe und Wild gehen natürlich: Schritte nach der gelaufenen Strecke, Anfahren
   und Abbremsen, gerade Wege über freies Land, Blick in Laufrichtung und zur Arbeit
@@ -52,11 +57,15 @@ Kampf und eine KI für den Gegner gibt es noch nicht, siehe [TODO](TODO.md).
 | `Q` | Dorfbewohner ausbilden |
 | `A` | Aufstieg ins nächste Zeitalter |
 | `H` `M` `F` `B` `G` `T` | Haus, Mühle, Holzfällerlager, Bergbaulager, Farm, Wachturm |
+| `K` `P` `S` `L` `E` `R` `W` | Zweite Tastenreihe: Kaserne, Palisadenmauer, Schießstand, Stall, Schmiede, Markt, Steinmauer |
+| `Z` `X` `U` `O` `C` `N` | Stadtzentrum, Belagerungswerkstatt, Universität, Kloster, Burg, Wunder |
 | `.` | Nächster untätiger Dorfbewohner |
 | `Esc` | Pause und Menü |
 
 Die Befehlstasten in der unteren Leiste tun dasselbe; zeigt die Maus auf eine Taste,
-nennt die Leiste Name und Kosten.
+nennt die Leiste Name und Kosten. Bautasten gibt es nur mit ausgewähltem Dorfbewohner und
+nur für Gebäude, die das Zeitalter schon freischaltet; nach einem Mauerstück bleibt der
+Setzmodus an, bis man die Taste noch einmal drückt.
 
 ## Projektstruktur
 
@@ -100,7 +109,8 @@ Rehe, Kaninchen und Wildschweine sind mit Qwen-Image erzeugt,
 lokal über ComfyUI. Prompts, Seeds und die Werkzeuge dafür liegen in `tools/bilder`, jedes
 Bild lässt sich damit genau so wieder erzeugen; Einzelheiten in der
 [Projektstruktur](docs/PROJEKT_STRUKTUR.md#grafik). Gras, Sand und Wasser setzt ein Shader
-(`Content/Effects/Boden.fx`) aus diesen Bildern zusammen, der Weizen wiegt sich in
+(`Content/Effects/Boden.fx`) aus diesen Bildern zusammen - das Gras aus vier Sorten, die er
+nach Halmhöhe ineinander blendet, der Weizen wiegt sich in
 `Content/Effects/Weizen.fx`; Gehen, Wind und Fische rechnet das Spiel selbst.
 
 ## Dokumentation
