@@ -16,15 +16,18 @@
   <!--
     Ohne das bricht der Build von AgeOfEvolutions.slnx auf macOS und Linux mit NETSDK1100
     ab. Die Exe baut dann überall mit, läuft aber nur unter Windows; dort bleibt alles wie bisher.
+    Den Content baut sie nur unter Windows: DirectX-Shader (Content/Effects) braucht beim
+    Bauen Microsofts d3dcompiler_47.dll, die es anderswo nicht gibt.
   -->
   <PropertyGroup Condition="!$([MSBuild]::IsOSPlatform('Windows'))">
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <EnableMGCBItems>false</EnableMGCBItems>
   </PropertyGroup>
   <ItemGroup>
     <!-- Fenstersymbol: MonoGame sucht die Ressource Icon.bmp, sonst zeigt es sein eigenes Logo -->
     <EmbeddedResource Include="../AgeOfEvolutions.Core/Content/Icon.bmp" LogicalName="Icon.bmp" />
   </ItemGroup>
-  <ItemGroup>
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
     <MonoGameContentReference Include="..\AgeOfEvolutions.Core\Content\AgeOfEvolutions.mgcb">
       <Link>Content\AgeOfEvolutions.mgcb</Link>
     </MonoGameContentReference>

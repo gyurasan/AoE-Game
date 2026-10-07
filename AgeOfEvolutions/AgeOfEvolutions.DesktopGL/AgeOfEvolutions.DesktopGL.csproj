@@ -26,4 +26,16 @@
     <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.*" />
     <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.*" />
   </ItemGroup>
+  <!--
+    Die Shader in Content/Effects übersetzt MonoGame auf macOS sonst nur mit Wine. Hier
+    nimmt der Content Builder stattdessen tools/shaderc: vkd3d-compiler, nativ gebaut
+    (einmalig tools/shaderc/build.sh), hinter einem Ersatz für wine.
+  -->
+  <Target Name="NativeShaderCompiler" BeforeTargets="RunContentBuilder" Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <PropertyGroup>
+      <ShadercDir>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)', '..', '..', 'tools', 'shaderc'))</ShadercDir>
+      <_Command>PATH=&quot;$(ShadercDir):$PATH&quot; MGFXC_WINE_PATH=&quot;$(ShadercDir)&quot; &quot;$(DotnetCommand)&quot; &quot;$(MGCBCommand)&quot;</_Command>
+    </PropertyGroup>
+    <Error Condition="!Exists('$(ShadercDir)bin/vkd3d-compiler')" Text="Shader-Compiler fehlt: einmalig tools/shaderc/build.sh ausführen." />
+  </Target>
 </Project>

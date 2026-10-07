@@ -1,0 +1,5 @@
+#!/bin/sh
+# Gegenstück zu ./wine: MonoGame übersetzt damit Pfade für Windows. Ohne Wine
+# bleiben sie, wie sie sind.
+[ "${1:-}" = -w ] && shift
+printf '%s\n' "$1"

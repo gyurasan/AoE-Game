@@ -1,0 +1,34 @@
+#!/bin/bash
+# Steht für Wine ein, wenn MonoGame auf macOS die Shader baut (eingebunden in
+# AgeOfEvolutions.DesktopGL.csproj). Der Content Builder ruft je Shaderfunktion
+#   wine dotnet c:\fxccs.dll <quelle> <funktion> <profil> <flags> <anzeigepfad> <ziel>
+# auf (MonoGame 3.8.5, WineHelper.RunFxc2) und erwartet in <ziel> den Bytecode, den
+# sonst Microsofts fxc unter Wine liefert. Hier übersetzt ihn vkd3d-compiler nativ;
+# den Rest (MojoShader macht daraus GLSL) erledigt MonoGame selbst.
+set -euo pipefail
+
+dir="$(cd "$(dirname "$0")" && pwd)"
+if [ "${1:-}" != dotnet ] || [ $# -lt 8 ]; then
+    echo "tools/shaderc/wine: unerwarteter Aufruf: $*" >&2
+    exit 1
+fi
+src=$3
+func=$4
+profile=$5
+dst=${!#}
+shown="${*:7:$#-7}"   # der Anzeigepfad kann Leerzeichen enthalten
+
+# Nur Shadermodell 1-3: daraus macht MojoShader GLSL für DesktopGL. DirectX 11
+# braucht beim Bauen Microsofts d3dcompiler_47.dll und geht auf dem Mac nicht.
+case $profile in
+    vs_[123]_* | ps_[123]_*) ;;
+    *)
+        echo "$shown: Profil $profile wird auf macOS nicht unterstützt, nur Shadermodell 1-3 (OpenGL)." >&2
+        exit 1
+        ;;
+esac
+
+# Fehlermeldungen zeigen auf die .fx-Datei statt auf die temporäre Kopie
+"$dir/bin/vkd3d-compiler" -x hlsl -b d3dbc -p "$profile" -e "$func" -o "$dst" "$src" 2>&1 \
+    | sed "s|$src|$shown|g" >&2
+exit "${PIPESTATUS[0]}"
