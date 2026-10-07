@@ -203,7 +203,16 @@ Linksklick, der hier ein Befehl ist, oder per neuem Bauauftrag. Die Nachstellung
 
 Nächste sinnvolle Schritte, in dieser Reihenfolge:
 
-1. **Sichtprüfung im Spiel** — offen: Aufstieg in die Feudalzeit und Bau eines Wachturms,
+1. **Dorfbewohner der Imperialzeit neu animieren** (Hinweis des Nutzers, 2026-10-07) — sie
+   laufen merkwürdig. Die Laufbilder `Content/Einheiten/imperial/dorfbewohner_lauf1_*` und
+   `_lauf2_*` neu erzeugen und gegen Stand- und Laufbilder der anderen Zeitalter prüfen.
+   Siehe C4l.
+2. **Feuer in der Schmiede animieren** (Hinweis des Nutzers, 2026-10-07) — das Feuer ist
+   bisher nur gemalt und steht still. Siehe C6f.
+3. **Rechteckige Karte** (Hinweis des Nutzers, 2026-10-07) — die Karte ist quadratisch
+   (`TileMap(side, side, …)`), sie sollte ungefähr das Seitenverhältnis des Bildschirms
+   haben. Siehe C11r.
+4. **Sichtprüfung im Spiel** — offen: Aufstieg in die Feudalzeit und Bau eines Wachturms,
    Bauen von Mühle und Bergbaulager, Fischen, Kantenscrollen, die Hinweise beim Zeigen
    auf eine Befehlstaste und der Klick in die Minimap. C5d, C8b, die Farm, die Leiste und
    die Zeitalter prüft `tools/spielablauf` bereits ohne Grafik. Bestätigt sind Wald, Stein,
@@ -211,53 +220,53 @@ Nächste sinnvolle Schritte, in dieser Reihenfolge:
    Holzfällerlager und die Baustellen-Grafik (Screenshots vom 2026-10-01), dazu per
    Bildschirmfoto Menü, Leiste mit Symbolen, Minimap, Gebäude, Dorfbewohner, Gras und
    Wald (2026-10-03).
-2. **Restliche Grafik im neuen Stil** — Beerenbüsche, Fische und Baustelle zeichnet noch
+5. **Restliche Grafik im neuen Stil** — Beerenbüsche, Fische und Baustelle zeichnet noch
    der Code; neben den Sprites wirken sie flach. Echte Laufbilder für die
    Dorfbewohner bräuchten Qwen-Image-Edit (dieselbe Figur in mehreren Posen).
-3. **Bedienoberfläche mit der Auflösung skalieren** — Leisten, Schrift, Tasten und Minimap
+6. **Bedienoberfläche mit der Auflösung skalieren** — Leisten, Schrift, Tasten und Minimap
    haben feste Pixelmaße und wirken in der DX-Fassung (2707 px hoch) halb so groß; dazu
    ein Infokästchen am Mauszeiger statt des Hinweises in der Leistenmitte.
-4. **Die neuen Gebäude mit Leben füllen** — seit L1/L2 sind alle Gebäude baubar, aber sie
+7. **Die neuen Gebäude mit Leben füllen** — seit L1/L2 sind alle Gebäude baubar, aber sie
    stehen nur: Kaserne, Schießstand, Stall, Belagerungswerkstatt und Burg brauchen Einheiten
    und die Kampfschleife, der Markt den Handel, Schmiede und Universität die Forschung, das
    Kloster Mönche. Dorfkern, Mauern und Krieger siehe C13.
-5. **Kampfschleife** — `Unit.Attack()` existiert seit B2 und wird nirgends aufgerufen.
+8. **Kampfschleife** — `Unit.Attack()` existiert seit B2 und wird nirgends aufgerufen.
    Auf Wunsch des Nutzers zurückgestellt (2026-09-30).
-6. **Veraltete Abnahmen** — `c1n`, `c1c` und `c8a` prüfen Schreibweisen von früher (die
+9. **Veraltete Abnahmen** — `c1n`, `c1c` und `c8a` prüfen Schreibweisen von früher (die
    Schaf-Nahrung als Zahl, „Untätig" in `DrawUI`, „Links ziehen" im Hilfetext) und sind
    deshalb rot, obwohl das Verhalten stimmt; auf Verhalten umstellen.
-7. **Wild (Rehe)** — fertig: 5–8 Herden je 3–9 Rehe (seither ~70 % der Schaf-Dichte
-   statt ~100 %), je Spieler eine Herde 12–20 Kacheln vom Stadtzentrum (C7d), 150 Nahrung,
-   reserviert wie die Schafe, solange ein Dorfbewohner jagt (Gruppe `wild` in
-   `tools/spielablauf`, Bestand in `tools/kartenpruefung -- wild`); Sprites und Bewegung seit
-   C7t. Offen nur die Sichtprüfung, dass zwei Dörfler nicht auf dasselbe Reh laufen.
-   Seit C7k dazu **Kaninchen** (4–6 Gruppen je 3–6, 50 Nahrung, hoppeln flink) und
-   **Wildschweine** (3–5 Rotten je 1–3, 300 Nahrung, gemächlich) mit Stand-, Lauf- und
-   Fleischbildern; noch ohne Gegenwehr, die bräuchte die Kampfschleife.
+10. **Wild (Rehe)** — fertig: 5–8 Herden je 3–9 Rehe (seither ~70 % der Schaf-Dichte
+    statt ~100 %), je Spieler eine Herde 12–20 Kacheln vom Stadtzentrum (C7d), 150 Nahrung,
+    reserviert wie die Schafe, solange ein Dorfbewohner jagt (Gruppe `wild` in
+    `tools/spielablauf`, Bestand in `tools/kartenpruefung -- wild`); Sprites und Bewegung seit
+    C7t. Offen nur die Sichtprüfung, dass zwei Dörfler nicht auf dasselbe Reh laufen.
+    Seit C7k dazu **Kaninchen** (4–6 Gruppen je 3–6, 50 Nahrung, hoppeln flink) und
+    **Wildschweine** (3–5 Rotten je 1–3, 300 Nahrung, gemächlich) mit Stand-, Lauf- und
+    Fleischbildern; noch ohne Gegenwehr, die bräuchte die Kampfschleife.
 
-8. **Gebäude je Zeitalter** — fertig seit C4g (2026-10-04): je Gebäude ein Bildsatz pro
-   Zeitalter aus Qwen-Image, gewählt nach dem Zeitalter des Besitzers. Offen nur die
-   Sichtprüfung im echten Aufstieg und im Rot des zweiten Spielers. Die Vorgabe des
-   Nutzers, nach der die Bilder entstanden sind:
-   - **Dunkle Zeit:** Die Siedlungen wirken wie provisorische Lager oder ärmliche,
-     frühmittelalterliche Dörfer. Aussehen: klein, flach, asymmetrisch, meist unebene Formen;
-     noch keine befestigten Strassen oder Fundamente. Materialien: fast ausschliesslich
-     Holzstämme, Lehm, Flechtwerk und einfache Strohdächer.
-   - **Feudalzeit:** Die Siedlung verwandelt sich in ein organisiertes, handwerklich
-     entwickeltes Dorf. Aussehen: rechteckiger, stabiler und höher; erste kleine Holztürme
-     und Palisadenwälle. Materialien: weiterhin primär Holz, aber deutlich sauberer
-     verarbeitet (z. B. gehobelte Bretter); Dächer oft aus Holzschindeln oder dickerem Reet,
-     erste Fundamente aus Bruchstein oder Lehmziegeln.
-   - **Ritterzeit:** Das Stadtbild wandelt sich radikal in eine wehrhafte, hochmittelalterliche
-     Festung. Aussehen: deutlich grösser, oft mehrere Stockwerke, massiv; mächtige Burgen,
-     dicke Mauern und befestigte Stadttore. Materialien: grauer oder sandfarbener Stein
-     (Mauerwerk); Dächer vermehrt mit roten oder blauen Tonziegeln, Holz nur noch für
-     Dachstühle, Stege oder sekundäre Bauteile.
-   - **Imperialzeit:** Die Gebäude erreichen die Stufe einer prachtvollen, spätmittelalterlichen
-     oder frühneuzeitlichen Metropole. Aussehen: elegant und repräsentativ; Zierelemente, hohe
-     Bögen, filigrane Fensterkonstruktionen und monumentale Ausmasse (wie das Weltwunder).
-     Materialien: hochwertiger, feiner Haustein und Marmor; Dächer in kräftigen Farben
-     (Schiefer- oder Kupferstrukturen), Metallelemente, Flaggen und edle Verzierungen.
+11. **Gebäude je Zeitalter** — fertig seit C4g (2026-10-04): je Gebäude ein Bildsatz pro
+    Zeitalter aus Qwen-Image, gewählt nach dem Zeitalter des Besitzers. Offen nur die
+    Sichtprüfung im echten Aufstieg und im Rot des zweiten Spielers. Die Vorgabe des
+    Nutzers, nach der die Bilder entstanden sind:
+    - **Dunkle Zeit:** Die Siedlungen wirken wie provisorische Lager oder ärmliche,
+      frühmittelalterliche Dörfer. Aussehen: klein, flach, asymmetrisch, meist unebene Formen;
+      noch keine befestigten Strassen oder Fundamente. Materialien: fast ausschliesslich
+      Holzstämme, Lehm, Flechtwerk und einfache Strohdächer.
+    - **Feudalzeit:** Die Siedlung verwandelt sich in ein organisiertes, handwerklich
+      entwickeltes Dorf. Aussehen: rechteckiger, stabiler und höher; erste kleine Holztürme
+      und Palisadenwälle. Materialien: weiterhin primär Holz, aber deutlich sauberer
+      verarbeitet (z. B. gehobelte Bretter); Dächer oft aus Holzschindeln oder dickerem Reet,
+      erste Fundamente aus Bruchstein oder Lehmziegeln.
+    - **Ritterzeit:** Das Stadtbild wandelt sich radikal in eine wehrhafte, hochmittelalterliche
+      Festung. Aussehen: deutlich grösser, oft mehrere Stockwerke, massiv; mächtige Burgen,
+      dicke Mauern und befestigte Stadttore. Materialien: grauer oder sandfarbener Stein
+      (Mauerwerk); Dächer vermehrt mit roten oder blauen Tonziegeln, Holz nur noch für
+      Dachstühle, Stege oder sekundäre Bauteile.
+    - **Imperialzeit:** Die Gebäude erreichen die Stufe einer prachtvollen, spätmittelalterlichen
+      oder frühneuzeitlichen Metropole. Aussehen: elegant und repräsentativ; Zierelemente, hohe
+      Bögen, filigrane Fensterkonstruktionen und monumentale Ausmasse (wie das Weltwunder).
+      Materialien: hochwertiger, feiner Haustein und Marmor; Dächer in kräftigen Farben
+      (Schiefer- oder Kupferstrukturen), Metallelemente, Flaggen und edle Verzierungen.
 
 Farm (C5f) ist fertig: Dorfbewohner wählen, Taste G (Getreide) drücken, Bauplatz
 anklicken — 3×3-Feld von 175 Nahrung. Die ausgewählten Dorfbewohner ernten die
@@ -717,6 +726,14 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
       `Content/Gebaeude/<zeitalter>/`, gezeichnet im Zeitalter des Besitzers *(Agent C4g)*
 - [x] Dorfbewohner kleiden sich nach dem Zeitalter ihres Besitzers: Stand- und Laufbilder je
       Zeitalter unter `Content/Einheiten/<zeitalter>/` *(Agent C4h)*
+- [ ] **C4l Laufbilder der Imperialzeit** (Hinweis des Nutzers, 2026-10-07): die
+      Dorfbewohner der Imperialzeit laufen merkwürdig und brauchen neue Laufbilder.
+      `Content/Einheiten/imperial/dorfbewohner_lauf1_*` und `_lauf2_*` neu erzeugen (Gruppe
+      `einheiten_lauf`, wie bei C7v nur die Beine neu malen, Rumpf und Faust bleiben). Mit
+      dem Standbild abgleichen: gleicher Zuschnitt (Feld „figur“ in `uebernehmen.ps1`), Füße
+      auf derselben Höhe, keine Puffärmel oder Kragen, die zwischen den Bildern springen.
+      Abnahme: Sichtprüfung im Spiel neben den Laufbildern der übrigen Zeitalter, dazu
+      `c4h_dorfbewohner.py`
 
 ### C5 · Bauen [X] — erledigt
 
@@ -774,6 +791,13 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
       Gebaeude/muehle_fluegel dreht der Code um die Nabe), und die Fahnen auf Haus, Mühle,
       Wachturm und den Lagern wehen - das Tuch in Streifen, die eine Welle hebt und
       senkt (DrawWavingFlag, FlagWave) *(Agent C6a)*
+- [ ] **C6f Feuer in der Schmiede** (Hinweis des Nutzers, 2026-10-07): das Feuer der
+      Schmiede ist nur ins Bild gemalt und steht still. Es soll flackern und glühen, wie die
+      Mühle sich dreht und die Fahnen wehen. Die Feuerstelle je Bild messen (wie
+      `DoorCenters`, `MillHubs`), für die Schmiede in Feudal-, Ritter- und Imperialzeit
+      (`Content/Gebaeude/<zeitalter>/schmiede_*`). Darüber Flammen, Glut und Funken, entweder
+      aus dem Code oder als Shader wie `Weizen.fx`, eventuell dazu etwas Rauch aus der Esse.
+      Baustellen brennen nicht
 - [x] Dorfbewohner als Sprite (Qwen-Image) mit Bewegung aus dem Code: wippt beim Gehen, holt
       beim Sammeln und Bauen aus, atmet im Stehen, blickt in Laufrichtung, Schatten und
       Traglast-Bündel *(Agent C6v)*
@@ -863,6 +887,15 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
       Bild und wird jetzt zentriert — links und rechts bleibt Rand. Entweder
       größere Karte, oder MIN_ZOOM dynamisch so setzen, dass die Karte das
       Fenster immer füllt (schließt dann aber die Gesamtübersicht aus)
+- [ ] **C11r Rechteckige Karte** (Hinweis des Nutzers, 2026-10-07): die Karte soll
+      rechteckig sein, ungefähr im Seitenverhältnis des Bildschirms, statt quadratisch.
+      Heute baut `RTSGameplayScreen.LoadContent` sie mit `new TileMap(side, side, …)` aus
+      `MapSizes.Side`. Künftig Breite und Höhe je Kartengröße (etwa 16:9 bzw. 16:10 bei
+      gleicher Fläche wie bisher, sodass `MapSettings.ForSize` die Ausstattung weiter nach
+      der Fläche richtet). Prüfen, was quadratisch denkt: Startplätze, Kartengenerator,
+      Minimap (rechteckig statt quadratisch), `ClampCamera`, Nebel. Löst wohl auch die
+      Entwurfsfrage oben. Abnahme: `tools/kartenpruefung -- groessen`, `tools/spielablauf --
+      karten`
 - [x] Kantenscrollen mit der Maus, 8 Pixel Randstreifen *(Agent C10)*
 - [x] Karte mit gedrückter linker Maustaste ziehen, ab 6 Pixeln Weg *(Agent C8a)*
 
