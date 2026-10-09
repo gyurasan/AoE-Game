@@ -34,6 +34,10 @@ public class Player
     
     // Zeitalter und Aufstieg - Regeln und Ablauf aus AoE.Core (AgeRules, AgeProgress)
     public AgeProgress Ages { get; } = new AgeProgress();
+
+    // Forschungen (P2): was erforscht ist und was gerade läuft - Regeln und Wirkung aus
+    // AoE.Core (TechRules, TechProgress, TechEffects)
+    public TechProgress Techs { get; } = new TechProgress();
     
     // Units owned
     public List<Unit> Units { get; set; } = new List<Unit>();

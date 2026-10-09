@@ -4,20 +4,65 @@
 
 ## Wiederaufnahme — hier weitermachen
 
-Zuletzt angefasst: **Soldaten** (2026-10-09, P1) — ein ausgewähltes Gebäude bildet aus:
-die Kaserne die Miliz, der Schießstand den Bogenschützen, der Stall den Späher, je mit Q.
-Davor **Gebäude auswählen und angreifen** (2026-10-06, B1, K1, K2; committet mit `4d0496e`)
-und **Abliefern an der Tür** (T1). Forschung (P2) und Handel fehlen noch.
-P1 ist uncommittet im Arbeitsbaum; Commit macht der Nutzer.
+Zuletzt angefasst: **Schwertschlag und Speerstoß** (2026-10-09, C4n) — die Miliz holt beim Angriff
+aus und schlägt über den Kopf zu, der Späher stößt mit gesenktem Speer; der Treffer im Bild fällt
+genau auf den Abzug der Stärke. Davor **Natürliches Gehen** (C4l, C4m) — alle Figuren gehen in
+acht Phasen je Doppelschritt, ohne dass die Füße rutschen. Davor **Forschungen** (2026-10-09, P2) — ein ausgewähltes Gebäude forscht: Webstuhl im
+Stadtzentrum (W), Pferdekummet, Doppelaxt und Goldbergbau in den Lagern (Q), drei Forschungen in
+der Schmiede (Q, W, E), Maurerkunst in der Universität (Q) —, **Soldaten** (P1; committet mit
+`ad2ca62`) und **Gebäude auswählen und angreifen** (2026-10-06, B1, K1, K2). Handel fehlt noch.
+P2, C4l, C4m und C4n sind uncommittet im Arbeitsbaum; Commit macht der Nutzer.
 
-Alles baut und läuft: `dotnet build AgeOfEvolutions.slnx` (0 Fehler, 0 Warnungen),
-`dotnet test tests/AoE.Tests` → **224/224 grün**.
+Alles baut und läuft: `dotnet build AgeOfEvolutions.slnx` (0 Fehler; Warnungen: NU1902/NU1903
+zu SixLabors.ImageSharp, das MonoGame 3.8.6 mitbringt, dazu CS8766 und xUnit2029 in
+`tests/AoE.Tests/AI/EconomyAiTests.cs`), `dotnet test tests/AoE.Tests` → **267/267 grün**.
 
 Der Stand vom 2026-09-23 ist mit `4cb57d4` committet, alles bis zu den Gebäude-Sprites
 mit `4f85314` (2026-10-03). Commits macht der Nutzer selbst.
 
 Zuletzt fertiggestellt:
 
+- **Schwertschlag und Speerstoß (2026-10-09)** — greift die Miliz ein Gebäude an, zeigt sie acht
+  Schlagphasen statt des Kippelns der ganzen Figur: bereit, ausholen, die Klinge hinter dem Kopf,
+  über den Kopf, Hieb, Treffer, durchziehen, zurücknehmen; der Späher senkt seinen Speer und
+  stößt ihn durch die Faust nach vorn. `tools/bilder/schlag.py` schneidet Waffenarm (Miliz) bzw.
+  Speer (Späher) aus dem Standbild und dreht sie um Schulter, Ellbogen oder Faust über einem
+  Rumpf ohne Waffe, den Qwen-Image einmal neu gemalt hat; die Schulterkappe liegt über dem Arm,
+  über dem Kopf geht er hinter dem Helm durch. Die Schlagbilder haben eine größere Leinwand im
+  Maßstab des Standbilds, die Füße stehen an derselben Stelle. Im Spiel wählt `AttackPhase` das
+  Bild nach `AttackTimer` (Tabelle `AttackTimeline`), das Trefferbild steht genau, wenn
+  `BuildingCombat` die Stärke senkt. `docs/bilder/schlag.gif` zeigt beide in Zeitlupe; Abnahme
+  `c4n_schlag.py`, Gruppe `schlag` in `tools/spielablauf` *(C4n)*
+- **Natürliches Gehen (2026-10-09)** — Dorfbewohner aller Zeitalter, Miliz, Bogenschütze und
+  Späher gehen in acht Phasen je Doppelschritt statt in zwei Laufbildern mit dem Standbild
+  dazwischen. `tools/bilder/gang.py` schneidet die Beine des Standbilds in Oberschenkel,
+  Unterschenkel und Fuß und stellt sie nach Fußbahnen: der Standfuß ruht und wandert unter dem
+  Körper nach hinten, setzt mit der Ferse auf und rollt über die Zehen ab, der Schwungfuß zieht
+  im Bogen nach vorn, das Knie ergibt sich aus den Knochenlängen, der Körper wippt dabei mit.
+  Das Pferd des Spähers geht im Viertakt, die Sprunggelenke knicken nach hinten. Rumpf,
+  Kleidung und Waffe bleiben Pixel für Pixel; Gelenkscheiben halten Knie und Knöchel bei jedem
+  Winkel geschlossen. Dafür wurden die Beine der Imperialzeit neu gemalt (die Hose endete neben
+  dem Stiefel, C4l) und Miliz und Bogenschütze in Schrittstellung gestellt, beides per
+  Qwen-Image nur unter einer Beinmaske. Im Spiel wählt `Gait.WalkFrame` die Phase nach der
+  gelaufenen Strecke, `Gait.VILLAGER_STRIDE` (5,06 Welteinheiten) ist die Schrittlänge der
+  Bilder; Werkzeug und Traglast gehen mit dem Wippen (`VillagerWalkHub`). Ausbessern der
+  Gelenke mit Qwen-Image war verworfen: es malte die Stiefel von Phase zu Phase anders.
+  `docs/bilder/gang.gif` zeigt alle Figuren in Zeitlupe; Abnahme `c4m_gang.py`, Gruppen `gang`
+  und `gehen` in `tools/spielablauf` *(C4l, C4m)*
+- **Forschungen (2026-10-09)** — ein ausgewähltes eigenes Gebäude forscht mit der Taste aus
+  der Tabelle `Researches`: das Stadtzentrum den Webstuhl (W, 50 Gold, 25 s; Dorfbewohner +15 LP,
+  Rüstung +1), die Mühle das Pferdekummet (neue Felder 250 statt 175 Nahrung), das
+  Holzfällerlager die Doppelaxt (Holz 20 % schneller), das Bergbaulager den Goldbergbau (Gold
+  15 % schneller), die Schmiede Schmiedekunst, Befiederte Pfeile und Schuppenpanzer (Q, W, E;
+  Angriff, Reichweite, Rüstung von Miliz, Späher und Bogenschütze), die Universität die
+  Maurerkunst (Gebäude +10 % LP, Rüstung +1). Kosten, Dauer, Zeitalter und Wirkung nach AoE II
+  stehen in AoE.Core (`Economy/Research.cs`: `TechRules`, `TechProgress`, `ResearchSlot`,
+  `TechEffects`); der alte, nie benutzte `TechTree` ist weg. Bezahlt wird beim Start, ein Gebäude
+  forscht eine zur Zeit und bildet so lange nicht aus, verschiedene Gebäude forschen
+  gleichzeitig; die fertige Forschung wirkt auf alles, was der Spieler hat und noch bekommt.
+  Die Leiste zeigt „forscht: Name %“; wird ein forschendes Gebäude zerstört, kommen die Kosten
+  zurück. 43 neue Tests (`ResearchTests`), Gruppe `forschung` in `tools/spielablauf`, Abnahme
+  `p2_forschung.py` *(P2a, P2b)*
 - **Soldaten (2026-10-09)** — ein ausgewähltes eigenes Gebäude bildet aus, was die Tabelle
   `Products` sagt: das Stadtzentrum Dorfbewohner, die Kaserne die Miliz (60 Nahrung, 20 Gold,
   21 s), ab der Feudalzeit der Schießstand den Bogenschützen (25 Holz, 45 Gold, 35 s) und der
@@ -222,10 +267,9 @@ Linksklick, der hier ein Befehl ist, oder per neuem Bauauftrag. Die Nachstellung
 
 Nächste sinnvolle Schritte, in dieser Reihenfolge:
 
-1. **Dorfbewohner der Imperialzeit neu animieren** (Hinweis des Nutzers, 2026-10-07) — sie
-   laufen merkwürdig. Die Laufbilder `Content/Einheiten/imperial/dorfbewohner_lauf1_*` und
-   `_lauf2_*` neu erzeugen und gegen Stand- und Laufbilder der anderen Zeitalter prüfen.
-   Siehe C4l.
+1. **Sichtprüfung der Animationen durch den Nutzer** — Gehen (C4l, C4m) und Schwertschlag
+   (C4n) sind fertig; in Zeitlupe in `docs/bilder/gang.gif` und `docs/bilder/schlag.gif`. Der
+   Bogenschütze schießt beim Angriff noch nicht sichtbar (Bogen spannen, Pfeil) - siehe C4n.
 2. **Feuer in der Schmiede animieren** (Hinweis des Nutzers, 2026-10-07) — das Feuer ist
    bisher nur gemalt und steht still. Siehe C6f.
 3. **Rechteckige Karte** (Hinweis des Nutzers, 2026-10-07) — die Karte ist quadratisch
@@ -248,8 +292,8 @@ Nächste sinnvolle Schritte, in dieser Reihenfolge:
 7. **Die neuen Gebäude mit Leben füllen** — seit L1/L2 sind alle Gebäude baubar; Kaserne,
    Schießstand und Stall bilden seit P1 Miliz, Bogenschütze und Späher aus. Offen:
    Einheiten für Belagerungswerkstatt und Burg, die Kampfschleife, der Markt den Handel,
-   Schmiede und Universität die Forschung (P2, siehe C14), das Kloster Mönche. Dorfkern,
-   Mauern und Krieger siehe C13.
+   das Kloster Mönche; Schmiede, Universität, Lager und Stadtzentrum forschen seit P2 (C14).
+   Dorfkern, Mauern und Krieger siehe C13.
 8. **Kampfschleife** — `Unit.Attack()` existiert seit B2 und wird nirgends aufgerufen;
    Gebäude angreifen geht seit K2 (`BuildingCombat`), Einheiten gegeneinander noch nicht.
    Auf Wunsch des Nutzers zurückgestellt (2026-09-30).
@@ -329,7 +373,7 @@ benennt jemand eine Methode um, meldet es das, statt still falsch zu prüfen.
 | Projekt | Framework | Build | Bemerkung |
 |---|---|---|---|
 | `src/AoE.Core` | net10.0 | OK, 0 Fehler | Reine Logik, keine MonoGame-Abhängigkeit |
-| `tests/AoE.Tests` | net10.0 | **224/224 grün** | Einheiten und Ressourcen (15), Sammelauftrag (21), Ausbildung und Bevölkerung (22), Bauen (74), Zeitalter (46), Konter-Dreieck (5), Gebäudekampf (9), Wegfindung (3), Nebel (8), Wirtschafts-KI (20), Fehlersuche (1) |
+| `tests/AoE.Tests` | net10.0 | **267/267 grün** | Einheiten und Ressourcen (15), Sammelauftrag (21), Ausbildung und Bevölkerung (22), Bauen (74), Zeitalter (46), Forschungen (43), Konter-Dreieck (5), Gebäudekampf (9), Wegfindung (3), Nebel (8), Wirtschafts-KI (20), Fehlersuche (1) |
 | `demo/DemoApp` | net10.0 | OK | referenziert AoE.Core |
 | `AgeOfEvolutions.Core` | net10.0 | OK, 0 Fehler | Dateiname seit H2 kanonisch |
 | `AgeOfEvolutions.DesktopGL` | net10.0 | OK, 0 Fehler / 0 Warnungen | startbar |
@@ -747,7 +791,7 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
       `Content/Gebaeude/<zeitalter>/`, gezeichnet im Zeitalter des Besitzers *(Agent C4g)*
 - [x] Dorfbewohner kleiden sich nach dem Zeitalter ihres Besitzers: Stand- und Laufbilder je
       Zeitalter unter `Content/Einheiten/<zeitalter>/` *(Agent C4h)*
-- [ ] **C4l Laufbilder der Imperialzeit** (Hinweis des Nutzers, 2026-10-07): die
+- [x] **C4l Laufbilder der Imperialzeit** (Hinweis des Nutzers, 2026-10-07): die
       Dorfbewohner der Imperialzeit laufen merkwürdig und brauchen neue Laufbilder.
       Genauer (2026-10-09): beim Gehen sind die Beine nicht mit dem Körper verbunden.
       Ausdrücklicher Wunsch: hier wirklich den High-Def-Builder verwenden.
@@ -756,7 +800,39 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
       dem Standbild abgleichen: gleicher Zuschnitt (Feld „figur“ in `uebernehmen.ps1`), Füße
       auf derselben Höhe, keine Puffärmel oder Kragen, die zwischen den Bildern springen.
       Abnahme: Sichtprüfung im Spiel neben den Laufbildern der übrigen Zeitalter, dazu
-      `c4h_dorfbewohner.py`
+      `c4h_dorfbewohner.py` *(erledigt 2026-10-09: Hose und Stiefel neu gemalt, Gehphasen aus C4m)*
+- [x] **C4m Natürliche Gehbewegung für alle Figuren** (Wunsch des Nutzers, 2026-10-09): alle
+      Beinbewegungen kontrollieren, hier mit maximalem Aufwand, damit Soldaten und
+      Dorfbewohner natürlich gehen. Umfasst C4l. Betroffen: Dorfbewohner in allen vier
+      Zeitaltern, Miliz, Bogenschütze und Späher samt Pferd (Gangart der vier Pferdebeine).
+      Bisher besteht ein Schritt aus nur vier Phasen (`lauf1`, Stand, `lauf2`, Stand in
+      `_villagerWalk` und `_unitWalk`); das wirkt hölzern. Zu prüfen und zu erneuern:
+      - mehr Phasen je Doppelschritt (Aufsetzen, Abfedern, Durchschwingen, Abdruck je Bein),
+        die Beine in jeder Phase sichtbar an der Hüfte, Füße auf derselben Bodenlinie,
+        gegengleich schwingende Arme, leichtes Auf und Ab des Rumpfs
+      - Schrittlänge passend zur Laufgeschwindigkeit, damit die Füße nicht über den Boden
+        rutschen (`VillagerWalkPhase(motion.Walked)` taktet nach der gelaufenen Strecke)
+      - gleicher Zuschnitt, gleiche Kleidung und Waffe in allen Phasen, nichts springt
+      Erzeugen mit dem High-Def-Builder (Wunsch des Nutzers wie bei C4l). Abnahme: Fotoserie
+      jeder Figur im Gehen (Render-Target in der Scratchpad-Kopie), Phasen nebeneinander und
+      als Bewegung geprüft, dazu eine Pixelprüfung, dass Fußlinie und Zuschnitt über alle
+      Phasen gleich bleiben; zuletzt Sichtprüfung durch den Nutzer *(erledigt 2026-10-09:
+      `tools/bilder/gang.py`, acht Phasen je Figur, `c4m_gang.py`; Sichtprüfung durch den
+      Nutzer offen, Zeitlupe in `docs/bilder/gang.gif`)*
+- [x] **C4n Natürlicher Schwertschlag der Soldaten** (Wunsch des Nutzers, 2026-10-09): die
+      Soldaten sollen ihre Schwerter natürlich schwingen, auch hier mit maximalem Aufwand in
+      der Animation. Bisher ist die Waffe ins Bild der Miliz und des Spähers gemalt und
+      bewegt sich beim Angriff gar nicht; nur das Werkzeug der Dorfbewohner schwingt
+      (`SwingAngle`, als gedrehtes Einzelbild). Nötig ist ein eigener Schlagablauf je
+      Soldat: Ausholen mit Gewichtsverlagerung, Hieb mit Hüft- und Schulterdrehung, Treffer
+      im Takt von `BuildingCombat.RELOAD_SECONDS` (alle 2 s), Zurücknehmen in die Grundstellung;
+      der Späher schlägt vom Pferd aus, das dabei ruhig steht. Mehrere Phasenbilder statt
+      eines gedrehten Schwerts, Waffe fest in der Hand, Treffpunkt an der Gebäudekante.
+      Erzeugen mit dem High-Def-Builder wie bei C4m, Abnahme ebenso: Fotoserie jeder Phase
+      und als Bewegung, Treffer im Bild genau beim Abzug der Stärke, Sichtprüfung durch den
+      Nutzer *(erledigt 2026-10-09 mit `tools/bilder/schlag.py`: Miliz-Hieb und Speerstoß des
+      Spähers, `c4n_schlag.py`; offen: der Bogenschütze spannt beim Angriff noch nicht den Bogen;
+      Sichtprüfung durch den Nutzer, Zeitlupe in `docs/bilder/schlag.gif`)*
 
 ### C5 · Bauen [X] — erledigt
 
@@ -1011,10 +1087,10 @@ Gebäude, erste Soldaten, Forschungen; angreifen nur eigene Einheiten per Befehl
       in AoE.Core, Zerstörung gibt die Kacheln frei *(Agent K1, K2)*
 - [x] Soldaten: Kaserne Miliz, Schießstand Bogenschütze, Stall Späher, je Taste Q, Kosten und
       Zeiten nach AoE II (`Products`) *(Agent P1)*
-- [ ] **P2 Forschungen** — Webstuhl (Stadtzentrum), Pferdekummet (Mühle), Doppelaxt
+- [x] **P2 Forschungen** — Webstuhl (Stadtzentrum, W), Pferdekummet (Mühle), Doppelaxt
       (Holzfällerlager), Goldbergbau (Bergbaulager), Schmiedekunst, Befiederte Pfeile und
-      Schuppenpanzer (Schmiede), Maurerkunst (Universität). Die Symbole liegen schon in
-      `Content/Icons/`, der Code fehlt; Tasten im ausgewählten Gebäude Q, W, E
+      Schuppenpanzer (Schmiede, Q W E), Maurerkunst (Universität); Regeln und Wirkung in
+      AoE.Core (`Economy/Research.cs`), Tasten nach `Researches` *(Agent P2a, P2b)*
 - [ ] Die KI greift noch keine Gebäude an
 
 ---
@@ -1062,7 +1138,7 @@ Enthält reines Azure-Boilerplate ohne jeden Bezug zum Projekt.
 - [x] .NET-10-Migration: AoE.Core, Tests, Demo, Spiel-Core, DesktopGL, WindowsDX
 - [x] Build läuft fehlerfrei durch (AoE.Core + DesktopGL, 0 Warnungen)
 - [x] AoE.Core als Projektverweis eingebunden *(seit Block B im Spiel genutzt)*
-- [x] 224 Unit-Tests grün
+- [x] 267 Unit-Tests grün
 - [x] Kartengenerierung `TileMap.cs`: Seen mit Falloff, Beeren, Schafe, Wildschweine,
       Stein/Gold, PvP-Startpositionen
 - [x] Wasser-Animation
@@ -1084,8 +1160,8 @@ Enthält reines Azure-Boilerplate ohne jeden Bezug zum Projekt.
 - [x] **L1, L2 Die übrigen Gebäude** — Kosten, Bauzeit, Größe und Werte für jeden
   Gebäudetyp (L1), zweite Tastenreihe mit Symbolen und Bildern je Zeitalter, Mauerreihen,
   Gruppe `neubauten` in `tools/spielablauf` (L2) *(2026-10-06)*
-- [x] **B1, K1, K2, P1** — Gebäude auswählen und angreifen *(2026-10-06)*, Soldaten aus
-  Kaserne, Schießstand und Stall *(2026-10-09)*
+- [x] **B1, K1, K2, P1, P2** — Gebäude auswählen und angreifen *(2026-10-06)*, Soldaten aus
+  Kaserne, Schießstand und Stall, acht Forschungen in sechs Gebäudearten *(2026-10-09)*
 
 ---
 

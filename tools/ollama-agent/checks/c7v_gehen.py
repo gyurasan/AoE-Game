@@ -46,9 +46,11 @@ for farbe in ("blau", "rot"):
         if f"/build:Einheiten/{name}.png" not in mgcb:
             fehler.append(f"Einheiten/{name}.png ist nicht in AgeOfEvolutions.mgcb eingetragen")
 # Seit C4h lädt der Bildschirm die Laufbilder aus dem Ordner des Standbilds (Einheiten/
-# oder Einheiten/<zeitalter>/) - der Name steht dann ohne Ordner im Quelltext
+# oder Einheiten/<zeitalter>/) - der Name steht dann ohne Ordner im Quelltext. Seit C4m
+# setzt LoadWalk die Namen _lauf1 bis _lauf8 aus Figur und Phasennummer zusammen
+ueber_loadwalk = re.search(r'LoadWalk\s*\([^)]*"dorfbewohner"', text) and "_lauf" in (methode(text, "LoadWalk") or "")
 for pose in ("lauf1", "lauf2"):
-    if f'"Einheiten/dorfbewohner_{pose}"' not in text and f'"dorfbewohner_{pose}"' not in text:
+    if f'"Einheiten/dorfbewohner_{pose}"' not in text and f'"dorfbewohner_{pose}"' not in text and not ueber_loadwalk:
         fehler.append(f"der Spielbildschirm lädt Einheiten/dorfbewohner_{pose} nicht")
 
 dorf = methode(text, "DrawVillager") or ""

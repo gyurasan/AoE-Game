@@ -3,8 +3,8 @@
 //   dotnet run --project tools/spielablauf -- bauen weiterbauen linksklick farm schafe wild herde bewegen minimap zoom leiste zeitalter turm menue animation fenster werkzeug feld fahne gehen karten pfad wind gang blick dunkel
 //
 // Dazu neubauten (Gebäude der zweiten Tastenreihe), tuer (Abliefern vor der Tür) und
-// auswahl (Gebäude auswählen), angriff (Gebäude angreifen) und soldaten
-// (Ausbildung in Kaserne, Schießstand und Stall).
+// auswahl (Gebäude auswählen), angriff (Gebäude angreifen), soldaten
+// (Ausbildung in Kaserne, Schießstand und Stall) und forschung (Forschungen und ihre Wirkung).
 //
 // Jede genannte Gruppe läuft auf drei frisch erzeugten Karten. Die Spielschleife
 // läuft Bild für Bild (60 je Sekunde) mit denselben Methoden, die Update() im Spiel
@@ -29,6 +29,8 @@ using Age = AoE.Core.Economy.Age;
 using AgeProgress = AoE.Core.Economy.AgeProgress;
 using CorePosition = AoE.Core.Entities.Position;
 using GatherJob = AoE.Core.Economy.GatherJob;
+using Tech = AoE.Core.Economy.Tech;
+using TechRules = AoE.Core.Economy.TechRules;
 
 const int KARTEN = 3;
 var gruppen = new HashSet<string>(args.Where(a => !a.StartsWith("-")).Select(a => a.ToLowerInvariant()));
@@ -103,6 +105,10 @@ for (int karte = 1; karte <= KARTEN; karte++)
         Pruefe($"Karte {karte}, Angriff", () => Angriff(karte, verstoesse));
     if (gruppen.Contains("soldaten"))
         Pruefe($"Karte {karte}, Soldaten", () => Soldaten(karte, verstoesse));
+    if (gruppen.Contains("forschung"))
+        Pruefe($"Karte {karte}, Forschung", () => Forschung(karte, verstoesse));
+    if (gruppen.Contains("schlag") && karte == 1)
+        Pruefe("Schlag", () => Schlag(verstoesse));
     if (gruppen.Contains("fenster") && karte == 1)
         Pruefe("Fenster", () => Fenster(verstoesse));
     if (gruppen.Contains("werkzeug") && karte == 1)
@@ -653,8 +659,7 @@ static void TierSchritt(int karte, List<string> verstoesse)
 // statt mit vollem Tempo loszuspringen, tritt nie auf eine Kachel, die er nicht
 // betreten darf, kommt an und geht dabei nicht weiter als der Weg der Wegsuche -
 // über freies Land gerade statt im Zickzack der Kachelmitten. Die Laufbilder folgen
-// der Strecke (Schritt, Stand, Gegenschritt, Stand je zwei Schrittlängen), gespreizt,
-// wenn er beim Wippen unten ist, im Stand, wenn er oben ist.
+// der Strecke: acht Gehphasen je Doppelschritt (C4m), jede ein Viertel einer Schrittlänge.
 static void Gehen(List<string> verstoesse)
 {
     const string wer = "Gehen";
@@ -669,16 +674,13 @@ static void Gehen(List<string> verstoesse)
     {
         int p = Phase(s);
         if (folge.Count == 0 || folge[^1] != p) folge.Add(p);
-        bool gespreizt = p is 0 or 2;
-        float hoehe = Gait.Bob(s, schritt);
-        if (gespreizt && hoehe > 0.75f || !gespreizt && hoehe < 0.25f)
-        {
-            verstoesse.Add($"{wer}: nach {s:0.0} Welteinheiten Laufbild {p}, die Figur ist aber {hoehe:0.00} hoch - Beine und Wippen passen nicht zusammen");
-            break;
-        }
     }
-    if (!folge.SequenceEqual(new List<int> { 0, 1, 2, 3, 0, 1, 2, 3, 0 }))
-        verstoesse.Add($"{wer}: Laufbilder über zwei Doppelschritte {string.Join(",", folge)} statt 0,1,2,3,0,1,2,3,0");
+    var sollFolge = Enumerable.Range(0, 8).Concat(Enumerable.Range(0, 8)).Append(0).ToList();
+    if (!folge.SequenceEqual(sollFolge))
+        verstoesse.Add($"{wer}: Laufbilder über zwei Doppelschritte {string.Join(",", folge)} statt {string.Join(",", sollFolge)}");
+    // Die Füße rutschen nicht: die Schrittlänge ist die der Gehphasen aus tools/bilder/gang.py
+    if (MathF.Abs(schritt - 5.06f) > 0.01f)
+        verstoesse.Add($"{wer}: Schrittlänge {schritt} Welteinheiten statt 5,06 wie in den Gehphasen");
 
     // Ein Gang über zwölf Kacheln
     var v = w.Dorfbewohner().First();
@@ -744,6 +746,16 @@ static void Gang(List<string> verstoesse)
         int b = Gait.WalkFrame(s, 10f);
         if (b < 0 || b > 3) { Soll(false, $"WalkFrame({s:0.00}, 10) = {b} liegt nicht zwischen 0 und 3"); break; }
     }
+    // Acht Gehphasen (C4m): jedes Bild ein Achtel des Doppelschritts, walked = 0 mitten in Bild 0
+    foreach (var (s, bild) in new[] { (0f, 0), (1.2f, 0), (1.3f, 1), (3.7f, 1), (3.8f, 2), (18.7f, 7), (18.8f, 0),
+                                      (-1.2f, 0), (-1.3f, 7), (1001f, 0), (1003.7f, 1), (1010f, 4) })
+        Soll(Gait.WalkFrame(s, 10f, 8) == bild, $"WalkFrame({s}, 10, 8) = {Gait.WalkFrame(s, 10f, 8)} statt {bild}");
+    for (float s = -50f; s < 50f; s += 0.37f)
+    {
+        int b = Gait.WalkFrame(s, 10f, 8);
+        if (b < 0 || b > 7) { Soll(false, $"WalkFrame({s:0.00}, 10, 8) = {b} liegt nicht zwischen 0 und 7"); break; }
+    }
+    Soll(Gait.WALK_FRAMES == 8, $"WALK_FRAMES = {Gait.WALK_FRAMES} statt 8");
 
     // Bob: sin²(π walked / stride)
     for (float s = -20f; s < 40f; s += 0.53f)
@@ -1737,12 +1749,12 @@ static void Leiste(int karte, List<string> verstoesse)
     if (!ohne.SequenceEqual(new[] { "." }))
         verstoesse.Add($"{wer}: ohne Auswahl Tasten [{string.Join(" ", ohne)}], erwartet nur .");
 
-    // Q und A gehören dem ausgewählten Stadtzentrum (B1)
+    // Q, W und A gehören dem ausgewählten Stadtzentrum (B1; W ist der Webstuhl, P2)
     w.Call("SelectBuilding", w.Map.Buildings.First(b => b.OwnerId == 0 && b.Type == "Stadtzentrum"));
     w.Call("LayoutButtons");
     var mitTc = w.Tasten().Select(t => t.Label).ToList();
-    if (!mitTc.SequenceEqual(new[] { "Q", "A", "." }))
-        verstoesse.Add($"{wer}: mit Stadtzentrum Tasten [{string.Join(" ", mitTc)}], erwartet Q, A und .");
+    if (!mitTc.SequenceEqual(new[] { "Q", "W", "A", "." }))
+        verstoesse.Add($"{wer}: mit Stadtzentrum Tasten [{string.Join(" ", mitTc)}], erwartet Q, W, A und .");
     int nahrung = w.P1.Resources[Resource.Food];
     w.Klick(w.Tasten().First(t => t.Label == "Q").Rect.Center);
     if (w.P1.Resources[Resource.Food] != nahrung - 25)
@@ -2405,8 +2417,9 @@ static void Auswahl(int karte, List<string> verstoesse)
     if (Gewaehlt() != tc)
         verstoesse.Add($"{wer}: Rechtsklick knapp über der Unterkante trifft das Stadtzentrum nicht");
     var mitTc = Tasten();
-    if (!mitTc.SequenceEqual(new[] { "Q", "A", "." }))
-        verstoesse.Add($"{wer}: mit Stadtzentrum Tasten [{string.Join(" ", mitTc)}], erwartet Q A .");
+    // W ist seit P2 der Webstuhl
+    if (!mitTc.SequenceEqual(new[] { "Q", "W", "A", "." }))
+        verstoesse.Add($"{wer}: mit Stadtzentrum Tasten [{string.Join(" ", mitTc)}], erwartet Q W A .");
     string s = Status(tc);
     if (!s.StartsWith("Stadtzentrum") || !s.Contains($"{tc.Health}/{tc.MaxHealth} LP"))
         verstoesse.Add($"{wer}: Status '{s}' nennt nicht Name und Lebenspunkte");
@@ -2752,6 +2765,337 @@ static void Soldaten(int karte, List<string> verstoesse)
     {
         TileMap.TestNoFog = false;
     }
+}
+
+// Forschungen (P2): ein ausgewähltes eigenes Gebäude forscht mit Q, W oder E, bezahlt beim
+// Start und braucht so lange, wie TechRules sagt; ein Gebäude forscht eine zur Zeit,
+// verschiedene Gebäude gleichzeitig, und solange es forscht, bildet es nicht aus. Danach
+// wirkt die Forschung auf alles, was der Spieler hat und noch bekommt, nicht auf den Gegner:
+// Webstuhl auf Dorfbewohner, Pferdekummet auf neue Felder, Doppelaxt aufs Holzhacken, die
+// Schmiede auf Miliz, Späher und Bogenschützen, Maurerkunst auf Gebäude. Wird ein
+// forschendes Gebäude zerstört, ist die Forschung wieder offen und die Kosten kommen zurück.
+static void Forschung(int karte, List<string> verstoesse)
+{
+    const int bw = 2406, bh = 1353;
+    string wer = $"Karte {karte}, Forschung";
+    int vorher = verstoesse.Count;
+    var w = new Welt();
+    w.Set("screenBounds", new Rectangle(0, 0, bw, bh));
+    w.Set("cameraZoom", 1f);
+    w.Set("cameraPosition", Vector2.Zero);
+    var ages = w.P1.Ages;
+    var techs = w.P1.Techs;
+    foreach (var r in new[] { Resource.Food, Resource.Wood, Resource.Gold, Resource.Stone })
+        w.P1.Resources.Add(r, 5000);
+    var dorf = w.Dorfbewohner().ToList();
+    var gt = new GameTime(TimeSpan.Zero, TimeSpan.FromSeconds(1.0 / 60));
+    void Taste(Keys k)
+    {
+        var maus = new MouseState(bw / 2, bh / 2, 0, ButtonState.Released, ButtonState.Released,
+                                  ButtonState.Released, ButtonState.Released, ButtonState.Released);
+        w.Call("HandleRtsInput", gt, new KeyboardState(k), maus);
+        w.Call("HandleRtsInput", gt, new KeyboardState(), maus);
+    }
+    List<(string Label, string Name)> Tasten()
+    {
+        w.Call("LayoutButtons");
+        return ((System.Collections.IEnumerable)w.Get("_buttons")).Cast<object>()
+            .Select(b => ((string)b.GetType().GetField("Label").GetValue(b), (string)b.GetType().GetField("Name").GetValue(b)))
+            .ToList();
+    }
+    string Liste() => string.Join(" ", Tasten().Select(t => t.Label + ":" + t.Name));
+    bool HatTaste(string label, string name) => Tasten().Any(t => t.Label == label && t.Name == name);
+    string Meldung() => w.Get("hudMessage") as string ?? "";
+    Building Setze(BuildingType typ, string name, float abstand)
+    {
+        var platz = w.Bauplatz(typ, dorf[0], abstand);
+        return w.Map.AddBuilding((int)platz.X, (int)platz.Y, name, 0, AoE.Core.Economy.BuildingRules.SizeOf(typ));
+    }
+    Unit Neu(UnitType typ, int besitzer)
+    {
+        var c = w.FreieKachel(dorf[0], 4);
+        var u = w.Map.AddUnit(typ, (int)c.X, (int)c.Y, besitzer);
+        (besitzer == 0 ? w.P1 : w.P2).AddUnit(u);
+        return u;
+    }
+    // Forschung mit ihrer Taste im ausgewählten Gebäude starten: Taste da, Kosten abgebucht,
+    // die Forschung läuft und hat danach keine Taste mehr
+    void Starte(Building g, Keys k, Tech tech)
+    {
+        w.Call("SelectBuilding", g);
+        string name = TechRules.NameOf(tech);
+        if (!HatTaste(k.ToString(), name))
+            verstoesse.Add($"{wer}: {g.Type} ausgewählt - Tasten [{Liste()}], erwartet {k}:{name}");
+        var kosten = TechRules.CostOf(tech);
+        var vor = kosten.Keys.ToDictionary(r => r, r => w.P1.Resources[r]);
+        Taste(k);
+        foreach (var (r, menge) in kosten)
+            if (w.P1.Resources[r] != vor[r] - menge)
+                verstoesse.Add($"{wer}: {name} - {r} {vor[r]} -> {w.P1.Resources[r]}, erwartet {menge} weniger");
+        if (g.Research.Current != tech || !techs.IsPending(tech))
+            verstoesse.Add($"{wer}: Taste {k} in {g.Type} - es forscht {g.Research.Current?.ToString() ?? "nichts"}, erwartet {tech}");
+        if (HatTaste(k.ToString(), name))
+            verstoesse.Add($"{wer}: {name} läuft, hat aber noch eine Taste [{Liste()}]");
+    }
+    // Wartet, bis tech erforscht ist, und prüft die Dauer (seit dem Start, bisher schon vergangen)
+    void Warte(Tech tech, ref float uhr)
+    {
+        uhr += w.LaufeBis(() => techs.IsResearched(tech), TechRules.SecondsOf(tech) + 15f - uhr);
+        if (!techs.IsResearched(tech))
+            verstoesse.Add($"{wer}: {TechRules.NameOf(tech)} nach {uhr:0} s nicht erforscht");
+        else if (Math.Abs(uhr - TechRules.SecondsOf(tech)) > 1.5f)
+            verstoesse.Add($"{wer}: {TechRules.NameOf(tech)} nach {uhr:0.0} s erforscht, erwartet {TechRules.SecondsOf(tech)} s");
+    }
+
+    TileMap.TestNoFog = true;
+    try
+    {
+        // Platz in der Bevölkerung: vier Häuser
+        for (int i = 0; i < 4; i++)
+        {
+            var h = w.Bauplatz(BuildingType.House, dorf[0], 9 + i * 2);
+            w.Map.AddBuilding((int)h.X, (int)h.Y, "Haus", 0, 2);
+        }
+        var haus = w.Map.Buildings.First(b => b.OwnerId == 0 && b.Core.BuildingType == BuildingType.House);
+        var tc = w.Map.Buildings.First(b => b.OwnerId == 0 && b.Core.BuildingType == BuildingType.TownCenter);
+        var tcFeind = w.Map.Buildings.First(b => b.OwnerId == 1 && b.Core.BuildingType == BuildingType.TownCenter);
+        var notiz = new List<string>();
+
+        // --- Dunkle Zeit: Webstuhl im Stadtzentrum (W), Q bildet dort weiter aus ---
+        w.Call("SelectBuilding", tc);
+        if (!HatTaste("Q", "Dorfbewohner"))
+            verstoesse.Add($"{wer}: Stadtzentrum ausgewählt - Tasten [{Liste()}], erwartet Q:Dorfbewohner");
+        Taste(Keys.Q);                              // ein Dorfbewohner wartet auf den Webstuhl
+        int dorfVor = w.Dorfbewohner().Count();
+        Starte(tc, Keys.W, Tech.Loom);
+        int gold = w.P1.Resources[Resource.Gold];
+        Taste(Keys.W);                              // läuft schon: nichts
+        if (w.P1.Resources[Resource.Gold] != gold)
+            verstoesse.Add($"{wer}: W ein zweites Mal kostet {gold - w.P1.Resources[Resource.Gold]} Gold");
+        w.Set("hudMessage", null);
+        Taste(Keys.A);
+        if (ages.IsResearching)
+            verstoesse.Add($"{wer}: A startet den Aufstieg, während das Stadtzentrum forscht");
+        else if (!Meldung().Contains("beschäftigt"))
+            verstoesse.Add($"{wer}: A während des Webstuhls meldet '{Meldung()}', erwartet 'Das Gebäude ist beschäftigt'");
+        float uhr = w.LaufeBis(() => false, 1f);
+        string status = (string)w.Call("BuildingStatus", tc);
+        if (!status.Contains("forscht: Webstuhl"))
+            verstoesse.Add($"{wer}: Status des Stadtzentrums '{status}', erwartet 'forscht: Webstuhl'");
+        if (tc.Training.Progress > 0f)
+            verstoesse.Add($"{wer}: während des Webstuhls bildet das Stadtzentrum aus ({tc.Training.Progress:P0})");
+        Warte(Tech.Loom, ref uhr);
+        if (Meldung() != "Webstuhl erforscht")
+            verstoesse.Add($"{wer}: nach dem Webstuhl meldet die Leiste '{Meldung()}'");
+        if (w.Dorfbewohner().Count() != dorfVor)
+            verstoesse.Add($"{wer}: ein Dorfbewohner kam, solange das Stadtzentrum forschte");
+        var schwach = w.Map.Units.Where(u => u.OwnerId == 0 && u.Core is CoreVillager
+                                            && (u.MaxHealth != 40 || u.Core.Stats.BaseArmor != 1)).ToList();
+        if (schwach.Count > 0)
+            verstoesse.Add($"{wer}: Webstuhl - {schwach.Count} eigene Dorfbewohner mit {schwach[0].MaxHealth} LP, Rüstung {schwach[0].Core.Stats.BaseArmor}; erwartet 40 und 1");
+        var feindDorf = w.Map.Units.FirstOrDefault(u => u.OwnerId == 1 && u.Core is CoreVillager);
+        if (feindDorf != null && feindDorf.MaxHealth != 25)
+            verstoesse.Add($"{wer}: Webstuhl stärkt auch den Gegner ({feindDorf.MaxHealth} LP)");
+        if (HatTaste("W", "Webstuhl"))
+            verstoesse.Add($"{wer}: Webstuhl ist erforscht, hat aber noch eine Taste");
+        w.LaufeBis(() => w.Dorfbewohner().Count() > dorfVor, 30f);
+        var neuDorf = w.Dorfbewohner().Except(dorf).LastOrDefault();
+        if (neuDorf == null)
+            verstoesse.Add($"{wer}: der wartende Dorfbewohner kommt nach dem Webstuhl nicht");
+        else if (neuDorf.MaxHealth != 40 || neuDorf.Health != 40)
+            verstoesse.Add($"{wer}: neuer Dorfbewohner nach dem Webstuhl {neuDorf.Health}/{neuDorf.MaxHealth} LP, erwartet 40/40");
+        notiz.Add($"Webstuhl {uhr:0} s");
+
+        // --- Feudalzeit: vier Gebäude forschen gleichzeitig ---
+        ages.TryStart(w.P1.Resources);
+        ages.Update(1000f);
+        var muehle = Setze(BuildingType.Mill, "Mühle", 7);
+        var lager = Setze(BuildingType.LumberCamp, "Holzfällerlager", 9);
+        var bergbau = Setze(BuildingType.MiningCamp, "Bergbaulager", 11);
+        var schmiede = Setze(BuildingType.Blacksmith, "Schmiede", 13);
+        var feld1 = w.Bauplatz(BuildingType.Farm, dorf[0], 6);
+        w.Call("PlaceBuildingFor", 0, BuildingType.Farm, feld1, new List<Unit>());
+        var miliz = Neu(UnitType.Militia, 0);
+        var spaeher = Neu(UnitType.Scout, 0);
+        var bogen = Neu(UnitType.Archer, 0);
+        var milizFeind = Neu(UnitType.Militia, 1);
+        var bogenFeind = Neu(UnitType.Archer, 1);
+
+        Starte(muehle, Keys.Q, Tech.HorseCollar);
+        Starte(lager, Keys.Q, Tech.DoubleBitAxe);
+        Starte(bergbau, Keys.Q, Tech.GoldMining);
+        Starte(schmiede, Keys.Q, Tech.Forging);
+        // Die Schmiede forscht schon: W startet nichts und kostet nichts
+        int nahrung = w.P1.Resources[Resource.Food];
+        gold = w.P1.Resources[Resource.Gold];
+        w.Set("hudMessage", null);
+        Taste(Keys.W);
+        if (techs.IsPending(Tech.Fletching) || w.P1.Resources[Resource.Food] != nahrung || w.P1.Resources[Resource.Gold] != gold)
+            verstoesse.Add($"{wer}: W in der forschenden Schmiede startet Befiederte Pfeile oder kostet");
+        else if (!Meldung().Contains("beschäftigt"))
+            verstoesse.Add($"{wer}: W in der forschenden Schmiede meldet '{Meldung()}', erwartet 'Das Gebäude ist beschäftigt'");
+        uhr = 0;
+        foreach (var tech in new[] { Tech.HorseCollar, Tech.DoubleBitAxe, Tech.GoldMining, Tech.Forging })
+            Warte(tech, ref uhr);
+        notiz.Add($"gleichzeitig bis {uhr:0} s");
+
+        // Pferdekummet: neue Felder tragen 250, auch nach dem Nachwachsen; das alte bleibt
+        var feld2 = w.Bauplatz(BuildingType.Farm, dorf[0], 6);
+        w.Call("PlaceBuildingFor", 0, BuildingType.Farm, feld2, new List<Unit>());
+        var alt = w.Map.GetTile((int)feld1.X, (int)feld1.Y);
+        var neuFeld = w.Map.GetTile((int)feld2.X, (int)feld2.Y);
+        if (alt.ResourceAmount != 175)
+            verstoesse.Add($"{wer}: das Feld von vor dem Pferdekummet trägt {alt.ResourceAmount}, erwartet 175");
+        if (!neuFeld.Farm || neuFeld.ResourceAmount != 250)
+            verstoesse.Add($"{wer}: neues Feld nach dem Pferdekummet trägt {neuFeld.ResourceAmount}, erwartet 250");
+        neuFeld.ResourceAmount = 0;
+        w.Map.RegrowCrop(0.01f);
+        w.Map.RegrowCrop(TileMap.FARM_REGROW_SECONDS + 1f);
+        if (neuFeld.ResourceAmount != 250)
+            verstoesse.Add($"{wer}: das neue Feld wächst auf {neuFeld.ResourceAmount} nach, erwartet 250");
+
+        // Schmiedekunst: eigene Miliz und Späher schlagen härter, Bogenschütze und Gegner nicht
+        if (miliz.Core.Stats.BaseAttack != 5 || spaeher.Core.Stats.BaseAttack != 4)
+            verstoesse.Add($"{wer}: Schmiedekunst - Miliz Angriff {miliz.Core.Stats.BaseAttack}, Späher {spaeher.Core.Stats.BaseAttack}; erwartet 5 und 4");
+        if (bogen.Core.Stats.BaseAttack != 4 || milizFeind.Core.Stats.BaseAttack != 4)
+            verstoesse.Add($"{wer}: Schmiedekunst wirkt auf Bogenschütze ({bogen.Core.Stats.BaseAttack}) oder gegnerische Miliz ({milizFeind.Core.Stats.BaseAttack})");
+
+        // Doppelaxt: ein Dorfbewohner hackt 20 % schneller, 0,39 * 1,2 Holz je Sekunde
+        w.Set("cameraZoom", 1f);
+        w.Set("cameraPosition", Vector2.Zero);
+        var holzer = dorf[dorf.Count - 1];
+        var start = w.Map.WorldToGrid(holzer.Position);
+        Vector2? baum = null;
+        for (int x = 0; x < w.Map.Width && baum == null; x++)
+            for (int y = 0; y < w.Map.Height && baum == null; y++)
+                if (w.Map.GetTile(x, y)?.ResourceType == Resource.Wood && w.Map.GetTile(x, y).ResourceAmount >= 20
+                    && Vector2.Distance(start, new Vector2(x, y)) < 15)
+                    baum = new Vector2(x, y);
+        if (baum == null)
+            verstoesse.Add($"{wer}: kein Baum in 15 Kacheln für die Doppelaxt");
+        else
+        {
+            w.Waehle(new List<Unit> { holzer });
+            w.Linksklick(w.Map.GridToWorld(baum.Value));
+            w.LaufeBis(() => holzer.Job?.Phase == AoE.Core.Economy.GatherPhase.Gathering, 60f);
+            if (holzer.Job?.Phase != AoE.Core.Economy.GatherPhase.Gathering)
+                verstoesse.Add($"{wer}: der Holzfäller kommt nicht zum Baum ({holzer.Job?.Phase.ToString() ?? "kein Auftrag"})");
+            else
+            {
+                var job = holzer.Job;
+                int anfang = job.Carrying;
+                float t = w.LaufeBis(() => holzer.Job != job || job.Phase != AoE.Core.Economy.GatherPhase.Gathering, 40f);
+                int menge = job.Carrying - anfang;
+                float rate = menge / t;
+                if (menge < 5)
+                    verstoesse.Add($"{wer}: Doppelaxt - nur {menge} Holz in {t:0.0} s gehackt");
+                else if (Math.Abs(rate - 0.39f * 1.2f) > 0.02f)
+                    verstoesse.Add($"{wer}: Doppelaxt - {rate:0.000} Holz je Sekunde, erwartet {0.39f * 1.2f:0.000} (ohne 0,390)");
+                else
+                    notiz.Add($"Holz {rate:0.000}/s");
+            }
+        }
+
+        // Befiederte Pfeile: eigener Bogenschütze Angriff und Reichweite +1, der Gegner nicht
+        uhr = 0;
+        Starte(schmiede, Keys.W, Tech.Fletching);
+        Warte(Tech.Fletching, ref uhr);
+        if (bogen.Core.Stats.BaseAttack != 5 || bogen.Core.Stats.Range != 5)
+            verstoesse.Add($"{wer}: Befiederte Pfeile - Bogenschütze Angriff {bogen.Core.Stats.BaseAttack}, Reichweite {bogen.Core.Stats.Range}; erwartet 5 und 5");
+        if (bogenFeind.Core.Stats.BaseAttack != 4 || bogenFeind.Core.Stats.Range != 4)
+            verstoesse.Add($"{wer}: Befiederte Pfeile wirken auf den gegnerischen Bogenschützen");
+
+        // Schuppenpanzer: die forschende Schmiede wird zerstört - Kosten zurück, wieder offen
+        Starte(schmiede, Keys.E, Tech.ScaleMailArmor);
+        w.LaufeBis(() => false, 5f);
+        nahrung = w.P1.Resources[Resource.Food];
+        w.Call("DestroyBuilding", schmiede);
+        if (w.P1.Resources[Resource.Food] != nahrung + 100)
+            verstoesse.Add($"{wer}: Schmiede zerstört - Nahrung {nahrung} -> {w.P1.Resources[Resource.Food]}, erwartet die 100 zurück");
+        if (techs.IsPending(Tech.ScaleMailArmor) || techs.IsResearched(Tech.ScaleMailArmor))
+            verstoesse.Add($"{wer}: Schmiede zerstört - Schuppenpanzer ist nicht wieder offen");
+        var schmiede2 = Setze(BuildingType.Blacksmith, "Schmiede", 13);
+        uhr = 0;
+        Starte(schmiede2, Keys.E, Tech.ScaleMailArmor);
+        Warte(Tech.ScaleMailArmor, ref uhr);
+        if (miliz.Core.Stats.BaseArmor != 1 || spaeher.Core.Stats.BaseArmor != 0 || milizFeind.Core.Stats.BaseArmor != 0)
+            verstoesse.Add($"{wer}: Schuppenpanzer - Rüstung Miliz {miliz.Core.Stats.BaseArmor}, Späher {spaeher.Core.Stats.BaseArmor}, gegnerische Miliz {milizFeind.Core.Stats.BaseArmor}; erwartet 1, 0, 0");
+        w.Call("SelectBuilding", schmiede2);
+        if (Tasten().Any(t => t.Name is "Schmiedekunst" or "Befiederte Pfeile" or "Schuppenpanzer"))
+            verstoesse.Add($"{wer}: alles erforscht, die Schmiede hat noch Tasten [{Liste()}]");
+
+        // Eine neue Miliz kommt mit Schmiedekunst und Schuppenpanzer
+        var kaserne = Setze(BuildingType.Barracks, "Kaserne", 10);
+        w.Call("SelectBuilding", kaserne);
+        int milizen = w.Map.Units.Count(u => u.OwnerId == 0 && u.Type == UnitType.Militia);
+        Taste(Keys.Q);
+        w.LaufeBis(() => w.Map.Units.Count(u => u.OwnerId == 0 && u.Type == UnitType.Militia) > milizen, 30f);
+        var neueMiliz = w.Map.Units.LastOrDefault(u => u.OwnerId == 0 && u.Type == UnitType.Militia);
+        if (neueMiliz == null || neueMiliz == miliz)
+            verstoesse.Add($"{wer}: die Kaserne bildet keine Miliz aus");
+        else if (neueMiliz.Core.Stats.BaseAttack != 5 || neueMiliz.Core.Stats.BaseArmor != 1)
+            verstoesse.Add($"{wer}: neue Miliz mit Angriff {neueMiliz.Core.Stats.BaseAttack}, Rüstung {neueMiliz.Core.Stats.BaseArmor}; erwartet 5 und 1");
+
+        // --- Ritterzeit: Maurerkunst in der Universität ---
+        ages.TryStart(w.P1.Resources);
+        ages.Update(1000f);
+        var uni = Setze(BuildingType.University, "Universität", 12);
+        int tcLp = tc.MaxHealth, tcRuestung = tc.Core.Stats.BaseArmor, hausLp = haus.MaxHealth, feindLp = tcFeind.MaxHealth;
+        uhr = 0;
+        Starte(uni, Keys.Q, Tech.Masonry);
+        Warte(Tech.Masonry, ref uhr);
+        if (tc.MaxHealth != tcLp + tcLp / 10 || tc.Health != tc.MaxHealth || tc.Core.Stats.BaseArmor != tcRuestung + 1)
+            verstoesse.Add($"{wer}: Maurerkunst - Stadtzentrum {tc.Health}/{tc.MaxHealth} LP, Rüstung {tc.Core.Stats.BaseArmor}; erwartet {tcLp + tcLp / 10} LP und Rüstung {tcRuestung + 1}");
+        if (haus.MaxHealth != hausLp + hausLp / 10)
+            verstoesse.Add($"{wer}: Maurerkunst - Haus {haus.MaxHealth} LP, erwartet {hausLp + hausLp / 10}");
+        if (tcFeind.MaxHealth != feindLp)
+            verstoesse.Add($"{wer}: Maurerkunst stärkt das gegnerische Stadtzentrum ({feindLp} -> {tcFeind.MaxHealth})");
+        var hp = w.Bauplatz(BuildingType.House, dorf[0], 8);
+        w.Call("PlaceBuildingFor", 0, BuildingType.House, hp, new List<Unit>());
+        var neuesHaus = w.Map.Buildings.LastOrDefault(b => b.OwnerId == 0 && b.Core.BuildingType == BuildingType.House);
+        if (neuesHaus == null || neuesHaus == haus || neuesHaus.MaxHealth != 440)
+            verstoesse.Add($"{wer}: neues Haus nach der Maurerkunst mit {neuesHaus?.MaxHealth} LP, erwartet 440");
+        notiz.Add($"Maurerkunst {uhr:0} s");
+
+        if (verstoesse.Count == vorher)
+            Console.WriteLine($"  ok  {wer}: {string.Join(", ", notiz)}; Wirkung nur beim eigenen Spieler, Abbruch erstattet");
+    }
+    finally
+    {
+        TileMap.TestNoFog = false;
+    }
+}
+
+// Schlag (C4n): die Schlagbilder folgen dem Schlagtakt AttackTimer - nach dem Treffer
+// durchziehen und zurücknehmen, dann bereit, ausholen, über den Kopf, und das Trefferbild
+// steht genau dann, wenn die Stärke sinkt (AttackTimer erreicht RELOAD_SECONDS).
+static void Schlag(List<string> verstoesse)
+{
+    const string wer = "Schlag";
+    int vorher = verstoesse.Count;
+    var w = new Welt();
+    float takt = AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS;
+    int Bild(float t) => (int)w.Call("AttackPhase", t);
+    var folge = new List<int>();
+    for (float t = 0f; t < takt; t += takt / 400f)
+    {
+        int b = Bild(t);
+        if (b < 0 || b > 7) { verstoesse.Add($"{wer}: AttackPhase({t:0.000}) = {b} liegt nicht zwischen 0 und 7"); break; }
+        if (folge.Count == 0 || folge[^1] != b) folge.Add(b);
+    }
+    var soll = new List<int> { 6, 7, 0, 1, 2, 3, 4, 5 };
+    if (!folge.SequenceEqual(soll))
+        verstoesse.Add($"{wer}: Schlagbilder über einen Takt {string.Join(",", folge)} statt {string.Join(",", soll)}");
+    if (Bild(takt * 0.999f) != 5)
+        verstoesse.Add($"{wer}: kurz vor dem Treffer Bild {Bild(takt * 0.999f)} statt 5 (Hieb)");
+    if (Bild(takt * 0.01f) != 6)
+        verstoesse.Add($"{wer}: direkt nach dem Treffer Bild {Bild(takt * 0.01f)} statt 6 (durchziehen)");
+    if (Bild(takt) != 5 || Bild(takt * 3f) != 5)
+        verstoesse.Add($"{wer}: über dem Takt Bild {Bild(takt)} statt 5 - der Anteil ist nicht begrenzt");
+    if (Bild(takt * 0.4f) != 0)
+        verstoesse.Add($"{wer}: mitten im Takt Bild {Bild(takt * 0.4f)} statt 0 (bereit)");
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: {string.Join(",", folge)} je Takt, Hieb genau beim Treffer");
 }
 
 // Kartengrößen (C11): Standard 64, Groß 90, Maximal 128 Kacheln Seitenlänge; beide
@@ -3149,6 +3493,8 @@ class Welt
     // Seit C4b; fehlt sie, laufen die übrigen Gruppen trotzdem - die Gruppe
     // zeitalter verlangt sie ausdrücklich
     static readonly MethodInfo UpdateAges = T.GetMethod("UpdateAges", F);
+    // Seit P2: die Forschungen in den Gebäuden
+    static readonly MethodInfo UpdateResearch = T.GetMethod("UpdateResearch", F);
 
     static FieldInfo Feld(string name) => T.GetField(name, F)
         ?? throw new InvalidOperationException($"Feld RTSGameplayScreen.{name} nicht gefunden - umbenannt?");
@@ -3277,6 +3623,7 @@ class Welt
             Call("UpdateUnits", gt);
             Call("UpdatePopulationLimits");
             Call("UpdateTraining", dt);
+            UpdateResearch?.Invoke(_screen, new object[] { dt });
             UpdateAges?.Invoke(_screen, new object[] { dt });
             Call("UpdateConstruction", dt);
             Call("UpdateSheepClaims");

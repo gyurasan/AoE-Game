@@ -1,0 +1,69 @@
+{
+ "dorfbewohner": {
+  "bild": "einheiten/dorfbewohner_frei_4101.png",
+  "saum": 640, "breite": 62, "schritt": 200,
+  "rumpf": [[300, 560, 392, 670]],
+  "beine": [
+   {"huefte": [430, 655], "knie": [405, 775], "knoechel": [365, 880], "zehe": [425, 925]},
+   {"huefte": [560, 655], "knie": [575, 785], "knoechel": [585, 900], "zehe": [680, 950]}
+  ]
+ },
+ "dorfbewohner_feudal": {
+  "bild": "einheiten/dorfbewohner_zeit_feudal_4330.png",
+  "saum": 650, "breite": 62, "schritt": 200,
+  "rumpf": [[300, 560, 392, 662]],
+  "beine": [
+   {"huefte": [455, 662], "knie": [400, 765], "knoechel": [368, 885], "zehe": [430, 935]},
+   {"huefte": [528, 662], "knie": [530, 770], "knoechel": [585, 900], "zehe": [685, 950]}
+  ]
+ },
+ "dorfbewohner_ritter": {
+  "bild": "einheiten/dorfbewohner_zeit_ritter_4432.png",
+  "saum": 640, "breite": 62, "schritt": 200,
+  "rumpf": [[280, 560, 400, 670], [280, 640, 352, 740]],
+  "beine": [
+   {"huefte": [455, 675], "knie": [400, 790], "knoechel": [365, 880], "zehe": [425, 935]},
+   {"huefte": [540, 675], "knie": [540, 765], "knoechel": [580, 900], "zehe": [685, 950]}
+  ]
+ },
+ "dorfbewohner_imperial": {
+  "bild": "einheiten/dorfbewohner_zeit_imperial_bein_4554.png",
+  "saum": 612, "breite": 62, "schritt": 200,
+  "rumpf": [[295, 560, 385, 650]],
+  "beine": [
+   {"huefte": [445, 640], "knie": [405, 765], "knoechel": [365, 880], "zehe": [425, 935]},
+   {"huefte": [522, 640], "knie": [535, 750], "knoechel": [580, 900], "zehe": [685, 950]}
+  ]
+ },
+ "miliz": {
+  "bild": "soldaten/miliz_beine_4631.png",
+  "saum": 645, "breite": 62, "schritt": 200,
+  "rumpf": [[618, 640, 790, 705]],
+  "rumpf_linien": [[300, 575, 515, 808, 32]],
+  "beine": [
+   {"huefte": [425, 660], "knie": [375, 795], "knoechel": [325, 885], "zehe": [410, 945]},
+   {"huefte": [540, 660], "knie": [560, 770], "knoechel": [600, 885], "zehe": [700, 930]}
+  ]
+ },
+ "bogenschuetze": {
+  "bild": "soldaten/bogenschuetze_beine_4651.png",
+  "saum": 625, "breite": 62, "schritt": 200,
+  "rumpf": [[295, 540, 375, 640], [555, 595, 700, 650]],
+  "beine": [
+   {"huefte": [405, 640], "knie": [355, 755], "knoechel": [315, 860], "zehe": [390, 920]},
+   {"huefte": [520, 640], "knie": [530, 755], "knoechel": [570, 890], "zehe": [712, 908]}
+  ]
+ },
+ "spaeher": {
+  "bild": "soldaten/spaeher_4621.png",
+  "saum": 700, "breite": 45, "schritt": 150,
+  "gang": {"stand": 0.62, "ferse_ende": 0.08, "zehe_anfang": 0.4, "ferse_grad": 6.0, "zehe_grad": -28.0, "schwung_hub": 0.12},
+  "rumpf": [[370, 645, 465, 730], [150, 560, 215, 690]],
+  "beine": [
+   {"huefte": [345, 580], "knie": [365, 745], "knoechel": [378, 778], "zehe": [405, 798], "knick": "hinten", "saum": 595, "versatz": 0.5, "ferse_x": -10},
+   {"huefte": [650, 670], "knie": [635, 860], "knoechel": [645, 910], "zehe": [680, 940], "saum": 685, "versatz": 0.75, "ferse_x": -12},
+   {"huefte": [255, 570], "knie": [235, 760], "knoechel": [245, 810], "zehe": [275, 836], "knick": "hinten", "saum": 585, "versatz": 0.0, "ferse_x": -10},
+   {"huefte": [555, 660], "knie": [545, 805], "knoechel": [552, 940], "zehe": [585, 985], "saum": 675, "versatz": 0.25, "ferse_x": -12}
+  ]
+ }
+}

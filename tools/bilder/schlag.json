@@ -1,0 +1,46 @@
+{
+ "miliz": {
+  "bild": "soldaten/miliz_beine_4631.png",
+  "rumpf_bild": "soldaten/miliz_ohne_arm_4661.png",
+  "figur": "miliz",
+  "arm": {"schulter": [340, 268], "ellbogen": [318, 405], "hand": [300, 520]},
+  "oberarm_breite": 38, "unterarm_breite": 36,
+  "waffe": [[305, 575, 500, 785, 34], [280, 605, 350, 540, 28]],
+  "nicht_arm": [[290, 190, 380, 318]],
+  "kopf": [468, 150, 92, 120],
+  "schulterkappe": [338, 262, 46, 62],
+  "schulter_schnitt": 318,
+  "huefte": [470, 640],
+  "phasen": [
+   {"name": "bereit", "oberarm": 23, "unterarm": 31, "rumpf": 0},
+   {"name": "ausholen", "oberarm": -52, "unterarm": -59, "rumpf": -2},
+   {"name": "oben", "oberarm": -142, "unterarm": 3, "rumpf": -4, "hinter_kopf": true},
+   {"name": "ueber_kopf", "oberarm": -182, "unterarm": 16, "rumpf": -2, "hinter_kopf": true},
+   {"name": "vor_kopf", "oberarm": -232, "unterarm": 11, "rumpf": 1, "hinter_kopf": true},
+   {"name": "treffer", "oberarm": -277, "unterarm": -29, "rumpf": 5},
+   {"name": "durchziehen", "oberarm": -312, "unterarm": -29, "rumpf": 4},
+   {"name": "zurueck", "oberarm": -332, "unterarm": 11, "rumpf": 2}
+  ]
+ },
+ "spaeher": {
+  "modus": "speer",
+  "bild": "soldaten/spaeher_4621.png",
+  "rumpf_bild": "soldaten/spaeher_ohne_speer_4671.png",
+  "figur": "spaeher",
+  "speer": [[320, 590, 665, 25, 14], [607, 127, 665, 25, 32]],
+  "haende": [[440, 362, 34, 36]],
+  "griff": [440, 362],
+  "oberkoerper": [358, 0, 600, 462],
+  "huefte": [450, 462],
+  "phasen": [
+   {"name": "bereit", "winkel": 0, "schub": 0, "rumpf": 0},
+   {"name": "zurueck", "winkel": -10, "schub": -35, "rumpf": 0},
+   {"name": "ausgeholt", "winkel": -20, "schub": -60, "rumpf": 0},
+   {"name": "stoss", "winkel": -28, "schub": 15, "rumpf": 0},
+   {"name": "stoss2", "winkel": -31, "schub": 85, "rumpf": 0},
+   {"name": "treffer", "winkel": -33, "schub": 135, "rumpf": 0},
+   {"name": "nachfedern", "winkel": -30, "schub": 110, "rumpf": 0},
+   {"name": "zurueck2", "winkel": -15, "schub": 45, "rumpf": 0}
+  ]
+ }
+}

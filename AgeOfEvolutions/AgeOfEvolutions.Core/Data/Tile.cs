@@ -81,6 +81,13 @@ public class Tile
     public float FarmRegrow { get; set; }
 
     /// <summary>
+    /// Vorrat der vollen Feldkachel: <see cref="TileMap.FARM_FOOD"/>, mit Pferdekummet mehr
+    /// (P2). Setzt <see cref="TileMap.PlantCrop"/>; nach der Ernte wächst die Kachel wieder
+    /// bis hierher nach. 0, solange die Kachel kein Feld ist.
+    /// </summary>
+    public int FarmFood { get; set; }
+
+    /// <summary>
     /// Lage der Kachel in ihrem Feld: Spalte und Zeile ab der linken oberen
     /// Ecke, 0 bis <see cref="FarmSize"/> - 1. Der Spielbildschirm schneidet
     /// daraus ihren Teil des Feldbilds, das so über das ganze Feld reicht.

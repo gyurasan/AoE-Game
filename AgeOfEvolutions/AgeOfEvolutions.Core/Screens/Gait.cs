@@ -12,8 +12,16 @@ namespace AgeOfEvolutions.Core.Screens;
 /// </summary>
 public static class Gait
 {
-    /// <summary>Schrittlänge eines Dorfbewohners in Welteinheiten: ein Bein vor das andere.</summary>
-    public const float VILLAGER_STRIDE = 10f;
+    /// <summary>
+    /// Schrittlänge in Welteinheiten: so weit kommt eine Figur, während ein Fuß fest am Boden
+    /// steht - gemessen an den Gehphasen aus tools/bilder/gang.py (C4m): 200 px Schritt im
+    /// Rohbild bei einer Figur von 948 px = 24 Welteinheiten. Gilt für Dorfbewohner, Miliz,
+    /// Bogenschütze und Späher; so rutschen die Füße nicht über den Boden.
+    /// </summary>
+    public const float VILLAGER_STRIDE = 5.06f;
+
+    /// <summary>Gehphasen je Doppelschritt (C4m): lauf1 bis lauf8 je Figur.</summary>
+    public const int WALK_FRAMES = 8;
 
     /// <summary>Zeitkonstante beim Anfahren und Abbremsen, in Sekunden (siehe <see cref="Approach"/>).</summary>
     public const float ACCELERATION_TIME = 0.12f;
@@ -28,20 +36,19 @@ public static class Gait
     public const float LEAN = 0.06f;
 
     /// <summary>
-    /// Welches der vier Laufbilder eine Figur zeigt, die <paramref name="walked"/>
-    /// Welteinheiten gegangen ist: 0 Schritt, 1 Stand, 2 Gegenschritt, 3 Stand - die
-    /// Reihenfolge der Laufbilder.
-    /// VERTRAG: ein Doppelschritt ist 2 * stride lang, jedes Bild hat ein Viertel davon,
-    /// und walked = 0 liegt mitten im Bild 0: Bild 0 für walked in [-stride/4, stride/4),
-    /// Bild 1 für [stride/4, 3*stride/4), Bild 2 für [3*stride/4, 5*stride/4), Bild 3 für
-    /// [5*stride/4, 7*stride/4), dann wieder Bild 0 - periodisch mit 2 * stride, auch für
-    /// negative walked. Ergebnis immer 0 bis 3.
+    /// Welches von <paramref name="frames"/> Laufbildern eine Figur zeigt, die
+    /// <paramref name="walked"/> Welteinheiten gegangen ist - die Reihenfolge der Laufbilder.
+    /// VERTRAG: ein Doppelschritt ist 2 * stride lang, jedes Bild hat den frames-ten Teil davon,
+    /// und walked = 0 liegt mitten im Bild 0: Bild k für walked in
+    /// [(k - 0,5) * 2 * stride / frames, (k + 0,5) * 2 * stride / frames), periodisch mit
+    /// 2 * stride, auch für negative walked. Ergebnis immer 0 bis frames - 1. Mit frames = 4
+    /// (Standard) also Bild 0 für [-stride/4, stride/4), Bild 1 für [stride/4, 3*stride/4) usw.
     /// </summary>
-    public static int WalkFrame(float walked, float stride)
+    public static int WalkFrame(float walked, float stride, int frames = 4)
     {
         float c = walked / (2f * stride);
         c -= MathF.Floor(c);
-        return (int)MathF.Floor(c * 4f + 0.5f) % 4;
+        return (int)MathF.Floor(c * frames + 0.5f) % frames;
     }
 
     /// <summary>

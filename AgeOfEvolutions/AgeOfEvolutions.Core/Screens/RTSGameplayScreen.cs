@@ -19,6 +19,9 @@ using BuildingRules = AoE.Core.Economy.BuildingRules;
 using Construction = AoE.Core.Economy.Construction;
 using Age = AoE.Core.Economy.Age;
 using AgeRules = AoE.Core.Economy.AgeRules;
+using Tech = AoE.Core.Economy.Tech;
+using TechRules = AoE.Core.Economy.TechRules;
+using TechEffects = AoE.Core.Economy.TechEffects;
 
 namespace AgeOfEvolutions.Core.Screens;
 
@@ -224,12 +227,31 @@ public class RTSGameplayScreen : GameScreen
          new Dictionary<Resource, int> { [Resource.Food] = 80 }, 30f, Age.Feudal),
     };
 
+    // Forschungen (P2): je Forschung ihre Taste im ausgewählten Gebäude. Gebäude, Kosten,
+    // Dauer, Zeitalter, Name und Wirkung kommen aus AoE.Core (TechRules). Im Stadtzentrum
+    // forscht W, denn Q bildet dort Dorfbewohner aus
+    private static readonly (Tech Tech, Keys Key)[] Researches =
+    {
+        (Tech.Loom, Keys.W),
+        (Tech.HorseCollar, Keys.Q),
+        (Tech.DoubleBitAxe, Keys.Q),
+        (Tech.GoldMining, Keys.Q),
+        (Tech.Forging, Keys.Q),
+        (Tech.Fletching, Keys.W),
+        (Tech.ScaleMailArmor, Keys.E),
+        (Tech.Masonry, Keys.Q),
+    };
+
     // Symbole der Befehlstasten nach ihrem Namen: dieselbe Taste Q heißt je Gebäude
-    // etwas anderes (Dorfbewohner, Miliz, Bogenschütze, Späher)
+    // etwas anderes (Dorfbewohner, Miliz, Bogenschütze, Späher, die Forschungen)
     private static readonly (string Name, string Asset)[] NameIcons =
     {
         ("Dorfbewohner", "Icons/dorfbewohner"), ("Miliz", "Icons/miliz"),
         ("Bogenschütze", "Icons/bogenschuetze"), ("Späher", "Icons/spaeher"),
+        ("Webstuhl", "Icons/webstuhl"), ("Pferdekummet", "Icons/pferdekummet"),
+        ("Doppelaxt", "Icons/doppelaxt"), ("Goldbergbau", "Icons/goldbergbau"),
+        ("Schmiedekunst", "Icons/schmiedekunst"), ("Befiederte Pfeile", "Icons/befiederte_pfeile"),
+        ("Schuppenpanzer", "Icons/schuppenpanzer"), ("Maurerkunst", "Icons/maurerkunst"),
     };
     private readonly Dictionary<string, Texture2D> _nameIcons = new();
 
@@ -243,6 +265,18 @@ public class RTSGameplayScreen : GameScreen
     };
     private readonly Dictionary<(UnitType Unit, int Owner), Texture2D> _unitSprites = new();
     private readonly Dictionary<(UnitType Unit, int Owner), Texture2D[]> _unitWalk = new();
+    // Schlagphasen der Soldaten (C4n, tools/bilder/schlag.py: _schlag1 bis _schlag8), auf einer
+    // größeren Leinwand im Maßstab des Standbilds - das ausgeholte Schwert ragt weit hinaus
+    private readonly Dictionary<(UnitType Unit, int Owner), Texture2D[]> _unitAttack = new();
+    private const int ATTACK_FRAMES = 8;
+    // Welches Schlagbild im Lauf eines Schlags zu sehen ist, ab welchem Anteil an
+    // BuildingCombat.RELOAD_SECONDS seit dem letzten Treffer (AttackTimer): erst durchziehen (6)
+    // und zurücknehmen (7), dann bereit (0), ausholen (1), oben (2), über (3) und vor dem Kopf (4),
+    // zuletzt der Hieb (5) - er trifft genau, wenn die Stärke sinkt und AttackTimer neu beginnt
+    private static readonly (float From, int Frame)[] AttackTimeline =
+    {
+        (0f, 6), (0.06f, 7), (0.16f, 0), (0.62f, 1), (0.74f, 2), (0.84f, 3), (0.90f, 4), (0.95f, 5),
+    };
 
     // Kurzer Hinweis oben in der Mitte, etwa „Nicht genug Nahrung"
     private string hudMessage;
@@ -423,8 +457,8 @@ public class RTSGameplayScreen : GameScreen
     // dieselbe Figur umgekleidet, die Faust an derselben Stelle); fehlt ein Bild,
     // die des Zeitalters davor. Schlüssel ist Zeitalter und Spieler
     private readonly Dictionary<(Age Age, int Owner), Texture2D> _villagerSprites = new();
-    // Laufbilder (dorfbewohner_lauf1, _lauf2 im Ordner des Standbilds), deckungsgleich
-    // mit dem Standbild zugeschnitten: Schritt, Stand, Gegenschritt, Stand
+    // Gehphasen (dorfbewohner_lauf1 bis _lauf8 im Ordner des Standbilds, aus tools/bilder/gang.py),
+    // deckungsgleich mit dem Standbild zugeschnitten; das Auf und Ab steckt im Bild (C4m)
     private readonly Dictionary<(Age Age, int Owner), Texture2D[]> _villagerWalk = new();
     private Texture2D _shadowTex;          // weicher Schatten unter den Füßen
 
@@ -445,8 +479,15 @@ public class RTSGameplayScreen : GameScreen
         [Tool.Rod] = new("Werkzeuge/angel", 0.95f, -0.75f, -0.55f, 0.4f),
     };
     private const float TOOL_REST = -2.7f;   // auf der Schulter, der Kopf schräg hinten oben
-    // Faust im Dorfbewohner-Sprite als Anteil an Breite und Höhe - am Bild gemessen
-    private static readonly Vector2 VillagerFist = new(0.89f, 0.31f);
+    // Faust im Dorfbewohner-Sprite als Anteil an Breite und Höhe - am Bild gemessen. Seit C4m
+    // teilen sich Stand- und Gehbilder aller Zeitalter einen Zuschnitt (Figur dorfbewohner in
+    // tools/bilder/bilder.json), der die weit ausschreitenden Gehphasen umfasst
+    private static readonly Vector2 VillagerFist = new(0.766f, 0.316f);
+    // Wie weit der Körper in jeder der acht Gehphasen tiefer steht als im Standbild, als Anteil
+    // an der Bildhöhe (gemessen in tools/bilder/gang.py): unten, wenn die Beine gespreizt sind
+    // (Phase 0 und 4), oben, wenn ein Bein am anderen vorbeischwingt. Werkzeug und Traglast
+    // gehen mit
+    private static readonly float[] VillagerWalkHub = { 0.033f, 0.023f, 0.007f, -0.006f, 0.034f, 0.022f, 0.005f, -0.005f };
     private readonly Dictionary<Tool, Texture2D> _toolSprites = new();
     private readonly Dictionary<Tool, Vector2> _toolGrips = new();   // Griffpunkt im Werkzeugbild
 
@@ -525,6 +566,7 @@ public class RTSGameplayScreen : GameScreen
     private bool _buttonsLayoutBuilders; // ob dabei ein Dorfbewohner ausgewählt war
     private Age _buttonsLayoutAge;       // und welches Zeitalter galt
     private Data.Building _buttonsLayoutBuilding;   // und welches Gebäude ausgewählt war
+    private int _buttonsLayoutTechs = -1;           // und welcher Forschungsstand galt (Techs.Version)
     private Rectangle _minimapRect;      // das gezeichnete Minimap-Feld (Klickfläche)
 
     // Abstand der Minimap zur Unterkante der Leiste; der 2-px-Rahmen liegt darin.
@@ -763,9 +805,14 @@ public class RTSGameplayScreen : GameScreen
                 if (LoadOptional(asset + colour) is { } stand)
                 {
                     _unitSprites[(unit, owner)] = stand;
-                    if (LoadOptional(asset + "_lauf1" + colour) is { } lauf1
-                        && LoadOptional(asset + "_lauf2" + colour) is { } lauf2)
-                        _unitWalk[(unit, owner)] = new[] { lauf1, stand, lauf2, stand };
+                    // Gehphasen der Soldaten (C4m): acht Laufbilder, wenn alle da sind -
+                    // sonst gleitet die Figur wie ein Dorfbewohner
+                    if (LoadWalk(asset, colour) is { } walk)
+                        _unitWalk[(unit, owner)] = walk;
+                    // Schlagphasen der Soldaten (C4n): acht Bilder, wenn alle da sind -
+                    // sonst schlägt die Figur wie bisher mit dem ganzen Körper aus
+                    if (LoadAttack(asset, colour) is { } attack)
+                        _unitAttack[(unit, owner)] = attack;
                 }
             }
         }
@@ -851,6 +898,7 @@ public class RTSGameplayScreen : GameScreen
         UpdateUnitMotion((float)gameTime.ElapsedGameTime.TotalSeconds);
         UpdatePopulationLimits();
         UpdateTraining((float)gameTime.ElapsedGameTime.TotalSeconds);
+        UpdateResearch((float)gameTime.ElapsedGameTime.TotalSeconds);
         UpdateAges((float)gameTime.ElapsedGameTime.TotalSeconds);
         UpdateConstruction((float)gameTime.ElapsedGameTime.TotalSeconds);
         tileMap.RegrowCrop((float)gameTime.ElapsedGameTime.TotalSeconds);
@@ -997,16 +1045,73 @@ public class RTSGameplayScreen : GameScreen
     }
 
     /// <summary>
-    /// Die Laufbilder zum Dorfbewohner-Standbild stand aus seinem Ordner folder:
-    /// Schritt, Stand, Gegenschritt, Stand - oder null, wenn eines fehlt; dann
-    /// gleitet die Figur wie bisher. Laufbilder eines anderen Zeitalters passen
+    /// Das Schlagbild zum Schlagtakt <paramref name="timer"/> (Unit.AttackTimer, C4n).
+    /// VERTRAG: f = timer / AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS, auf 0 bis höchstens
+    /// 0,9999 begrenzt; Ergebnis ist Frame des letzten Eintrags in AttackTimeline, dessen From
+    /// kleiner oder gleich f ist. Also 6 direkt nach einem Treffer, 5 kurz vor dem nächsten.
+    /// </summary>
+    private int AttackPhase(float timer)
+    {
+        // Anteil des Schlagtakts seit dem letzten Treffer, auf 0 bis 0,9999 begrenzt
+        float f = Math.Clamp(timer / AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS, 0f, 0.9999f);
+        // Frame des letzten Eintrags in AttackTimeline, dessen From kleiner oder gleich f ist
+        int frame = AttackTimeline[0].Frame;
+        foreach (var (from, fr) in AttackTimeline)
+        {
+            if (from <= f)
+                frame = fr;
+            else
+                break;
+        }
+        return frame;
+    }
+
+    /// <summary>
+    /// Die Schlagphasen zu einem Soldatenbild: asset + "_schlag1" + colour bis
+    /// asset + "_schlag8" + colour (C4n). VERTRAG: ein Feld mit ATTACK_FRAMES Bildern in dieser
+    /// Reihenfolge (LoadOptional je Bild); fehlt eines, null - dann schlägt die Figur wie bisher
+    /// mit dem ganzen Körper aus.
+    /// </summary>
+    private Texture2D[] LoadAttack(string asset, string colour)
+    {
+        // Die acht Schlagphasen je Bild (C4n); fehlt eines, null - dann schlägt die Figur wie bisher
+        // mit dem ganzen Körper aus
+        var frames = new Texture2D[ATTACK_FRAMES];
+        for (int i = 0; i < frames.Length; i++)
+        {
+            frames[i] = LoadOptional(asset + "_schlag" + (i + 1) + colour);
+            if (frames[i] == null)
+                return null;
+        }
+        return frames;
+    }
+
+    /// <summary>
+    /// Die Gehphasen zu einem Bild: asset + "_lauf1" + colour bis asset + "_lauf8" + colour
+    /// (C4m). VERTRAG: ein Feld mit Gait.WALK_FRAMES Bildern in dieser Reihenfolge (LoadOptional
+    /// je Bild); fehlt eines, null - dann gleitet die Figur wie bisher.
+    /// </summary>
+    private Texture2D[] LoadWalk(string asset, string colour)
+    {
+        // Die acht Gehphasen je Bild (C4m); fehlt eines, null - dann gleitet die Figur wie bisher
+        var frames = new Texture2D[Gait.WALK_FRAMES];
+        for (int i = 0; i < frames.Length; i++)
+        {
+            frames[i] = LoadOptional(asset + "_lauf" + (i + 1) + colour);
+            if (frames[i] == null)
+                return null;
+        }
+        return frames;
+    }
+
+    /// <summary>
+    /// Die Gehphasen zum Dorfbewohner-Standbild stand aus seinem Ordner folder (C4m):
+    /// LoadWalk(folder + "dorfbewohner", colour), oder null, wenn stand null ist oder eine Phase
+    /// fehlt; dann gleitet die Figur wie bisher. Gehphasen eines anderen Zeitalters passen
     /// nicht zur Kleidung und werden deshalb nicht genommen.
     /// </summary>
     private Texture2D[] VillagerWalkCycle(Texture2D stand, string folder, string colour)
-        => stand != null && LoadOptional(folder + "dorfbewohner_lauf1" + colour) is { } lauf1
-           && LoadOptional(folder + "dorfbewohner_lauf2" + colour) is { } lauf2
-            ? new[] { lauf1, stand, lauf2, stand }
-            : null;
+        => stand != null ? LoadWalk(folder + "dorfbewohner", colour) : null;
 
     /// <summary>Das Bild asset im Ordner des Zeitalters age: aus Gebaeude/haus wird Gebaeude/feudal/haus.</summary>
     private static string AgeAsset(string asset, int age)
@@ -1595,6 +1700,16 @@ public class RTSGameplayScreen : GameScreen
         if (keyboard.IsKeyDown(Keys.Q) && previousKeyboard.IsKeyUp(Keys.Q) && selectedBuilding == null)
             TrainVillager();
 
+        // Forschungen (P2): wie die Products darüber, aber nur mit ausgewähltem
+        // Gebäude, das die Forschung trägt (TechRules.BuildingOf)
+        foreach (var (tech, key) in Researches)
+        {
+            if (!keyboard.IsKeyDown(key) || !previousKeyboard.IsKeyUp(key))
+                continue;
+            if (selectedBuilding != null && selectedBuilding.Core.BuildingType == TechRules.BuildingOf(tech))
+                Research(selectedBuilding, tech);
+        }
+
         // A: Aufstieg ins nächste Zeitalter, ebenfalls im Stadtzentrum
         if (keyboard.IsKeyDown(Keys.A) && previousKeyboard.IsKeyUp(Keys.A))
             AdvanceAge();
@@ -1880,11 +1995,13 @@ public class RTSGameplayScreen : GameScreen
     ///   (int)(b.Construction.Progress * 100), sonst nichts.
     /// - Fertig, und es ist ein Stadtzentrum, dessen Besitzer gerade aufsteigt (Ages.Target
     ///   nicht null): "Aufstieg in die {AgeRules.NameOf(Target)} {p} %" mit Ages.Progress.
+    /// - Sonst, wenn das Gebäude forscht (b.Research.Current nicht null, P2):
+    ///   "forscht: {TechRules.NameOf(Current)} {p} %" mit p aus b.Research.Progress, sonst nichts.
     /// - Sonst, wenn b.Training.Count > 0: steht die Ausbildung (Training.IsBlocked),
     ///   "wartet auf Platz (Häuser bauen)", sonst "bildet aus: {Name} {p} %" mit dem Namen
-    ///   der ersten Einheit (Training.Units[0]; UnitType.Villager heißt "Dorfbewohner",
-    ///   andere ihr Enum-Name) und p aus Training.Progress; stehen weitere in der
-    ///   Warteschlange, dahinter "+{Count - 1} in der Warteschlange".
+    ///   der ersten Einheit (CoreUnits.GermanName(Training.Units[0])) und p aus
+    ///   Training.Progress; stehen weitere in der Warteschlange, dahinter
+    ///   "+{Count - 1} in der Warteschlange".
     /// </summary>
     internal string BuildingStatus(Data.Building b)
     {
@@ -1904,6 +2021,13 @@ public class RTSGameplayScreen : GameScreen
         if (b.Core.BuildingType == BuildingType.TownCenter && ages.Target is { } target)
         {
             text += $"   Aufstieg in die {AgeRules.NameOf(target)} {(int)(ages.Progress * 100)} %";
+            return text;
+        }
+
+        // Forscht das Gebäude gerade, zeigt die Leiste die Forschung (P2)
+        if (b.Research.Current is { } tech)
+        {
+            text += $"   forscht: {TechRules.NameOf(tech)} {(int)(b.Research.Progress * 100)} %";
             return text;
         }
 
@@ -2126,10 +2250,16 @@ public class RTSGameplayScreen : GameScreen
     /// VERTRAG: tileMap.RemoveBuilding(b); jede Einheit, die es angriff oder an ihm baute
     /// (AttackTarget oder BuildSite gleich b), lässt davon ab (beides null, Path leer,
     /// State Idle); war es ausgewählt, ist nichts mehr ausgewählt (selectedBuilding null);
-    /// die Leiste meldet "{b.Type} zerstört" (ShowHudMessage).
+    /// die Leiste meldet "{b.Type} zerstört" (ShowHudMessage). Forscht es gerade, bricht die
+    /// Forschung ab (P2): b.Research.Cancel mit Techs und Resources seines Besitzers - sie ist
+    /// wieder offen, die Kosten kommen zurück.
     /// </summary>
     internal void DestroyBuilding(Building b)
     {
+        // Forscht es gerade, bricht die Forschung ab (P2): die Kosten kommen
+        // dem Besitzer zurück
+        var owner = b.OwnerId == 0 ? player1 : player2;
+        b.Research.Cancel(owner.Techs, owner.Resources);
         tileMap.RemoveBuilding(b);
 
         // Alle Einheiten, die es angriffen oder an ihm bauten, lassen davon ab
@@ -2646,6 +2776,50 @@ public class RTSGameplayScreen : GameScreen
     }
 
     /// <summary>
+    /// Beginnt im Gebäude <paramref name="b"/> die Forschung <paramref name="tech"/> für
+    /// Spieler 0 (P2).
+    /// VERTRAG:
+    /// - Nur in einem fertigen eigenen Gebäude (OwnerId 0, IsComplete), in dem tech erforscht
+    ///   wird (TechRules.BuildingOf(tech) gleich b.Core.BuildingType); sonst false, ohne Meldung.
+    /// - Ist tech schon erforscht oder läuft schon (player1.Techs.IsResearched, IsPending) oder
+    ///   ist es zu früh (TechRules.RequiredAgeOf(tech) später als player1.Ages.Current): false,
+    ///   ohne Meldung.
+    /// - Forscht das Gebäude schon (b.Research.IsBusy) oder ist es ein Stadtzentrum, während
+    ///   der Aufstieg läuft (player1.Ages.IsResearching): ShowHudMessage("Das Gebäude ist
+    ///   beschäftigt"), false.
+    /// - Sonst b.Research.TryStart(tech, player1.Ages.Current, player1.Techs, player1.Resources);
+    ///   scheitert das an den Rohstoffen:
+    ///   ShowHudMessage($"Nicht genug Rohstoffe ({CostText(TechRules.CostOf(tech))})"), false.
+    ///   Gelingt es: true.
+    /// </summary>
+    internal bool Research(Data.Building b, Tech tech)
+    {
+        // Nur in einem fertigen eigenen Gebäude, in dem tech erforscht wird,
+        // und erst ab dem Zeitalter der Forschung - sonst ohne Meldung
+        if (b.OwnerId != 0 || !b.IsComplete || TechRules.BuildingOf(tech) != b.Core.BuildingType)
+            return false;
+        if (player1.Techs.IsResearched(tech) || player1.Techs.IsPending(tech)
+            || TechRules.RequiredAgeOf(tech) > player1.Ages.Current)
+            return false;
+
+        // Forscht das Gebäude schon oder steigt das Stadtzentrum gerade auf:
+        // es ist beschäftigt
+        if (b.Research.IsBusy || (b.Core.BuildingType == BuildingType.TownCenter && player1.Ages.IsResearching))
+        {
+            ShowHudMessage("Das Gebäude ist beschäftigt");
+            return false;
+        }
+
+        // Kosten und Dauer kommen aus TechRules, bezahlt wird sofort
+        if (!b.Research.TryStart(tech, player1.Ages.Current, player1.Techs, player1.Resources))
+        {
+            ShowHudMessage($"Nicht genug Rohstoffe ({CostText(TechRules.CostOf(tech))})");
+            return false;
+        }
+        return true;
+    }
+
+    /// <summary>
     /// Owner-generic Version der Ausbildung — die KI-Schnittstelle. Der
     /// menschliche Pfad (ohne Parameter) ruft <c>TrainVillager(0)</c>.
     /// </summary>
@@ -2689,6 +2863,13 @@ public class RTSGameplayScreen : GameScreen
             return;
         }
 
+        // Forscht das ausgewählte Stadtzentrum gerade, ist es beschäftigt (P2)
+        if (SelectedOwnTownCenter().Research.IsBusy)
+        {
+            ShowHudMessage("Das Gebäude ist beschäftigt");
+            return;
+        }
+
         if (ages.Target is { } target)
             ShowHudMessage($"Aufstieg in die {AgeRules.NameOf(target)} läuft ({(int)(ages.Progress * 100)} %)");
         else if (AgeRules.Next(ages.Current) is not { } next)
@@ -2727,6 +2908,9 @@ public class RTSGameplayScreen : GameScreen
             // Während des Aufstiegs forscht das Stadtzentrum und bildet nicht aus
             if (player.Ages.IsResearching && building.Core.BuildingType == BuildingType.TownCenter)
                 continue;
+            // Forscht das Gebäude gerade, bildet es nicht aus (P2)
+            if (building.Research.IsBusy)
+                continue;
             // Die fertige Einheit aufheben: sie erscheint am Gebäude (P1)
             if (!building.Training.Update(dt, player.PopulationCount, player.PopulationLimit, out var finished))
                 continue;
@@ -2738,6 +2922,39 @@ public class RTSGameplayScreen : GameScreen
             // Statt eines Dorfbewohners erscheint die ausgebildete Einheit (P1)
             var unit = tileMap.AddUnit(finished, (int)cell.Value.X, (int)cell.Value.Y, building.OwnerId);
             player.AddUnit(unit);
+            // Was der Spieler schon erforscht hat, gilt auch für die neue Einheit (P2)
+            TechEffects.ApplyAll(player.Techs, unit.Core);
+        }
+    }
+
+    /// <summary>
+    /// Forscht in allen Gebäuden (P2).
+    /// VERTRAG: für jedes Gebäude b in tileMap.Buildings, für das
+    /// b.Research.Update(dt, Techs seines Besitzers, out var tech) true liefert (Besitzer 0 ist
+    /// player1, sonst player2): TechEffects.Apply(tech, ...) einmal auf den Core jeder Einheit
+    /// in units und jedes Gebäudes in tileMap.Buildings desselben Besitzers (OwnerId gleich
+    /// b.OwnerId) - ab jetzt gilt die Wirkung für alles, was er schon hat. Bei Besitzer 0
+    /// meldet die Leiste "{TechRules.NameOf(tech)} erforscht" (ShowHudMessage).
+    /// </summary>
+    private void UpdateResearch(float dt)
+    {
+        foreach (var b in tileMap.Buildings)
+        {
+            var owner = b.OwnerId == 0 ? player1 : player2;
+            // Forscht das Gebäude und ist die Forschung fertig?
+            if (!b.Research.Update(dt, owner.Techs, out var tech))
+                continue;
+
+            // Die fertige Forschung wirkt auf alles, was der Spieler hat und
+            // noch bekommt: jede Einheit und jedes Gebäude desselben Besitzers
+            foreach (var unit in units.Where(u => u.OwnerId == b.OwnerId))
+                TechEffects.Apply(tech, unit.Core);
+            foreach (var building in tileMap.Buildings.Where(x => x.OwnerId == b.OwnerId))
+                TechEffects.Apply(tech, building.Core);
+
+            // Für Spieler 0 meldet die Leiste die fertige Forschung
+            if (b.OwnerId == 0)
+                ShowHudMessage($"{TechRules.NameOf(tech)} erforscht");
         }
     }
 
@@ -2837,7 +3054,8 @@ public class RTSGameplayScreen : GameScreen
         // das wächst. Die angegebenen Dorfbewohner werden sofort dazu geschickt.
         if (type == BuildingType.Farm)
         {
-            tileMap.PlantCrop((int)cell.X, (int)cell.Y, BuildingRules.SizeOf(type));
+            // Pferdekummet (P2): die Kachel trägt mehr Vorrat als der Standard
+            tileMap.PlantCrop((int)cell.X, (int)cell.Y, BuildingRules.SizeOf(type), TechEffects.FarmFood(owner.Techs, TileMap.FARM_FOOD));
             HarvestFarm((int)cell.X, (int)cell.Y, villagers);
             return true;
         }
@@ -2846,6 +3064,8 @@ public class RTSGameplayScreen : GameScreen
         {
             var site = tileMap.AddBuilding((int)cell.X, (int)cell.Y, BuildingName(type), ownerId, BuildingRules.SizeOf(type));
             site.Construction = new Construction(BuildingRules.BuildSecondsOf(type));
+            // Maurerkunst (P2): gilt auch für neue Gebäude
+            TechEffects.ApplyAll(owner.Techs, site.Core);
             foreach (var unit in villagers)
                 AssignBuilder(unit, site);
             return true;
@@ -3140,7 +3360,9 @@ public class RTSGameplayScreen : GameScreen
                         unit.State = UnitState.Idle;
                         break;
                     }
-                    unit.Job.Update(dt, gatherWorld);
+                    // Doppelaxt und Goldbergbau (P2): der Auftrag läuft schneller,
+                    // je nach den Forschungen des Besitzers und der gesammelten Ressource
+                    unit.Job.Update(dt * TechEffects.GatherFactor(unit.OwnerId == 0 ? player1.Techs : player2.Techs, unit.Job.Resource), gatherWorld);
                     if (unit.Job.Phase != GatherPhase.Gathering)
                         FollowJob(unit);
                     break;
@@ -3789,7 +4011,9 @@ public class RTSGameplayScreen : GameScreen
     private (float Growth, Color Tint) WheatLook(Data.Tile tile)
     {
         if (tile.ResourceType == Resource.Food && tile.ResourceAmount > 0)
-            return (MathHelper.Clamp(0.3f + 0.7f * tile.ResourceAmount / TileMap.FARM_FOOD, 0f, 1f), Color.White);
+            // Den Weizen am Vorrat der Kachel messen (P2): mit Pferdekummet ist
+            // er größer als der Standard, sonst FARM_FOOD
+            return (MathHelper.Clamp(0.3f + 0.7f * tile.ResourceAmount / (tile.FarmFood > 0 ? tile.FarmFood : TileMap.FARM_FOOD), 0f, 1f), Color.White);
         float nach = 1f - MathHelper.Clamp(tile.FarmRegrow / TileMap.FARM_REGROW_SECONDS, 0f, 1f);
         if (nach <= 0f) return (0f, Color.White);
         return (nach, Color.Lerp(new Color(150, 200, 90), Color.White, nach));
@@ -4614,14 +4838,34 @@ public class RTSGameplayScreen : GameScreen
         // Ein Werkzeug haben nur Dorfbewohner - Soldaten tragen ihre Waffe im Bild
         bool hasTool = unit.Core is CoreVillager && _toolSprites.ContainsKey(tool);
 
-        float bob = 0f, tilt = 0f, stretch = 1f;
+        // Gehphasen: die eines Dorfbewohners kommen wie bisher aus _villagerWalk,
+        // die anderer Einheiten aus _unitWalk (P1)
+        var walk = unit.Core is CoreVillager
+            ? _villagerWalk.GetValueOrDefault((AgeOf(unit.OwnerId), unit.OwnerId))
+            : _unitWalk.GetValueOrDefault((unit.Type, unit.OwnerId));
+        int phase = VillagerWalkPhase(motion.Walked);
+        // Ein Soldat, der ein Gebäude angreift, schwingt seine Waffe (C4n)
+        var attack = unit.Core is CoreVillager ? null : _unitAttack.GetValueOrDefault((unit.Type, unit.OwnerId));
+        bool striking = !moving && unit.State == UnitState.Attacking && unit.AttackTarget != null && attack != null;
+
+        float bob = 0f, tilt = 0f, stretch = 1f, hub = 0f;
         if (moving)
         {
-            // er wippt im Takt seiner Schritte, nach der gelaufenen Strecke, und neigt sich beim Gehen leicht nach vorn, statt von Seite zu Seite zu kippeln
-            bob = Gait.Bob(motion.Walked, Gait.VILLAGER_STRIDE) * 1.2f * cameraZoom;
+            // er neigt sich beim Gehen leicht nach vorn, statt von Seite zu Seite zu kippeln
             tilt = Gait.Lean(unit.Pace);
+            if (walk != null)
+            {
+                // das Auf und Ab steckt im Bild (C4m): wie weit der Körper in dieser
+                // Phase tiefer steht, nur Werkzeug und Traglast gehen mit
+                hub = VillagerWalkHub[phase] * size;
+            }
+            else
+            {
+                // ohne Gehphasen wippt er im Takt seiner Schritte, nach der gelaufenen Strecke
+                bob = Gait.Bob(motion.Walked, Gait.VILLAGER_STRIDE) * 1.2f * cameraZoom;
+            }
         }
-        else if (working && !hasTool)
+        else if (working && !hasTool && !striking)
         {
             // Ohne Werkzeugbild holt die ganze Figur aus: kräftig nach vorn, verhalten zurück
             float swing = MathF.Sin(t * 7f);
@@ -4632,14 +4876,12 @@ public class RTSGameplayScreen : GameScreen
             stretch = 1f + MathF.Sin(t * 2.2f) * 0.02f;
         }
 
-        // Beim Gehen setzt er die Beine, im Takt des Wippens: gespreizt unten, im Stand oben
-        // Laufbilder: die eines Dorfbewohners kommen wie bisher aus _villagerWalk,
-        // die anderer Einheiten aus _unitWalk (P1)
-        var walk = unit.Core is CoreVillager
-            ? _villagerWalk.GetValueOrDefault((AgeOf(unit.OwnerId), unit.OwnerId))
-            : _unitWalk.GetValueOrDefault((unit.Type, unit.OwnerId));
+        // Beim Gehen setzt er die Beine, nach der gelaufenen Strecke (C4m)
         if (moving && walk != null)
-            figure = walk[VillagerWalkPhase(motion.Walked)];
+            figure = walk[phase];
+        // Beim Schlagen zeigt das passende Schlagbild (C4n)
+        if (striking)
+            figure = attack[AttackPhase(unit.AttackTimer)];
 
         // Schatten unter den Füßen - er bleibt am Boden, während die Figur wippt
         if (_shadowTex != null)
@@ -4655,12 +4897,15 @@ public class RTSGameplayScreen : GameScreen
         if (hasTool)
         {
             float angle = working ? SwingAngle(ToolStyles[tool], t) : TOOL_REST;
-            DrawTool(spriteBatch, tool, angle, figure, screenPos - new Vector2(0, bob), size, stretch,
+            // das Werkzeug geht mit dem Körper um hub nach unten (C4m)
+            DrawTool(spriteBatch, tool, angle, figure, screenPos - new Vector2(0, bob - hub), size, stretch,
                      tilt, motion.FacingLeft);
         }
 
-        // Das Sprite blickt nach rechts; nach links gespiegelt kippt es auch gespiegelt
-        float scale = (float)size / figure.Height;
+        // Das Sprite blickt nach rechts; nach links gespiegelt kippt es auch gespiegelt.
+        // Beim Schlagen gilt der Maßstab des Standbilds: die Schlagbilder haben eine größere
+        // Leinwand (das ausgeholte Schwert ragt hinaus), im selben Maßstab (C4n)
+        float scale = (float)size / (striking ? _unitSprites[(unit.Type, unit.OwnerId)].Height : figure.Height);
         spriteBatch.Draw(figure, screenPos - new Vector2(0, bob), null, Color.White,
                          motion.FacingLeft ? -tilt : tilt,
                          new Vector2(figure.Width / 2f, figure.Height),
@@ -4679,18 +4924,19 @@ public class RTSGameplayScreen : GameScreen
             int bundle = Math.Max(3, (int)(size * 0.28f));
             float side = motion.FacingLeft ? 0.22f : -0.22f;   // auf dem Rücken, gegen die Laufrichtung
             int bx = (int)(screenPos.X + side * size) - bundle / 2;
-            int by = (int)(screenPos.Y - size * 0.72f - bob) - bundle / 2;
+            // die Traglast geht mit dem Körper um hub nach unten (C4m)
+            int by = (int)(screenPos.Y - size * 0.72f - bob + hub) - bundle / 2;
             spriteBatch.Draw(px, new Rectangle(bx - 1, by - 1, bundle + 2, bundle + 2), new Color(40, 28, 16));
             spriteBatch.Draw(px, new Rectangle(bx, by, bundle, bundle), colour);
         }
     }
 
     /// <summary>
-    /// Welches Laufbild ein Dorfbewohner zeigt, der walked Welteinheiten gegangen ist:
-    /// 0 bis 3 für Schritt, Stand, Gegenschritt, Stand, je Schrittlänge Gait.VILLAGER_STRIDE
-    /// ein Schritt - nach der Strecke, nicht nach der Uhr, damit die Füße nicht rutschen.
+    /// Welches Laufbild eine Figur zeigt, die walked Welteinheiten gegangen ist:
+    /// das Laufbild 0 bis Gait.WALK_FRAMES - 1, je Doppelschritt (2 * Gait.VILLAGER_STRIDE)
+    /// alle acht Gehphasen - nach der Strecke, nicht nach der Uhr, damit die Füße nicht rutschen.
     /// </summary>
-    private int VillagerWalkPhase(float walked) => Gait.WalkFrame(walked, Gait.VILLAGER_STRIDE);
+    private int VillagerWalkPhase(float walked) => Gait.WalkFrame(walked, Gait.VILLAGER_STRIDE, Gait.WALK_FRAMES);
 
     /// <summary>
     /// Das Werkzeug zur Arbeit: Hammer am Bau, Axt im Wald, Spitzhacke an Stein
@@ -5008,13 +5254,15 @@ public class RTSGameplayScreen : GameScreen
         var age = player1.Ages.Current;
         if (_buttons.Count > 0 && _buttonsLayoutHeight == screenBounds.Height
             && _buttonsLayoutBuilders == builders && _buttonsLayoutAge == age
-            && _buttonsLayoutBuilding == selectedBuilding)
+            && _buttonsLayoutBuilding == selectedBuilding
+            && _buttonsLayoutTechs == player1.Techs.Version)
             return;
         _buttons.Clear();
         _buttonsLayoutHeight = screenBounds.Height;
         _buttonsLayoutBuilders = builders;
         _buttonsLayoutAge = age;
         _buttonsLayoutBuilding = selectedBuilding;
+        _buttonsLayoutTechs = player1.Techs.Version;
         int size = 60, gap = 6;
         int x = 10, y = screenBounds.Height - HUD_BOTTOM_HEIGHT + 14;
         // Q (Dorfbewohner) und A (Zeitalter) gibt es nur mit ausgewähltem
@@ -5031,6 +5279,17 @@ public class RTSGameplayScreen : GameScreen
                           CoreUnits.GermanName(entry.Unit),
                           $"{CostText(entry.Cost)}, {(int)entry.Seconds} s",
                           () => Train(b, entry.Unit));
+            }
+            // Forschungen (P2): je Forschung des Gebäudes, die der Spieler in
+            // seinem Zeitalter starten darf, eine Taste mit Kosten, Dauer und Wirkung
+            foreach (var (tech, key) in Researches.Where(r => TechRules.BuildingOf(r.Tech) == building.Core.BuildingType
+                                                             && player1.Techs.CanStart(r.Tech, age)))
+            {
+                var b = building;
+                AddButton(ref x, size, gap, y, key.ToString(),
+                          TechRules.NameOf(tech),
+                          $"{CostText(TechRules.CostOf(tech))}, {(int)TechRules.SecondsOf(tech)} s   {TechRules.EffectOf(tech)}",
+                          () => Research(b, tech));
             }
         }
         // A (Zeitalter) gibt es nur mit ausgewähltem eigenem Stadtzentrum und

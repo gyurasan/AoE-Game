@@ -906,12 +906,13 @@ public class TileMap
 
     /// <summary>
     /// Plantet ein 3×3-Getreidefeld auf der linken oberen Ecke (x, y). Jede
-    /// Kachel ist eine unabhängige Nahrungskachel (FARM_FOOD) und wächst nach
-    /// Ernte über FARM_REGROW_SECONDS wieder nach. Die Kacheln bleiben begehbar
+    /// Kachel ist eine unabhängige Nahrungskachel mit dem Vorrat <paramref name="food"/>
+    /// (Standard FARM_FOOD, mit Pferdekummet mehr) und wächst nach Ernte über
+    /// FARM_REGROW_SECONDS wieder nach. Die Kacheln bleiben begehbar
     /// — wie ein Beerenbusch —, nur <c>Buildable</c> wird gesperrt, damit nichts
     /// anderes darauf baut.
     /// </summary>
-    public void PlantCrop(int x, int y, int size)
+    public void PlantCrop(int x, int y, int size, int food = FARM_FOOD)
     {
         for (int bx = x; bx < x + size && bx < Width; bx++)
         {
@@ -925,7 +926,8 @@ public class TileMap
                 t.FarmRow = by - y;
                 t.FarmSize = size;
                 t.ResourceType = AoE.Core.Entities.Resource.Food;
-                t.ResourceAmount = FARM_FOOD;
+                t.FarmFood = food;
+                t.ResourceAmount = food;
                 t.Food = FoodSource.Farm;
                 t.Walkable = true;
                 t.Buildable = false;
@@ -995,7 +997,8 @@ public class TileMap
                 if (t.FarmRegrow <= 0f)
                 {
                     t.ResourceType = AoE.Core.Entities.Resource.Food;
-                    t.ResourceAmount = FARM_FOOD;
+                    // Die Kachel wächst bis zu ihrem eigenen Vorrat nach (mit Pferdekummet größer), sonst Standard
+                    t.ResourceAmount = t.FarmFood > 0 ? t.FarmFood : FARM_FOOD;
                     t.FarmRegrow = 0f;   // voll, Regrow zurückgesetzt (wird beim nächsten Erntetakt neu gesetzt)
                 }
             }
@@ -1416,6 +1419,12 @@ public class Building
     /// Stadtzentrum aus, und zwar Dorfbewohner (Taste Q).
     /// </summary>
     public AoE.Core.Economy.TrainingQueue<UnitType> Training { get; } = new();
+
+    /// <summary>
+    /// Die Forschung in diesem Gebäude (P2), aus AoE.Core. Ein Gebäude forscht höchstens
+    /// eine zur Zeit; solange es forscht, bildet es nicht aus.
+    /// </summary>
+    public AoE.Core.Economy.ResearchSlot Research { get; } = new();
 
     /// <summary>
     /// Die Baustelle, solange das Gebäude nicht fertig ist; null bei fertigen

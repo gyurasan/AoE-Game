@@ -1017,7 +1017,7 @@
     },
     "prompt": "A medieval villager in a bright blue wool tunic with a brown leather jerkin laced over it, a brown belt with a small pouch, dark brown hose, leather shoes and a brown felt cap, friendly face, walking pose turned slightly to the right, holding nothing.",
     "negativ": "hoe, tool, stick, handle, staff, pole, rod, weapon, object in hand, armor, sword, cape, second fist, extra hand, extra arm, three hands, raised left arm",
-    "figur": "dorfbewohner_feudal"
+    "figur": "dorfbewohner"
    },
    {
     "name": "dorfbewohner_zeit_ritter",
@@ -1624,12 +1624,11 @@
     },
     "prompt": "A high medieval craftsman in a bright blue padded doublet with a row of buttons, a grey wool hood with a short cape over the shoulders, a leather belt, dark grey hose and leather shoes, friendly face, walking pose turned slightly to the right, holding nothing.",
     "negativ": "hoe, tool, stick, handle, staff, pole, rod, weapon, object in hand, armor, sword, cape, second fist, extra hand, extra arm, three hands, raised left arm",
-    "figur": "dorfbewohner_ritter"
+    "figur": "dorfbewohner"
    },
    {
     "name": "dorfbewohner_zeit_imperial",
     "seed": 4531,
-    "ziel": "Einheiten/imperial/dorfbewohner.png",
     "vorlage": "dorfbewohner_frei_4101_roh.png",
     "maske": {
      "rechtecke": [
@@ -2232,6 +2231,25 @@
     "prompt": "A well-dressed late medieval townsman in a bright blue doublet with puffed slashed sleeves, a white linen collar, a black velvet beret with a small white feather, a fine leather belt, dark hose and leather shoes, friendly face, walking pose turned slightly to the right, holding nothing.",
     "negativ": "hoe, tool, stick, handle, staff, pole, rod, weapon, object in hand, armor, sword, cape, second fist, extra hand, extra arm, three hands, raised left arm",
     "figur": "dorfbewohner_imperial"
+   },
+   {
+    "name": "dorfbewohner_zeit_imperial_bein",
+    "seed": 4554,
+    "ziel": "Einheiten/imperial/dorfbewohner.png",
+    "figur": "dorfbewohner",
+    "vorlage": "dorfbewohner_zeit_imperial_4531_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       448,
+       690,
+       222,
+       200
+      ]
+     ]
+    },
+    "prompt": "A well-dressed late medieval townsman in a bright blue doublet with puffed slashed sleeves, a white linen collar, a black velvet beret with a small white feather, a fine leather belt, dark black hose tucked into tall brown leather boots, friendly face, walking pose turned slightly to the right, holding nothing. Each leg is one continuous limb: the dark hose runs from the hip straight down into the top of its boot, no gap between hose and boot.",
+    "negativ": "hoe, tool, stick, handle, staff, pole, rod, weapon, object in hand, armor, sword, cape, gap, floating boot, detached boot, extra leg, three legs, missing leg, bare skin"
    }
   ]
  },
@@ -3049,7 +3067,6 @@
    {
     "name": "dorfbewohner_lauf1",
     "seed": 4201,
-    "ziel": "Einheiten/dorfbewohner_lauf1.png",
     "figur": "dorfbewohner",
     "vorlage": "../einheiten/dorfbewohner_frei_4101_roh.png",
     "maske": {
@@ -3067,7 +3084,6 @@
    {
     "name": "dorfbewohner_lauf2",
     "seed": 4211,
-    "ziel": "Einheiten/dorfbewohner_lauf2.png",
     "figur": "dorfbewohner",
     "vorlage": "../einheiten/dorfbewohner_frei_4101_roh.png",
     "maske": {
@@ -3085,7 +3101,6 @@
    {
     "name": "dorfbewohner_zeit_feudal_lauf1",
     "seed": 4380,
-    "ziel": "Einheiten/feudal/dorfbewohner_lauf1.png",
     "figur": "dorfbewohner_feudal",
     "vorlage": "../einheiten/dorfbewohner_zeit_feudal_4330_roh.png",
     "maske": {
@@ -3103,7 +3118,6 @@
    {
     "name": "dorfbewohner_zeit_feudal_lauf2",
     "seed": 4392,
-    "ziel": "Einheiten/feudal/dorfbewohner_lauf2.png",
     "figur": "dorfbewohner_feudal",
     "vorlage": "../einheiten/dorfbewohner_zeit_feudal_4330_roh.png",
     "maske": {
@@ -3121,7 +3135,6 @@
    {
     "name": "dorfbewohner_zeit_ritter_lauf1",
     "seed": 4482,
-    "ziel": "Einheiten/ritter/dorfbewohner_lauf1.png",
     "figur": "dorfbewohner_ritter",
     "vorlage": "../einheiten/dorfbewohner_zeit_ritter_4432_roh.png",
     "maske": {
@@ -3139,7 +3152,6 @@
    {
     "name": "dorfbewohner_zeit_ritter_lauf2",
     "seed": 4493,
-    "ziel": "Einheiten/ritter/dorfbewohner_lauf2.png",
     "figur": "dorfbewohner_ritter",
     "vorlage": "../einheiten/dorfbewohner_zeit_ritter_4432_roh.png",
     "maske": {
@@ -3157,7 +3169,6 @@
    {
     "name": "dorfbewohner_zeit_imperial_lauf1",
     "seed": 4581,
-    "ziel": "Einheiten/imperial/dorfbewohner_lauf1.png",
     "figur": "dorfbewohner_imperial",
     "vorlage": "../einheiten/dorfbewohner_zeit_imperial_4531_roh.png",
     "maske": {
@@ -3175,7 +3186,6 @@
    {
     "name": "dorfbewohner_zeit_imperial_lauf2",
     "seed": 4593,
-    "ziel": "Einheiten/imperial/dorfbewohner_lauf2.png",
     "figur": "dorfbewohner_imperial",
     "vorlage": "../einheiten/dorfbewohner_zeit_imperial_4531_roh.png",
     "maske": {
@@ -3801,14 +3811,12 @@
    {
     "name": "miliz",
     "seed": 4601,
-    "ziel": "Einheiten/miliz.png",
     "prompt": "A medieval militia foot soldier in a bright blue padded gambeson with a brown belt, brown trousers, leather boots and a round iron helmet, a short sword in his right hand and a round wooden shield on his left arm, determined face, standing pose turned slightly to the right.",
     "figur": "miliz"
    },
    {
     "name": "bogenschuetze",
     "seed": 4612,
-    "ziel": "Einheiten/bogenschuetze.png",
     "prompt": "A medieval archer in a bright blue tunic with a brown leather belt, brown trousers, leather boots and a green hood, a quiver of arrows on his back and a wooden longbow in his left hand, focused face, standing pose turned slightly to the right.",
     "figur": "bogenschuetze"
    },
@@ -3818,6 +3826,88 @@
     "ziel": "Einheiten/spaeher.png",
     "prompt": "A medieval scout rider on a brown horse, the rider in a bright blue tunic with a light leather cap and a short spear, the horse with a simple saddle and bridle, the whole horse visible from ears to hooves, standing pose turned slightly to the right.",
     "figur": "spaeher"
+   },
+   {
+    "name": "miliz_beine",
+    "seed": 4631,
+    "ziel": "Einheiten/miliz.png",
+    "figur": "miliz",
+    "vorlage": "miliz_4601_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       290,
+       650,
+       420,
+       320
+      ]
+     ]
+    },
+    "prompt": "A medieval militia foot soldier in a bright blue padded gambeson with a brown belt, brown trousers, leather boots and a round iron helmet, a short sword in his right hand pointing down and a round wooden shield on his left arm, determined face, walking pose turned to the right: his legs in a relaxed stride seen from the side, the front leg forward and the back leg behind, both feet pointing to the right.",
+    "negativ": "extra leg, three legs, missing leg, feet pointing at the viewer, frontal stance, second sword"
+   },
+   {
+    "name": "bogenschuetze_beine",
+    "seed": 4651,
+    "ziel": "Einheiten/bogenschuetze.png",
+    "figur": "bogenschuetze",
+    "vorlage": "bogenschuetze_4612_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       270,
+       600,
+       480,
+       412
+      ]
+     ]
+    },
+    "prompt": "A medieval archer in a bright blue tunic with a brown leather belt, brown trousers, leather boots and a green hood, a quiver of arrows on his back and a wooden longbow in his left hand, focused face, walking pose turned to the right: his legs in a relaxed stride seen from the side, the front leg forward and the back leg behind, both feet pointing to the right.",
+    "negativ": "extra leg, three legs, missing leg, feet pointing at the viewer, frontal stance, second bow"
+   },
+   {
+    "name": "miliz_ohne_arm",
+    "seed": 4661,
+    "vorlage": "miliz_beine_4631_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       212,
+       322,
+       176,
+       318
+      ]
+     ],
+     "linien": [
+      [
+       300,
+       565,
+       505,
+       795,
+       56
+      ]
+     ]
+    },
+    "prompt": "A medieval militia foot soldier in a bright blue padded gambeson with a brown belt, brown trousers, leather boots and a round iron helmet, a round wooden shield on his left arm, determined face, walking pose turned to the right. His right arm is raised high behind his head, out of view: at his right side only the blue padded gambeson is visible down to its hem, and nothing is in front of his legs.",
+    "negativ": "sword, blade, weapon, hand, fist, arm hanging down, sleeve hanging down, extra arm, glove, dagger"
+   },
+   {
+    "name": "spaeher_ohne_speer",
+    "seed": 4671,
+    "vorlage": "spaeher_4621_roh.png",
+    "maske": {
+     "linien": [
+      [
+       318,
+       590,
+       668,
+       22,
+       46
+      ]
+     ]
+    },
+    "prompt": "A medieval scout rider on a brown horse, the rider in a bright blue tunic with a light leather cap, both gloved hands resting in front of his belt, the horse with a simple saddle and bridle, the whole horse visible from ears to hooves, standing pose turned slightly to the right. He carries no spear.",
+    "negativ": "spear, lance, pole, stick, staff, weapon, rod, shaft"
    }
   ]
  },
@@ -3838,7 +3928,6 @@
    {
     "name": "miliz_lauf1",
     "seed": 4712,
-    "ziel": "Einheiten/miliz_lauf1.png",
     "figur": "miliz",
     "vorlage": "../soldaten/miliz_4601_roh.png",
     "maske": {
@@ -3856,7 +3945,6 @@
    {
     "name": "miliz_lauf2",
     "seed": 4722,
-    "ziel": "Einheiten/miliz_lauf2.png",
     "figur": "miliz",
     "vorlage": "../soldaten/miliz_4601_roh.png",
     "maske": {
@@ -3874,7 +3962,6 @@
    {
     "name": "bogenschuetze_lauf1",
     "seed": 4734,
-    "ziel": "Einheiten/bogenschuetze_lauf1.png",
     "figur": "bogenschuetze",
     "vorlage": "../soldaten/bogenschuetze_4612_roh.png",
     "maske": {
@@ -3892,7 +3979,6 @@
    {
     "name": "bogenschuetze_lauf2",
     "seed": 4744,
-    "ziel": "Einheiten/bogenschuetze_lauf2.png",
     "figur": "bogenschuetze",
     "vorlage": "../soldaten/bogenschuetze_4612_roh.png",
     "maske": {
@@ -3910,7 +3996,6 @@
    {
     "name": "spaeher_lauf1",
     "seed": 4752,
-    "ziel": "Einheiten/spaeher_lauf1.png",
     "figur": "spaeher",
     "vorlage": "../soldaten/spaeher_4621_roh.png",
     "maske": {
@@ -3928,7 +4013,6 @@
    {
     "name": "spaeher_lauf2",
     "seed": 4762,
-    "ziel": "Einheiten/spaeher_lauf2.png",
     "figur": "spaeher",
     "vorlage": "../soldaten/spaeher_4621_roh.png",
     "maske": {
@@ -4024,6 +4108,467 @@
     "seed": 4902,
     "ziel": "Icons/maurerkunst.png",
     "prompt": "A mason's trowel and a stack of cut stone blocks with mortar."
+   }
+  ]
+ },
+ "gang": {
+  "_hinweis": "Acht Gehphasen je Figur aus tools/bilder/gang.py (Bein-Skelett über dem Standbild, Gelenke in gang.json), nicht aus qwen_image.py. Seed 1 ist nur das Namensschema.",
+  "zielbreite": 128,
+  "spielerfarben": true,
+  "bilder": [
+   {
+    "name": "dorfbewohner_lauf1",
+    "seed": 1,
+    "ziel": "Einheiten/dorfbewohner_lauf1.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_lauf2",
+    "seed": 1,
+    "ziel": "Einheiten/dorfbewohner_lauf2.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_lauf3",
+    "seed": 1,
+    "ziel": "Einheiten/dorfbewohner_lauf3.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_lauf4",
+    "seed": 1,
+    "ziel": "Einheiten/dorfbewohner_lauf4.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_lauf5",
+    "seed": 1,
+    "ziel": "Einheiten/dorfbewohner_lauf5.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_lauf6",
+    "seed": 1,
+    "ziel": "Einheiten/dorfbewohner_lauf6.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_lauf7",
+    "seed": 1,
+    "ziel": "Einheiten/dorfbewohner_lauf7.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_lauf8",
+    "seed": 1,
+    "ziel": "Einheiten/dorfbewohner_lauf8.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_feudal_lauf1",
+    "seed": 1,
+    "ziel": "Einheiten/feudal/dorfbewohner_lauf1.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_feudal_lauf2",
+    "seed": 1,
+    "ziel": "Einheiten/feudal/dorfbewohner_lauf2.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_feudal_lauf3",
+    "seed": 1,
+    "ziel": "Einheiten/feudal/dorfbewohner_lauf3.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_feudal_lauf4",
+    "seed": 1,
+    "ziel": "Einheiten/feudal/dorfbewohner_lauf4.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_feudal_lauf5",
+    "seed": 1,
+    "ziel": "Einheiten/feudal/dorfbewohner_lauf5.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_feudal_lauf6",
+    "seed": 1,
+    "ziel": "Einheiten/feudal/dorfbewohner_lauf6.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_feudal_lauf7",
+    "seed": 1,
+    "ziel": "Einheiten/feudal/dorfbewohner_lauf7.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_feudal_lauf8",
+    "seed": 1,
+    "ziel": "Einheiten/feudal/dorfbewohner_lauf8.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_ritter_lauf1",
+    "seed": 1,
+    "ziel": "Einheiten/ritter/dorfbewohner_lauf1.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_ritter_lauf2",
+    "seed": 1,
+    "ziel": "Einheiten/ritter/dorfbewohner_lauf2.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_ritter_lauf3",
+    "seed": 1,
+    "ziel": "Einheiten/ritter/dorfbewohner_lauf3.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_ritter_lauf4",
+    "seed": 1,
+    "ziel": "Einheiten/ritter/dorfbewohner_lauf4.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_ritter_lauf5",
+    "seed": 1,
+    "ziel": "Einheiten/ritter/dorfbewohner_lauf5.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_ritter_lauf6",
+    "seed": 1,
+    "ziel": "Einheiten/ritter/dorfbewohner_lauf6.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_ritter_lauf7",
+    "seed": 1,
+    "ziel": "Einheiten/ritter/dorfbewohner_lauf7.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_ritter_lauf8",
+    "seed": 1,
+    "ziel": "Einheiten/ritter/dorfbewohner_lauf8.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_imperial_lauf1",
+    "seed": 1,
+    "ziel": "Einheiten/imperial/dorfbewohner_lauf1.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_imperial_lauf2",
+    "seed": 1,
+    "ziel": "Einheiten/imperial/dorfbewohner_lauf2.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_imperial_lauf3",
+    "seed": 1,
+    "ziel": "Einheiten/imperial/dorfbewohner_lauf3.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_imperial_lauf4",
+    "seed": 1,
+    "ziel": "Einheiten/imperial/dorfbewohner_lauf4.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_imperial_lauf5",
+    "seed": 1,
+    "ziel": "Einheiten/imperial/dorfbewohner_lauf5.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_imperial_lauf6",
+    "seed": 1,
+    "ziel": "Einheiten/imperial/dorfbewohner_lauf6.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_imperial_lauf7",
+    "seed": 1,
+    "ziel": "Einheiten/imperial/dorfbewohner_lauf7.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "dorfbewohner_imperial_lauf8",
+    "seed": 1,
+    "ziel": "Einheiten/imperial/dorfbewohner_lauf8.png",
+    "figur": "dorfbewohner"
+   },
+   {
+    "name": "miliz_lauf1",
+    "seed": 1,
+    "ziel": "Einheiten/miliz_lauf1.png",
+    "figur": "miliz"
+   },
+   {
+    "name": "miliz_lauf2",
+    "seed": 1,
+    "ziel": "Einheiten/miliz_lauf2.png",
+    "figur": "miliz"
+   },
+   {
+    "name": "miliz_lauf3",
+    "seed": 1,
+    "ziel": "Einheiten/miliz_lauf3.png",
+    "figur": "miliz"
+   },
+   {
+    "name": "miliz_lauf4",
+    "seed": 1,
+    "ziel": "Einheiten/miliz_lauf4.png",
+    "figur": "miliz"
+   },
+   {
+    "name": "miliz_lauf5",
+    "seed": 1,
+    "ziel": "Einheiten/miliz_lauf5.png",
+    "figur": "miliz"
+   },
+   {
+    "name": "miliz_lauf6",
+    "seed": 1,
+    "ziel": "Einheiten/miliz_lauf6.png",
+    "figur": "miliz"
+   },
+   {
+    "name": "miliz_lauf7",
+    "seed": 1,
+    "ziel": "Einheiten/miliz_lauf7.png",
+    "figur": "miliz"
+   },
+   {
+    "name": "miliz_lauf8",
+    "seed": 1,
+    "ziel": "Einheiten/miliz_lauf8.png",
+    "figur": "miliz"
+   },
+   {
+    "name": "bogenschuetze_lauf1",
+    "seed": 1,
+    "ziel": "Einheiten/bogenschuetze_lauf1.png",
+    "figur": "bogenschuetze"
+   },
+   {
+    "name": "bogenschuetze_lauf2",
+    "seed": 1,
+    "ziel": "Einheiten/bogenschuetze_lauf2.png",
+    "figur": "bogenschuetze"
+   },
+   {
+    "name": "bogenschuetze_lauf3",
+    "seed": 1,
+    "ziel": "Einheiten/bogenschuetze_lauf3.png",
+    "figur": "bogenschuetze"
+   },
+   {
+    "name": "bogenschuetze_lauf4",
+    "seed": 1,
+    "ziel": "Einheiten/bogenschuetze_lauf4.png",
+    "figur": "bogenschuetze"
+   },
+   {
+    "name": "bogenschuetze_lauf5",
+    "seed": 1,
+    "ziel": "Einheiten/bogenschuetze_lauf5.png",
+    "figur": "bogenschuetze"
+   },
+   {
+    "name": "bogenschuetze_lauf6",
+    "seed": 1,
+    "ziel": "Einheiten/bogenschuetze_lauf6.png",
+    "figur": "bogenschuetze"
+   },
+   {
+    "name": "bogenschuetze_lauf7",
+    "seed": 1,
+    "ziel": "Einheiten/bogenschuetze_lauf7.png",
+    "figur": "bogenschuetze"
+   },
+   {
+    "name": "bogenschuetze_lauf8",
+    "seed": 1,
+    "ziel": "Einheiten/bogenschuetze_lauf8.png",
+    "figur": "bogenschuetze"
+   },
+   {
+    "name": "spaeher_lauf1",
+    "seed": 1,
+    "ziel": "Einheiten/spaeher_lauf1.png",
+    "figur": "spaeher"
+   },
+   {
+    "name": "spaeher_lauf2",
+    "seed": 1,
+    "ziel": "Einheiten/spaeher_lauf2.png",
+    "figur": "spaeher"
+   },
+   {
+    "name": "spaeher_lauf3",
+    "seed": 1,
+    "ziel": "Einheiten/spaeher_lauf3.png",
+    "figur": "spaeher"
+   },
+   {
+    "name": "spaeher_lauf4",
+    "seed": 1,
+    "ziel": "Einheiten/spaeher_lauf4.png",
+    "figur": "spaeher"
+   },
+   {
+    "name": "spaeher_lauf5",
+    "seed": 1,
+    "ziel": "Einheiten/spaeher_lauf5.png",
+    "figur": "spaeher"
+   },
+   {
+    "name": "spaeher_lauf6",
+    "seed": 1,
+    "ziel": "Einheiten/spaeher_lauf6.png",
+    "figur": "spaeher"
+   },
+   {
+    "name": "spaeher_lauf7",
+    "seed": 1,
+    "ziel": "Einheiten/spaeher_lauf7.png",
+    "figur": "spaeher"
+   },
+   {
+    "name": "spaeher_lauf8",
+    "seed": 1,
+    "ziel": "Einheiten/spaeher_lauf8.png",
+    "figur": "spaeher"
+   }
+  ]
+ },
+ "schlag": {
+  "_hinweis": "Schlagphasen aus tools/bilder/schlag.py (Waffenarm über einem Rumpf ohne Arm), nicht aus qwen_image.py. Größere Leinwand im Maßstab des Standbilds: zielbreite aus der Ausgabe von schlag.py, die Füße stehen an derselben Stelle. Seed 1 ist nur das Namensschema.",
+  "spielerfarben": true,
+  "bilder": [
+   {
+    "name": "miliz_schlag1",
+    "seed": 1,
+    "ziel": "Einheiten/miliz_schlag1.png",
+    "figur": "miliz_schlag",
+    "zielbreite": 340
+   },
+   {
+    "name": "miliz_schlag2",
+    "seed": 1,
+    "ziel": "Einheiten/miliz_schlag2.png",
+    "figur": "miliz_schlag",
+    "zielbreite": 340
+   },
+   {
+    "name": "miliz_schlag3",
+    "seed": 1,
+    "ziel": "Einheiten/miliz_schlag3.png",
+    "figur": "miliz_schlag",
+    "zielbreite": 340
+   },
+   {
+    "name": "miliz_schlag4",
+    "seed": 1,
+    "ziel": "Einheiten/miliz_schlag4.png",
+    "figur": "miliz_schlag",
+    "zielbreite": 340
+   },
+   {
+    "name": "miliz_schlag5",
+    "seed": 1,
+    "ziel": "Einheiten/miliz_schlag5.png",
+    "figur": "miliz_schlag",
+    "zielbreite": 340
+   },
+   {
+    "name": "miliz_schlag6",
+    "seed": 1,
+    "ziel": "Einheiten/miliz_schlag6.png",
+    "figur": "miliz_schlag",
+    "zielbreite": 340
+   },
+   {
+    "name": "miliz_schlag7",
+    "seed": 1,
+    "ziel": "Einheiten/miliz_schlag7.png",
+    "figur": "miliz_schlag",
+    "zielbreite": 340
+   },
+   {
+    "name": "miliz_schlag8",
+    "seed": 1,
+    "ziel": "Einheiten/miliz_schlag8.png",
+    "figur": "miliz_schlag",
+    "zielbreite": 340
+   },
+   {
+    "name": "spaeher_schlag1",
+    "seed": 1,
+    "ziel": "Einheiten/spaeher_schlag1.png",
+    "figur": "spaeher_schlag",
+    "zielbreite": 145
+   },
+   {
+    "name": "spaeher_schlag2",
+    "seed": 1,
+    "ziel": "Einheiten/spaeher_schlag2.png",
+    "figur": "spaeher_schlag",
+    "zielbreite": 145
+   },
+   {
+    "name": "spaeher_schlag3",
+    "seed": 1,
+    "ziel": "Einheiten/spaeher_schlag3.png",
+    "figur": "spaeher_schlag",
+    "zielbreite": 145
+   },
+   {
+    "name": "spaeher_schlag4",
+    "seed": 1,
+    "ziel": "Einheiten/spaeher_schlag4.png",
+    "figur": "spaeher_schlag",
+    "zielbreite": 145
+   },
+   {
+    "name": "spaeher_schlag5",
+    "seed": 1,
+    "ziel": "Einheiten/spaeher_schlag5.png",
+    "figur": "spaeher_schlag",
+    "zielbreite": 145
+   },
+   {
+    "name": "spaeher_schlag6",
+    "seed": 1,
+    "ziel": "Einheiten/spaeher_schlag6.png",
+    "figur": "spaeher_schlag",
+    "zielbreite": 145
+   },
+   {
+    "name": "spaeher_schlag7",
+    "seed": 1,
+    "ziel": "Einheiten/spaeher_schlag7.png",
+    "figur": "spaeher_schlag",
+    "zielbreite": 145
+   },
+   {
+    "name": "spaeher_schlag8",
+    "seed": 1,
+    "ziel": "Einheiten/spaeher_schlag8.png",
+    "figur": "spaeher_schlag",
+    "zielbreite": 145
    }
   ]
  }
