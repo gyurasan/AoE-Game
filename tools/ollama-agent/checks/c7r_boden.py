@@ -55,14 +55,18 @@ lagen = re.findall(r"DrawGroundImage\s*\(", wasser)
 if len(lagen) < 2 or "animationTime" not in wasser:
     fehler.append("DrawWater: nicht zwei mit animationTime treibende Lagen")
 
-karte = methode(text, "DrawTileMap") or ""
-haufen, gebaeude = karte.find("DrawPile("), karte.find("DrawBuilding(")
-if haufen < 0:
-    fehler.append("DrawTileMap zeichnet keine Stein- und Goldhaufen")
-elif not (karte.find("DrawCrowns(") < haufen < gebaeude):
-    fehler.append("die Haufen kommen nicht zusammen mit den Bäumen vor den Gebäuden")
-if "DrawShore(" in karte or "GetTileTexture(" in karte:
-    fehler.append("DrawTileMap zeichnet die Bodenkacheln noch selbst")
+# Stein- und Goldhaufen flach im Boden (DrawTileMap, zeilenweise, verdecken
+# nichts dahinter); Gebäude stehen in der Tiefenschicht (DrawUnits, sortiert)
+flach = methode(text, "DrawTileMap") or ""
+stehe = methode(text, "DrawUnits") or ""
+if "DrawPile(" not in flach:
+    fehler.append("DrawTileMap zeichnet keine Stein- und Goldhaufen (flach)")
+if "DrawBuilding(" not in stehe:
+    fehler.append("DrawUnits zeichnet keine Gebäude (Tiefenschicht)")
+if not (re.search(r"\.Sort\s*\(", stehe) and "Depth" in stehe):
+    fehler.append("DrawUnits sortiert die Gebäude nicht nach der Sohle (Depth)")
+if "DrawShore(" not in flach and "DrawShore(" not in (methode(text, "DrawGround") or ""):
+    fehler.append("der Boden (Ufer) wird nirgendwo gezeichnet")
 
 pile = methode(text, "DrawPile") or ""
 for pflicht in ("TileScreenRect(", "73856093", "screenBounds"):

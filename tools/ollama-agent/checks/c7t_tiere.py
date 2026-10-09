@@ -55,9 +55,9 @@ for pflicht, grund in (("FlipHorizontally", "spiegelt das Tier nicht in Laufrich
     if tier and pflicht not in tier:
         fehler.append(f"DrawAnimal {grund} ({pflicht} fehlt)")
 
-zeichnen = methode(text, "DrawTileMap") or ""
+zeichnen = methode(text, "DrawUnits") or ""
 if not re.search(r"\bDrawAnimal\s*\(", zeichnen):
-    fehler.append("DrawTileMap ruft DrawAnimal nicht auf")
+    fehler.append("DrawUnits ruft DrawAnimal nicht auf")
 if methode(text, "DrawDeer") is not None:
     fehler.append("DrawDeer gibt es noch - DrawAnimal zeichnet Schafe und Rehe")
 

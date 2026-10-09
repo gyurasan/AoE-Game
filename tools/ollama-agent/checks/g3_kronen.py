@@ -34,18 +34,11 @@ else:
 if not re.search(r"static\s+readonly\s*\([^)]*\)\[\]\s+CrownSpots", text):
     fehler.append("CrownSpots ist kein statisches Feld")
 
-karte = methode(text, "DrawTileMap") or ""
-aufruf = karte.find("DrawCrowns(")
-if aufruf < 0:
-    fehler.append("DrawTileMap ruft DrawCrowns nicht auf")
-else:
-    vorher = karte[:aufruf]
-    # Zeilenweise von oben: die aeussere Schleife vor DrawCrowns laeuft ueber y,
-    # die innere ueber x (die Kachel- und Nahrungsschleifen davor sind umgekehrt)
-    if not vorher.rfind("for (int y") < vorher.rfind("for (int x"):
-        fehler.append("die Kronen werden nicht zeilenweise gezeichnet (aeussere Schleife ueber y)")
-    if aufruf > karte.find("DrawBuilding("):
-        fehler.append("die Kronen werden erst nach den Gebaeuden gezeichnet")
+zeichnen = methode(text, "DrawUnits") or ""
+if "DrawCrowns(" not in zeichnen:
+    fehler.append("DrawUnits ruft DrawCrowns nicht auf")
+elif not re.search(r"\.Sort\s*\(", zeichnen) or "Depth" not in zeichnen:
+    fehler.append("DrawUnits sortiert nicht nach der Sohle (Depth)")
 if "crownTex" not in (methode(text, "UnloadContent") or ""):
     fehler.append("UnloadContent gibt die Kronentexturen nicht frei")
 

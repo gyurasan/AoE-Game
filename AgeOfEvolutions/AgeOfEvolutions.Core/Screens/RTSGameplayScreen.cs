@@ -3484,10 +3484,13 @@ public class RTSGameplayScreen : GameScreen
 
         spriteBatch.Begin();
 
-        // Draw tilemap
+        // Draw tilemap (Boden, Nahrungskacheln, Felder)
         DrawTileMap(spriteBatch);
 
-        // Draw units
+        // Tiefenschicht: Bäume, Haufen, Tiere, Gebäude und Figuren in einem
+        // sortierten Zug — die Sohle, die weiter unten im Bild steht,
+        // überdeckt, was weiter oben steht, und wird von dem überdeckt, was
+        // noch tiefer ist.
         DrawUnits(spriteBatch);
 
         // Nebel über Karte und Einheiten, unter Auswahlrahmen und Leisten
@@ -3851,43 +3854,40 @@ public class RTSGameplayScreen : GameScreen
             }
         }
 
-        // Baumkronen, Stein- und Goldhaufen, Schafe und Rehe als eigene Figuren, zeilenweise von
-        // oben: tiefere überdecken höhere, auch über Kachelgrenzen hinweg. Tiere sind
-        // oben: tiefere überdecken höhere, auch über Kachelgrenzen hinweg. Tiere sind
-        // „beseelt" wie spätere Gegnereinheiten: in nicht mehr sichtbarem Dunst (erforscht,
-        // aber aus der Sicht) sind lebende Tiere unsichtbar — der Dunst bleibt für Terrain,
-        // Bäume und Ressourcen. Einzige Ausnahme: erlegtes Fleisch ist abgeerntete
-        // Ressource und bleibt sichtbar, solange die Kachel bekannt ist, so wie die
-        // Beerenbüsche und Bäume im Dunst.
+        // Flache Objekte im Boden (Stein- und Goldhaufen, Fleisch erlegter
+        // Tiere): sie liegen flach auf dem Boden, man läuft darüber — deshalb
+        // nehmen sie nicht an der Tiefenordnung teil und verdecken nichts,
+        // was hinter ihnen steht. Zeilenweise wie der Boden gezeichnet; die
+        // Felder haben ihre eigene Zeile im Nahrungsdurchlauf.
         for (int y = 0; y < tileMap.Height; y++)
         {
             for (int x = 0; x < tileMap.Width; x++)
             {
                 var tile = tileMap.GetTile(x, y);
                 if (tile == null) continue;
-                if (tile.Type == TileType.Forest)
-                    DrawCrowns(spriteBatch, x, y);
-                else if (PileSprites(tile.Type).Length > 0)
+                if (PileSprites(tile.Type).Length > 0)
+                {
                     DrawPile(spriteBatch, x, y, PileSprites(tile.Type));
-                else if (AnimalSprites(tile.Food) is { Length: > 0 } animals
-                         && (tileMap.IsTileVisible(x, y, 0)
-                             || (tile.Animal is { Slaughtered: true } && tileMap.IsTileExplored(x, y, 0))))
-                    DrawAnimal(spriteBatch, tile, x, y, animals);
+                }
+                else if (MeatOnGround(tile, x, y))
+                {
+                    // Das Fleisch liegt am Boden (DrawAnimal zeichnet es ruhig
+                    // an der Stelle, Schatten inklusive)
+                    DrawAnimal(spriteBatch, tile, x, y, AnimalSprites(tile.Food));
+                }
             }
         }
 
-        // Gebäude (Stadtzentrum = 4×4 Kacheln)
+        // Der Auswahlrahmen des Gebäudes liegt unter allen Bildern (vorn und
+        // an den Seiten sichtbar, das Bild überdeckt, was dahinter liegt) und
+        // der Lebensbalken über allem auf dieser Ebene — das Auswählen und
+        // Schadenslesen gehören zum Fundament, die Tiefe der Figuren zur
+        // Tiefenschicht DrawUnits.
         foreach (var b in tileMap.Buildings)
         {
-            // Der Auswahlrahmen liegt unter dem Bild: vorn und an den Seiten
-            // bleibt er sichtbar, das Bild überdeckt, was dahinter liegt
             if (b == selectedBuilding)
                 DrawBuildingSelection(spriteBatch, b);
-            DrawBuilding(spriteBatch, b);
         }
-
-        // Lebensbalken über allen Gebäudebildern: das ausgewählte Gebäude und
-        // jedes fertige, beschädigte; fremde nur, wenn Spieler 0 sie gerade sieht
         foreach (var b in tileMap.Buildings)
         {
             bool show = b == selectedBuilding
@@ -4058,6 +4058,22 @@ public class RTSGameplayScreen : GameScreen
         FoodSource.Boar => _boarSprites,
         _ => Array.Empty<Texture2D>(),
     };
+
+    /// <summary>
+    /// Liegt auf der Kachel ein erlegtes Tier? Dann liegt nur noch sein
+    /// Fleisch flach am Boden (DrawAnimal zeichnet es ruhig an der Stelle,
+    /// mit Körper-Fallback, falls kein Fleischbild da ist) und gehört in den
+    /// Bodendurchlauf (DrawTileMap), nicht in die Tiefenschicht — wie ein
+    /// Haufen verdeckt es nichts, was hinter ihm steht. Sichtbar wie im
+    /// Nebel: im Dunst, wenn die Kachel bekannt ist (so wie Beerenbüsche).
+    /// </summary>
+    private bool MeatOnGround(Data.Tile tile, int x, int y)
+    {
+        if (AnimalSprites(tile.Food).Length <= 0) return false;
+        if (!(tile.Animal is { Slaughtered: true })) return false;
+        return tileMap.IsTileVisible(x, y, 0)
+               || tileMap.IsTileExplored(x, y, 0);
+    }
 
     /// <summary>
     /// Ein Schaf oder Reh als Sprite in der Zeilenschicht, wie Bäume und Haufen:
@@ -4697,67 +4713,213 @@ public class RTSGameplayScreen : GameScreen
         sb.Draw(tex, clipped, c);
     }
 
+    // Tiefenschicht: die stehenden Objekte (Bäume, lebende Tiere, Gebäude,
+    // Figuren) werden in einem gemeinsamen, nach Bildschirm-y (Sohle)
+    // sortierten Zug gezeichnet. So verdeckt ein Objekt weiter unten im Bild
+    // (größer y), was weiter oben steht, und wird selbst von dem überdeckt,
+    // das noch tiefer steht — exakt wie in AoE.
+    //
+    // Flache Objekte (Stein-/Goldhaufen, Fleisch erlegter Tiere, Felder)
+    // gehören NICHT hierher: sie liegen am Boden, man läuft darüber, und sie
+    // dürfen nichts verdecken, was hinter ihnen steht. Sie werden im
+    // Bodendurchlauf (DrawTileMap) gezeichnet, bevor diese Schicht kommt.
+    //
+    // Die Liste wird je Frame neu gefüllt, sortiert und abgearbeitet.
+    private struct DepthEntry
+    {
+        public float Depth;   // Bildschirm-y der Sohle (weiter unten = später)
+        public int Kind;      // TREE=0, ANIMAL=2, BUILDING=3, UNIT=4
+        public int X;         // Kachel-x (TREE, ANIMAL) oder -
+        public int Y;         // Kachel-y (TREE, ANIMAL) oder -
+        public Data.Building Building;
+        public Unit Unit;
+        public Data.Tile Tile;
+    }
+    private readonly List<DepthEntry> _depth = new();
+
+    /// <summary>
+    /// Sortiert die stehenden Objekte nach ihrer Sohle und zeichnet sie in
+    /// dieser Ordnung. Wird von Draw zwischen DrawTileMap und DrawFog
+    /// gerufen — damit Nebel über allen Objekten liegt, und die UI darüber.
+    ///
+    /// Arten-Reihenfolge bei gleicher Sohle (gleiche Bildschirm-y):
+    ///   Bäume (0) < Tiere (2) < Gebäude (3) < Figuren (4)
+    ///
+    /// Sohlen je Art:
+    ///   Bäume (TREE):       Stammfuß (Kronenmitte + halbe Krone) = Kachelboden
+    ///   Tiere (ANIMAL):     Hufe (DrawAnimal: tileBottom - tileH/4 + Versatz)
+    ///   Gebäude (BUILDING): untere Kachelkante der Grundfläche
+    ///   Figuren (UNIT):     Füße (screenPos.Y)
+    /// </summary>
     private void DrawUnits(SpriteBatch spriteBatch)
     {
-        var margin = new Rectangle(screenBounds.X - 32, screenBounds.Y - 32, screenBounds.Width + 64, screenBounds.Height + 64);
+        var list = _depth;
+        list.Clear();
 
+        // — Stille Objekte: Bäume (Sohle = Stammfuß) und lebende Tiere
+        // (Sohle = Hufe). Flache Objekte (Stein-/Goldhaufen, Fleisch,
+        // Felder) stehen NICHT hier — sie liegen am Boden und verdecken
+        // nichts, was hinter ihnen steht; sie kommen im Bodendurchlauf
+        // (DrawTileMap) davor. —
+        for (int y = 0; y < tileMap.Height; y++)
+            for (int x = 0; x < tileMap.Width; x++)
+            {
+                var tile = tileMap.GetTile(x, y);
+                if (tile == null) continue;
+
+                if (tile.Type == TileType.Forest)
+                {
+                    // Sohle: unterer Rand der Kachel (Stammfuß ist hier)
+                    var rect = TileScreenRect(x, y);
+                    list.Add(new DepthEntry
+                    {
+                        Depth = rect.Bottom,
+                        Kind = 0, X = x, Y = y,
+                    });
+                }
+                else
+                {
+                    var animals = AnimalSprites(tile.Food);
+                    // Lebende Tiere: mit Hufen in der Tiefenschicht.
+                    // Erlegte (Slaughtered) zeigen nur das Fleisch — das liegt
+                    // flach am Boden und gehört in DrawTileMap, nicht hier.
+                    bool live = (tile.Animal is null)
+                               || (!tile.Animal.Slaughtered);
+                    // Lebende nur, wenn sie gerade sichtbar sind.
+                    if (animals is { Length: > 0 } && live
+                        && tileMap.IsTileVisible(x, y, 0))
+                    {
+                        // Sohle: Hufe (DrawAnimal: tileBottom - tileH/4 + jy)
+                        var rect = TileScreenRect(x, y);
+                        var tier = tile.Animal ?? new Data.WildAnimal();
+                        int jy = ((tier.Look >> 12) % 7 - 3) * rect.Width / 32;
+                        list.Add(new DepthEntry
+                        {
+                            Depth = rect.Bottom - rect.Height / 4f + jy,
+                            Kind = 2, X = x, Y = y, Tile = tile,
+                        });
+                    }
+                }
+            }
+
+        // — Gebäude —
+        foreach (var b in tileMap.Buildings)
+        {
+            // Sohle: untere Kachelkante der Grundfläche
+            var rect = TileScreenRect(b.X, b.Y, b.Width, b.Height);
+            list.Add(new DepthEntry
+            {
+                Depth = rect.Bottom,
+                Kind = 3, Building = b,
+            });
+        }
+
+        // — Figuren —
         foreach (var unit in units)
         {
-            // Fremde Einheiten nur dort, wo Spieler 0 gerade hinsieht
             if (unit.OwnerId != 0)
             {
                 var cell = tileMap.WorldToGrid(unit.Position);
                 if (!tileMap.IsTileVisible((int)cell.X, (int)cell.Y, 0))
                     continue;
             }
+            list.Add(new DepthEntry
+            {
+                Depth = WorldToScreen(unit.Position).Y,
+                Kind = 4, Unit = unit,
+            });
+        }
 
+        // Sortiere: aufsteigende Sohle (kleines y = weiter oben = zuerst).
+        // Bei gleicher Sohle entscheidet die Art: Bäume < Haufen < Tiere <
+        // Gebäude < Figuren, damit Figuren über Gebäuden und Gebäude über
+        // Tieren liegen — und bei gleicher Art bleibt die Kartenreihenfolge
+        // (Liste wurde in x-, dann y-Reihenfolge gefüllt).
+        list.Sort((first, second) =>
+        {
+            int byDepth = first.Depth.CompareTo(second.Depth);
+            if (byDepth != 0) return byDepth;
+            return first.Kind.CompareTo(second.Kind);
+        });
+
+        // — Zeichnen in Reihenfolge —
+        var margin = new Rectangle(screenBounds.X - 32, screenBounds.Y - 32,
+                                   screenBounds.Width + 64, screenBounds.Height + 64);
+        foreach (var obj in list)
+        {
+            switch (obj.Kind)
+            {
+                case 0: // Baum
+                {
+                    // DrawCrowns cullt selbst (pixelbasiert, mit Erreichung)
+                    DrawCrowns(spriteBatch, obj.X, obj.Y);
+                    break;
+                }
+                case 2: // Tier
+                {
+                    DrawAnimal(spriteBatch, obj.Tile, obj.X, obj.Y, AnimalSprites(obj.Tile.Food));
+                    break;
+                }
+                case 3: // Gebäude
+                {
+                    DrawBuilding(spriteBatch, obj.Building);
+                    break;
+                }
+                case 4: // Figur
+                {
+                    var unit = obj.Unit;
+                    var screenPos = WorldToScreen(unit.Position);
+                    var size = (int)(24 * cameraZoom);
+                    if (!margin.Contains((int)screenPos.X, (int)screenPos.Y))
+                        continue;
+
+                    var tex = unitTex.GetValueOrDefault(unit.Type);
+                    var tint = unit.OwnerId == 0 ? Color.White : new Color(255, 180, 180);
+                    if (unit.Type == UnitType.Villager
+                        && _villagerSprites.TryGetValue((AgeOf(unit.OwnerId), unit.OwnerId), out var figure))
+                    {
+                        DrawVillager(spriteBatch, unit, figure, screenPos, size);
+                    }
+                    else if (_unitSprites.TryGetValue((unit.Type, unit.OwnerId), out var soldierFigure))
+                    {
+                        // Soldaten (P1): wie Dorfbewohner gezeichnet, mit ihrem Bild
+                        // und ihrer Größe aus SoldierSprites (der Späher zu Pferd)
+                        var scale = SoldierSprites.First(s => s.Unit == unit.Type).Scale;
+                        DrawVillager(spriteBatch, unit, soldierFigure, screenPos, (int)(size * scale));
+                    }
+                    else if (tex != null)
+                    {
+                        spriteBatch.Draw(tex, screenPos - new Vector2(size / 2, size), null, tint, 0f, Vector2.Zero, cameraZoom, SpriteEffects.None, 0f);
+                    }
+                    else
+                    {
+                        spriteBatch.Draw(px, screenPos - new Vector2(6, 6), null, tint, 0f, Vector2.Zero, 12 * cameraZoom, SpriteEffects.None, 0f);
+                    }
+                    break;
+                }
+            }
+        }
+
+        // — UI über den Figuren: Auswahlrahmen und Lebensbalken —
+        foreach (var obj in list)
+        {
+            if (obj.Kind != 4) continue;
+            var unit = obj.Unit;
             var screenPos = WorldToScreen(unit.Position);
             var size = (int)(24 * cameraZoom);
+            if (!margin.Contains((int)screenPos.X, (int)screenPos.Y)) continue;
 
-            // Culling
-            if (!margin.Contains((int)screenPos.X, (int)screenPos.Y))
-                continue;
-
-            var tex = unitTex.GetValueOrDefault(unit.Type);
-            var tint = unit.OwnerId == 0 ? Color.White : new Color(255, 180, 180);
-
-            // Einheit zeichnen - Dorfbewohner als bewegtes Sprite, sofern geladen
-            if (unit.Type == UnitType.Villager
-                && _villagerSprites.TryGetValue((AgeOf(unit.OwnerId), unit.OwnerId), out var figure))
-            {
-                DrawVillager(spriteBatch, unit, figure, screenPos, size);
-            }
-            else if (_unitSprites.TryGetValue((unit.Type, unit.OwnerId), out var soldierFigure))
-            {
-                // Soldaten (P1): wie Dorfbewohner gezeichnet, mit ihrem Bild und
-                // ihrer Größe aus SoldierSprites (der Späher sitzt zu Pferd)
-                var scale = SoldierSprites.First(s => s.Unit == unit.Type).Scale;
-                DrawVillager(spriteBatch, unit, soldierFigure, screenPos, (int)(size * scale));
-            }
-            else if (tex != null)
-            {
-                spriteBatch.Draw(tex, screenPos - new Vector2(size / 2, size), null, tint, 0f, Vector2.Zero, cameraZoom, SpriteEffects.None, 0f);
-            }
-            else
-            {
-                // Fallback: 12x12 Quadrat aus px
-                spriteBatch.Draw(px, screenPos - new Vector2(6, 6), null, tint, 0f, Vector2.Zero, 12 * cameraZoom, SpriteEffects.None, 0f);
-            }
-
-            // Auswahlrahmen um die ganze Figur: sie steht mit den Füßen auf
-            // screenPos und reicht size Pixel nach oben
             if (unit.IsSelected)
             {
                 var ringRect = new Rectangle((int)(screenPos.X - size / 2), (int)(screenPos.Y - size), size, size);
                 int line = Math.Max(1, (int)cameraZoom);
                 var ringColor = new Color(80, 255, 80);
-                spriteBatch.Draw(px, new Rectangle(ringRect.X, ringRect.Y, size, line), null, ringColor); // oben
-                spriteBatch.Draw(px, new Rectangle(ringRect.X, ringRect.Bottom - line, size, line), null, ringColor); // unten
-                spriteBatch.Draw(px, new Rectangle(ringRect.X, ringRect.Y, line, size), null, ringColor); // links
-                spriteBatch.Draw(px, new Rectangle(ringRect.Right - line, ringRect.Y, line, size), null, ringColor); // rechts
+                spriteBatch.Draw(px, new Rectangle(ringRect.X, ringRect.Y, size, line), null, ringColor);
+                spriteBatch.Draw(px, new Rectangle(ringRect.X, ringRect.Bottom - line, size, line), null, ringColor);
+                spriteBatch.Draw(px, new Rectangle(ringRect.X, ringRect.Y, line, size), null, ringColor);
+                spriteBatch.Draw(px, new Rectangle(ringRect.Right - line, ringRect.Y, line, size), null, ringColor);
             }
 
-            // Lebensbalken über dem Kopf, mit dem Zoom skaliert
             if (unit.Health < unit.MaxHealth || unit.IsSelected)
             {
                 int barHeight = Math.Max(3, (int)(3 * cameraZoom));

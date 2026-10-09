@@ -22,6 +22,21 @@ mit `4f85314` (2026-10-03). Commits macht der Nutzer selbst.
 
 Zuletzt fertiggestellt:
 
+- **Bäume verdecken Gebäude, Gebäude Bäume (2026-10-09)** — die Zeilenordnung
+  beim Zeichnen war bisher: alle Bäume, dann alle Haufen, dann alle Gebäude,
+  zuletzt alle Figuren; ein Baum weiter unten im Bild konnte deshalb ein
+  Gebäude weiter oben überdecken, und umgekehrt nicht. Jetzt stehen Bäume,
+  lebende Tiere, Gebäude und Figuren in einer gemeinsamen Tiefenschicht
+  (`DrawUnits`): jedes Objekt trägt die Bildschirm-y seiner Sohle (Bäume
+  Stammfuß, Tiere Hufe, Gebäude untere Grundflächenkante, Figuren die Füße),
+  die Liste wird sortiert und in dieser Reihenfolge gezeichnet — wer weiter
+  unten steht, verdeckt, was weiter oben steht, in beide Richtungen. Stein-
+  und Goldhaufen, Felder und das Fleisch erlegter Tiere sind flach am Boden
+  und man läuft darüber, deshalb bleiben sie im Bodendurchlauf (`DrawTileMap`)
+  und nehmen nicht an der Tiefenordnung teil; sie verdecken nichts, was
+  dahinter steht. Nebel, Auswahlrahmen, Lebensbalken und Leiste liegen wie
+  zuvor darüber bzw. darunter. Abnahme `c7r_boden.py`, `g3_kronen.py`,
+  `c7t_tiere.py`, `c7s_fleisch.py` *(Tiefenschicht)*
 - **Schwertschlag und Speerstoß (2026-10-09)** — greift die Miliz ein Gebäude an, zeigt sie acht
   Schlagphasen statt des Kippelns der ganzen Figur: bereit, ausholen, die Klinge hinter dem Kopf,
   über den Kopf, Hieb, Treffer, durchziehen, zurücknehmen; der Späher senkt seinen Speer und
