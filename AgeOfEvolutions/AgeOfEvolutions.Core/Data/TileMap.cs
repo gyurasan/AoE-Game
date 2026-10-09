@@ -575,6 +575,22 @@ public class TileMap
     }
     
     /// <summary>
+    /// Setzt eine Einheit des Typs <paramref name="type"/> auf die Mitte der Kachel (x, y),
+    /// nimmt sie in <see cref="Units"/> auf und gibt sie zurück - wie AddVillager, für jeden
+    /// Typ (P1: ausgebildete Soldaten).
+    /// </summary>
+    public Unit AddUnit(UnitType type, int x, int y, int ownerId)
+    {
+        // Wie AddVillager, nur mit dem übergebenen Typ (P1: ausgebildete Soldaten)
+        var unit = new Unit(type, ownerId)
+        {
+            Position = new Vector2(x * TileSize + TileSize / 2, y * TileSize + TileSize / 2)
+        };
+        Units.Add(unit);
+        return unit;
+    }
+
+    /// <summary>
     /// Setzt einen Dorfbewohner auf die Mitte der Kachel (x, y), nimmt ihn in
     /// <see cref="Units"/> auf und gibt ihn zurück.
     /// </summary>

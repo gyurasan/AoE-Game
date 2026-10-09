@@ -62,11 +62,14 @@ for feld in ("_villagerSprites", "_villagerWalk"):
         fehler.append(f"{feld} ist nicht nach Zeitalter und Spieler geschlüsselt")
 if not re.search(r'"Einheiten/"\s*\+\s*AgeFolders\[', text):
     fehler.append("der Spielbildschirm lädt die Dorfbewohner nicht aus den Ordnern der Zeitalter")
+# Schlüssel (AgeOf(unit.OwnerId), ...) - ob per TryGetValue, GetValueOrDefault oder Indexer,
+# ist gleich (P1 holte die Laufbilder per GetValueOrDefault, das Verhalten blieb dasselbe)
+SCHLUESSEL = r"\s*(\.(TryGetValue|GetValueOrDefault)\(|\[)\s*\(\s*AgeOf\(\s*unit\.OwnerId\s*\)"
 einheiten = methode(text, "DrawUnits") or ""
-if not re.search(r"_villagerSprites\.TryGetValue\(\s*\(\s*AgeOf\(\s*unit\.OwnerId\s*\)", einheiten):
+if not re.search(r"_villagerSprites" + SCHLUESSEL, einheiten):
     fehler.append("DrawUnits wählt das Dorfbewohner-Bild nicht nach dem Zeitalter des Besitzers")
 dorf = methode(text, "DrawVillager") or ""
-if not re.search(r"_villagerWalk\.TryGetValue\(\s*\(\s*AgeOf\(\s*unit\.OwnerId\s*\)", dorf):
+if not re.search(r"_villagerWalk" + SCHLUESSEL, dorf):
     fehler.append("DrawVillager wählt die Laufbilder nicht nach dem Zeitalter des Besitzers")
 
 melde(fehler, "C4h erfuellt: Dorfbewohner je Zeitalter geladen und nach dem Zeitalter des Besitzers gekleidet")

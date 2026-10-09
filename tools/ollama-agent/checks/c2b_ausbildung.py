@@ -49,7 +49,9 @@ verlangt(update, r"UpdateTraining\s*\(", "Update bildet nicht aus (UpdateTrainin
 verlangt(rumpf("LoadContent"), r"UpdatePopulationLimits\s*\(", "LoadContent rechnet die Startgrenze nicht")
 
 eingabe = rumpf("HandleRtsInput")
-verlangt(eingabe, r"IsKeyUp\s*\(\s*Keys\.Q\s*\)", "Taste Q fehlt oder loest bei gehaltener Taste jeden Frame aus")
+# Seit P1 kann Q auch als Taste eines Eintrags aus Products kommen (IsKeyUp(entry.Key));
+# dass Q dann wirklich ausbildet, prüft die Gruppe soldaten in tools/spielablauf
+verlangt(eingabe, r"IsKeyUp\s*\(\s*(Keys\.Q|\w+\.Key)\s*\)", "Taste Q fehlt oder loest bei gehaltener Taste jeden Frame aus")
 verlangt(eingabe, r"TrainVillager\s*\(", "Taste Q ruft TrainVillager nicht auf")
 
 # Seit P1 reiht TrainVillager über die allgemeine Ausbildung Train(Gebäude, Einheit) ein

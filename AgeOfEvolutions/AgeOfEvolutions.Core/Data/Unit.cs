@@ -18,6 +18,8 @@ public enum UnitType
     Villager,
     
     // Military units
+    Militia,      // Miliz (Kaserne, P1)
+    Scout,        // Späher (Stall, P1)
     SpearMan,
     Skirmisher,
     Cavalry,

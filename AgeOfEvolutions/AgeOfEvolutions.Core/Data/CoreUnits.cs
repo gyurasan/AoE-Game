@@ -30,6 +30,7 @@ public static class CoreUnits
             UnitType.Monk => new Monk(ownerId, at),
 
             // Infanterie
+            UnitType.Militia => new Militia(ownerId, at),
             UnitType.SpearMan => new SpearMan(ownerId, at),
             UnitType.HeavyInfantry => new Militia(ownerId, at),
             UnitType.ManAtArms => new Militia(ownerId, at),
@@ -41,6 +42,7 @@ public static class CoreUnits
             UnitType.Skirmisher => new Skirmisher(ownerId, at),
 
             // Berittene
+            UnitType.Scout => new Scout(ownerId, at),
             UnitType.Cavalry => new Knight(ownerId, at),
             UnitType.Paladin => new Knight(ownerId, at),
             UnitType.CamelRider => new CamelRider(ownerId, at),
@@ -62,6 +64,8 @@ public static class CoreUnits
     public static string GermanName(UnitType type) => type switch
     {
         UnitType.Villager => "Dorfbewohner",
+        UnitType.Militia => "Miliz",
+        UnitType.Scout => "Späher",
         UnitType.Builder => "Bauarbeiter",
         UnitType.SpearMan => "Speerkämpfer",
         UnitType.Skirmisher => "Plänkler",
@@ -90,10 +94,10 @@ public static class CoreUnits
     {
         UnitType.Villager or UnitType.Builder => UnitCategory.Worker,
         UnitType.Monk => UnitCategory.Civilian,
-        UnitType.SpearMan or UnitType.HeavyInfantry or UnitType.ManAtArms => UnitCategory.Infantry,
+        UnitType.Militia or UnitType.SpearMan or UnitType.HeavyInfantry or UnitType.ManAtArms => UnitCategory.Infantry,
         UnitType.Archer or UnitType.Longbowman or UnitType.Skirmisher
             or UnitType.CavalryArcher => UnitCategory.Archer,
-        UnitType.Cavalry or UnitType.Paladin or UnitType.CamelRider
+        UnitType.Scout or UnitType.Cavalry or UnitType.Paladin or UnitType.CamelRider
             or UnitType.ImperialCamel => UnitCategory.Cavalry,
         UnitType.Ram or UnitType.Catapult or UnitType.Trebuchet => UnitCategory.Siege,
         _ => UnitCategory.Worker,

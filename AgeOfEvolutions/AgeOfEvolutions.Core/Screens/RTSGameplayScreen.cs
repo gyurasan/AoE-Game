@@ -211,6 +211,39 @@ public class RTSGameplayScreen : GameScreen
     private static readonly Dictionary<Resource, int> VillagerCost = new() { [Resource.Food] = 25 };
     private const float VILLAGER_TRAIN_SECONDS = 25f;
 
+    // Was ein ausgewähltes eigenes Gebäude ausbildet (P1): Taste, Einheit, Kosten,
+    // Sekunden und ab welchem Zeitalter. Kosten und Zeiten nach AoE II
+    private static readonly (BuildingType Building, Keys Key, UnitType Unit, Dictionary<Resource, int> Cost, float Seconds, Age From)[] Products =
+    {
+        (BuildingType.TownCenter, Keys.Q, UnitType.Villager, VillagerCost, VILLAGER_TRAIN_SECONDS, Age.Dark),
+        (BuildingType.Barracks, Keys.Q, UnitType.Militia,
+         new Dictionary<Resource, int> { [Resource.Food] = 60, [Resource.Gold] = 20 }, 21f, Age.Dark),
+        (BuildingType.ArcheryRange, Keys.Q, UnitType.Archer,
+         new Dictionary<Resource, int> { [Resource.Wood] = 25, [Resource.Gold] = 45 }, 35f, Age.Feudal),
+        (BuildingType.Stable, Keys.Q, UnitType.Scout,
+         new Dictionary<Resource, int> { [Resource.Food] = 80 }, 30f, Age.Feudal),
+    };
+
+    // Symbole der Befehlstasten nach ihrem Namen: dieselbe Taste Q heißt je Gebäude
+    // etwas anderes (Dorfbewohner, Miliz, Bogenschütze, Späher)
+    private static readonly (string Name, string Asset)[] NameIcons =
+    {
+        ("Dorfbewohner", "Icons/dorfbewohner"), ("Miliz", "Icons/miliz"),
+        ("Bogenschütze", "Icons/bogenschuetze"), ("Späher", "Icons/spaeher"),
+    };
+    private readonly Dictionary<string, Texture2D> _nameIcons = new();
+
+    // Bilder der Soldaten (Content/Einheiten): Stand und zwei Laufbilder je Spielerfarbe,
+    // und wie groß sie neben einem Dorfbewohner stehen - der Späher sitzt zu Pferd
+    private static readonly (UnitType Unit, string Asset, float Scale)[] SoldierSprites =
+    {
+        (UnitType.Militia, "Einheiten/miliz", 1f),
+        (UnitType.Archer, "Einheiten/bogenschuetze", 1f),
+        (UnitType.Scout, "Einheiten/spaeher", 1.35f),
+    };
+    private readonly Dictionary<(UnitType Unit, int Owner), Texture2D> _unitSprites = new();
+    private readonly Dictionary<(UnitType Unit, int Owner), Texture2D[]> _unitWalk = new();
+
     // Kurzer Hinweis oben in der Mitte, etwa „Nicht genug Nahrung"
     private string hudMessage;
     private float hudMessageTimer;
@@ -591,6 +624,15 @@ public class RTSGameplayScreen : GameScreen
         tileTexture = CreateTexture(graphicsDevice, 32, 32, Color.Green);
         BuildAoETextures();
 
+        // Symbole der Befehlstasten nach dem Namen der Einheit: dieselbe Taste
+        // Q heißt je Gebäude etwas anderes (Dorfbewohner, Miliz, Bogenschütze,
+        // Späher); fehlt eines, bleibt die Taste ohne Symbol
+        foreach (var (name, asset) in NameIcons)
+        {
+            if (LoadOptional(asset) is { } nameIcon)
+                _nameIcons[name] = nameIcon;
+        }
+
         // Symbole der Befehlstasten; fehlt eines, zeigt die Taste wie bisher
         // ihren Namen
         foreach (var (label, asset) in ButtonIcons)
@@ -710,6 +752,23 @@ public class RTSGameplayScreen : GameScreen
             }
         }
         _millSails = LoadOptional("Gebaeude/muehle_fluegel");
+
+        // Soldaten (P1): Standbild je Einheit und Spielerfarbe (wie bei den
+        // Gebäuden _blau für Spieler 0, _rot für Spieler 1); Laufbilder nur,
+        // wenn beide da sind - sonst gleitet die Figur wie ein Dorfbewohner
+        foreach (var (owner, colour) in new[] { (0, "_blau"), (1, "_rot") })
+        {
+            foreach (var (unit, asset, _) in SoldierSprites)
+            {
+                if (LoadOptional(asset + colour) is { } stand)
+                {
+                    _unitSprites[(unit, owner)] = stand;
+                    if (LoadOptional(asset + "_lauf1" + colour) is { } lauf1
+                        && LoadOptional(asset + "_lauf2" + colour) is { } lauf2)
+                        _unitWalk[(unit, owner)] = new[] { lauf1, stand, lauf2, stand };
+                }
+            }
+        }
 
         // Start the camera on player 1's town center instead of the map corner.
         // Startzoom wie die Zoomgrenzen an der Fensterhöhe ausgerichtet; die
@@ -1523,8 +1582,17 @@ public class RTSGameplayScreen : GameScreen
         if (keyboard.IsKeyDown(Keys.OemPeriod) && previousKeyboard.IsKeyUp(Keys.OemPeriod))
             SelectNextIdleVillager();
 
-        // Q: Dorfbewohner im Stadtzentrum ausbilden, einmal je Tastendruck
-        if (keyboard.IsKeyDown(Keys.Q) && previousKeyboard.IsKeyUp(Keys.Q))
+        // Q: Einheit im ausgewählten Gebäude ausbilden, einmal je Tastendruck.
+        // Die Taste gehört dem ausgewählten Gebäude (Products); ist keines
+        // ausgewählt, bildet Q wie bisher im Stadtzentrum den Dorfbewohner aus.
+        foreach (var entry in Products)
+        {
+            if (!keyboard.IsKeyDown(entry.Key) || !previousKeyboard.IsKeyUp(entry.Key))
+                continue;
+            if (selectedBuilding != null && selectedBuilding.Core.BuildingType == entry.Building)
+                Train(selectedBuilding, entry.Unit);
+        }
+        if (keyboard.IsKeyDown(Keys.Q) && previousKeyboard.IsKeyUp(Keys.Q) && selectedBuilding == null)
             TrainVillager();
 
         // A: Aufstieg ins nächste Zeitalter, ebenfalls im Stadtzentrum
@@ -1536,11 +1604,16 @@ public class RTSGameplayScreen : GameScreen
         // je mit dem Buchstaben ihrer Taste (BuildMenu).
         // Dieselbe Taste noch einmal schaltet den Setzmodus aus; identisch
         // erledigen die quadratischen Befehlstasten in der unteren Leiste.
-        foreach (var entry in BuildMenu)
+        // Solange ein Gebäude ausgewählt ist, gehören die Buchstaben seinen
+        // Ausbildungstasten (Products) - die Bautasten schalten keinen Setzmodus ein
+        if (selectedBuilding == null)
         {
-            if (!keyboard.IsKeyDown(entry.Key) || !previousKeyboard.IsKeyUp(entry.Key))
-                continue;
-            TogglePlacing(entry.Type);
+            foreach (var entry in BuildMenu)
+            {
+                if (!keyboard.IsKeyDown(entry.Key) || !previousKeyboard.IsKeyUp(entry.Key))
+                    continue;
+                TogglePlacing(entry.Type);
+            }
         }
 
         // Maus: rechts markieren (Klick oder Rahmen), links gedrückt halten und
@@ -1843,8 +1916,8 @@ public class RTSGameplayScreen : GameScreen
             }
             else
             {
-                // Dorfbewohner heißt so, andere Einheiten tragen ihren Enum-Namen
-                string unitName = b.Training.Units[0] == UnitType.Villager ? "Dorfbewohner" : b.Training.Units[0].ToString();
+                // Der Name kommt aus CoreUnits (P1: auch Miliz, Bogenschütze, Späher)
+                string unitName = CoreUnits.GermanName(b.Training.Units[0]);
                 text += $"   bildet aus: {unitName} {(int)(b.Training.Progress * 100)} %";
                 if (b.Training.Count > 1)
                     text += $"   +{b.Training.Count - 1} in der Warteschlange";
@@ -2533,10 +2606,43 @@ public class RTSGameplayScreen : GameScreen
             return;
         }
 
-        if (townCenter.Training.Count >= AoE.Core.Economy.TrainingQueue<UnitType>.MAX_LENGTH)
+        // Die Prüfungen (Warteschlange, Rohstoffe) stecken jetzt in Train
+        Train(townCenter, UnitType.Villager);
+    }
+
+    /// <summary>
+    /// Bildet im Gebäude <paramref name="b"/> eine Einheit für Spieler 0 aus (P1).
+    /// VERTRAG:
+    /// - Nur in einem fertigen eigenen Gebäude (OwnerId 0, IsComplete), das laut Products
+    ///   diese Einheit ausbildet (Building gleich b.Core.BuildingType, Unit gleich unit),
+    ///   und erst ab deren Zeitalter (From kleiner oder gleich player1.Ages.Current); sonst
+    ///   false, ohne Meldung.
+    /// - Ist die Warteschlange voll (b.Training.Count >= TrainingQueue&lt;UnitType&gt;.MAX_LENGTH):
+    ///   ShowHudMessage("Warteschlange voll"), false.
+    /// - Sonst b.Training.Enqueue(unit, Cost, Seconds, player1.Resources); scheitert das an den
+    ///   Rohstoffen: ShowHudMessage($"Nicht genug Rohstoffe ({CostText(Cost)})"), false.
+    ///   Gelingt es: true.
+    /// </summary>
+    internal bool Train(Data.Building b, UnitType unit)
+    {
+        // Nur in einem fertigen eigenen Gebäude, das laut Products diese Einheit
+        // ausbildet, und erst ab deren Zeitalter - sonst ohne Meldung
+        var entry = Products.FirstOrDefault(p => p.Building == b.Core.BuildingType && p.Unit == unit);
+        if (b.OwnerId != 0 || !b.IsComplete || entry == default || entry.From > player1.Ages.Current)
+            return false;
+
+        if (b.Training.Count >= AoE.Core.Economy.TrainingQueue<UnitType>.MAX_LENGTH)
+        {
             ShowHudMessage("Warteschlange voll");
-        else if (!townCenter.Training.Enqueue(UnitType.Villager, VillagerCost, VILLAGER_TRAIN_SECONDS, player1.Resources))
-            ShowHudMessage($"Nicht genug Nahrung ({VillagerCost[Resource.Food]})");
+            return false;
+        }
+
+        if (!b.Training.Enqueue(unit, entry.Cost, entry.Seconds, player1.Resources))
+        {
+            ShowHudMessage($"Nicht genug Rohstoffe ({CostText(entry.Cost)})");
+            return false;
+        }
+        return true;
     }
 
     /// <summary>
@@ -2621,15 +2727,17 @@ public class RTSGameplayScreen : GameScreen
             // Während des Aufstiegs forscht das Stadtzentrum und bildet nicht aus
             if (player.Ages.IsResearching && building.Core.BuildingType == BuildingType.TownCenter)
                 continue;
-            if (!building.Training.Update(dt, player.PopulationCount, player.PopulationLimit, out _))
+            // Die fertige Einheit aufheben: sie erscheint am Gebäude (P1)
+            if (!building.Training.Update(dt, player.PopulationCount, player.PopulationLimit, out var finished))
                 continue;
 
             // Bisher bildet nur das Stadtzentrum aus, und zwar Dorfbewohner
             var cell = SpawnCell(building);
             if (cell == null)
                 continue;   // rundum zugestellt - kommt praktisch nicht vor
-            var villager = tileMap.AddVillager((int)cell.Value.X, (int)cell.Value.Y, building.OwnerId);
-            player.AddUnit(villager);
+            // Statt eines Dorfbewohners erscheint die ausgebildete Einheit (P1)
+            var unit = tileMap.AddUnit(finished, (int)cell.Value.X, (int)cell.Value.Y, building.OwnerId);
+            player.AddUnit(unit);
         }
     }
 
@@ -4392,6 +4500,13 @@ public class RTSGameplayScreen : GameScreen
             {
                 DrawVillager(spriteBatch, unit, figure, screenPos, size);
             }
+            else if (_unitSprites.TryGetValue((unit.Type, unit.OwnerId), out var soldierFigure))
+            {
+                // Soldaten (P1): wie Dorfbewohner gezeichnet, mit ihrem Bild und
+                // ihrer Größe aus SoldierSprites (der Späher sitzt zu Pferd)
+                var scale = SoldierSprites.First(s => s.Unit == unit.Type).Scale;
+                DrawVillager(spriteBatch, unit, soldierFigure, screenPos, (int)(size * scale));
+            }
             else if (tex != null)
             {
                 spriteBatch.Draw(tex, screenPos - new Vector2(size / 2, size), null, tint, 0f, Vector2.Zero, cameraZoom, SpriteEffects.None, 0f);
@@ -4496,7 +4611,8 @@ public class RTSGameplayScreen : GameScreen
         // Jede Einheit im eigenen Takt, sonst wippt das ganze Dorf im Gleichschritt
         float t = animationTime + (unit.GetHashCode() & 0xFF) / 40f;
         var tool = ToolFor(unit);
-        bool hasTool = _toolSprites.ContainsKey(tool);
+        // Ein Werkzeug haben nur Dorfbewohner - Soldaten tragen ihre Waffe im Bild
+        bool hasTool = unit.Core is CoreVillager && _toolSprites.ContainsKey(tool);
 
         float bob = 0f, tilt = 0f, stretch = 1f;
         if (moving)
@@ -4517,7 +4633,12 @@ public class RTSGameplayScreen : GameScreen
         }
 
         // Beim Gehen setzt er die Beine, im Takt des Wippens: gespreizt unten, im Stand oben
-        if (moving && _villagerWalk.TryGetValue((AgeOf(unit.OwnerId), unit.OwnerId), out var walk))
+        // Laufbilder: die eines Dorfbewohners kommen wie bisher aus _villagerWalk,
+        // die anderer Einheiten aus _unitWalk (P1)
+        var walk = unit.Core is CoreVillager
+            ? _villagerWalk.GetValueOrDefault((AgeOf(unit.OwnerId), unit.OwnerId))
+            : _unitWalk.GetValueOrDefault((unit.Type, unit.OwnerId));
+        if (moving && walk != null)
             figure = walk[VillagerWalkPhase(motion.Walked)];
 
         // Schatten unter den Füßen - er bleibt am Boden, während die Figur wippt
@@ -4898,13 +5019,25 @@ public class RTSGameplayScreen : GameScreen
         int x = 10, y = screenBounds.Height - HUD_BOTTOM_HEIGHT + 14;
         // Q (Dorfbewohner) und A (Zeitalter) gibt es nur mit ausgewähltem
         // eigenem Stadtzentrum
-        if (SelectedOwnTownCenter() != null)
+        // Ausbildungstasten: ist ein fertiges eigenes Gebäude ausgewählt,
+        // bekommt es seine Einheiten aus Products (ab deren Zeitalter); die
+        // Taste Q heißt je Gebäude etwas anderes
+        if (selectedBuilding is { OwnerId: 0, IsComplete: true } building)
         {
-            AddButton(ref x, size, gap, y, "Q", "Dorfbewohner", "25 Nahrung, 25 s", TrainVillager);
-            if (AgeRules.Next(age) is { } next)
-                AddButton(ref x, size, gap, y, "A", "Zeitalter",
-                          $"{AgeRules.NameOf(next)}, {CostText(AgeRules.CostOf(next))}", AdvanceAge);
+            foreach (var entry in Products.Where(p => p.Building == building.Core.BuildingType && p.From <= age))
+            {
+                var b = building;
+                AddButton(ref x, size, gap, y, entry.Key.ToString(),
+                          CoreUnits.GermanName(entry.Unit),
+                          $"{CostText(entry.Cost)}, {(int)entry.Seconds} s",
+                          () => Train(b, entry.Unit));
+            }
         }
+        // A (Zeitalter) gibt es nur mit ausgewähltem eigenem Stadtzentrum und
+        // solange ein nächstes Zeitalter folgt
+        if (SelectedOwnTownCenter() != null && AgeRules.Next(age) is { } next)
+            AddButton(ref x, size, gap, y, "A", "Zeitalter",
+                      $"{AgeRules.NameOf(next)}, {CostText(AgeRules.CostOf(next))}", AdvanceAge);
         if (builders)
         {
             // Erste Tastenreihe: nur die Einträge mit Row 0
@@ -4939,7 +5072,11 @@ public class RTSGameplayScreen : GameScreen
         // Mit Symbol quadratisch - Name und Kosten nennt die Leiste beim Zeigen.
         // Ohne Symbol (Datei fehlt, tools/spielablauf) so breit wie der Name:
         // „Bergbaulager" ist breiter als eine quadratische Taste
-        _buttonIcons.TryGetValue(label, out var icon);
+        // Das Symbol zuerst nach dem Namen holen: dieselbe Taste Q heißt je
+        // Gebäude etwas anderes (Dorfbewohner, Miliz, Bogenschütze, Späher);
+        // nur wenn es dort keins gibt, nach der Taste
+        if (!_nameIcons.TryGetValue(name, out var icon))
+            _buttonIcons.TryGetValue(label, out icon);
         int width = icon != null
             ? size
             : Math.Max(size, (int)(ScreenManager?.Font?.MeasureString(name).X ?? 0f) + 8);

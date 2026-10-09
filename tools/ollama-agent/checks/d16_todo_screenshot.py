@@ -16,9 +16,10 @@ wieder = "\n".join(abschnitt(lines, r"## Wiederaufnahme"))
 
 if "225150" not in wieder:
     fehler.append("Wiederaufnahme: der Screenshot 225150 fehlt")
-schritt = re.search(r"^1\.\s+\*\*Sichtprüfung im Spiel\*\*[\s\S]*?(?=^\d\.\s|\Z)", wieder, re.MULTILINE)
+# Welcher Schritt, ist gleich: der Nutzer hat am 2026-10-07 drei Punkte davorgesetzt
+schritt = re.search(r"^\d+\.\s+\*\*Sichtprüfung im Spiel\*\*[\s\S]*?(?=^\d+\.\s|\Z)", wieder, re.MULTILINE)
 if not schritt:
-    fehler.append("Wiederaufnahme: Schritt 1 'Sichtprüfung im Spiel' fehlt")
+    fehler.append("Wiederaufnahme: Schritt 'Sichtprüfung im Spiel' fehlt")
 else:
     text = schritt.group(0)
     for offen in ("Bauen", "Q", "Fischen", "Kantenscrollen"):

@@ -3,7 +3,8 @@
 //   dotnet run --project tools/spielablauf -- bauen weiterbauen linksklick farm schafe wild herde bewegen minimap zoom leiste zeitalter turm menue animation fenster werkzeug feld fahne gehen karten pfad wind gang blick dunkel
 //
 // Dazu neubauten (Gebäude der zweiten Tastenreihe), tuer (Abliefern vor der Tür) und
-// auswahl (Gebäude auswählen) und angriff (Gebäude angreifen).
+// auswahl (Gebäude auswählen), angriff (Gebäude angreifen) und soldaten
+// (Ausbildung in Kaserne, Schießstand und Stall).
 //
 // Jede genannte Gruppe läuft auf drei frisch erzeugten Karten. Die Spielschleife
 // läuft Bild für Bild (60 je Sekunde) mit denselben Methoden, die Update() im Spiel
@@ -100,6 +101,8 @@ for (int karte = 1; karte <= KARTEN; karte++)
         Pruefe($"Karte {karte}, Gebäudeauswahl", () => Auswahl(karte, verstoesse));
     if (gruppen.Contains("angriff"))
         Pruefe($"Karte {karte}, Angriff", () => Angriff(karte, verstoesse));
+    if (gruppen.Contains("soldaten"))
+        Pruefe($"Karte {karte}, Soldaten", () => Soldaten(karte, verstoesse));
     if (gruppen.Contains("fenster") && karte == 1)
         Pruefe("Fenster", () => Fenster(verstoesse));
     if (gruppen.Contains("werkzeug") && karte == 1)
@@ -2593,6 +2596,162 @@ static void Angriff(int karte, List<string> verstoesse)
 
     if (verstoesse.Count == vorher)
         Console.WriteLine($"  ok  {wer}: Stärke {voll} -> {nach20} nach 20 s, Haus nach {dauer:0} s zerstört, Kacheln frei; eigenes Haus unberührt, neuer Befehl bricht ab");
+}
+
+// Soldaten (P1): Kaserne, Schießstand und Stall bilden aus, wenn sie ausgewählt sind -
+// Miliz, Bogenschütze und Späher zu Kosten und Zeiten von AoE II. Die Einheit steht
+// danach am Gebäude und gehört dem Spieler. Soldaten sammeln nicht, greifen aber
+// Gebäude an. Baukürzel wirken nicht, solange ein Gebäude ausgewählt ist.
+static void Soldaten(int karte, List<string> verstoesse)
+{
+    const int bw = 2406, bh = 1353;
+    string wer = $"Karte {karte}, Soldaten";
+    int vorher = verstoesse.Count;
+    var w = new Welt();
+    w.Set("screenBounds", new Rectangle(0, 0, bw, bh));
+    w.Set("cameraZoom", 1f);
+    w.Set("cameraPosition", Vector2.Zero);
+    int T = w.Map.TileSize;
+    var ages = (AgeProgress)(typeof(Player).GetProperty("Ages")?.GetValue(w.P1)
+        ?? throw new InvalidOperationException("Player.Ages nicht gefunden"));
+    foreach (var r in new[] { Resource.Food, Resource.Wood, Resource.Gold, Resource.Stone })
+        w.P1.Resources.Add(r, 5000);
+    ages.TryStart(w.P1.Resources);
+    ages.Update(1000f);   // Feudalzeit: Schießstand und Stall
+    var dorf = w.Dorfbewohner().ToList();
+    var gt = new GameTime(TimeSpan.Zero, TimeSpan.FromSeconds(1.0 / 60));
+    void Taste(Keys k)
+    {
+        var maus = new MouseState(bw / 2, bh / 2, 0, ButtonState.Released, ButtonState.Released,
+                                  ButtonState.Released, ButtonState.Released, ButtonState.Released);
+        w.Call("HandleRtsInput", gt, new KeyboardState(k), maus);
+        w.Call("HandleRtsInput", gt, new KeyboardState(), maus);
+    }
+    List<(string Label, string Name)> Tasten()
+    {
+        w.Call("LayoutButtons");
+        return ((System.Collections.IEnumerable)w.Get("_buttons")).Cast<object>()
+            .Select(b => ((string)b.GetType().GetField("Label").GetValue(b), (string)b.GetType().GetField("Name").GetValue(b)))
+            .ToList();
+    }
+    float Abstand(Vector2 p, Building g)
+    {
+        float dx = Math.Max(Math.Max(g.X * T - p.X, 0), p.X - (g.X + g.Width) * T);
+        float dy = Math.Max(Math.Max(g.Y * T - p.Y, 0), p.Y - (g.Y + g.Height) * T);
+        return MathF.Sqrt(dx * dx + dy * dy);
+    }
+    int Anzahl(UnitType typ) => w.Map.Units.Count(u => u.OwnerId == 0 && u.Type == typ);
+
+    TileMap.TestNoFog = true;
+    try
+    {
+        // Platz in der Bevölkerung: vier Häuser
+        for (int i = 0; i < 4; i++)
+        {
+            var h = w.Bauplatz(BuildingType.House, dorf[0], 9 + i * 2);
+            w.Map.AddBuilding((int)h.X, (int)h.Y, "Haus", 0, 2);
+        }
+        var faelle = new (BuildingType Typ, string Gebaeude, UnitType Einheit, string Name, Type Kern, Dictionary<Resource, int> Kosten, float Sekunden)[]
+        {
+            (BuildingType.Barracks, "Kaserne", UnitType.Militia, "Miliz", typeof(AoE.Core.Entities.Militia),
+             new Dictionary<Resource, int> { [Resource.Food] = 60, [Resource.Gold] = 20 }, 21f),
+            (BuildingType.ArcheryRange, "Schießstand", UnitType.Archer, "Bogenschütze", typeof(AoE.Core.Entities.Archer),
+             new Dictionary<Resource, int> { [Resource.Wood] = 25, [Resource.Gold] = 45 }, 35f),
+            (BuildingType.Stable, "Stall", UnitType.Scout, "Späher", typeof(AoE.Core.Entities.Scout),
+             new Dictionary<Resource, int> { [Resource.Food] = 80 }, 30f),
+        };
+        var notiz = new List<string>();
+        foreach (var f in faelle)
+        {
+            var platz = w.Bauplatz(f.Typ, dorf[0], 6);
+            var g = w.Map.AddBuilding((int)platz.X, (int)platz.Y, f.Gebaeude, 0, AoE.Core.Economy.BuildingRules.SizeOf(f.Typ));
+            w.Call("SelectBuilding", g);
+            var tasten = Tasten();
+            if (!tasten.Any(t => t.Label == "Q" && t.Name == f.Name))
+                verstoesse.Add($"{wer}: {f.Gebaeude} ausgewählt - Tasten [{string.Join(" ", tasten.Select(t => t.Label + ":" + t.Name))}], erwartet Q:{f.Name}");
+            var vor = f.Kosten.Keys.ToDictionary(r => r, r => w.P1.Resources[r]);
+            int anzahl = Anzahl(f.Einheit);
+            w.Set("hudMessage", null);
+            Taste(Keys.Q);
+            // Q gehört dem ausgewählten Gebäude - kein Hinweis aufs Stadtzentrum daneben
+            if (w.Get("hudMessage") is string meldung && meldung.Contains("Stadtzentrum"))
+                verstoesse.Add($"{wer}: Q in {f.Gebaeude} meldet zusätzlich '{meldung}'");
+            if (g.Training.Count != 1)
+                verstoesse.Add($"{wer}: Q in {f.Gebaeude} - {g.Training.Count} in der Ausbildung, erwartet 1");
+            foreach (var (r, menge) in f.Kosten)
+                if (w.P1.Resources[r] != vor[r] - menge)
+                    verstoesse.Add($"{wer}: {f.Name} - {r} {vor[r]} -> {w.P1.Resources[r]}, erwartet {menge} weniger");
+            w.LaufeBis(() => false, 1f);
+            string status = (string)w.Call("BuildingStatus", g);
+            if (!status.Contains($"bildet aus: {f.Name}"))
+                verstoesse.Add($"{wer}: Status von {f.Gebaeude} '{status}'");
+            float dauer = 1f + w.LaufeBis(() => Anzahl(f.Einheit) > anzahl, f.Sekunden + 5f);
+            var neu = w.Map.Units.LastOrDefault(u => u.OwnerId == 0 && u.Type == f.Einheit);
+            if (Anzahl(f.Einheit) <= anzahl || neu == null)
+            {
+                verstoesse.Add($"{wer}: {f.Name} nach {dauer:0} s nicht ausgebildet");
+                continue;
+            }
+            if (Math.Abs(dauer - f.Sekunden) > 1.5f)
+                verstoesse.Add($"{wer}: {f.Name} nach {dauer:0.0} s, erwartet {f.Sekunden} s");
+            if (Abstand(neu.Position, g) > 2.5f * T)
+                verstoesse.Add($"{wer}: {f.Name} steht {Abstand(neu.Position, g) / T:0.0} Kacheln vom {f.Gebaeude}");
+            if (neu.Core.GetType() != f.Kern)
+                verstoesse.Add($"{wer}: {f.Name} ist im Kern {neu.Core.GetType().Name}, erwartet {f.Kern.Name}");
+            notiz.Add($"{f.Name} {dauer:0} s");
+        }
+
+        // Baukürzel wirken nicht, solange ein Gebäude ausgewählt ist
+        Taste(Keys.H);
+        if (w.Get("placing") != null)
+            verstoesse.Add($"{wer}: mit ausgewähltem Gebäude schaltet H den Setzmodus ein");
+
+        // Ein Soldat sammelt nicht, greift aber ein fremdes Gebäude an. Die Tastendrücke
+        // oben haben die Kamera eingepasst - für Linksklick (Welt = Bild) zurück auf den Ursprung
+        w.Set("cameraZoom", 1f);
+        w.Set("cameraPosition", Vector2.Zero);
+        var miliz = w.Map.Units.FirstOrDefault(u => u.OwnerId == 0 && u.Type == UnitType.Militia);
+        if (miliz != null)
+        {
+            var start = w.Map.WorldToGrid(miliz.Position);
+            Vector2? baum = null;
+            for (int x = 0; x < w.Map.Width && baum == null; x++)
+                for (int y = 0; y < w.Map.Height && baum == null; y++)
+                    if (w.Map.GetTile(x, y)?.ResourceType == Resource.Wood && Vector2.Distance(start, new Vector2(x, y)) < 15)
+                        baum = new Vector2(x, y);
+            if (baum != null)
+            {
+                w.Waehle(new List<Unit> { miliz });
+                w.Linksklick(w.Map.GridToWorld(baum.Value));
+                if (miliz.Job != null)
+                    verstoesse.Add($"{wer}: Miliz bekommt einen Sammelauftrag");
+            }
+            // Für den Angriff auf den Platz eines Dorfbewohners: am Gebäude kann die Miliz
+            // zwischen Häusern und Kartenrand eingesperrt stehen (Testaufbau, nicht Spiel)
+            miliz.Path.Clear();
+            miliz.State = UnitState.Idle;
+            miliz.Position = dorf[1].Position;
+            var hp = w.Bauplatz(BuildingType.House, miliz, 4);
+            var feind = w.Map.AddBuilding((int)hp.X, (int)hp.Y, "Haus", 1, 2);
+            int voll = feind.Health;
+            w.Waehle(new List<Unit> { miliz });
+            w.Linksklick(new Vector2((feind.X + 1) * T, (feind.Y + 1) * T));
+            if (miliz.AttackTarget != feind)
+                verstoesse.Add($"{wer}: Linksklick aufs fremde Haus - die Miliz greift nicht an ({miliz.AttackTarget?.Type ?? "nichts"})");
+            float bis = w.LaufeBis(() => feind.Health < voll, 60f);
+            if (feind.Health >= voll)
+                verstoesse.Add($"{wer}: Miliz greift das fremde Haus nicht an ({feind.Health}/{voll} nach 60 s)");
+            else
+                notiz.Add($"Miliz: Haus {voll} -> {feind.Health} nach {bis:0} s");
+        }
+
+        if (verstoesse.Count == vorher)
+            Console.WriteLine($"  ok  {wer}: {string.Join(", ", notiz)}; H wirkungslos mit Gebäude, Miliz sammelt nicht");
+    }
+    finally
+    {
+        TileMap.TestNoFog = false;
+    }
 }
 
 // Kartengrößen (C11): Standard 64, Groß 90, Maximal 128 Kacheln Seitenlänge; beide

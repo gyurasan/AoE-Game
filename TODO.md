@@ -1,24 +1,43 @@
 # AoE-Clone — TODO / Meilensteine
 
-**Stand:** 2026-10-04 · verifiziert durch Build + Testlauf, nicht aus Doku übernommen.
+**Stand:** 2026-10-09 · verifiziert durch Build + Testlauf, nicht aus Doku übernommen.
 
 ## Wiederaufnahme — hier weitermachen
 
-Zuletzt angefasst: **Abliefern an der Tür** (2026-10-06, T1) — die Dorfbewohner liefen
-beim Abliefern nicht nah genug ans Gebäude (Hinweis des Nutzers). Jetzt stehen sie direkt
-vor der Tür. Davor **die Wiese** (G10, vier Grassorten nach Halmhöhe geblendet) und **die
-übrigen Gebäude** (L1, L2, zweite Tastenreihe; sie stehen nur, Einheiten, Forschung und
-Handel fehlen noch).
-Uncommittet im Arbeitsbaum; Commit macht der Nutzer.
+Zuletzt angefasst: **Soldaten** (2026-10-09, P1) — ein ausgewähltes Gebäude bildet aus:
+die Kaserne die Miliz, der Schießstand den Bogenschützen, der Stall den Späher, je mit Q.
+Davor **Gebäude auswählen und angreifen** (2026-10-06, B1, K1, K2; committet mit `4d0496e`)
+und **Abliefern an der Tür** (T1). Forschung (P2) und Handel fehlen noch.
+P1 ist uncommittet im Arbeitsbaum; Commit macht der Nutzer.
 
 Alles baut und läuft: `dotnet build AgeOfEvolutions.slnx` (0 Fehler, 0 Warnungen),
-`dotnet test tests/AoE.Tests` → **215/215 grün**.
+`dotnet test tests/AoE.Tests` → **224/224 grün**.
 
 Der Stand vom 2026-09-23 ist mit `4cb57d4` committet, alles bis zu den Gebäude-Sprites
 mit `4f85314` (2026-10-03). Commits macht der Nutzer selbst.
 
 Zuletzt fertiggestellt:
 
+- **Soldaten (2026-10-09)** — ein ausgewähltes eigenes Gebäude bildet aus, was die Tabelle
+  `Products` sagt: das Stadtzentrum Dorfbewohner, die Kaserne die Miliz (60 Nahrung, 20 Gold,
+  21 s), ab der Feudalzeit der Schießstand den Bogenschützen (25 Holz, 45 Gold, 35 s) und der
+  Stall den Späher (80 Nahrung, 30 s) - je mit Taste Q in der Leiste und auf der Tastatur,
+  Kosten und Zeiten nach AoE II. Die Soldaten erscheinen am Gebäude, gehen wie Dorfbewohner
+  und tragen ihre Waffe im Bild (Qwen-Image, Stand und zwei Laufbilder je Spielerfarbe, der
+  Späher zu Pferd etwas größer); sie sammeln nicht, greifen aber fremde Gebäude an. Solange ein
+  Gebäude ausgewählt ist, schalten die Bautasten nicht in den Setzmodus. Gruppe `soldaten` in
+  `tools/spielablauf`, Abnahme `p1_soldaten.py` *(P1)*
+- **Gebäude angreifen (2026-10-06)** — ein Linksklick mit eigenen Einheiten auf ein erkundetes
+  fremdes Gebäude schickt sie zum Angriff: sie stellen sich an die Gebäudekante (`AttackStand`)
+  und schlagen alle 2 s zu. Die Stärke sinkt nach `BuildingCombat` in AoE.Core (Nahkampf gegen
+  die Rüstung, Pfeile prallen fast ganz ab), bei 0 ist das Gebäude zerstört und seine Kacheln
+  sind frei (`TileMap.RemoveBuilding`). Jeder andere Befehl bricht den Angriff ab, eigene
+  Gebäude greift ein Klick nicht an; die KI greift noch nicht an. Gruppe `angriff`, Abnahme
+  `k2_angriff.py` *(K1, K2)*
+- **Gebäude auswählen (2026-10-06)** — ein Klick wählt ein Gebäude aus: Rahmen, Lebensbalken
+  und in der Leiste der Status (Stärke, Ausbildung, Aufstieg oder Baufortschritt; fremde
+  Gebäude nur, wenn erkundet). Q und A wirken auf das ausgewählte Stadtzentrum, ein zweites
+  bildet selbst aus. Gruppe `auswahl`, Abnahme `b1_auswahl.py` *(B1)*
 - **README-Bilder (2026-10-06)** — Spielszene, Karte und Zeitalter neu aufgenommen, mit der Wiese
   aus vier Grassorten und einem ausgewählten Stadtzentrum samt Status; neu `docs/bilder/gebaeude.jpg`:
   alle Gebäude der Imperialzeit mit Mauerreihen und beiden Tastenreihen. Aufgenommen im Spiel selbst
@@ -226,11 +245,13 @@ Nächste sinnvolle Schritte, in dieser Reihenfolge:
 6. **Bedienoberfläche mit der Auflösung skalieren** — Leisten, Schrift, Tasten und Minimap
    haben feste Pixelmaße und wirken in der DX-Fassung (2707 px hoch) halb so groß; dazu
    ein Infokästchen am Mauszeiger statt des Hinweises in der Leistenmitte.
-7. **Die neuen Gebäude mit Leben füllen** — seit L1/L2 sind alle Gebäude baubar, aber sie
-   stehen nur: Kaserne, Schießstand, Stall, Belagerungswerkstatt und Burg brauchen Einheiten
-   und die Kampfschleife, der Markt den Handel, Schmiede und Universität die Forschung, das
-   Kloster Mönche. Dorfkern, Mauern und Krieger siehe C13.
-8. **Kampfschleife** — `Unit.Attack()` existiert seit B2 und wird nirgends aufgerufen.
+7. **Die neuen Gebäude mit Leben füllen** — seit L1/L2 sind alle Gebäude baubar; Kaserne,
+   Schießstand und Stall bilden seit P1 Miliz, Bogenschütze und Späher aus. Offen:
+   Einheiten für Belagerungswerkstatt und Burg, die Kampfschleife, der Markt den Handel,
+   Schmiede und Universität die Forschung (P2, siehe C14), das Kloster Mönche. Dorfkern,
+   Mauern und Krieger siehe C13.
+8. **Kampfschleife** — `Unit.Attack()` existiert seit B2 und wird nirgends aufgerufen;
+   Gebäude angreifen geht seit K2 (`BuildingCombat`), Einheiten gegeneinander noch nicht.
    Auf Wunsch des Nutzers zurückgestellt (2026-09-30).
 9. **Veraltete Abnahmen** — `c1n`, `c1c` und `c8a` prüfen Schreibweisen von früher (die
    Schaf-Nahrung als Zahl, „Untätig" in `DrawUI`, „Links ziehen" im Hilfetext) und sind
@@ -308,7 +329,7 @@ benennt jemand eine Methode um, meldet es das, statt still falsch zu prüfen.
 | Projekt | Framework | Build | Bemerkung |
 |---|---|---|---|
 | `src/AoE.Core` | net10.0 | OK, 0 Fehler | Reine Logik, keine MonoGame-Abhängigkeit |
-| `tests/AoE.Tests` | net10.0 | **215/215 grün** | Einheiten und Ressourcen (15), Sammelauftrag (21), Ausbildung und Bevölkerung (22), Bauen (74), Zeitalter (46), Konter-Dreieck (5), Wegfindung (3), Nebel (8), Wirtschafts-KI (20), Fehlersuche (1) |
+| `tests/AoE.Tests` | net10.0 | **224/224 grün** | Einheiten und Ressourcen (15), Sammelauftrag (21), Ausbildung und Bevölkerung (22), Bauen (74), Zeitalter (46), Konter-Dreieck (5), Gebäudekampf (9), Wegfindung (3), Nebel (8), Wirtschafts-KI (20), Fehlersuche (1) |
 | `demo/DemoApp` | net10.0 | OK | referenziert AoE.Core |
 | `AgeOfEvolutions.Core` | net10.0 | OK, 0 Fehler | Dateiname seit H2 kanonisch |
 | `AgeOfEvolutions.DesktopGL` | net10.0 | OK, 0 Fehler / 0 Warnungen | startbar |
@@ -728,6 +749,8 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
       Zeitalter unter `Content/Einheiten/<zeitalter>/` *(Agent C4h)*
 - [ ] **C4l Laufbilder der Imperialzeit** (Hinweis des Nutzers, 2026-10-07): die
       Dorfbewohner der Imperialzeit laufen merkwürdig und brauchen neue Laufbilder.
+      Genauer (2026-10-09): beim Gehen sind die Beine nicht mit dem Körper verbunden.
+      Ausdrücklicher Wunsch: hier wirklich den High-Def-Builder verwenden.
       `Content/Einheiten/imperial/dorfbewohner_lauf1_*` und `_lauf2_*` neu erzeugen (Gruppe
       `einheiten_lauf`, wie bei C7v nur die Beine neu malen, Rumpf und Faust bleiben). Mit
       dem Standbild abgleichen: gleicher Zuschnitt (Feld „figur“ in `uebernehmen.ps1`), Füße
@@ -946,7 +969,8 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
   erst ab der Feudalzeit: Taste K in der zweiten Tastenreihe, eigene Grafik je Zeitalter unter
   `Content/Gebaeude/<zeitalter>/`, Bauzeit 50 s *(Agent C5a, L1, L2)*
 - [ ] Dorfkerne und Kasernen sind wie das Start-Stadtzentrum auswählbar (Klick) und
-  bilden Dorfbewohner aus
+  bilden Dorfbewohner aus. Stand B1/P1: jedes eigene Stadtzentrum ist auswählbar und bildet
+  Dorfbewohner aus, die Kaserne die Miliz
 - [ ] **Mauern** ab der Feudalzeit baubar: `StoneWall` (Bau `PalisadeWall` ist im
   `BuildingType`-Enum schon da, aber nicht verdrahtet), mit **Stein** kachelweise bauen
   wie Straßen (C12: `AgeRules.RequiredAgeOf`, Baumenü, Taste). Mauern sind für
@@ -974,6 +998,24 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
   - zählt gegen das Bevölkerungslimit (C2)
   - Abnahme: `krieger`-Gruppe in `tools/spielablauf` — zweiter Dorfkern bauen,
     Krieger bilden, stehen neben dem Dorfzentrum, kämpfen stärker als ein Dorfbewohner
+
+### C14 · Gebäude auswählen, angreifen, ausbilden und forschen [X]
+
+Wunsch des Nutzers (2026-10-06): ein Gebäude auswählen, dort Dinge herstellen, seinen Status
+sehen; unter Angriff sinkt seine Stärke. Gewählter Umfang: die bestehende Ausbildung ans
+Gebäude, erste Soldaten, Forschungen; angreifen nur eigene Einheiten per Befehl.
+
+- [x] Gebäude auswählen: Rahmen, Lebensbalken, Status in der Leiste; Q und A am ausgewählten
+      Stadtzentrum *(Agent B1)*
+- [x] Gebäude angreifen: eigene Einheiten auf Befehl, Schaden je Schlag nach `BuildingCombat`
+      in AoE.Core, Zerstörung gibt die Kacheln frei *(Agent K1, K2)*
+- [x] Soldaten: Kaserne Miliz, Schießstand Bogenschütze, Stall Späher, je Taste Q, Kosten und
+      Zeiten nach AoE II (`Products`) *(Agent P1)*
+- [ ] **P2 Forschungen** — Webstuhl (Stadtzentrum), Pferdekummet (Mühle), Doppelaxt
+      (Holzfällerlager), Goldbergbau (Bergbaulager), Schmiedekunst, Befiederte Pfeile und
+      Schuppenpanzer (Schmiede), Maurerkunst (Universität). Die Symbole liegen schon in
+      `Content/Icons/`, der Code fehlt; Tasten im ausgewählten Gebäude Q, W, E
+- [ ] Die KI greift noch keine Gebäude an
 
 ---
 
@@ -1020,7 +1062,7 @@ Enthält reines Azure-Boilerplate ohne jeden Bezug zum Projekt.
 - [x] .NET-10-Migration: AoE.Core, Tests, Demo, Spiel-Core, DesktopGL, WindowsDX
 - [x] Build läuft fehlerfrei durch (AoE.Core + DesktopGL, 0 Warnungen)
 - [x] AoE.Core als Projektverweis eingebunden *(seit Block B im Spiel genutzt)*
-- [x] 215 Unit-Tests grün
+- [x] 224 Unit-Tests grün
 - [x] Kartengenerierung `TileMap.cs`: Seen mit Falloff, Beeren, Schafe, Wildschweine,
       Stein/Gold, PvP-Startpositionen
 - [x] Wasser-Animation
@@ -1042,6 +1084,8 @@ Enthält reines Azure-Boilerplate ohne jeden Bezug zum Projekt.
 - [x] **L1, L2 Die übrigen Gebäude** — Kosten, Bauzeit, Größe und Werte für jeden
   Gebäudetyp (L1), zweite Tastenreihe mit Symbolen und Bildern je Zeitalter, Mauerreihen,
   Gruppe `neubauten` in `tools/spielablauf` (L2) *(2026-10-06)*
+- [x] **B1, K1, K2, P1** — Gebäude auswählen und angreifen *(2026-10-06)*, Soldaten aus
+  Kaserne, Schießstand und Stall *(2026-10-09)*
 
 ---
 
