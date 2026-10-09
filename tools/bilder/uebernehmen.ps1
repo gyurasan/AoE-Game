@@ -6,6 +6,8 @@
 #   pwsh -File tools/bilder/uebernehmen.ps1 -Gruppe icons
 #
 # Je Gruppe (oder je Eintrag) steuern diese Felder die Nachbearbeitung:
+#   ausschnitt    [x, y, b, h]  vor allem anderen auf dieses Rechteck beschneiden - etwa
+#                         Nieten am Bildrand weg, die gekachelt in der Mitte auftauchten
 #   zielgroesse   [b, h]  auf genau diese Größe verkleinern (Icons)
 #   zuschneiden   true    auf den sichtbaren Bereich (Alpha) beschneiden
 #   zielbreite    b       auf diese Breite verkleinern, Höhe im Seitenverhältnis
@@ -18,6 +20,12 @@
 #                         gilt. Die Gebäude der Zeitalter brauchen 0,6: Schieferdächer,
 #                         bläuliche Steinschatten und Fenster liegen bei 0,3 bis 0,5
 #                         und würden sonst mit rot
+#   ausgleichen   a       großflächige Helligkeit ausgleichen (Halbmesser a * Bildbreite):
+#                         ein dunkler Fleck in der Mitte eines Bodenbilds würde gekachelt
+#                         zum Raster; feine Muster bleiben
+#   loecher       true    weiße Löcher im freigestellten Bild (zwischen Ästen und
+#                         Blattbüscheln) durchsichtig machen, ohne weißen Saum - für
+#                         Bäume mit offener Krone; false je Eintrag bei weißer Rinde
 #   figur         name    alle Einträge mit derselben Figur, auch aus anderen Gruppen,
 #                         auf dasselbe Rechteck beschneiden: die Vereinigung ihrer
 #                         sichtbaren Flächen. So bleiben die Laufbilder eines Tiers
@@ -128,6 +136,153 @@ public static class Nachbearbeitung
             }
         Schreiben(b, d, neu);
         return b;
+    }
+
+    /// Waagerecht, dann senkrecht: Minimum (erodieren) oder Maximum (dehnen) eines
+    /// Ja/Nein-Felds über ein Quadrat mit Halbmesser r.
+    static bool[] Filter(bool[] feld, int w, int h, int r, bool dehnen)
+    {
+        var zwischen = new bool[feld.Length];
+        var aus = new bool[feld.Length];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                bool v = !dehnen;
+                for (int k = Math.Max(0, x - r); k <= Math.Min(w - 1, x + r); k++)
+                    if (feld[y * w + k] == dehnen) { v = dehnen; break; }
+                zwischen[y * w + x] = v;
+            }
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                bool v = !dehnen;
+                for (int k = Math.Max(0, y - r); k <= Math.Min(h - 1, y + r); k++)
+                    if (zwischen[k * w + x] == dehnen) { v = dehnen; break; }
+                aus[y * w + x] = v;
+            }
+        return aus;
+    }
+
+    /// Weiße Löcher in einem freigestellten Bild durchsichtig machen: BiRefNet
+    /// stellt nur den Umriss frei, zwischen Ästen und Blattbüscheln bleibt der
+    /// weiße Hintergrund stehen. Weiß sind Pixel mit min(R,G,B) >= 232 und wenig
+    /// Sättigung; Flecken kleiner als 5x5 Pixel (Glanzlichter) fallen per Öffnen
+    /// heraus. In den Löchern und "rand" Pixel darum herum wird Weiß wie bei
+    /// "Farbe zu Alpha" herausgerechnet: a = größter Abstand eines Kanals zu 255,
+    /// die Farbe wird entmischt (kein weißer Saum), und alles ab a = 0,45 bleibt
+    /// voll deckend. Das Alpha von BiRefNet wird dabei nur verringert, nie erhöht.
+    public static Bitmap WeisseLoecher(Bitmap quelle, int rand)
+    {
+        var b = new Bitmap(quelle);
+        BitmapData d; var px = Lesen(b, out d);
+        int w = b.Width, h = b.Height;
+        var weiss = new bool[w * h];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                int i = y * d.Stride + x * 4;
+                int lo = Math.Min(px[i], Math.Min(px[i + 1], px[i + 2]));
+                int hi = Math.Max(px[i], Math.Max(px[i + 1], px[i + 2]));
+                weiss[y * w + x] = lo >= 232 && hi - lo <= 24;
+            }
+        var loch = Filter(Filter(weiss, w, h, 2, false), w, h, 2, true);
+        var zone = Filter(loch, w, h, rand, true);
+        // Einzelne weiße Glanzpunkte, die kein Loch sind, bekommen die Farbe ihrer nicht
+        // weißen Nachbarn - im Laub wirken sie wie Fehler
+        for (int y = 1; y < h - 1; y++)
+            for (int x = 1; x < w - 1; x++)
+            {
+                if (!weiss[y * w + x] || zone[y * w + x]) continue;
+                int i = y * d.Stride + x * 4, n = 0, sb = 0, sg = 0, sr = 0;
+                for (int dy = -1; dy <= 1; dy++)
+                    for (int dx = -1; dx <= 1; dx++)
+                    {
+                        if (weiss[(y + dy) * w + x + dx]) continue;
+                        int j = (y + dy) * d.Stride + (x + dx) * 4;
+                        sb += px[j]; sg += px[j + 1]; sr += px[j + 2]; n++;
+                    }
+                if (n == 0) continue;
+                px[i] = (byte)(sb / n); px[i + 1] = (byte)(sg / n); px[i + 2] = (byte)(sr / n);
+            }
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                if (!zone[y * w + x]) continue;
+                int i = y * d.Stride + x * 4;
+                double a = 0;
+                for (int k = 0; k < 3; k++) a = Math.Max(a, (255 - px[i + k]) / 255.0);
+                double t = Math.Min(1.0, a / 0.45);
+                double neu = t * t * (3 - 2 * t);
+                if (a > 0.001)
+                    for (int k = 0; k < 3; k++)
+                        px[i + k] = (byte)Math.Round(Math.Max(0, Math.Min(255, 255 - (255 - px[i + k]) / a)));
+                px[i + 3] = (byte)Math.Min(px[i + 3], (int)Math.Round(neu * 255));
+            }
+        Schreiben(b, d, px);
+        return b;
+    }
+
+    /// Großflächige Helligkeit und Farbe ausgleichen, je Farbkanal: jeder Pixel wird
+    /// mit mittel / Umgebung gestreckt, Umgebung = Mittelwert des Kanals im Quadrat
+    /// mit Halbmesser r (zweimal Kastenfilter, am Rand gespiegelt), mittel = Mittel
+    /// über das ganze Bild. Feine Muster (Halme, Klee, Maserung) bleiben; ein dunkler
+    /// Fleck in der Bildmitte, helle Ränder oder ein Farbverlauf (gelbe Mitte, orange
+    /// Ränder) verschwinden - sonst zeigt das gekachelte Bild ein Raster oder an den
+    /// Überblendungen der Kachelnaht schlammige Mischfarben.
+    public static Bitmap Ausgleichen(Bitmap quelle, int r)
+    {
+        var b = new Bitmap(quelle);
+        BitmapData d; var px = Lesen(b, out d);
+        int w = b.Width, h = b.Height;
+        for (int k = 0; k < 3; k++)
+        {
+            var kanal = new double[w * h];
+            double summe = 0;
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    kanal[y * w + x] = px[y * d.Stride + x * 4 + k];
+                    summe += kanal[y * w + x];
+                }
+            double mittel = summe / (w * h);
+            var glatt = kanal;
+            for (int lauf = 0; lauf < 2; lauf++)
+                glatt = Kasten(Kasten(glatt, w, h, r, true), w, h, r, false);
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    int i = y * d.Stride + x * 4 + k;
+                    double f = mittel / Math.Max(1.0, glatt[y * w + x]);
+                    px[i] = (byte)Math.Max(0, Math.Min(255, Math.Round(px[i] * f)));
+                }
+        }
+        Schreiben(b, d, px);
+        return b;
+    }
+
+    /// Kastenfilter mit Halbmesser r waagerecht oder senkrecht, am Rand gespiegelt.
+    static double[] Kasten(double[] feld, int w, int h, int r, bool waagerecht)
+    {
+        var aus = new double[feld.Length];
+        int n = waagerecht ? w : h, m = waagerecht ? h : w;
+        for (int j = 0; j < m; j++)
+        {
+            Func<int, double> wert = k =>
+            {
+                if (k < 0) k = -k - 1;
+                if (k >= n) k = 2 * n - k - 1;
+                k = Math.Max(0, Math.Min(n - 1, k));
+                return waagerecht ? feld[j * w + k] : feld[k * w + j];
+            };
+            double s = 0;
+            for (int k = -r; k <= r; k++) s += wert(k);
+            for (int k = 0; k < n; k++)
+            {
+                if (waagerecht) aus[j * w + k] = s / (2 * r + 1); else aus[k * w + j] = s / (2 * r + 1);
+                s += wert(k + r + 1) - wert(k - r);
+            }
+        }
+        return aus;
     }
 
     /// Kräftiges Blau (Farbton 190-260 Grad, Sättigung ab saettigung) wird Rot:
@@ -314,6 +469,11 @@ foreach ($g in $katalog.PSObject.Properties) {
                 Write-Output ("{0,-34} -> {1} (ico 16-256, bmp 256, icon-1024.png)" -f (Split-Path $quelle -Leaf), $e.ziel)
                 continue
             }
+            $rahmen = Wert $e $g.Value "ausschnitt"
+            if ($rahmen) {
+                $r = [System.Drawing.Rectangle]::new([int]$rahmen[0], [int]$rahmen[1], [int]$rahmen[2], [int]$rahmen[3])
+                $neu = [Nachbearbeitung]::Ausschnitt($bild, $r); $bild.Dispose(); $bild = $neu
+            }
             $groesse = Wert $e $g.Value "zielgroesse"
             if ($groesse) {
                 $w = [int]$groesse[0]; $h = [int]$groesse[1]
@@ -325,8 +485,15 @@ foreach ($g in $katalog.PSObject.Properties) {
                 $gr.Dispose()
                 $bild.Dispose(); $bild = $klein
             }
+            $ausgleich = Wert $e $g.Value "ausgleichen"
+            if ($ausgleich) {
+                $neu = [Nachbearbeitung]::Ausgleichen($bild, [int]($bild.Width * [double]$ausgleich)); $bild.Dispose(); $bild = $neu
+            }
             if (Wert $e $g.Value "kachelbar") {
                 $neu = [Nachbearbeitung]::Kachelbar($bild, [int]($bild.Width / 8)); $bild.Dispose(); $bild = $neu
+            }
+            if (Wert $e $g.Value "loecher") {
+                $neu = [Nachbearbeitung]::WeisseLoecher($bild, 3); $bild.Dispose(); $bild = $neu
             }
             if ($e.figur -and $figuren.ContainsKey($e.figur)) {
                 $neu = [Nachbearbeitung]::Ausschnitt($bild, $figuren[$e.figur]); $bild.Dispose(); $bild = $neu

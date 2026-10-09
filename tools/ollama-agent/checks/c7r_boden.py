@@ -65,7 +65,9 @@ if "DrawBuilding(" not in stehe:
     fehler.append("DrawUnits zeichnet keine Gebäude (Tiefenschicht)")
 if not (re.search(r"\.Sort\s*\(", stehe) and "Depth" in stehe):
     fehler.append("DrawUnits sortiert die Gebäude nicht nach der Sohle (Depth)")
-if "DrawShore(" not in flach and "DrawShore(" not in (methode(text, "DrawGround") or ""):
+if "DrawShore(" in flach or "GetTileTexture(" in flach:
+    fehler.append("DrawTileMap zeichnet die Bodenkacheln noch selbst")
+if "DrawShore(" not in (methode(text, "DrawGround") or ""):
     fehler.append("der Boden (Ufer) wird nirgendwo gezeichnet")
 
 pile = methode(text, "DrawPile") or ""

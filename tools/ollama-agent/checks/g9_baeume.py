@@ -31,17 +31,18 @@ for name in ("Gust", "TreeSway", "SwayStrips"):
 if "Math.Pow(" not in (methode(wind, "Gust") or "") and "MathF.Pow(" not in (methode(wind, "Gust") or ""):
     fehler.append("Wind.Gust schärft die Wellen nicht (pow wie in WheatWind)")
 
-baeume = methode(rts, "DrawTrees") or ""
+# Seit T1 zeichnet DrawTree je einen Baum (vorher DrawTrees alle einer Kachel)
+baeume = methode(rts, "DrawTree") or methode(rts, "DrawTrees") or ""
 if not re.search(r"\bWind\.TreeSway\s*\(", baeume):
-    fehler.append("DrawTrees fragt Wind.TreeSway nicht")
+    fehler.append("DrawTree fragt Wind.TreeSway nicht")
 if not re.search(r"\banimationTime\b", baeume):
-    fehler.append("DrawTrees nimmt nicht die Spielzeit (animationTime) - die Bäume stünden still")
+    fehler.append("DrawTree nimmt nicht die Spielzeit (animationTime) - die Bäume stünden still")
 if not re.search(r"\bWind\.SwayStrips\s*\(", baeume):
-    fehler.append("DrawTrees zeichnet die Bäume nicht in Streifen (Wind.SwayStrips)")
+    fehler.append("DrawTree zeichnet die Bäume nicht in Streifen (Wind.SwayStrips)")
 if re.search(r"spriteBatch\.Draw\(\s*tex\s*,\s*new Rectangle\(", baeume):
-    fehler.append("DrawTrees zeichnet den Baum noch als Ganzes in ein Rechteck")
+    fehler.append("DrawTree zeichnet den Baum noch als Ganzes in ein Rechteck")
 
 if not re.search(r"gruppen\.Contains\(\"wind\"\)", ablauf) or methode(ablauf, "WindProbe") is None:
     fehler.append("tools/spielablauf: Gruppe wind fehlt")
 
-melde(fehler, "G9 erfuellt: Wind gefüllt, DrawTrees biegt die Bäume im Wind")
+melde(fehler, "G9 erfuellt: Wind gefüllt, DrawTree biegt die Bäume im Wind")

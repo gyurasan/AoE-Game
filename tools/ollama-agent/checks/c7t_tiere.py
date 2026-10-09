@@ -46,6 +46,10 @@ if re.search(r'"Rohstoffe/reh', text):
 tier = methode(text, "DrawAnimal") or ""
 if not tier:
     fehler.append("DrawAnimal fehlt")
+# Seit T1 rechnet AnimalFoot die Hufe (Versatz und Rest des Schritts) für DrawAnimal
+# und die Tiefenschicht - was dort steht, zählt für DrawAnimal mit
+if tier and "AnimalFoot(" in tier:
+    tier += methode(text, "AnimalFoot") or ""
 for pflicht, grund in (("FlipHorizontally", "spiegelt das Tier nicht in Laufrichtung"),
                        ("FacingLeft", "fragt die Blickrichtung nicht ab"),
                        ("Glide", "zeichnet den Schritt zwischen den Kacheln nicht"),

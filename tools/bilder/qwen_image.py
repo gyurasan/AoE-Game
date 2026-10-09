@@ -223,6 +223,10 @@ def erzeuge(eintrag: dict, gruppe: dict, seed: int, ziel: Path) -> Path:
     breite, hoehe = eintrag.get("groesse", gruppe["groesse"])
     # Ein Eintrag kann eigene Negativbegriffe mitbringen, zusätzlich zu denen der Gruppe
     negativ = ", ".join(n for n in (gruppe.get("negativ", ""), eintrag.get("negativ", "")) if n)
+    # "negativ_allein": nur die eigenen Negativbegriffe - für ein Bild aus einer früheren
+    # Runde der Gruppe, deren Negativliste seither gewachsen ist
+    if eintrag.get("negativ_allein"):
+        negativ = eintrag.get("negativ", "")
     if "vorlage" in eintrag:
         vorlage = ziel.parent / eintrag["vorlage"]
         maske = maske_zeichnen(eintrag["maske"], breite, hoehe, ziel.parent / f"{eintrag['name']}_maske.png")

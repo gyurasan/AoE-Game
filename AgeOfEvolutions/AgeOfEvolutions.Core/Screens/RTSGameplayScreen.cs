@@ -116,6 +116,10 @@ public class RTSGameplayScreen : GameScreen
 
     // Lage der drei Kronen je Waldkachel in Welteinheiten (Kachel = 32)
     private static readonly (int X, int Y)[] CrownSpots = { (9, 9), (23, 12), (14, 24) };
+    // Stammfüße der Bäume je Waldkachel in Welteinheiten, wenn die Baumbilder geladen sind:
+    // weniger und größere Bäume als Kronen, damit zwischen den offenen Kronen Boden und
+    // Figuren zu sehen bleiben
+    private static readonly (int X, int Y)[] TreeSpots = { (10, 13), (24, 28) };
     private int waterAnimationFrameCounter;
     private float waterAnimTimer;
     private List<Unit> drawList = new();
@@ -352,6 +356,16 @@ public class RTSGameplayScreen : GameScreen
         ("Burg", "Gebaeude/burg"), ("Wunder", "Gebaeude/wunder"),
     };
     private static readonly string[] AgeFolders = { "dunkel", "feudal", "ritter", "imperial" };   // Index = Age
+
+    // Leisten im Stoff des Zeitalters (tools/bilder, Gruppe leiste), Index = Age: rohe Holzbohlen
+    // in der Dunklen Zeit, beschlagene Eichenbohlen in der Feudalzeit, Burgmauer in der
+    // Ritterzeit, dunkler Marmor mit Goldfugen in der Imperialzeit. Die Bilder sind kachelbar
+    private static readonly string[] PanelAssets = { "Leiste/dunkel", "Leiste/feudal", "Leiste/ritter", "Leiste/imperial" };
+    // Helle Oberkante der Leisten je Zeitalter: Holz, Eiche, Stein, Gold
+    private static readonly Color[] PanelEdge =
+        { new(150, 112, 70), new(178, 134, 82), new(176, 176, 168), new(222, 186, 96) };
+    private const int PANEL_TILE = 256;   // so viele Bildschirmpunkte misst eine Kachel des Leistenbilds
+    private readonly Texture2D[] _panelTex = new Texture2D[4];
     private readonly Dictionary<(string Type, Age Age, int Owner), Texture2D> _buildingSprites = new();
 
     // Windrad der Mühle: muehle_ohne_* ist die Mühle ohne gemalte Flügel, je
@@ -495,8 +509,15 @@ public class RTSGameplayScreen : GameScreen
     // rohstoffe): große kachelbare Bilder für Gras, Sand und Wasser, freigestellte
     // Bäume mit Stamm, Stein- und Goldhaufen.
     // Fehlt ein Bild, zeichnet der Code diesen Teil wie bisher selbst.
-    private static readonly string[] TreeAssets =
-        { "Baeume/laubbaum", "Baeume/laubbaum2", "Baeume/nadelbaum", "Baeume/nadelbaum2", "Baeume/buschbaum" };
+    // Bäume mit offener Krone (Gruppe baeume): Bild, Höhe des ganzen Baums in Welteinheiten
+    // (ein Dorfbewohner ist 24 hoch, eine Kachel 32 breit) und ob es ein Nadelbaum ist - die
+    // Wälder mischen beide in Hainen (TreeSpot)
+    private static readonly (string Asset, float Height, bool Conifer)[] TreeAssets =
+    {
+        ("Baeume/laubbaum", 72f, false), ("Baeume/laubbaum2", 66f, false), ("Baeume/buschbaum", 58f, false),
+        ("Baeume/buche", 74f, false), ("Baeume/birke", 68f, false),
+        ("Baeume/nadelbaum", 82f, true), ("Baeume/nadelbaum2", 78f, true), ("Baeume/kiefer", 86f, true),
+    };
     private static readonly string[] StoneAssets = { "Rohstoffe/stein", "Rohstoffe/stein2" };
     private static readonly string[] GoldAssets = { "Rohstoffe/gold", "Rohstoffe/gold2" };
     // Schafe und Rehe aus tools/bilder (Gruppe tiere), nach rechts blickend. Ihre
@@ -518,7 +539,7 @@ public class RTSGameplayScreen : GameScreen
     private Texture2D _soilTex;           // abgeerntetes Feld (Felder/acker), ein Bild je Feld
     private Texture2D _wheatTex;          // dasselbe Feld mit reifem Weizen (Felder/weizen)
     private Effect _wheatEffect;          // Weizen im Wind (Effects/Weizen); fehlt er, steht der Weizen still.
-    private Texture2D[] _treeSprites = Array.Empty<Texture2D>();
+    private (Texture2D Tex, float Height, bool Conifer)[] _treeSprites = Array.Empty<(Texture2D, float, bool)>();
     private Texture2D[] _stoneSprites = Array.Empty<Texture2D>();
     private Texture2D[] _goldSprites = Array.Empty<Texture2D>();
     private Texture2D[] _sheepSprites = Array.Empty<Texture2D>();
@@ -535,6 +556,9 @@ public class RTSGameplayScreen : GameScreen
     private Texture2D _rabbitMeat;
     private Texture2D _boarMeat;
     private const int GROUND_TEXELS = 4;   // Bildpixel der Bodenbilder je Welteinheit
+    // Bildpixel der Grasbilder je Welteinheit: mehr als bei Sand und Wasser - die Halme
+    // sollen neben Bäumen und Figuren klein bleiben, das Bild wiederholt sich dafür öfter
+    private const int GRASS_TEXELS = 7;
 
     // Boden aus einem Guss (Effects/Boden): Gras, Sand und Wasser gehen weich
     // ineinander über, das Wasser hat Tiefe, Wellen und Schaum, viel begangene
@@ -753,7 +777,14 @@ public class RTSGameplayScreen : GameScreen
             _groundLiveData = new Color[tileMap.Width * tileMap.Height];
             RefreshGroundLive();
         }
-        _treeSprites = TreeAssets.Select(LoadOptional).Where(t => t != null).ToArray();
+        // Je Eintrag ein Tupel (Bild, Höhe, Nadelbaum); fehlt ein Bild, fällt nur diese Baumart weg.
+        _treeSprites = TreeAssets
+            .Select(a => (Tex: LoadOptional(a.Asset), a.Height, a.Conifer))
+            .Where(t => t.Tex != null)
+            .ToArray();
+        // Leistenbilder je Zeitalter laden; fehlt eines, bleibt die Leiste in diesem Zeitalter braun
+        for (var i = 0; i < PanelAssets.Length; i++)
+            _panelTex[i] = LoadOptional(PanelAssets[i]);
         _stoneSprites = StoneAssets.Select(LoadOptional).Where(t => t != null).ToArray();
         _goldSprites = GoldAssets.Select(LoadOptional).Where(t => t != null).ToArray();
         _sheepSprites = SheepAssets.Select(LoadOptional).Where(t => t != null).ToArray();
@@ -2105,13 +2136,25 @@ public class RTSGameplayScreen : GameScreen
 
     /// <summary>
     /// Die eigene Einheit, deren Figur unter <paramref name="worldPos"/> liegt,
-    /// oder null. Überlappen sich zwei, gewinnt die zuletzt gezeichnete, also
-    /// die vorderste.
+    /// oder null. Überlappen sich zwei, gewinnt die mit der größten Position.Y
+    /// (die Füße am weitesten unten = in der Tiefenschicht zuletzt gezeichnet,
+    /// also vorn); bei gleicher Position.Y die spätere in units. Die Tiefenschicht
+    /// zeichnet nicht mehr in der Reihenfolge von units.
     /// </summary>
     private Unit OwnUnitAt(Vector2 worldPos)
     {
         var point = new Point((int)worldPos.X, (int)worldPos.Y);
-        return units.LastOrDefault(u => u.OwnerId == 0 && UnitWorldRect(u).Contains(point));
+        Unit best = null;
+        foreach (var u in units)
+        {
+            if (u.OwnerId != 0 || !UnitWorldRect(u).Contains(point))
+                continue;
+            if (best == null
+                || u.Position.Y > best.Position.Y
+                || (u.Position.Y == best.Position.Y))
+                best = u;
+        }
+        return best;
     }
 
     /// <summary>
@@ -3487,10 +3530,9 @@ public class RTSGameplayScreen : GameScreen
         // Draw tilemap (Boden, Nahrungskacheln, Felder)
         DrawTileMap(spriteBatch);
 
-        // Tiefenschicht: Bäume, Haufen, Tiere, Gebäude und Figuren in einem
-        // sortierten Zug — die Sohle, die weiter unten im Bild steht,
-        // überdeckt, was weiter oben steht, und wird von dem überdeckt, was
-        // noch tiefer ist.
+        // Tiefenschicht: Bäume, lebende Tiere, Gebäude und Figuren in einem
+        // sortierten Zug - wessen Sohle weiter unten im Bild steht, überdeckt,
+        // was weiter oben steht (Haufen und Fleisch liegen flach in DrawTileMap)
         DrawUnits(spriteBatch);
 
         // Nebel über Karte und Einheiten, unter Auswahlrahmen und Leisten
@@ -3524,8 +3566,8 @@ public class RTSGameplayScreen : GameScreen
     /// <summary>
     /// Bodenkacheln: Gras, Sand und Wasser aus den großen Bodenbildern, sonst die
     /// gezeichneten Kacheltexturen, am Wasser die Uferlinie. Unter Bäumen, Stein
-    /// und Gold liegt Gras, wenn sie als Sprites geladen sind - DrawTrees und
-    /// DrawPile stellen sie in DrawTileMap darauf; der dunkle Waldboden zeigte
+    /// und Gold liegt Gras, wenn sie als Sprites geladen sind - DrawTree (in der
+    /// Tiefenschicht) und DrawPile (in DrawTileMap) stellen sie darauf; der dunkle Waldboden zeigte
     /// neben einzelnen Bäumen sein Kachelquadrat. Draw ruft das in einem eigenen
     /// SpriteBatch mit SamplerState.LinearWrap auf: die Bodenbilder sind
     /// kachelbar, und das treibende Wasser greift über den Bildrand hinaus.
@@ -3575,7 +3617,10 @@ public class RTSGameplayScreen : GameScreen
         var p = _groundEffect.Parameters;
         p["MapTiles"]?.SetValue(new Vector2(tileMap.Width, tileMap.Height));
         p["Time"]?.SetValue(animationTime);
-        p["DetailScale"]?.SetValue(tileMap.TileSize * GROUND_TEXELS / (float)_grassTex.Width);
+        // DetailScale gilt für Sand, Wasser und Erde: deshalb Breite des Sandbilds (1024), nicht des Grasbilds (1328)
+        p["DetailScale"]?.SetValue(tileMap.TileSize * GROUND_TEXELS / (float)_sandTex.Width);
+        // Gras bekommt seinen eigenen, feineren Maßstab (GRASS_TEXELS) mit der Breite des Grasbilds
+        p["GrassScale"]?.SetValue(tileMap.TileSize * GRASS_TEXELS / (float)_grassTex.Width);
         p["LiveTexture"]?.SetValue(_groundLive);
         p["GrassTexture"]?.SetValue(_grassTex);
         p["SandTexture"]?.SetValue(_sandTex);
@@ -3878,23 +3923,15 @@ public class RTSGameplayScreen : GameScreen
             }
         }
 
-        // Der Auswahlrahmen des Gebäudes liegt unter allen Bildern (vorn und
-        // an den Seiten sichtbar, das Bild überdeckt, was dahinter liegt) und
-        // der Lebensbalken über allem auf dieser Ebene — das Auswählen und
-        // Schadenslesen gehören zum Fundament, die Tiefe der Figuren zur
-        // Tiefenschicht DrawUnits.
+        // Der Auswahlrahmen liegt unter allen Bildern - vorn und an den
+        // Seiten bleibt er sichtbar, das Bild überdeckt, was dahinter liegt.
+        // Die Lebensbalken zeichnet DrawUnits über alle Bilder der
+        // Tiefenschicht. (Bisher lagen sie hier UNTER Bäumen und Gebäuden,
+        // die erst danach in DrawUnits kommen.)
         foreach (var b in tileMap.Buildings)
         {
             if (b == selectedBuilding)
                 DrawBuildingSelection(spriteBatch, b);
-        }
-        foreach (var b in tileMap.Buildings)
-        {
-            bool show = b == selectedBuilding
-                        || (b.IsComplete && b.Health < b.MaxHealth
-                            && (b.OwnerId == 0 || tileMap.IsTileVisible(b.X, b.Y, 0)));
-            if (show)
-                DrawBuildingHealth(spriteBatch, b);
         }
     }
 
@@ -4076,6 +4113,24 @@ public class RTSGameplayScreen : GameScreen
     }
 
     /// <summary>
+    /// Wo die Hufe des Tiers auf Kachel (x, y) stehen, in Bildschirmpunkten: im unteren Teil
+    /// der Kachel, versetzt nach WildAnimal.Look, dazu der Teil des Schritts von der alten
+    /// Kachel her, der noch fehlt - weich angefahren und abgebremst (Gait.Ease). DrawAnimal
+    /// zeichnet dort, die Tiefenschicht (DrawUnits) sortiert danach.
+    /// </summary>
+    private Vector2 AnimalFoot(Data.Tile tile, int x, int y)
+    {
+        var tier = tile.Animal ?? new Data.WildAnimal();
+        var tileRect = TileScreenRect(x, y);
+        int jx = ((tier.Look >> 8) % 9 - 4) * tileRect.Width / 32;
+        int jy = ((tier.Look >> 12) % 7 - 3) * tileRect.Width / 32;
+        float rest = MathHelper.Clamp(tier.Glide / TileMap.WILD_STEP_SECONDS, 0f, 1f);
+        float left = 1f - Gait.Ease(1f - rest);
+        return new Vector2(tileRect.Center.X + jx + tier.FromX * left * tileRect.Width,
+                           tileRect.Bottom - tileRect.Height / 4 + jy + tier.FromY * left * tileRect.Height);
+    }
+
+    /// <summary>
     /// Ein Schaf oder Reh als Sprite in der Zeilenschicht, wie Bäume und Haufen:
     /// es steht mit den Hufen im unteren Teil seiner Kachel, Bild und Versatz
     /// kommen aus WildAnimal.Look und bleiben beim Wandern gleich. Es blickt in
@@ -4112,15 +4167,10 @@ public class RTSGameplayScreen : GameScreen
         });
         int height = width * tex.Height / tex.Width;
 
-        // Versatz in der Kachel aus dem Aussehen, dazu der Rest des Schritts
-        int jx = ((tier.Look >> 8) % 9 - 4) * tileRect.Width / 32;
-        int jy = ((tier.Look >> 12) % 7 - 3) * tileRect.Width / 32;
         float rest = MathHelper.Clamp(tier.Glide / TileMap.WILD_STEP_SECONDS, 0f, 1f);
-        // Weich angefahren und abgebremst: left ist der Teil des Schritts, der noch fehlt.
         float progress = 1f - rest;
-        float left = 1f - Gait.Ease(progress);
-        var foot = new Vector2(tileRect.Center.X + jx + tier.FromX * left * tileRect.Width,
-                               tileRect.Bottom - tileRect.Height / 4 + jy + tier.FromY * left * tileRect.Height);
+        // Die Hufe aus AnimalFoot, rest ist der Teil des Schritts, der noch fehlt.
+        var foot = AnimalFoot(tile, x, y);
         // Es wippt im Takt der Beine und nur, solange es Fahrt hat.
         float bob = rest > 0f ? MathF.Abs(MathF.Sin(Gait.Ease(progress) * MathF.PI * 2f * WALK_CYCLES_PER_STEP)) * 1.5f * cameraZoom * Gait.EaseSpeed(progress) : 0f;
 
@@ -4225,11 +4275,7 @@ public class RTSGameplayScreen : GameScreen
         if (!reach.Intersects(screenBounds))
             return;
 
-        if (_treeSprites.Length > 0)
-        {
-            DrawTrees(spriteBatch, x, y, crownSize);
-            return;
-        }
+
 
         int hash = unchecked(x * 73856093 ^ y * 19349663) & 0x7FFFFFFF;
         for (int k = 0; k < CrownSpots.Length; k++)
@@ -4245,37 +4291,70 @@ public class RTSGameplayScreen : GameScreen
     }
 
     /// <summary>
-    /// Bäume als Sprites an den Stellen der Kronen: anderthalb Kronen breit,
-    /// mit dem Stammfuß eine halbe Krone unter der Kronenmitte. Die Kachel wird
-    /// von oben nach unten gezeichnet - tiefer stehende Bäume überdecken höhere.
-    /// Jeder Baum wiegt sich im Wind, in Streifen gezeichnet (Wind.SwayStrips).
+    /// Baum k (Index in TreeSpots) der Waldkachel (x, y): Stammfuß in Welteinheiten,
+    /// Baumart (Index in _treeSprites) und Look. Alles fest aus Lage und k - sonst
+    /// zappelten die Bäume von Bild zu Bild. Die Sorte folgt den Hainen: zwei von
+    /// fünf Hainen sind Nadelhaine, jeder sechste Baum ist von der anderen Sorte.
     /// </summary>
-    private void DrawTrees(SpriteBatch spriteBatch, int x, int y, int crownSize)
+    private (Vector2 Foot, int Sprite, int Look) TreeSpot(int x, int y, int k)
     {
         int hash = unchecked(x * 73856093 ^ y * 19349663) & 0x7FFFFFFF;
-        var spots = new List<(Vector2 Foot, Texture2D Tex, Vector2 Tile, int Look)>();
-        for (int k = 0; k < CrownSpots.Length; k++)
+        int look = unchecked(hash ^ (k + 1) * 7919 * 31337) & 0x7FFFFFFF;
+        var foot = new Vector2(x * tileMap.TileSize + TreeSpots[k].X + look % 11 - 5,
+                               y * tileMap.TileSize + TreeSpots[k].Y + (look >> 4) % 9 - 4);
+        // Haine von etwa 6 x 5 Kacheln, je Band von 5 Zeilen um 3 Kacheln versetzt.
+        int grove = unchecked((x + y / 5 * 3) / 6 * 83492791 ^ y / 5 * 19349663) & 0x7FFFFFFF;
+        bool conifer = grove % 5 < 2;
+        if ((look >> 8) % 6 == 0) conifer = !conifer;
+        // Unter den Baumarten der Sorte der ((look >> 12) % Anzahl)-te; fehlt die Sorte,
+        // einfach der ((look >> 12) % Gesamtnummer)-te.
+        int count = 0;
+        for (int i = 0; i < _treeSprites.Length; i++)
+            if (_treeSprites[i].Conifer == conifer) count++;
+        int sprite;
+        if (count > 0)
         {
-            int jx = (hash >> (k * 4)) % 7 - 3;
-            int jy = (hash >> (k * 4 + 2)) % 7 - 3;
-            var center = WorldToScreen(new Vector2(x * tileMap.TileSize + CrownSpots[k].X + jx,
-                                                   y * tileMap.TileSize + CrownSpots[k].Y + jy));
-            var tile = new Vector2(x * tileMap.TileSize + CrownSpots[k].X + jx,
-                                   y * tileMap.TileSize + CrownSpots[k].Y + jy) / tileMap.TileSize;
-            spots.Add((center + new Vector2(0, crownSize / 2f), _treeSprites[(hash >> k) % _treeSprites.Length], tile, hash ^ (k * 7919)));
-        }
-        foreach (var (foot, tex, tile, look) in spots.OrderBy(s => s.Foot.Y))
-        {
-            int treeWidth = (int)(crownSize * 1.5f);
-            int treeHeight = treeWidth * tex.Height / tex.Width;
-            // Der Baum wiegt sich im Wind - der Fuß steht, die Krone schwingt aus (Wind.TreeSway, Wind.SwayStrips).
-            var target = new Rectangle((int)foot.X - treeWidth / 2, (int)foot.Y - treeHeight,
-                                       treeWidth, treeHeight);
-            float sway = Wind.TreeSway(tile, animationTime, look);
-            foreach (var strip in Wind.SwayStrips(target, tex.Width, tex.Height, sway))
+            int pick = (look >> 12) % count;
+            sprite = 0;
+            for (int i = 0; i < _treeSprites.Length; i++)
             {
-                spriteBatch.Draw(tex, strip.Position, strip.Source, Color.White, 0f, Vector2.Zero, strip.Scale, SpriteEffects.None, 0f);
+                if (_treeSprites[i].Conifer == conifer)
+                {
+                    if (pick == 0) { sprite = i; break; }
+                    pick--;
+                }
             }
+        }
+        else
+        {
+            sprite = (look >> 12) % _treeSprites.Length;
+        }
+        return (foot, sprite, look);
+    }
+
+    /// <summary>
+    /// Ein Baum als Sprite: so hoch, wie seine Art in TreeAssets sagt, mit dem
+    /// Stammfuß unten in der Mitte. Cullt selbst (die Krone schwingt bis zu 5 %
+    /// der Höhe zur Seite). Wiegt sich im Wind, in Streifen gezeichnet
+    /// (Wind.TreeSway, Wind.SwayStrips).
+    /// </summary>
+    private void DrawTree(SpriteBatch spriteBatch, int x, int y, int k)
+    {
+        var (foot, sprite, look) = TreeSpot(x, y, k);
+        var (tex, height, _) = _treeSprites[sprite];
+        var screen = WorldToScreen(foot);
+        int treeHeight = (int)(height * cameraZoom);
+        int treeWidth = treeHeight * tex.Width / tex.Height;
+        var target = new Rectangle((int)screen.X - treeWidth / 2, (int)screen.Y - treeHeight,
+                                   treeWidth, treeHeight);
+        // Cullen: die Krone schwingt bis zu 5 % der Höhe zur Seite.
+        var cull = new Rectangle(target.Left - treeHeight / 16, target.Top,
+                                 target.Width + treeHeight / 8, target.Height);
+        if (!screenBounds.Intersects(cull)) return;
+        float sway = Wind.TreeSway(foot / tileMap.TileSize, animationTime, look);
+        foreach (var strip in Wind.SwayStrips(target, tex.Width, tex.Height, sway))
+        {
+            spriteBatch.Draw(tex, strip.Position, strip.Source, Color.White, 0f, Vector2.Zero, strip.Scale, SpriteEffects.None, 0f);
         }
     }
 
@@ -4729,8 +4808,10 @@ public class RTSGameplayScreen : GameScreen
     {
         public float Depth;   // Bildschirm-y der Sohle (weiter unten = später)
         public int Kind;      // TREE=0, ANIMAL=2, BUILDING=3, UNIT=4
+        public int Seq;       // Reihenfolge des Eintragens: entscheidet bei gleicher Sohle und Art
         public int X;         // Kachel-x (TREE, ANIMAL) oder -
         public int Y;         // Kachel-y (TREE, ANIMAL) oder -
+        public int Spot;      // Baum: Index in TreeSpots
         public Data.Building Building;
         public Unit Unit;
         public Data.Tile Tile;
@@ -4761,21 +4842,47 @@ public class RTSGameplayScreen : GameScreen
         // Felder) stehen NICHT hier — sie liegen am Boden und verdecken
         // nichts, was hinter ihnen steht; sie kommen im Bodendurchlauf
         // (DrawTileMap) davor. —
-        for (int y = 0; y < tileMap.Height; y++)
-            for (int x = 0; x < tileMap.Width; x++)
+        // Bäume ragen bis zu drei Kacheln nach oben und eine zur Seite,
+        // deshalb unten 4 und seitlich 2 Kacheln Zugabe - der Rest der Karte
+        // kann nicht ins Bild reichen.
+        var oben = ScreenToWorld(Vector2.Zero) / tileMap.TileSize;
+        var unten = ScreenToWorld(new Vector2(screenBounds.Right, screenBounds.Bottom)) / tileMap.TileSize;
+        int x0 = Math.Max(0, (int)MathF.Floor(oben.X) - 2);
+        int x1 = Math.Min(tileMap.Width - 1, (int)unten.X + 2);
+        int y0 = Math.Max(0, (int)MathF.Floor(oben.Y) - 1);
+        int y1 = Math.Min(tileMap.Height - 1, (int)unten.Y + 4);
+        for (int y = y0; y <= y1; y++)
+            for (int x = x0; x <= x1; x++)
             {
                 var tile = tileMap.GetTile(x, y);
                 if (tile == null) continue;
 
                 if (tile.Type == TileType.Forest)
                 {
-                    // Sohle: unterer Rand der Kachel (Stammfuß ist hier)
-                    var rect = TileScreenRect(x, y);
-                    list.Add(new DepthEntry
+                    if (_treeSprites.Length > 0)
                     {
-                        Depth = rect.Bottom,
-                        Kind = 0, X = x, Y = y,
-                    });
+                        // Baumbilder geladen: jeder Baum ein eigener Eintrag, nach seinem
+                        // eigenen Stammfuß einsortiert.
+                        for (int k = 0; k < TreeSpots.Length; k++)
+                        {
+                            list.Add(new DepthEntry
+                            {
+                                Depth = WorldToScreen(TreeSpot(x, y, k).Foot).Y,
+                                Kind = 1, X = x, Y = y, Spot = k,
+                            });
+                        }
+                    }
+                    else
+                    {
+                        // Ohne Baumbilder: ein Eintrag für die ganze Kachel (gezeichnete Kronen),
+                        // Sohle: unterer Rand der Kachel.
+                        var rect = TileScreenRect(x, y);
+                        list.Add(new DepthEntry
+                        {
+                            Depth = rect.Bottom,
+                            Kind = 0, X = x, Y = y,
+                        });
+                    }
                 }
                 else
                 {
@@ -4789,13 +4896,10 @@ public class RTSGameplayScreen : GameScreen
                     if (animals is { Length: > 0 } && live
                         && tileMap.IsTileVisible(x, y, 0))
                     {
-                        // Sohle: Hufe (DrawAnimal: tileBottom - tileH/4 + jy)
-                        var rect = TileScreenRect(x, y);
-                        var tier = tile.Animal ?? new Data.WildAnimal();
-                        int jy = ((tier.Look >> 12) % 7 - 3) * rect.Width / 32;
+                        // Sohle = Hufe (AnimalFoot)
                         list.Add(new DepthEntry
                         {
-                            Depth = rect.Bottom - rect.Height / 4f + jy,
+                            Depth = AnimalFoot(tile, x, y).Y,
                             Kind = 2, X = x, Y = y, Tile = tile,
                         });
                     }
@@ -4830,16 +4934,25 @@ public class RTSGameplayScreen : GameScreen
             });
         }
 
-        // Sortiere: aufsteigende Sohle (kleines y = weiter oben = zuerst).
-        // Bei gleicher Sohle entscheidet die Art: Bäume < Haufen < Tiere <
-        // Gebäude < Figuren, damit Figuren über Gebäuden und Gebäude über
-        // Tieren liegen — und bei gleicher Art bleibt die Kartenreihenfolge
-        // (Liste wurde in x-, dann y-Reihenfolge gefüllt).
+        // Sortiere: aufsteigende Sohle (kleine Sohle = weiter oben = zuerst).
+        // Bei gleicher Sohle: Bäume < Tiere < Gebäude < Figuren. Bei gleicher
+        // Art entscheidet Seq (die Kartenreihenfolge). List.Sort ist nicht
+        // stabil - ohne Seq tauschten sich überlappende Bäume derselben Zeile
+        // von Bild zu Bild, weil die Teilung der Sortierung von allen anderen
+        // Einträgen abhängt (Haufen gibt es hier nicht mehr).
+        for (int i = 0; i < list.Count; i++)
+        {
+            var entry = list[i];
+            entry.Seq = i;
+            list[i] = entry;
+        }
         list.Sort((first, second) =>
         {
             int byDepth = first.Depth.CompareTo(second.Depth);
             if (byDepth != 0) return byDepth;
-            return first.Kind.CompareTo(second.Kind);
+            int byKind = first.Kind.CompareTo(second.Kind);
+            if (byKind != 0) return byKind;
+            return first.Seq.CompareTo(second.Seq);
         });
 
         // — Zeichnen in Reihenfolge —
@@ -4849,10 +4962,16 @@ public class RTSGameplayScreen : GameScreen
         {
             switch (obj.Kind)
             {
-                case 0: // Baum
+                case 0: // gezeichnete Kronen ohne Baumbilder
                 {
                     // DrawCrowns cullt selbst (pixelbasiert, mit Erreichung)
                     DrawCrowns(spriteBatch, obj.X, obj.Y);
+                    break;
+                }
+                case 1: // ein Baum
+                {
+                    // DrawTree cullt selbst
+                    DrawTree(spriteBatch, obj.X, obj.Y, obj.Spot);
                     break;
                 }
                 case 2: // Tier
@@ -4900,6 +5019,17 @@ public class RTSGameplayScreen : GameScreen
             }
         }
 
+        // Lebensbalken der Gebäude über allen Bildern der Tiefenschicht -
+        // das ausgewählte Gebäude und jedes fertige, beschädigte; fremde nur,
+        // wenn Spieler 0 sie gerade sieht.
+        foreach (var b in tileMap.Buildings)
+        {
+            bool show = b == selectedBuilding
+                        || (b.IsComplete && b.Health < b.MaxHealth
+                            && (b.OwnerId == 0 || tileMap.IsTileVisible(b.X, b.Y, 0)));
+            if (show)
+                DrawBuildingHealth(spriteBatch, b);
+        }
         // — UI über den Figuren: Auswahlrahmen und Lebensbalken —
         foreach (var obj in list)
         {
@@ -5233,7 +5363,7 @@ public class RTSGameplayScreen : GameScreen
 
         // Obere Leiste
         var topBarRect = new Rectangle(0, 0, screenBounds.Width, 34);
-        spriteBatch.Draw(px, topBarRect, new Color(94, 76, 48));
+        DrawPanel(spriteBatch, topBarRect);
         spriteBatch.Draw(px, new Rectangle(0, 32, screenBounds.Width, 2), new Color(52, 40, 24));
 
         // Ressourcen
@@ -5319,14 +5449,14 @@ public class RTSGameplayScreen : GameScreen
         // der Mitte, Minimap rechts. Klicks hier gelten nie der Karte (IsOverHud).
         int barY = screenBounds.Height - HUD_BOTTOM_HEIGHT;
         var bottomBarRect = new Rectangle(0, barY, screenBounds.Width, HUD_BOTTOM_HEIGHT);
-        spriteBatch.Draw(px, bottomBarRect, new Color(94, 76, 48));
-        spriteBatch.Draw(px, new Rectangle(0, barY, screenBounds.Width, 2), new Color(140, 115, 75));
+        DrawPanel(spriteBatch, bottomBarRect);
+        spriteBatch.Draw(px, new Rectangle(0, barY, screenBounds.Width, 2), PanelEdge[(int)AgeOf(0)]);
 
-        // Die erhöhte Fläche hinter der Minimap, im Ton der Leiste mit heller Kante
+        // Die erhöhte Fläche hinter der Minimap, im Stoff der Leiste mit heller Kante
         var minimapPanel = MinimapPanel();
-        spriteBatch.Draw(px, minimapPanel, new Color(94, 76, 48));
-        spriteBatch.Draw(px, new Rectangle(minimapPanel.X, minimapPanel.Y, minimapPanel.Width, 2), new Color(140, 115, 75));
-        spriteBatch.Draw(px, new Rectangle(minimapPanel.X, minimapPanel.Y, 2, minimapPanel.Height), new Color(140, 115, 75));
+        DrawPanel(spriteBatch, minimapPanel);
+        spriteBatch.Draw(px, new Rectangle(minimapPanel.X, minimapPanel.Y, minimapPanel.Width, 2), PanelEdge[(int)AgeOf(0)]);
+        spriteBatch.Draw(px, new Rectangle(minimapPanel.X, minimapPanel.Y, 2, minimapPanel.Height), PanelEdge[(int)AgeOf(0)]);
 
         var minimapRect = MinimapRect();
         DrawMinimap(spriteBatch, minimapRect);
@@ -5373,9 +5503,39 @@ public class RTSGameplayScreen : GameScreen
         int infoLeft = _buttons.Max(b => b.Rect.Right) + 24;
         float infoWidth = minimapRect.Left - 24 - infoLeft;
         var lines = WrapHudText(infoLine, infoWidth);
+        // Dunkles Feld hinter dem Hilfetext: auf hellem Stein und Marmor bliebe weiße Schrift sonst kaum lesbar
+        var infoField = new Rectangle(infoLeft - 10, barY + 10, (int)infoWidth + 20, HUD_BOTTOM_HEIGHT - 20);
+        spriteBatch.Draw(px, infoField, new Color(0, 0, 0) * 0.45f);
+        spriteBatch.Draw(px, new Rectangle(infoField.X, infoField.Bottom - 1, infoField.Width, 1), PanelEdge[(int)AgeOf(0)] * 0.6f);
         for (int i = 0; i < lines.Count; i++)
             spriteBatch.DrawString(ScreenManager.Font, lines[i],
                 new Vector2(infoLeft, barY + 18 + i * ScreenManager.Font.LineSpacing), Color.White);
+    }
+
+    /// <summary>
+    /// Zeichnet eine Leistenflaeche im Stoff des Zeitalters von Spieler 0. Fehlt das Bild,
+    /// bleibt die Flaeche wie bisher einfarbig braun. Das kachelbare Bild wird in Kacheln
+    /// von PANEL_TILE x PANEL_TILE Bildschirmpunkten ab der linken oberen Ecke gelegt; am
+    /// rechten und unteren Rand wird die letzte Kachel abgeschnitten, nicht gestaucht.
+    /// </summary>
+    private void DrawPanel(SpriteBatch spriteBatch, Rectangle area)
+    {
+        var tex = _panelTex[(int)AgeOf(0)];
+        if (tex == null)
+        {
+            spriteBatch.Draw(px, area, new Color(94, 76, 48));
+            return;
+        }
+        for (var y = area.Top; y < area.Bottom; y += PANEL_TILE)
+        {
+            for (var x = area.Left; x < area.Right; x += PANEL_TILE)
+            {
+                var w = Math.Min(PANEL_TILE, area.Right - x);
+                var h = Math.Min(PANEL_TILE, area.Bottom - y);
+                var source = new Rectangle(0, 0, tex.Width * w / PANEL_TILE, tex.Height * h / PANEL_TILE);
+                spriteBatch.Draw(tex, new Rectangle(x, y, w, h), source, Color.White);
+            }
+        }
     }
 
     /// <summary>

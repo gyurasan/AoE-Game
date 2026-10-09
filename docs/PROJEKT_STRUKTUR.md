@@ -21,7 +21,7 @@ src/AoE.Core/ - net10.0, MonoGame-unabhängige Spiellogik:
     Pathfinding/Pathfinding.cs (316) - A-Stern und Formationsbewegung
 AgeOfEvolutions/ - das MonoGame-Spiel:
     AgeOfEvolutions.Core/ (net10.0) mit Data/, Screens/, Effects/, Inputs/, ScreenManagers/, Localization/, Settings/, Content/
-        Content/ - Backgrounds/menu.png, Icons/, Gebaeude/ (je Zeitalter in dunkel/, feudal/, ritter/, imperial/), Einheiten/ (ab der Feudalzeit je Zeitalter in feudal/, ritter/, imperial/), Werkzeuge/, Boden/, Felder/, Baeume/, Rohstoffe/, Tiere/ (aus tools/bilder), Fonts/Hud und Fonts/Menu
+        Content/ - Backgrounds/menu.png, Icons/, Gebaeude/ (je Zeitalter in dunkel/, feudal/, ritter/, imperial/), Einheiten/ (ab der Feudalzeit je Zeitalter in feudal/, ritter/, imperial/), Werkzeuge/, Boden/, Felder/, Baeume/, Rohstoffe/, Tiere/, Leiste/ (aus tools/bilder), Fonts/Hud und Fonts/Menu
     AgeOfEvolutions.DesktopGL/ (net10.0) - Windows, macOS, Linux; RuntimeIdentifiers win-x64, osx-x64, osx-arm64, linux-x64
     AgeOfEvolutions.WindowsDX/ (net10.0-windows) - nur Windows
 tests/AoE.Tests/ - net10.0, xUnit, 267 Tests, alle grün
@@ -57,16 +57,17 @@ tools/spielablauf/ - lässt die Spielschleife ohne Grafik laufen und prüft Abl�
 | Unit.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/Unit.cs | 213 Zeilen, Spieleinheit; hält über `Unit.Core` eine `UnitEntity` aus AoE.Core und reicht Kampfwerte, Lebenspunkte und Zustand durch; hält den Sammelauftrag (`Job`) und die Baustelle (`BuildSite`), seit K2 das angegriffene Gebäude (`AttackTarget`) |
 | CoreUnits.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/CoreUnits.cs | 105 Zeilen, bildet alle 19 Einheitentypen des Spiels auf Klassen aus AoE.Core ab |
 | CoreBuildings.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/CoreBuildings.cs | 50 Zeilen, bildet alle Gebäude des Baumenüs auf BuildingEntity aus AoE.Core ab |
-| RTSGameplayScreen.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs | 5734 Zeilen, prozedurale Texturen und Spielschleife; Gras, Sand und Wasser aus dem Bodenshader (`DrawGroundShaded`), Weizen (`DrawWheat`) und Bäume (`DrawTrees`, Wind.cs) im Wind; Gehen nach Strecke mit Anfahren und Abbremsen (Gait.cs); Gebäude- und Dorfbewohnerbilder je Zeitalter des Besitzers; Gebäude auswählen mit Rahmen, Lebensbalken und Status, Ausbildung im ausgewählten Gebäude nach `Products` (Taste Q: Dorfbewohner, Miliz, Bogenschütze, Späher), Forschungen im ausgewählten Gebäude nach `Researches` (`Research`, `UpdateResearch`), Angriff auf fremde Gebäude (`AttackBuilding`), Zeitalter (A), Baumenü in zwei Tastenreihen (H, M, F, B, G, T; darunter die zweite Reihe K, P, S, L, E, R, W, Z, X, U, O, C, N), Baustellen, Minimap und die Klick-Entscheidung (`LeftClick`) |
+| RTSGameplayScreen.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs | 6059 Zeilen, prozedurale Texturen und Spielschleife; Gras, Sand und Wasser aus dem Bodenshader (`DrawGroundShaded`), Weizen (`DrawWheat`) und Bäume (`DrawTree`, Wind.cs) im Wind; Bäume, Tiere, Gebäude und Figuren nach ihrer Sohle sortiert in einer Tiefenschicht (`DrawUnits`); Leisten im Stoff des Zeitalters (`DrawPanel`); Gehen nach Strecke mit Anfahren und Abbremsen (Gait.cs); Gebäude- und Dorfbewohnerbilder je Zeitalter des Besitzers; Gebäude auswählen mit Rahmen, Lebensbalken und Status, Ausbildung im ausgewählten Gebäude nach `Products` (Taste Q: Dorfbewohner, Miliz, Bogenschütze, Späher), Forschungen im ausgewählten Gebäude nach `Researches` (`Research`, `UpdateResearch`), Angriff auf fremde Gebäude (`AttackBuilding`), Zeitalter (A), Baumenü in zwei Tastenreihen (H, M, F, B, G, T; darunter die zweite Reihe K, P, S, L, E, R, W, Z, X, U, O, C, N), Baustellen, Minimap und die Klick-Entscheidung (`LeftClick`) |
 
 ## Grafik
 
-Menübild, Tastensymbole, Gebäude, Dorfbewohner, Boden (Gras, Sand, Wasser), Bäume, Stein-
+Menübild, Tastensymbole, Leisten, Gebäude, Dorfbewohner, Boden (Gras, Sand, Wasser), Bäume, Stein-
 und Goldhaufen, die Felder sowie Schafe und Rehe kommen aus Qwen-Image
 (Qwen-Image-2512, fp8) über ComfyUI unter `D:\Apps\ComfyUI`. `tools/bilder/bilder.json` hält
 je Bild Prompt, Seed und Ziel; `qwen_image.py` erzeugt die Bilder und stellt sie mit
 BiRefNet frei, `uebernehmen.ps1` schneidet zu, färbt Fahnen, Banner und Kittel für
-Spieler 2 rot und macht Bodenbilder kachelbar. Die Ergebnisse liegen in
+Spieler 2 rot, macht Bodenbilder kachelbar (großflächig ausgeglichen) und weiße Lücken in
+Baumkronen durchsichtig. Die Ergebnisse liegen in
 `AgeOfEvolutions.Core/Content/` und sind in `AgeOfEvolutions.mgcb` eingetragen. Gehen
 Dorfbewohner und Soldaten, zeigt das Spiel acht Gehphasen je Doppelschritt (`lauf1` bis
 `lauf8`, nach der gelaufenen Strecke, `Gait.WalkFrame`): `tools/bilder/gang.py` schneidet die
@@ -86,7 +87,8 @@ Schaum, Fischschwärme und Trampelpfade. Das Gras ist eine Wiese aus vier Sorten
 (`Boden/gras`, `gras_trocken`, `gras_dunkel`, `gras_blumen`, Gruppe `gras`): je Bildpunkt
 gewinnt die Sorte mit dem größten Gewicht plus Halmhöhe (`Meadow`, `GrassHeight`), so
 schieben sich an den Grenzen die Halme ineinander; Blumen wachsen nur in Flecken, am Wald
-das dunkle Gras mit Klee. Im Wind wiegen sich der Weizen (`Content/Effects/Weizen.fx`)
+das dunkle Gras mit Klee. Die Grasbilder liegen feiner als Sand und Wasser (`GRASS_TEXELS`,
+Shaderparameter `GrassScale`), damit die Halme neben Bäumen und Figuren klein bleiben. Im Wind wiegen sich der Weizen (`Content/Effects/Weizen.fx`)
 und die Bäume (`Screens/Wind.cs`), in denselben Böen. Bilder des Spiels liegen in `docs/bilder/`.
 
 Das Programmsymbol (Dorfbewohner vor dem Wappenschild, Gruppe `spielicon`) schreibt

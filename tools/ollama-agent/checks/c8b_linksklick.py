@@ -30,7 +30,9 @@ else:
 einheit = methode(text, "OwnUnitAt")
 if einheit is None:
     fehler.append("Methode OwnUnitAt fehlt")
-elif not re.search(r"OwnerId\s*==\s*0", einheit) or "UnitWorldRect" not in einheit:
+# Eigenschaft, nicht Schreibweise: OwnerId mit 0 verglichen (== 0 als Bedingung oder
+# != 0 als Ausschluss, seit T1a) und die Figurfläche UnitWorldRect
+elif not re.search(r"OwnerId\s*[!=]=\s*0", einheit) or "UnitWorldRect" not in einheit:
     fehler.append("OwnUnitAt sucht nicht die eigene Einheit unter dem Zeiger (OwnerId == 0, UnitWorldRect)")
 if not re.search(r"OwnUnitAt\s*\(", methode(text, "SelectSingleUnit") or ""):
     fehler.append("SelectSingleUnit nutzt OwnUnitAt nicht - zwei Fassungen derselben Suche")

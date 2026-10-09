@@ -62,10 +62,13 @@ if "SelectedOwnTownCenter()" not in tasten or "_buttonsLayoutBuilding" not in ta
     fehler.append("LayoutButtons: Q/A hängen nicht am ausgewählten Stadtzentrum, oder die Tasten werden beim Wechsel nicht neu angelegt")
 if "BuildingStatus(" not in (methode(text, "DrawUI") or ""):
     fehler.append("DrawUI zeigt den Gebäudestatus nicht")
+# Der Auswahlrahmen liegt unter den Bildern (DrawTileMap); die Lebensbalken zeichnet seit T1a
+# die Tiefenschicht über alle Bilder (DrawUnits) - in DrawTileMap lagen sie unter Bäumen
 karte = methode(text, "DrawTileMap") or ""
-for name in ("DrawBuildingSelection(", "DrawBuildingHealth("):
-    if name not in karte:
-        fehler.append(f"DrawTileMap ruft {name.rstrip('(')} nicht auf")
+if "DrawBuildingSelection(" not in karte:
+    fehler.append("DrawTileMap ruft DrawBuildingSelection nicht auf")
+if "DrawBuildingHealth(" not in karte + (methode(text, "DrawUnits") or ""):
+    fehler.append("weder DrawTileMap noch DrawUnits ruft DrawBuildingHealth auf")
 for name in ("SelectSingleUnit", "LeftClick"):
     if "BuildingUnder(" not in (methode(text, name) or ""):
         fehler.append(f"{name} wählt keine Gebäude aus (BuildingUnder)")

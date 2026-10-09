@@ -27,7 +27,10 @@ wieder = todo.split("## Wiederaufnahme", 1)[-1].split("Alles baut und läuft", 1
 if hat(wieder, r"Rehe \(Wild\)\*\* — der Code steht uncommittet"):
     fehler.append("TODO: die Wiederaufnahme nennt noch die uncommitteten Rehe als letzten Stand")
 for kennung in ("C7h", "C7t"):
-    if not re.search(rf"- \[x\][^\n]*(\n\s+[^\n-][^\n]*)*\*\((Agent )?{kennung}\)\*", todo):
+    # Folgezeilen eindeutig zerlegt (Einrückung nur [ \t], erstes Zeichen kein
+    # Leerraum): mit \s+ vor [^\n-] ließ sich jede eingerückte Zeile mehrfach
+    # aufteilen, die Suche lief exponentiell lange und hing stundenlang
+    if not re.search(rf"- \[x\][^\n]*(?:\n(?:[ \t]*\n)*[ \t]+[^\s-][^\n]*)*\*\((Agent )?{kennung}\)\*", todo):
         fehler.append(f"TODO: im Block C7 fehlt der abgehakte Punkt für {kennung}")
 for begriff in ("Felder/weizen", "Felder/acker", "WildAnimal", "herde"):
     if begriff not in todo:

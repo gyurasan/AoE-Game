@@ -4,14 +4,17 @@
 
 ## Wiederaufnahme — hier weitermachen
 
-Zuletzt angefasst: **Schwertschlag und Speerstoß** (2026-10-09, C4n) — die Miliz holt beim Angriff
+Zuletzt angefasst: **Bäume, Gras und Leisten** (2026-10-09, T1b, G11, H1) — acht Baumarten mit
+offener Krone, einzeln in der Tiefenschicht und etwas größer; feineres Gras; die Leisten im Stoff
+des Zeitalters. Dazu die **Durchsicht der Tiefenschicht** (T1a). Davor **Schwertschlag und
+Speerstoß** (C4n) — die Miliz holt beim Angriff
 aus und schlägt über den Kopf zu, der Späher stößt mit gesenktem Speer; der Treffer im Bild fällt
 genau auf den Abzug der Stärke. Davor **Natürliches Gehen** (C4l, C4m) — alle Figuren gehen in
 acht Phasen je Doppelschritt, ohne dass die Füße rutschen. Davor **Forschungen** (2026-10-09, P2) — ein ausgewähltes Gebäude forscht: Webstuhl im
 Stadtzentrum (W), Pferdekummet, Doppelaxt und Goldbergbau in den Lagern (Q), drei Forschungen in
 der Schmiede (Q, W, E), Maurerkunst in der Universität (Q) —, **Soldaten** (P1; committet mit
 `ad2ca62`) und **Gebäude auswählen und angreifen** (2026-10-06, B1, K1, K2). Handel fehlt noch.
-P2, C4l, C4m und C4n sind uncommittet im Arbeitsbaum; Commit macht der Nutzer.
+T1a, T1b, G11 und H1 sind uncommittet im Arbeitsbaum; Commit macht der Nutzer.
 
 Alles baut und läuft: `dotnet build AgeOfEvolutions.slnx` (0 Fehler; Warnungen: NU1902/NU1903
 zu SixLabors.ImageSharp, das MonoGame 3.8.6 mitbringt, dazu CS8766 und xUnit2029 in
@@ -22,6 +25,33 @@ mit `4f85314` (2026-10-03). Commits macht der Nutzer selbst.
 
 Zuletzt fertiggestellt:
 
+- **Bäume mit offener Krone, feineres Gras, Leisten je Zeitalter (2026-10-09)** — Wunsch des
+  Nutzers: die Bäume in hoher Qualität neu, so offen wie die Tannen, damit sie nicht alles
+  dahinter verdecken, und etwas größer; das Gras feiner und im Verhältnis zu den Bäumen kleiner;
+  die untere Leiste im Stoff der Epoche. Acht Baumarten (zwei Eichen, Ahorn, Buche, Birke,
+  Fichte, Tanne, Kiefer) per Qwen-Image in 1104 x 1472 mit 50 Schritten, je Art drei Seeds zur
+  Wahl, freigestellt und 512 Pixel breit; weiße Lücken in der Krone macht `uebernehmen.ps1`
+  (Option `loecher`) ohne hellen Saum durchsichtig. Im Spiel ist jeder Baum ein eigener Eintrag
+  der Tiefenschicht mit seinem Stammfuß als Sohle (`TreeSpot`, `DrawTree`), zwei je Waldkachel
+  statt drei, 58 bis 86 Welteinheiten hoch (`TreeAssets`; ein Dorfbewohner ist 24), Laub- und
+  Nadelbäume in Hainen von etwa 6 x 5 Kacheln. Gras: die vier Sorten neu in 1328 Pixeln mit viel
+  feineren Halmen, je Farbkanal großflächig ausgeglichen (Option `ausgleichen`, sonst zeigte das
+  gekachelte Bild ein Raster), im Bodenshader mit eigenem Maßstab `GRASS_TEXELS` = 7 statt 4
+  (`GrassScale`), Sand und Wasser unverändert; die Mittelwerte der Sorten liegen auf den alten,
+  die Abstimmung aus G10 gilt weiter. Leisten: rohe Holzbohlen, Eichenbohlen, Quadermauer, grüner
+  Marmor mit Goldkante (`Leiste/*`, `DrawPanel`, `PanelEdge`) oben, unten und hinter der Minimap;
+  ein dunkles Feld hält den Hilfetext auf Stein und Marmor lesbar. Code vom lokalen Modell (je
+  10 bis 31 s, T1b im zweiten Lauf); Abnahme `t1b_baeume.py`, `g11_gras.py`, `h1_leiste.py`
+  *(T1b, G11, H1)*
+- **Durchsicht der Tiefenschicht (2026-10-09)** — fünf Befunde am Umbau `6def1ec` behoben: die
+  Lebensbalken der Gebäude lagen unter Bäumen und Gebäuden (jetzt in `DrawUnits` über allen
+  Bildern); `List.Sort` ist nicht stabil, überlappende Bäume einer Zeile konnten von Bild zu Bild
+  tauschen (Eintragsindex `Seq`); Tiere wurden nach der Zielkachel statt nach den Hufen sortiert
+  (`AnimalFoot`, auch mitten im Schritt); `OwnUnitAt` nahm die letzte statt der vordersten Figur;
+  `DrawUnits` lief je Bild über die ganze Karte (jetzt nur Kacheln nahe am Fenster). Außerdem
+  hing `d21_doku.py` stundenlang (Regex mit exponentiellem Backtracking), und `c7r_boden.py` hatte
+  die Prüfung verloren, dass `DrawTileMap` keine Bodenkacheln mehr zeichnet. Abnahme
+  `t1a_tiefe.py` *(T1a)*
 - **Bäume verdecken Gebäude, Gebäude Bäume (2026-10-09)** — die Zeilenordnung
   beim Zeichnen war bisher: alle Bäume, dann alle Haufen, dann alle Gebäude,
   zuletzt alle Figuren; ein Baum weiter unten im Bild konnte deshalb ein
@@ -282,7 +312,8 @@ Linksklick, der hier ein Befehl ist, oder per neuem Bauauftrag. Die Nachstellung
 
 Nächste sinnvolle Schritte, in dieser Reihenfolge:
 
-1. **Sichtprüfung der Animationen durch den Nutzer** — Gehen (C4l, C4m) und Schwertschlag
+1. **Sichtprüfung durch den Nutzer** — die neuen Bäume, das feinere Gras und die Leisten je
+   Zeitalter (T1b, G11, H1) im Spiel; dazu Gehen (C4l, C4m) und Schwertschlag
    (C4n) sind fertig; in Zeitlupe in `docs/bilder/gang.gif` und `docs/bilder/schlag.gif`. Der
    Bogenschütze schießt beim Angriff noch nicht sichtbar (Bogen spannen, Pfeil) - siehe C4n.
 2. **Feuer in der Schmiede animieren** (Hinweis des Nutzers, 2026-10-07) — das Feuer ist
@@ -881,6 +912,9 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
 - [ ] Kommandoleiste unten: Aktionssymbole – Einheiteninfo – Minimap
 - [x] Befehlstasten mit Symbolen (Qwen-Image, `tools/bilder`); Name, Kürzel und Kosten
       nennt die Leiste, solange die Maus auf einer Taste steht *(Agent C6i)*
+- [x] Leisten im Stoff des Zeitalters: rohe Holzbohlen, Eichenbohlen, Quadermauer, grüner
+      Marmor mit Goldkante (`PanelAssets`, `DrawPanel`); dunkles Feld hinter dem Hilfetext
+      *(Agent H1)*
 - [ ] Minimap: kleine Karte rechts unten in der Kommandoleiste, in derselben Ansicht wie
       die Spielkarte (zurzeit Draufsicht, Norden oben; Entscheidung 2026-10-03, statt
       der Raute aus dem AoE-II-HUD) — Farben nach dem Referenzbild `docs/overview.jpg`:
@@ -982,6 +1016,11 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
       Einheit stehen, wenn darunter Wasser oder ein fremdes Gebäude lag, und verriet es so.
       Stößt sie unterwegs auf ein Hindernis, plant sie neu, statt es zu betreten; ist das Ziel
       gesperrt, hält sie so nah wie möglich. Gruppe `dunkel` in `tools/spielablauf` *(Agent K)*
+- [x] Bäume mit offener Krone in acht Arten, jeder Baum einzeln nach seinem Stammfuß in der
+      Tiefenschicht, zwei je Waldkachel, Höhe je Art, Laub- und Nadelbäume in Hainen
+      (`TreeAssets`, `TreeSpot`, `DrawTree`) *(Agent T1a, T1b)*
+- [x] Gras feiner: vier neue Sorten mit feinen Halmen, im Shader mit eigenem Maßstab
+      (`GRASS_TEXELS`, `GrassScale`) *(Agent G11)*
 
 ### C10 · Kamera [R]
 

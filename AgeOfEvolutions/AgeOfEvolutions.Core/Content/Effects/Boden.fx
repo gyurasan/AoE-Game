@@ -19,6 +19,7 @@
 float2 MapTiles;      // Kartengröße in Kacheln
 float Time;           // Sekunden, Takt von Wellen und Schaum
 float DetailScale;    // Bodenbild-Koordinate je Kachel (TileSize * GROUND_TEXELS / Bildbreite)
+float GrassScale;     // Grasbild-Koordinate je Kachel (TileSize * GRASS_TEXELS / Breite des Grasbilds)
 
 Texture2D SpriteTexture;   // das Steuerbild, setzt der SpriteBatch
 sampler2D ControlSampler = sampler_state
@@ -318,7 +319,8 @@ float4 MainPS(VertexShaderOutput input) : COLOR
 	float2 g = tile * DetailScale;
 	// Unter und neben Bäumen wächst sattes Gras im Schatten der Kronen
 	float forest = smoothstep(0.25, 0.75, live.g + (nm.a - 0.5) * 0.4);
-	float3 grass = Meadow(g, nl, nm, nf, forest);
+	// Grasbilder mit eigenem, feinerem Maßstab (GrassScale)
+	float3 grass = Meadow(tile * GrassScale, nl, nm, nf, forest);
 	// Kronenschatten, schwächer als früher
 	grass = lerp(grass, grass * float3(0.7, 0.74, 0.66), forest * 0.4);
 

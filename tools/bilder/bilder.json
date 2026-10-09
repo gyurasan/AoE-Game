@@ -2337,48 +2337,70 @@
  },
  "baeume": {
   "groesse": [
-   1024,
-   1024
+   1104,
+   1472
   ],
-  "schritte": 30,
+  "schritte": 50,
   "cfg": 3.0,
   "freistellen": true,
   "zuschneiden": true,
-  "zielbreite": 128,
-  "stil": "Game sprite for a top-down 2D strategy game, three-quarter top-down view from the south, detailed 16-bit pixel art, crisp pixels, natural greens, soft light from the upper left. One single tree centered, fully visible from the top of the crown down to the roots, isolated on a plain white background, no ground plate, no shadow on the background, no text.",
-  "negativ": "text, letters, logo, watermark, frame, border, multiple trees, forest, grass ground, landscape, scenery, sky, cut off, cropped, blurry, photo, 3d render",
+  "zielbreite": 512,
+  "stil": "Game sprite for a top-down 2D strategy game, three-quarter top-down view from the south, detailed 16-bit pixel art, crisp pixels, finely detailed pixel shading, rich natural colors with dark shaded areas, soft light from the upper left, like a classic late 1990s strategy game sprite. One single tree centered, fully visible from the top of the crown down to the roots, isolated on a plain white background, no ground plate, no grass, no shadow on the background, no text.",
+  "negativ": "text, letters, logo, watermark, frame, border, multiple trees, forest, grass ground, landscape, scenery, sky, cut off, cropped, blurry, photo, 3d render, dense solid crown, ball-shaped crown, pale, washed out, faded colors, sun glare, glow, light rays, bloom, black background, dark background",
   "bilder": [
    {
     "name": "laubbaum",
-    "seed": 6001,
+    "seed": 6301,
     "ziel": "Baeume/laubbaum.png",
-    "prompt": "A round, full, leafy deciduous oak tree with a dense dark green crown and a short thick brown trunk."
+    "prompt": "A large old oak tree. Open, airy crown: separate clumps of leaves on visible branches, clear gaps between the clumps where the white background shows through. Dark green oak leaves, thick crooked branches, a sturdy brown trunk with roots.",
+    "stil": "Game sprite for a top-down 2D strategy game, three-quarter top-down view from the south, detailed 16-bit pixel art, crisp pixels, finely detailed pixel shading, natural colors, soft light from the upper left, like a classic late 1990s strategy game sprite. One single tree centered, fully visible from the top of the crown down to the roots, isolated on a plain white background, no ground plate, no grass, no shadow on the background, no text.",
+    "negativ": "text, letters, logo, watermark, frame, border, multiple trees, forest, grass ground, landscape, scenery, sky, cut off, cropped, blurry, photo, 3d render, dense solid crown, ball-shaped crown",
+    "negativ_allein": true
    },
    {
     "name": "laubbaum2",
-    "seed": 6002,
+    "seed": 6402,
     "ziel": "Baeume/laubbaum2.png",
-    "prompt": "A round, full, leafy deciduous oak tree with a dense dark green crown and a short thick brown trunk."
+    "prompt": "A large old oak tree. Open, airy crown: separate clumps of small leaves on visible branches, clear gaps between the clumps where the white background shows through. Dark green oak leaves, thick crooked branches, a sturdy brown trunk with roots."
    },
    {
     "name": "nadelbaum",
-    "seed": 6101,
+    "seed": 6421,
     "ziel": "Baeume/nadelbaum.png",
-    "prompt": "A tall slim conifer pine tree with layered dark green needle branches and a short brown trunk."
+    "prompt": "A tall slim spruce tree: separate tiers of drooping dark green needle branches with clear gaps between the tiers where the white background shows through, the thin brown trunk visible between the tiers."
    },
    {
     "name": "nadelbaum2",
-    "seed": 6102,
+    "seed": 6432,
     "ziel": "Baeume/nadelbaum2.png",
-    "prompt": "A tall slim conifer pine tree with layered dark green needle branches and a short brown trunk."
+    "prompt": "A tall narrow fir tree with sparse tiers of dark green needle branches, wide gaps between the tiers, the brown trunk visible from top to bottom."
    },
    {
     "name": "buschbaum",
-    "seed": 6201,
+    "seed": 6442,
     "ziel": "Baeume/buschbaum.png",
-    "prompt": "A bushy broadleaf tree with a wide light green crown made of several leaf clumps and a short brown trunk."
+    "prompt": "A young maple tree. Open, airy crown: separate clumps of small leaves on visible branches, clear gaps between the clumps where the white background shows through. Fresh green leaves, a slim brown trunk."
+   },
+   {
+    "name": "kiefer",
+    "seed": 6453,
+    "ziel": "Baeume/kiefer.png",
+    "prompt": "A tall Scots pine tree with a long reddish-brown trunk and a few separate flat clumps of dark green needles on bare side branches at the top, wide gaps between the clumps."
+   },
+   {
+    "name": "buche",
+    "seed": 6461,
+    "ziel": "Baeume/buche.png",
+    "prompt": "A tall beech tree with a smooth grey trunk. Open, airy crown: separate clumps of small leaves on visible branches, clear gaps between the clumps where the white background shows through. Saturated green leaves with dark shaded undersides."
+   },
+   {
+    "name": "birke",
+    "seed": 6471,
+    "ziel": "Baeume/birke.png",
+    "prompt": "A slender birch tree with a light grey bark trunk with black marks, thin hanging branches and a sparse crown of small green leaves, gaps in the crown where the white background shows through."
    }
-  ]
+  ],
+  "loecher": true
  },
  "rohstoffe": {
   "groesse": [
@@ -3759,40 +3781,56 @@
  },
  "gras": {
   "groesse": [
-   1024,
-   1024
+   1328,
+   1328
   ],
-  "schritte": 30,
+  "schritte": 50,
   "cfg": 3.0,
-  "stil": "Seamless ground texture for a top-down 2D strategy game, seen straight from above, finely detailed hand-painted pixel art, natural muted colors, soft even lighting, low contrast, uniform density edge to edge, no objects, no paths, no shadows, no horizon, no text.",
-  "negativ": "text, letters, logo, watermark, frame, border, perspective, horizon, sky, trees, rocks, path, objects, high contrast, vignette, blurry, 3d render, neon green, large flowers",
+  "stil": "Seamless ground texture for a top-down 2D strategy game, seen from above, finely detailed hand-painted pixel art, natural colors, soft even lighting, uniform density edge to edge, no objects, no paths, no shadows on the ground, no horizon, no text.",
+  "negativ": "text, letters, logo, watermark, frame, border, perspective, horizon, sky, trees, rocks, path, objects, vignette, blurry, 3d render, neon green, large flowers, mowed lawn, golf course, close-up, macro, bare soil",
   "kachelbar": true,
   "bilder": [
    {
     "name": "gras",
-    "seed": 5406,
+    "seed": 5601,
     "ziel": "Boden/gras.png",
-    "prompt": "Lush natural meadow grass seen from above: dense short grass in fresh green and grass green with some olive, fine blades in soft irregular tufts, evenly spread. No flowers, no bushes."
-   },
-   {
-    "name": "gras_trocken",
-    "seed": 5412,
-    "ziel": "Boden/gras_trocken.png",
-    "prompt": "Dry late-summer meadow seen from above: short grass in straw yellow, pale olive and faded green, thin blades, small patches of bare dry earth between the tufts. No flowers."
+    "prompt": "Natural unmown meadow seen from above: grass of uneven length from ankle- to knee-high, blades leaning in different directions, loose irregular clumps, fresh green, grass green, some olive and a few yellowish blades, a few thin seed stalks. No flowers, no bushes."
    },
    {
     "name": "gras_dunkel",
-    "seed": 5425,
+    "seed": 5612,
     "ziel": "Boden/gras_dunkel.png",
-    "prompt": "Damp shady grass seen from above: dense deep green grass mixed with small clover leaves, rich dark greens. No flowers, no bushes."
+    "prompt": "Short grazed meadow grass seen from above: low dense grass in deep green and rich green with many small clover leaves and a few plantain leaves, slightly uneven. No flowers."
+   },
+   {
+    "name": "gras_hoch",
+    "seed": 5682,
+    "ziel": "Boden/gras_hoch.png",
+    "prompt": "Dense long wild grass seen from directly above: long thin blades crisscrossing in all directions, spread evenly over the whole image, scattered small seed heads, rich green with yellow-green tips, uniform, flat ground texture.",
+    "negativ": "side view, stems from below, wheat, ears of grain, horizon, perspective, swirl, vortex, spiral, radial, center, circle"
+   },
+   {
+    "name": "gras_trocken",
+    "seed": 5691,
+    "ziel": "Boden/gras_trocken.png",
+    "prompt": "Dense long dry grass seen from directly above: long thin golden straw blades crisscrossing in all directions, spread evenly over the whole image, scattered dry seed heads, some pale olive and faded green, uniform, flat ground texture.",
+    "negativ": "side view, stems from below, wheat, ears of grain, horizon, perspective, swirl, vortex, spiral, radial, center, circle"
    },
    {
     "name": "gras_blumen",
-    "seed": 5431,
+    "seed": 5642,
     "ziel": "Boden/gras_blumen.png",
-    "prompt": "Wildflower meadow seen from above: green grass with small loose clusters of tiny white, yellow and pale violet wildflowers, grass between the clusters."
+    "prompt": "Unmown wildflower meadow seen from above: grass of uneven length with small white, yellow and pale violet wildflowers in loose groups and a few taller flower stalks."
+   },
+   {
+    "name": "erde_trocken",
+    "seed": 5652,
+    "ziel": "Boden/erde_trocken.png",
+    "prompt": "Sun-baked dried-out bare earth seen from above: cracked pale brown and ochre soil with fine cracks, a few sparse withered grass tufts and small pebbles, dusty.",
+    "negativ": "green grass, lush, puddles, mud, rocks, stones"
    }
-  ]
+  ],
+  "ausgleichen": 0.06
  },
  "soldaten": {
   "groesse": [
@@ -4569,6 +4607,136 @@
     "ziel": "Einheiten/spaeher_schlag8.png",
     "figur": "spaeher_schlag",
     "zielbreite": 145
+   }
+  ]
+ },
+ "leiste": {
+  "groesse": [
+   1328,
+   1328
+  ],
+  "schritte": 50,
+  "cfg": 3.0,
+  "kachelbar": true,
+  "zielgroesse": [
+   512,
+   512
+  ],
+  "stil": "Seamless material texture for the user interface panel of a medieval strategy game, seen straight on, finely detailed hand-painted pixel art, soft even lighting from the upper left, uniform pattern filling the whole image edge to edge, no objects, no text, no frame, no border, no vignette.",
+  "negativ": "text, letters, logo, watermark, frame, border, vignette, perspective, shadows, objects, buttons, icons, blurry, photo, 3d render, high contrast",
+  "bilder": [
+   {
+    "name": "dunkel",
+    "seed": 7001,
+    "ziel": "Leiste/dunkel.png",
+    "prompt": "Rough weathered dark wooden planks running horizontally, visible wood grain, knots and small cracks, a few old iron nails."
+   },
+   {
+    "name": "feudal",
+    "seed": 7052,
+    "ziel": "Leiste/feudal.png",
+    "prompt": "Smooth polished oak boards running horizontally across the whole image, warm golden-brown wood grain, small round iron rivets along the board edges.",
+    "negativ": "iron bands, vertical bands, straps, hinges, frame, door",
+    "ausschnitt": [
+     48,
+     0,
+     1232,
+     1328
+    ]
+   },
+   {
+    "name": "ritter",
+    "seed": 7041,
+    "ziel": "Leiste/ritter.png",
+    "prompt": "Flat ashlar masonry filling the whole image: grey cut stone blocks of equal height in regular horizontal courses, fine mortar joints, slightly weathered stone surface.",
+    "negativ": "tower, towers, battlements, crenellations, sky, castle, building, window, arrow slit, gate, moss"
+   },
+   {
+    "name": "imperial",
+    "seed": 7071,
+    "ziel": "Leiste/imperial.png",
+    "prompt": "One continuous polished surface of dark green marble filling the whole image, fine light green and white veins running diagonally, subtle depth in the stone.",
+    "negativ": "tiles, slabs, grid, lines, gold, joints, frame, glare, reflection",
+    "ausschnitt": [
+     28,
+     28,
+     1272,
+     1272
+    ]
+   }
+  ],
+  "ausgleichen": 0.08
+ },
+ "beeren": {
+  "groesse": [
+   1328,
+   1328
+  ],
+  "schritte": 50,
+  "cfg": 3.0,
+  "freistellen": true,
+  "zuschneiden": true,
+  "zielbreite": 384,
+  "stil": "Game sprite for a top-down 2D strategy game, three-quarter top-down view from the south, detailed 16-bit pixel art, crisp pixels, finely detailed pixel shading, rich natural colors, soft light from the upper left, like a classic late 1990s strategy game sprite. One single bush centered and fully visible, isolated on a plain white background, no ground plate, no grass, no shadow on the background, no text.",
+  "negativ": "text, letters, logo, watermark, frame, border, multiple bushes, tree, trunk, grass ground, landscape, scenery, sky, cut off, cropped, blurry, photo, 3d render, basket, pot, sun glare, glow, black background, dark background",
+  "bilder": [
+   {
+    "name": "beerenbusch",
+    "seed": 8002,
+    "ziel": "Nahrung/beerenbusch.png",
+    "prompt": "A wild forage berry bush: a rounded dense shrub with dark green leaves and many clusters of ripe glossy red berries spread all over it."
+   },
+   {
+    "name": "beerenbusch2",
+    "seed": 8012,
+    "ziel": "Nahrung/beerenbusch2.png",
+    "prompt": "A wild currant bush: a low wide shrub with fresh green leaves and many bunches of ripe red currant berries hanging from the branches."
+   },
+   {
+    "name": "beerenbusch3",
+    "seed": 8021,
+    "ziel": "Nahrung/beerenbusch3.png",
+    "prompt": "A wild blackberry bramble bush: a rounded thorny shrub with green leaves and many clusters of ripe dark purple blackberries and a few red unripe ones."
+   }
+  ]
+ },
+ "bueschel": {
+  "groesse": [
+   1024,
+   1024
+  ],
+  "schritte": 50,
+  "cfg": 3.0,
+  "freistellen": true,
+  "zuschneiden": true,
+  "loecher": true,
+  "zielbreite": 256,
+  "stil": "Game sprite for a top-down 2D strategy game, three-quarter view from the south and slightly above, detailed 16-bit pixel art, crisp pixels, finely detailed pixel shading, rich natural colors, soft light from the upper left. One single clump of grass centered and fully visible from the tips down to the base, isolated on a plain white background, no ground, no soil, no shadow on the background, no text.",
+  "negativ": "text, letters, logo, watermark, frame, border, multiple clumps, field, meadow, ground, soil, pot, vase, landscape, sky, cut off, cropped, blurry, photo, 3d render, tree, bush, wheat, sun glare, glow, black background, dark background",
+  "bilder": [
+   {
+    "name": "bueschel_hoch",
+    "seed": 8101,
+    "ziel": "Gras/bueschel_hoch.png",
+    "prompt": "A single clump of tall wild meadow grass: long thin green blades arching outward in all directions, a few thin grass stalks with small seed heads, lighter yellow-green blade tips."
+   },
+   {
+    "name": "bueschel_hoch2",
+    "seed": 8111,
+    "ziel": "Gras/bueschel_hoch2.png",
+    "prompt": "A single dense clump of tall fresh green grass with long blades curving outward and a few drooping blades, some thin stalks with feathery seed heads."
+   },
+   {
+    "name": "bueschel_trocken",
+    "seed": 8122,
+    "ziel": "Gras/bueschel_trocken.png",
+    "prompt": "A single clump of tall dry late-summer grass: long thin golden straw blades arching outward, several thin stalks with seed heads, a little faded green at the base."
+   },
+   {
+    "name": "bueschel_misch",
+    "seed": 8132,
+    "ziel": "Gras/bueschel_misch.png",
+    "prompt": "A single clump of tall meadow grass with green and dry yellow blades mixed, arching outward, with a few tiny white and yellow wildflowers among the blades."
    }
   ]
  }

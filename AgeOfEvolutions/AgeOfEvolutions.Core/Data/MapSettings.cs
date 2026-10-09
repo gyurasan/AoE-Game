@@ -47,18 +47,24 @@ public class MapSettings
 
     // --- Beeren --------------------------------------------------------
     /// <summary>Wahrscheinlichkeit (0..1), dass an einer Waldlichtung Büsche wachsen.</summary>
-    public float BerryChance { get; set; } = 0.85f;
-    /// <summary>Büsche je Waldlichtung (Min/Max, inclusive) — seit 2026-10-04 doppelt so viele.</summary>
-    public int BerriesMin { get; set; } = 6;
-    public int BerriesMax { get; set; } = 11;
+    public float BerryChance { get; set; } = 0.95f;
+    /// <summary>
+    /// Büsche je Waldlichtung (Min/Max, inclusive) — seit 2026-10-04 doppelt so
+    /// viele, seit 2026-10-09 noch mal spürbar mehr, damit Beeren gut auffindbar sind.
+    /// </summary>
+    public int BerriesMin { get; set; } = 9;
+    public int BerriesMax { get; set; } = 16;
 
     // --- Schafe --------------------------------------------------------
     /// <summary>Anzahl der Schafherden auf der Karte (Min/Max, inclusive).</summary>
-    public int SheepHerdsMin { get; set; } = 6;
+    public int SheepHerdsMin { get; set; } = 5;
     public int SheepHerdsMax { get; set; } = 9;
-    /// <summary>Schafe je Herde (Min/Max, inclusive).</summary>
+    /// <summary>
+    /// Schafe je Herde (Min/Max, inclusive) — seit 2026-10-09 deutlich kleiner
+    /// (vorher 6–14): die Karte war übersät von Schafen.
+    /// </summary>
     public int SheepPerHerdMin { get; set; } = 6;
-    public int SheepPerHerdMax { get; set; } = 14;
+    public int SheepPerHerdMax { get; set; } = 8;
     /// <summary>Nahrung, die ein einzelnes Schaf trägt (Äquivalent zu ~100).</summary>
     public int SheepFood { get; set; } = 100;
 
@@ -82,11 +88,11 @@ public class MapSettings
     public int DeerHerdsMax { get; set; } = 8;
     /// <summary>Rehe je Herde (Min/Max, inclusive).</summary>
     /// <remarks>
-    /// Seit 2026-10-04 etwas kleiner (vorher 5–12): die Dichte ist jetzt ~70 % statt
-    /// ~100 % der Schaf-Dichte, damit eine (kleine) Karte nicht übersät von Rehen ist.
+    /// Seit 2026-10-09 an die kleineren Schafherden angepasst: die Dichte bleibt
+    /// ~70 % der Schaf-Dichte (schafseitig wurde die Herdengröße verkleinert).
     /// </remarks>
     public int DeerPerHerdMin { get; set; } = 3;
-    public int DeerPerHerdMax { get; set; } = 9;
+    public int DeerPerHerdMax { get; set; } = 5;
     /// <summary>
     /// Abstand der Startherde jedes Spielers zu seinem Stadtzentrum (Kacheln,
     /// waagerecht plus senkrecht) - in Reichweite, wie die Startjagd in AoE.
