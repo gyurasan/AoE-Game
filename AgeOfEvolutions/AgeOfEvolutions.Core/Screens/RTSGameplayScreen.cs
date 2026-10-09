@@ -631,9 +631,12 @@ public class RTSGameplayScreen : GameScreen
         screenBounds = new Rectangle(0, 0, graphicsDevice.PresentationParameters.BackBufferWidth,
                                           graphicsDevice.PresentationParameters.BackBufferHeight);
 
-        // Initialize game
-        int side = MapSizes.Side(_mapSize);
-        tileMap = new TileMap(side, side, 32, MapSettings.ForSize(_mapSize));
+        // Initialize game — die Karte nimmt das Seitenverhältnis des
+        // Bildschirms an (breite statt quadratische Karte), bei jeder
+        // Kartengröße die gleiche Fläche wie früher.
+        var mapDims = MapSizes.Dimensions(_mapSize,
+            (float)screenBounds.Width / Math.Max(1, screenBounds.Height));
+        tileMap = new TileMap(mapDims.Width, mapDims.Height, 32, MapSettings.ForSize(_mapSize));
         gatherWorld = new TileMapGatherWorld(tileMap);
         player1 = new Data.Player(0, "Player 1", "Briten");
         player2 = new Data.Player(1, "Player 2", "Azteken");

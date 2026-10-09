@@ -168,8 +168,8 @@ public enum MapSize { Standard, Large, Max }
 public static class MapSizes
 {
     /// <summary>
-    /// Seitenlänge in Kacheln: Standard 64, Groß 90 (fast die doppelte Fläche),
-    /// Maximal 128 (die vierfache).
+    /// Seitenlänge der quadratischen Referenzkarte: Standard 64, Groß 90 (fast
+    /// die doppelte Fläche), Maximal 128 (die vierfache).
     /// </summary>
     public static int Side(MapSize size) => size switch
     {
@@ -177,6 +177,27 @@ public static class MapSizes
         MapSize.Max => 128,
         _ => 64,
     };
+
+    /// <summary>
+    /// Kartenabmessungen (Kacheln, Breite × Höhe) in einem gegebenen Seitenverhältnis
+    /// <paramref name="aspect"/> (Breite/Höhe, z. B. das Bildschirmformat 16/9):
+    /// Standard 64, Groß 90, Maximal 128 Kacheln je Seite.
+    ///
+    /// Die Fläche bleibt exakt Side(size)² Kacheln, nur das Seitenverhältnis
+    /// passt sich dem Bild an. So bleibt die Rohstoffdichte je Stufe identisch
+    /// (MapSettings.ForSize rechnet über die Fläche), während die Karte wie der
+    /// Bildschirm breit statt quadratisch ist.
+    /// </summary>
+    public static (int Width, int Height) Dimensions(MapSize size, float aspect)
+    {
+        float area = Side(size);
+        area *= Side(size);
+        if (aspect <= 0f)
+            aspect = 1f;
+        int w = Math.Max(1, (int)Math.Round(Math.Sqrt(area * aspect)));
+        int h = Math.Max(1, (int)Math.Round(area / w));
+        return (w, h);
+    }
 
     /// <summary>Name der Größe im Hauptmenü.</summary>
     public static string Name(MapSize size) => size switch

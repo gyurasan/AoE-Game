@@ -3098,39 +3098,54 @@ static void Schlag(List<string> verstoesse)
         Console.WriteLine($"  ok  {wer}: {string.Join(",", folge)} je Takt, Hieb genau beim Treffer");
 }
 
-// Kartengrößen (C11): Standard 64, Groß 90, Maximal 128 Kacheln Seitenlänge; beide
-// Stadtzentren stehen in ihren Ecken, und die Minimap ist bei jeder Größe gleich
-// groß und zeigt die ganze Karte.
+// Kartengrößen (C11): Standard 64, Groß 90, Maximal 128 Kacheln Seitenlänge;
+// die Karte übernimmt das Seitenverhältnis des Bildschirms (bei jeder Größe
+// die gleiche Fläche wie die quadratische Referenz), beide Stadtzentren stehen
+// in ihren Ecken, und die Minimap zeigt die ganze Karte.
 static void Kartengroessen(List<string> verstoesse)
 {
     const string wer = "Kartengrößen";
     int vorher = verstoesse.Count;
+
+    // Der Bildschirm, den das Spiel zur Kartenformung nutzt — hier fest,
+    // damit die Prüfung reproduzierbar bleibt. Der Spielscreen leitet die
+    // Karte aus screenBounds.Width/screenBounds.Height ab.
+    int sw = 2406, sh = 1353;
+    float aspect = (float)sw / sh;
     var erwartet = new Dictionary<MapSize, int> { [MapSize.Standard] = 64, [MapSize.Large] = 90, [MapSize.Max] = 128 };
-    int feld = -1;
     foreach (var (groesse, seite) in erwartet)
     {
+        (int mw, int mh) = MapSizes.Dimensions(groesse, aspect);
         if (MapSizes.Side(groesse) != seite)
-            verstoesse.Add($"{wer}: {groesse} hat {MapSizes.Side(groesse)} Kacheln Seitenlänge statt {seite}");
-        var w = new Welt(groesse);
-        if (w.Map.Width != seite || w.Map.Height != seite)
-            verstoesse.Add($"{wer}: {groesse} ist {w.Map.Width}x{w.Map.Height} statt {seite}x{seite}");
+            verstoesse.Add($"{wer}: {groesse} hat {MapSizes.Side(groesse)} Kacheln Referenzseite statt {seite}");
+        var w = new Welt(groesse, aspect);
+        if (w.Map.Width != mw || w.Map.Height != mh)
+            verstoesse.Add($"{wer}: {groesse} ist {w.Map.Width}x{w.Map.Height} statt {mw}x{mh} (Seitenverhältnis {aspect:0.###})");
+        // Die Fläche bleibt die der quadratischen Referenz (Rohstoffdichte).
+        if (Math.Abs(w.Map.Width * w.Map.Height - seite * seite) > seite * seite / 100f)
+            verstoesse.Add($"{wer}: {groesse}: Fläche {w.Map.Width * w.Map.Height} Kacheln weicht >1 % von {seite * seite} ab");
         var zentren = w.Map.Buildings.Where(b => b.Type == "Stadtzentrum").Select(b => (b.X, b.Y)).OrderBy(p => p).ToList();
-        var soll = new List<(int, int)> { (3, 3), (seite - 4, seite - 4) };
+        var soll = new List<(int, int)> { (3, 3), (mw - 4, mh - 4) };
         if (!zentren.SequenceEqual(soll))
-            verstoesse.Add($"{wer}: {groesse}: Stadtzentren bei {string.Join(", ", zentren)} statt (3, 3) und ({seite - 4}, {seite - 4})");
-        w.Set("screenBounds", new Rectangle(0, 0, 2406, 1353));
+            verstoesse.Add($"{wer}: {groesse}: Stadtzentren bei {string.Join(", ", zentren)} statt (3, 3) und ({mw - 4}, {mh - 4})");
+        w.Set("screenBounds", new Rectangle(0, 0, sw, sh));
         var r = (Rectangle)w.Call("MinimapRect");
-        if (feld < 0) feld = r.Width;
-        if (r.Width != r.Height || r.Width != feld)
-            verstoesse.Add($"{wer}: {groesse}: Minimap {r.Width}x{r.Height} statt {feld}x{feld} wie bei der Standardkarte");
-        var ecke = (Vector2)w.Call("MinimapPoint", (float)seite, (float)seite, r);
+        // Die Minimap trägt das Seitenverhältnis der Karte und spannt sie.
+        if (Math.Abs((float)r.Width / r.Height - mw / (float)mh) > 0.02f)
+            verstoesse.Add($"{wer}: {groesse}: Minimap {r.Width}x{r.Height} statt Kartenformat {mw}:{mh}");
+        var ecke = (Vector2)w.Call("MinimapPoint", (float)mw, (float)mh, r);
         if (Math.Abs(ecke.X - r.Right) > 0.5f || Math.Abs(ecke.Y - r.Bottom) > 0.5f)
             verstoesse.Add($"{wer}: {groesse}: die Kartenecke liegt in der Minimap bei {ecke} statt bei ({r.Right}, {r.Bottom})");
     }
     if (Enum.GetValues<MapSize>().Select(MapSizes.Name).Distinct().Count() != 3)
         verstoesse.Add($"{wer}: die drei Größen haben keine verschiedenen Namen");
     if (verstoesse.Count == vorher)
-        Console.WriteLine($"  ok  {wer}: 64, 90 und 128 Kacheln, Stadtzentren in den Ecken, Minimap immer {feld} px");
+    {
+        var dims = MapSizes.Dimensions(MapSize.Standard, aspect);
+        var dimm = MapSizes.Dimensions(MapSize.Large, aspect);
+        var dimx = MapSizes.Dimensions(MapSize.Max, aspect);
+        Console.WriteLine($"  ok  {wer}: {dims} / {dimm} / {dimx} Kacheln im Bildformat, Stadtzentren in den Ecken");
+    }
 }
 
 // Hauptmenü (E12): die Einträge stehen mittig, wachsen mit dem Fenster und
@@ -3473,10 +3488,10 @@ class Welt
     readonly List<Unit> _units;
     double _zeit, _nebel;
 
-    public Welt(MapSize groesse = MapSize.Standard)
+    public Welt(MapSize groesse = MapSize.Standard, float aspect = 1f)
     {
-        int seite = MapSizes.Side(groesse);
-        Map = new TileMap(seite, seite, 32, MapSettings.ForSize(groesse));
+        var dims = MapSizes.Dimensions(groesse, aspect);
+        Map = new TileMap(dims.Width, dims.Height, 32, MapSettings.ForSize(groesse));
         _units = Map.Units;
         foreach (var u in _units)
             (u.OwnerId == 0 ? P1 : P2).AddUnit(u);
