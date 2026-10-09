@@ -1,10 +1,28 @@
 # AoE-Clone — TODO / Meilensteine
 
-**Stand:** 2026-10-09 · verifiziert durch Build + Testlauf, nicht aus Doku übernommen.
+**Stand:** 2026-10-10 · verifiziert durch Build + Testlauf, nicht aus Doku übernommen.
 
 ## Wiederaufnahme — hier weitermachen
 
-Zuletzt angefasst: **Bäume, Gras und Leisten** (2026-10-09, T1b, G11, H1) — acht Baumarten mit
+Zuletzt angefasst: **KI: beide Seiten spielen, erkunden, militärisch, aggressiv**
+(2026-10-10) — zwei KI-Instanzen (Owner 0 und 1) laufen gleichzeitig
+(`BothSidesAi` an der Screen, `AiAgent` pro Owner). Jede KI führt einen
+festen Erkundungs-Scout (Dorfbewohner, aus dem Bau-/Ernte-Pool
+herausgenommen) zur gegenüberliegenden Kartecke, bis die gegnerische
+Basis sichtbar ist; Kaserne + Schießstand werden ab 150/175 Holz gebaut;
+Soldaten (Milizen/Bogenschützen) werden in der Kaserne/Schießstand
+ausgebildet und greifen sichtbar feindliche **Einheiten oder Gebäude**
+an. **Einheiten-Gegen-Einheiten-Kampf ist neu:** `Unit.Attack(defender)`
+existierte schon, aber es gab kein Angriffszugriff, keine Zielzuweisung
+und keinen Aufräumer. Neu: `EnemyUnitAt()`, `AttackUnit()`,
+`DestroyUnit()` (Pop + Listen), `HandleAttack()` (Schlagtakt,
+Reichweiten-Check, Nachlaufen). `IssueCommand` greift sichtbare
+feindliche Einheiten auf der Zielkachel an. Tote Einheiten werden am
+Ende von `UpdateUnits` entfernt (nicht während der Iteration).
+Abnahme: `tools/ai-pruefung` (6 Prüfungen), `tools/spielablauf
+-- soldaten linksklick` (3 Karten).
+
+Davor: **Bäume, Gras und Leisten** (2026-10-09, T1b, G11, H1) — acht Baumarten mit
 offener Krone, einzeln in der Tiefenschicht und etwas größer; feineres Gras; die Leisten im Stoff
 des Zeitalters. Dazu die **Durchsicht der Tiefenschicht** (T1a). Davor **Schwertschlag und
 Speerstoß** (C4n) — die Miliz holt beim Angriff

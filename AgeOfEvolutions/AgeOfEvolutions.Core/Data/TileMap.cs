@@ -1373,6 +1373,44 @@ public class TileMap
             ?? TileVisibility.Unexplored) != TileVisibility.Unexplored;
 
     /// <summary>
+    /// Die Erkundungs-Front des Spielers <paramref name="playerId"/>:
+    /// je Hauptrichtung (nord, nordost, ost, …) eine Kachel direkt am Rand
+    /// des bereits Erkundeten, aber noch außerhalb davon. Die KI schickt
+    /// Einheiten dorthin — jeder Schritt über eine unerkundete Kachel deckt
+    /// mehr auf.
+    ///
+    /// Rückgabe: bis zu 8 Kacheln (je Richtung). Leere Liste, wenn der
+    /// Spieler noch nichts gesehen hat oder jede Richtung schon am
+    /// Kartenrand ist.
+    /// </summary>
+    public IReadOnlyList<(int X, int Y)> FrontierTargets(int playerId, (int X, int Y) home)
+    {
+        if (_testNoFog) return Array.Empty<(int, int)>();
+        var targets = new List<(int X, int Y)>();
+        foreach (var (dx, dy) in new[] { (0,-1), (1,-1), (1,0), (1,1),
+                                         (0,1), (-1,1), (-1,0), (-1,-1) })
+        {
+            // Schritt für Schritt weg von home, solange die Kachel noch
+            // erkundet ist. Die letzte erkundete Kachel ist der Rand;
+            // das Ziel ist die Kachel direkt dahinter.
+            int sx = home.X + dx, sy = home.Y + dy;
+            (int X, int Y) frontier = (home.X, home.Y);
+            while (true)
+            {
+                if (sx < 0 || sy < 0 || sx >= Width || sy >= Height) break;
+                if (!IsTileExplored(sx, sy, playerId)) break;
+                frontier = (sx, sy);
+                sx += dx; sy += dy;
+            }
+            int tx = frontier.X + dx, ty = frontier.Y + dy;
+            if (tx < 0 || ty < 0 || tx >= Width || ty >= Height) continue;
+            if (tx == home.X && ty == home.Y) continue;
+            if (!IsTileExplored(tx, ty, playerId)) targets.Add((tx, ty));
+        }
+        return targets;
+    }
+
+    /// <summary>
     /// Test-Modus (CLI --test): der Nebel des Krieges ist vollständig
     /// aufgehoben — alle Kacheln gelten als sichtbar. Dadurch bleiben auch
     /// fremde Einheiten sichtbar, und die Minimap zeigt die ganze Karte mitsamt

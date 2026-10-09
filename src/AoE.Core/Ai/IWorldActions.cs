@@ -47,4 +47,21 @@ public interface IWorldActions
     /// <summary>Weitergeben: die Einheit hilft an der Baustelle
     /// <paramref name="buildingId"/> zu bauen (wird zur Arbeitskraft).</summary>
     void AssignBuilder(int unitId, int buildingId);
+
+    /// <summary>
+    /// Die Einheit (nach <see cref="IWorldState"/>-Id) greift den Feind bei
+    /// (<paramref name="x"/>, <paramref name="y"/>) an — das dort sichtbare
+    /// feindliche Gebäude oder die Einheit. Findet sich in der Nähe kein
+    /// sichtbarer Feind, wird die Aktion abgelehnt (kein Zustand geändert).
+    /// </summary>
+    void Attack(int unitId, int x, int y);
+
+    /// <summary>
+    /// Bildet in einem eigenen fertigen Gebäude <paramref name="building"/>
+    /// den Soldaten <paramref name="soldier"/> aus (Kaserne Miliz,
+    /// Schießstand Bogenschütze, Stall Späher). Wird abgelehnt, wenn die
+    /// Warteschlange voll ist, die Rohstoffe nicht reichen, das Gebäude
+    /// forscht oder das Zeitalter noch zu früh ist.
+    /// </summary>
+    void TrainSoldier(BuildingType building, UnitKind soldier);
 }

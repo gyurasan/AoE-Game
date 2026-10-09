@@ -6,21 +6,27 @@ namespace AoE.Core.Ai;
 /// <summary>
 /// Die eingebaute Wirtschaft-KI: ein Regel-Modell, das eine funktionierende
 /// AoE-Wirtschaft spielt — Dorfbewohner sammeln, bauen, ausbilden und steigen
-/// auf. <see cref="IAi"/> ist die Schnittstelle, an die sich auch eine externe
-/// AI (LLM, Skript, Netzwerk) hängt.
+/// auf. Dazu (seit der Aggressivitäts-Erweiterung) auch: Kasernen, Soldaten,
+/// Erkundung und Plünderung. <see cref="IAi"/> ist die Schnittstelle, an
+/// die sich auch eine externe AI (LLM, Skript, Netzwerk) hängt.
 ///
-/// Entscheidungsstrategie (deterministisch, <see cref="ctx"/>.Rng bleibt ungenutzt):
+/// Entscheidungsstrategie (deterministisch, <see cref="ctx"/>.Rng bleibt
+/// ungenutzt):
 /// <ol>
-///   <li>Offene Baustellen füllen — jeder freie Platz (max. 4/Baustelle) bekommt
-///      einen freien Dorfbewohner. <see cref="IWorldActions.AssignBuilder"/>.</li>
-///   <li>Wenn Pop an der Obergrenze und eine Ausbildung eingereiht ist: Haus
-///      platzieren und 2-3 freie Arbeiter hin schicken. <see cref="IWorldActions.Build"/>.</li>
-///   <li>Im Stadtzentrum einen Dorfbewohner ausbilden — solange Pop < Obergrenze
-///      und die Warteschlange voll ist oder kurz. <see cref="IWorldActions.TrainVillager"/>.</li>
-///   <li>Freie Dorfbewohner an Quellen schickten — Nahrung vor Holz, dann Stein und Gold.
-///      <see cref="IWorldActions.Gather"/>.</li>
-///   <li>Zeitalter aufsteigen — sobald die Rohstoffe ausreichen und kein Aufstieg
-///      läuft. <see cref="IWorldActions.AdvanceAge"/>.</li>
+///   <li>Offene Baustellen füllen — jeder freie Platz (max. 4/Baustelle)
+///      bekommt einen freien Dorfbewohner (AssignBuilder).</li>
+///   <li>Gebäude planen: Haus (Pop-Lock), Farm, Holzlager, Kaserne,
+///      Schießstand (Build).</li>
+///   <li>Dorfbewohner und Soldaten ausbilden — Soldaten haben Vorrang,
+///      solange Pop unter der Grenze und Ressourcen da (TrainVillager,
+///      TrainSoldier).</li>
+///   <li>Freie Dorfbewohner an Quellen (Gather) — Nahrung vor Holz, dann
+///      Stein und Gold.</li>
+///   <li>Erkundung: Einheiten auf die Front schicken (Move), wenn es eine
+///      gibt. Jedes Mal, wenn ein Erkundungsziel wieder frei wird.</li>
+///   <li>Plünderung: 4+ Soldaten, Feind sichtbar, 15s seit letztem Angriff
+///      → alle 2+ Soldaten auf den nächsten sichtbaren Feind (Attack).</li>
+///   <li>Zeitalter aufsteigen, sobald Rohstoffe ausreichen (AdvanceAge).</li>
 /// </ol>
 /// </summary>
 public sealed class EconomyAi : IAi
@@ -38,32 +44,101 @@ public sealed class EconomyAi : IAi
     /// steigt (4 = 2× eines Arbeiters laut AoE-II-Regel).</summary>
     public const int MaxWorkersPerSite = 4;
 
-    /// <summary>Warteschlangenlänge, bei der die KI aufhört auszubilden; 12 gibt
-    /// einen Sicherheitsaufschlag unter <c>TrainingQueue.MAX_LENGTH</c> (15).</summary>
+    /// <summary>Warteschlangenlänge, bei der die KI aufhört auszubilden; 12
+    /// gibt einen Sicherheitsaufschlag unter <c>TrainingQueue.MAX_LENGTH</c> (15).</summary>
     public const int MaxQueue = 12;
 
     /// <summary>Radius für die Quellensuche (Kacheln).</summary>
     public const int SourceSearchRadius = 16;
 
-    /// <summary>Radius für die Baustellen-Suche (Kacheln).</summary>
-    public const int BuildSpotRadius = 8;
+    /// <summary>Radius für die Baustellen-Suche (Kacheln).
+    /// 12 statt 8: auf Standard-Maps stehen die zwei Basen in den
+    /// diagonalen Ecken (z. B. (3,3) und (60,60)) — auf einer 64×64-Karte
+    /// gibt es nur 4 Kacheln zwischen (60,60)…(63,63); mit Radius 12
+    /// bleibt genug Spielraum, eine 3×3-Kaserne (Barracks, 175 Holz)
+    /// an ein nicht-Blockiertes Feld zu setzen, selbst wenn das Dorf
+    /// an der Kartenkante sitzt.</summary>
+    public const int BuildSpotRadius = 12;
+
+    /// <summary>So viele Soldaten hält die KI im Bestand, bevor sie neue
+    /// ausbildet. Der Wert ist klein, weil Soldaten Pop kosten — die KI
+    /// hält die Wirtschaft als Hauptzweck und die Armee als Ergänzung.</summary>
+    public const int SoldierTarget = 4;
+
+    /// <summary>So viel Zeit (Sekunden) muss zwischen zwei Plünderungen
+    /// liegen, sonst würde das Dorf jede halbe Minute verlassen.</summary>
+    public const double RaidCooldownSeconds = 8d;
+
+    /// <summary>So viele Soldaten muss die KI haben, bevor sie angreift.
+    /// 1 reicht: im Moment der ersten Sicht eines Feindes ist jede Streitmacht
+    /// ein Angriff — die KI ist bewusst aggressiv angesetzt. Der Abzug der
+    /// Einheiten zu einem Gebäude ist der eigentliche Raubzug.</summary>
+    public const int RaidMinSoldiers = 1;
+
+    /// <summary>So viele Soldaten bleiben beim Plündern als Verteidigung
+    /// auf der Heimatseite. Mit 0 würde die KI das eigene Dorf
+    /// unverteidigt lassen.</summary>
+    public const int HomeGuard = 1;
+
+    private double _lastRaidTime = -1e9;
+
+    /// <summary>Id des fahrenden Erkunder-Scouts (eigener Dorfbewohner).
+    /// Er ist geschützt: <c>FreeWorkers</c> schließt ihn aus, damit er von
+    /// Sammeln/Bauen nicht abgezogen wird. Solange <c>VisibleEnemies</c>
+    /// leer ist, fährt er zur Kartenmitte Richtung den vermuteten Gegner,
+    /// und jeder Schritt deckt neue Kacheln auf. Ist ein Feind sichtbar,
+    /// zieht er mit zum Angriff.</summary>
+    private int? _scoutId;
 
     public void Tick(IWorldState state, IWorldActions actions, float dt, AiContext ctx)
     {
         ctx.Advance(dt);
 
-        var workers = FreeWorkers(state);
+        // 0) Scout: der Erkunder ist der einzige Dorfbewohner, den die KI
+        //    für die Erkundung „fest einplant". Er sitzt nicht im FreeWorkers-
+        //    Pool (sonst stiehlt ihn Sammeln/Bauen), fährt stattdessen
+        //    dauerhaft Richtung Kartenmitte — dorthin, wo der Gegner ist.
+        //    Solange <c>VisibleEnemies</c> leer ist, wird er nie zu etwas
+        //    anderem abkommandiert. Ist ein Feind sichtbar, zieht er mit.
+        RunScout(state, actions, ctx);
+
+        var workers = FreeWorkers(state, _scoutId);
+
+        // 1) Offene Baustellen füllen — die wichtigste erste Aktion,
+        //    sonst steht das Dorf an einer halbfertigen Kaserne.
         FillSites(state, actions, workers);
-        PlanBuilding(state, actions, workers);   // neu: Gebäude planen + Arbeiter schicken
-        TrainIfPossible(state, actions);
+
+        // 2) Gebäude planen: Haus (Pop-Lock), Farm, Holzlager, dann
+        //    Militär (Kaserne, Schießstand) wenn die Wirtschaft trägt.
+        PlanBuilding(state, actions, workers, ctx);
+
+        // 3) Soldaten ausbilden — zuerst Armee, dann Dorfbewohner.
+        //    Soldaten kosten Pop, aber sind der Grund, warum die KI
+        //    aggressiver wirkt.
+        TrainSoldiers(state, actions, ctx);
+        TrainIfPossible(state, actions, ctx);
+
+        // 4) Freie Dorfbewohner an Quellen — die Ernte bleibt wichtig.
         SendToSources(state, actions, workers);
-        AgeUpIfPossible(state, actions);
+
+        // 5) Plünderung — nur mit genug Soldaten und ohne laufende
+        //    Ausbildung (sonst bricht die KI die Kaserne auf).
+        Raid(state, actions, ctx);
+
+        // 6) Zeitalter — immer am Ende, damit die Aufstiegs-Kosten
+        //    nicht im selben Takt wie die Armee ausgebucht werden.
+        AgeUpIfPossible(state, actions, ctx);
     }
 
     // ---------------------------------------------------------------------
     // Schritt 2: Gebäude planen (Haus, Farm, Lager) und Arbeiter schicken
     // ---------------------------------------------------------------------
-    private static void PlanBuilding(IWorldState state, IWorldActions actions, List<UnitSnapshot> workers)
+    /// <summary>
+    /// Gebäude planen (Haus, Farm, Lager, Kaserne, Schießstand).
+    /// Nutzt den Kontext (ctx) für Logging und deterministischen Rng.
+    /// </summary>
+    private static void PlanBuilding(IWorldState state, IWorldActions actions,
+        List<UnitSnapshot> workers, AiContext ctx)
     {
         if (state.TownCenter is null) return;
         if (state.AgeTarget is not null) return;   // Aufstieg blockiert Bauplanung
@@ -97,6 +172,188 @@ public sealed class EconomyAi : IAi
         {
             TryBuildNear(state, actions, workers, BuildingType.LumberCamp, workersFor: 2, allowPool: false);
         }
+
+        // 4. Kaserne — die Basis der Aggressivität. Kosten: 175 Holz
+        //    (lt. BuildingRules). Die Kaserne ist das wichtigste Gebäude
+        //    nach dem Haus: sie bildet die Miliz, die der KI die Angriffe
+        //    liefert. Platzieren wir sie, solange genug Holz im Dorf ist,
+        //    und nehmen 2 Arbeiter (1 frei + 1 aus dem Pool), sonst
+        //    steht sie nie fertig — und die Kaserne ohne Arbeiter
+        //    wird nie fertig.
+        if (state.Resources.Wood >= 150
+            && !state.Buildings.Any(b => b.Type == BuildingType.Barracks))
+        {
+            if (TryBuildNear(state, actions, workers, BuildingType.Barracks,
+                             workersFor: 1, allowPool: true))
+                return;
+        }
+
+        // 5. Schießstand — Bogenschützen; zweite Stufe nach der Kaserne.
+        //    Kosten: 175 Holz.
+        if (state.Resources.Wood >= 175
+            && state.Buildings.Any(b => b.Type == BuildingType.Barracks && b.IsComplete)
+            && !state.Buildings.Any(b => b.Type == BuildingType.ArcheryRange))
+        {
+            TryBuildNear(state, actions, workers, BuildingType.ArcheryRange,
+                         workersFor: 1, allowPool: true);
+        }
+    }
+
+    /// <summary>
+    /// Der anhaltende Erkundungs-Scout: die KI plant genau einen
+    /// Dorfbewohner als fahrenden Erkunder ein. Er sitzt nicht im
+    /// FreeWorkers-Pool (sonst würde ihn Sammeln/Bauen abziehen).
+    /// Jedes Takt fährt er zur gegenüberliegenden Karteck — der
+    /// voraussichtlichen Basis-Position des Gegners. Der Weg wird nur
+    /// über bekannte Kacheln geplant (FindPathKnown), jeder Schritt durch
+    /// den Nebel deckt eine neue Kachel auf (Explored). Der Scout steht
+    /// dort, bis der Gegner sichtbar ist — dann hält er dort, damit die
+    /// eigenen Soldaten (Raid) die Basis angreifen können.
+    /// </summary>
+    private void RunScout(IWorldState state, IWorldActions actions, AiContext ctx)
+    {
+        var tc = state.TownCenter;
+        if (tc is null) return;
+
+        if (_scoutId is null)
+        {
+            // Der Scout verlässt seine Aufgabe (Sammeln/Bauen) und hält sich
+            // dauerhaft in der Ferne. Um ein kleines Dorf nicht auszuhebeln
+            // (der einzige freie Bauer bräuchte zum Bauen), reserviert die KI
+            // nur einen, wenn es einen ÜBERSCHUSS an freien Bauern gibt.
+            int freeCount = state.Units.Count(u =>
+                u.Kind == UnitKind.Villager
+                && u.State == UnitStateKind.Idle
+                && u.Gathering is null
+                && u.BuildingId is null);
+            if (freeCount < 2) return;
+
+            var candidate = state.Units.FirstOrDefault(u =>
+                u.Kind == UnitKind.Villager
+                && u.State == UnitStateKind.Idle
+                && u.Gathering is null
+                && u.BuildingId is null);
+            if (candidate is null) return;
+            _scoutId = candidate.Id;
+        }
+
+        // Scout existiert noch?
+        var scout = state.Units.FirstOrDefault(u => u.Id == _scoutId
+                                                    && u.State != UnitStateKind.Dead);
+        if (scout is null) { _scoutId = null; return; }
+
+        // Ziel: die gegenüberliegende Karteck — die voraussichtliche
+        // Basis-Position des Gegners. Die KI fährt immer dorthin, bis
+        // der Scout in Sichtweite der gegnerischen Gebäude steht.
+        int mid = Math.Min(state.Width, state.Height);
+        int baseX = tc.X + tc.Width / 2;
+        int baseY = tc.Y + tc.Height / 2;
+        bool xLow = baseX < mid / 2;
+        bool yLow = baseY < mid / 2;
+        (int X, int Y) dst = (
+            xLow ? state.Width - 3 : 3,
+            yLow ? state.Height - 3 : 3);
+
+        // Ist der Gegner (ein Gebäude) sichtbar? Dann ist die Erkundung
+        // fast vollständig — der Scout hält in der Nähe und die KI kann
+        // mit den Soldaten angreifen.
+        bool enemyVisible = state.VisibleEnemies().Any(e => e.IsBuilding);
+        int dist = Math.Max(Math.Abs(dst.X - scout.X), Math.Abs(dst.Y - scout.Y));
+
+        if (enemyVisible && dist <= 8)
+        {
+            // Der Scout ist in Reichweite der gegnerischen Basis —
+            // er hält hier. Die Soldaten übernehmen ab hier.
+            return;
+        }
+
+        if (dist <= 1)
+        {
+            // Am Ziel, aber noch kein Feindgebäude sichtbar — noch bleiben.
+            return;
+        }
+
+        actions.Move(scout.Id, dst.X, dst.Y);
+    }
+
+    /// <summary>
+    /// Plünderung: mit genug Soldaten (mindestens <see cref="RaidMinSoldiers"/>
+    /// außer Dienst) und einem sichtbaren Feind zieht die KI die Armee raus.
+    /// <b>Einheiten</b> sind die primären Ziele (sie sind die gegnerische
+    /// Armee), <b>Gebäude</b> der Fallback, wenn nur Bauwerke sichtbar
+    /// sind.
+    /// </summary>
+    private void Raid(IWorldState state, IWorldActions actions, AiContext ctx)
+    {
+        if (ctx.Time - _lastRaidTime < RaidCooldownSeconds) return;
+        var visible = state.VisibleEnemies().ToList();
+        if (visible.Count == 0) return;
+
+        // Einheiten zuerst (die Armee), dann Gebäude.
+        var primary = visible.Where(e => !e.IsBuilding).ToList();
+        if (primary.Count == 0)
+            primary = visible.Where(e => e.IsBuilding).ToList();
+        if (primary.Count == 0) return;
+
+        // Soldaten ohne laufenden Auftrag; wer schon sammelt oder baut, bleibt.
+        var soldiers = state.Units
+            .Where(u => u.Kind != UnitKind.Villager
+                        && u.State != UnitStateKind.Dead
+                        && u.Gathering is null
+                        && u.BuildingId is null)
+            .ToList();
+        if (soldiers.Count < RaidMinSoldiers)
+        {
+            return;
+        }
+        int toRaid = Math.Max(1, soldiers.Count - HomeGuard);
+
+        // Das nächste sichtbare Ziel (Chebyshev) aus Sicht eines Soldaten
+        // mit Basisposition.
+        var basePos = soldiers[(soldiers.Count - 1) / 2];
+        EnemyInfo target = primary[0];
+        int bestDist = int.MaxValue;
+        foreach (var e in primary)
+        {
+            int d = Math.Max(Math.Abs(e.X - basePos.X), Math.Abs(e.Y - basePos.Y));
+            if (d < bestDist) { bestDist = d; target = e; }
+        }
+
+        for (int i = 0; i < toRaid; i++)
+            actions.Attack(soldiers[i].Id, target.X, target.Y);
+        _lastRaidTime = ctx.Time;
+    }
+
+    /// <summary>
+    /// Soldaten ausbilden: die Kaserne bildet Milizen, der Schießstand
+    /// Bogenschützen. Die KI reihst ein, solange <see cref="SoldierTarget"/>
+    /// (im Feld plus in Produktion) noch nicht erreicht sind und die
+    /// Bevölkerungsgrenze Platz lässt. Dorfbewohnerbildung bleibt die
+    /// Rücklage — Soldaten nur, wenn Pop und Rohstoffe übrig sind.
+    /// </summary>
+    private static void TrainSoldiers(IWorldState state, IWorldActions actions, AiContext ctx)
+    {
+        if (state.TownCenter is null) return;
+        if (state.AgeTarget is not null) return;              // Aufstieg blockiert
+        if (state.PopulationCount >= state.PopulationCapacity) return;
+
+        // Wie viele Soldaten stehen im Feld (alive, nicht Dorfbewohner)?
+        int inField = state.Units.Count(u => u.Kind != UnitKind.Villager
+                                             && u.State != UnitStateKind.Dead);
+        if (inField >= SoldierTarget) return;
+
+        // Kaserne zuerst (Milizen), dann Schießstand (Bogenschützen).
+        var barracks = state.Buildings.FirstOrDefault(b =>
+            b.Type == BuildingType.Barracks && b.IsComplete);
+        if (barracks is not null)
+        {
+            actions.TrainSoldier(BuildingType.Barracks, UnitKind.Militia);
+            return;
+        }
+        var range = state.Buildings.FirstOrDefault(b =>
+            b.Type == BuildingType.ArcheryRange && b.IsComplete);
+        if (range is not null)
+            actions.TrainSoldier(BuildingType.ArcheryRange, UnitKind.Archer);
     }
 
     /// <summary>
@@ -188,7 +445,7 @@ public sealed class EconomyAi : IAi
     // ---------------------------------------------------------------------
     // Schritt 2: Ausbilden
     // ---------------------------------------------------------------------
-    private static void TrainIfPossible(IWorldState state, IWorldActions actions)
+    private static void TrainIfPossible(IWorldState state, IWorldActions actions, AiContext ctx)
     {
         if (state.TownCenter is null) return;
         if (state.AgeTarget is not null) return;           // Aufstieg blockiert Ausbildung
@@ -237,7 +494,7 @@ public sealed class EconomyAi : IAi
     // ---------------------------------------------------------------------
     // Schritt 4: Zeitalter aufsteigen
     // ---------------------------------------------------------------------
-    private static void AgeUpIfPossible(IWorldState state, IWorldActions actions)
+    private static void AgeUpIfPossible(IWorldState state, IWorldActions actions, AiContext ctx)
     {
         if (state.AgeTarget is not null) return;     // Aufstieg läuft schon
         if (state.Age >= Age.Imperial) return;       // letztes Zeitalter
@@ -270,12 +527,13 @@ public sealed class EconomyAi : IAi
     // ---------------------------------------------------------------------
     // Helfer
     // ---------------------------------------------------------------------
-    static List<UnitSnapshot> FreeWorkers(IWorldState state)
+    static List<UnitSnapshot> FreeWorkers(IWorldState state, int? scoutId)
         => state.Units
             .Where(u => u.Kind == UnitKind.Villager
                         && u.State == UnitStateKind.Idle
                         && u.Gathering is null
-                        && u.BuildingId is null)
+                        && u.BuildingId is null
+                        && u.Id != scoutId)
             .OrderBy(u => u.Id)
             .ToList();
 }

@@ -139,19 +139,22 @@ public class RTSGameplayScreen : GameScreen
     private const float FOG_INTERVAL = 0.25f;
 
     // ------------------------------------------------------------------
-    // KI-Steuerung (Spieler 1). Der AI-Agent tickt im Update-Loop — alle
-    // Befehle laufen damit im Spiel-Faden. Externe Anweisungen (REST-API,
-    // Skript) steuern über EnqueueOrder dieselbe Schlange, die auch die
-    // eingebaute KI benutzt.
+    // KI-Steuerung. Es dürfen pro Spieler (owner 0 oder 1) KI-Instanzen
+    // ticken — typischerweise eine pro Seite, wenn beide Seiten KI gespielt
+    // werden; alternativ nur eine (z. B. nur owner 1 als Gegner).
+    //
+    // Jede Instanz tickt im Update-Loop; alle Befehle laufen damit im
+    // Spiel-Faden. Externe Anweisungen (REST-API, Skript) steuern über
+    // EnqueueOrder dieselbe Schlange, die auch die eingebaute KI benutzt.
     // ------------------------------------------------------------------
-    private AgeOfEvolutions.Core.AI.AiAgent _agent;
+    private readonly Dictionary<int, AgeOfEvolutions.Core.AI.AiAgent> _agents = new();
     private readonly Queue<System.Action> _orderQueue = new();
 
     /// <summary>
     /// Eine Handlung in den Spiel-Faden einreihen. Thread-sicher — wird im
     /// nächsten <see cref="Update"/>-Frame ausgeführt, wo sie dieselbe
-    /// owner-generic Schnittstelle nimmt wie der Mensch. So steuert die
-    /// eingebaute KI und eine externe REST-KI über denselben Mechanismus.
+    /// owner-generic Schnittstelle nimmt wie der Mensch. So steuern die
+    /// eingebauten KI-Instanzen und externe REST-KIs über denselben Mechanismus.
     /// </summary>
     public void EnqueueOrder(System.Action order)
     {
@@ -160,22 +163,28 @@ public class RTSGameplayScreen : GameScreen
     }
 
     /// <summary>
-    /// Die eingebaute KI einschalten (oder aus — <c>ai = null</c>). Standard:
-    /// <c>EconomyAi</c> als Gegner (Spieler 1). Der Takt ist 0,5 s.
-    /// Läuft die Methode zweimal, ersetzt die zweite den ersten Agenten.
+    /// Die eingebaute KI für <paramref name="owner"/> einschalten (oder
+    /// aus — <c>ai = null</c>). Läuft die Methode für denselben Owner ein
+    /// zweites Mal, ersetzt die zweite Instanz die erste.
     /// </summary>
     public void ActivateAi(AoE.Core.Ai.IAi ai, int owner = 1, float tickInterval = 0.5f)
     {
         if (ai == null)
         {
-            _agent = null;
+            _agents.Remove(owner);
             return;
         }
-        _agent = new AgeOfEvolutions.Core.AI.AiAgent(this, ai, owner, tickInterval);
+        _agents[owner] = new AgeOfEvolutions.Core.AI.AiAgent(this, ai, owner, tickInterval);
     }
 
-    /// <summary>Für Tests/Reflexion: der aktuelle Agent, oder null.</summary>
-    public AgeOfEvolutions.Core.AI.AiAgent ActiveAgent => _agent;
+    /// <summary>Alle aktiven KI-Instanzen, je eine pro Owner (0 oder 1).</summary>
+    public IReadOnlyDictionary<int, AgeOfEvolutions.Core.AI.AiAgent> Agents => _agents;
+
+    /// <summary>Für Tests/Reflexion: der Owner-1-Agent (der „Gegner"), oder null.</summary>
+    public AgeOfEvolutions.Core.AI.AiAgent ActiveAgent
+        => _agents.TryGetValue(1, out var a) ? a
+         : _agents.TryGetValue(0, out var b) ? b
+         : null;
 
     /// <summary>
     /// Alle wartenden Orders in Ausführung ausführen. Läuft nur im
@@ -636,6 +645,14 @@ public class RTSGameplayScreen : GameScreen
     /// </summary>
     public bool AiEnabled { get; set; } = true;
 
+    /// <summary>
+    /// Wenn an, bekommen auch Spieler 0 und Spieler 1 eine KI — beide Seiten
+    /// werden von der KI gespielt (zwei <see cref="EconomyAi"/>-Instanzen),
+    /// statt nur die Gegnerseite. Damit kann man die KI als Gegenpartei testen.
+    /// Hat <c>AiEnabled</c> Vorrang; ist es aus, bleibt beides aus.
+    /// </summary>
+    public bool BothSidesAi { get; set; } = false;
+
     public RTSGameplayScreen(MapSize mapSize = MapSize.Standard)
     {
         _mapSize = mapSize;
@@ -685,8 +702,19 @@ public class RTSGameplayScreen : GameScreen
         // EnqueueOrder die denselben Pfad nehmen.
         if (AiEnabled)
         {
-            ActivateAi(new AoE.Core.Ai.EconomyAi(), owner: 1);
-            System.Diagnostics.Debug.WriteLine("[AI] Eingebaute Wirtschaft-KI als Gegner (Owner 1) aktiv.");
+            if (BothSidesAi)
+            {
+                // Beide Seiten KI — für das Testen von Aggressivität und
+                /// Erkundung: je eine <c>EconomyAi</c> pro Owner.
+                ActivateAi(new AoE.Core.Ai.EconomyAi(), owner: 0);
+                ActivateAi(new AoE.Core.Ai.EconomyAi(), owner: 1);
+                System.Diagnostics.Debug.WriteLine("[AI] Beide Seiten KI (Owner 0 und 1) aktiv.");
+            }
+            else
+            {
+                ActivateAi(new AoE.Core.Ai.EconomyAi(), owner: 1);
+                System.Diagnostics.Debug.WriteLine("[AI] Eingebaute Wirtschaft-KI als Gegner (Owner 1) aktiv.");
+            }
         }
 
         // Create placeholder textures
@@ -965,12 +993,15 @@ public class RTSGameplayScreen : GameScreen
         // owner-generic Kernel.
         DrainOrders();
 
-        // Die eingebaute KI tickt auf ihrem eigenen Rhythmus. Sie liest den
-        // gerade aktuellen Zustand und meldet ihre Handlungen als Orders —
-        // dieselbe Queue, die auch ein externer Spieler füttert.
-        if (_agent != null)
+        // Die eingebauten KI-Instanzen ticken auf ihrem eigenen Rhythmus.
+        // Sie lesen den gerade aktuellen Zustand und melden ihre Handlungen
+        // als Orders — dieselbe Queue, die auch ein externer Spieler füttert.
+        // Es können mehrere Instanzen gleichzeitig laufen (je eine pro Owner),
+        // wenn beide Seiten KI gespielt werden.
+        if (_agents.Count > 0)
         {
-            _agent.Tick((float)gameTime.ElapsedGameTime.TotalSeconds);
+            foreach (var agent in _agents.Values)
+                agent.Tick((float)gameTime.ElapsedGameTime.TotalSeconds);
         }
 
         UpdateResources(gameTime);
@@ -2327,6 +2358,96 @@ public class RTSGameplayScreen : GameScreen
     }
 
     /// <summary>
+    /// Die feindliche Einheit auf <paramref name="gridPos"/>, die der
+    /// <paramref name="ownerId"/> gerade sieht — die vorderste (größtes y),
+    /// damit ein Klick wie bei eigenen Einheiten die oberste Figur trifft.
+    /// Null, wenn dort keine sichtbare feindliche Einheit steht.
+    /// </summary>
+    internal Unit? EnemyUnitAt(Vector2 gridPos, int ownerId)
+    {
+        int gx = (int)gridPos.X, gy = (int)gridPos.Y;
+        if (!tileMap.IsTileVisible(gx, gy, ownerId))
+            return null;
+
+        int ts = tileMap.TileSize;
+        float min = gridPos.X * ts, max = min + ts;
+        float miny = gridPos.Y * ts, maxy = miny + ts;
+        Unit best = null;
+        foreach (var u in units)
+        {
+            if (u.OwnerId == ownerId || u.State == UnitState.Dead)
+                continue;
+            if (u.Position.X < min || u.Position.X > max
+                || u.Position.Y < miny || u.Position.Y > maxy)
+                continue;
+            if (best == null || u.Position.Y >= best.Position.Y)
+                best = u;
+        }
+        return best;
+    }
+
+    /// <summary>
+    /// Schickt Einheiten gegen eine <paramref name="target"/>-Einheit (K2).
+    /// VERTRAG: für jede Einheit aus <paramref name="attackers"/> mit Angriff
+    /// (AttackPower größer 0): Sammelauftrag und Baustelle ab (Job null,
+    /// BuildSite null), UnitTarget = target. Der Standplatz ist die Kachel
+    /// direkt neben dem Ziel (Nahkampf) bzw. im Ring der Reichweite
+    /// (Fernkampf); die Einheit läuft dorthin (State Moving) und greift an,
+    /// sobald sie in Reichweite ist (UpdateUnits schaltet auf Attacking).
+    /// Gibt es keinen Standplatz, bleibt sie stehen.
+    /// </summary>
+    internal void AttackUnit(List<Unit> attackers, Unit target)
+    {
+        foreach (var a in attackers)
+        {
+            if (a.AttackPower <= 0)
+                continue;
+
+            // Sammelauftrag und Baustelle ab
+            a.Job = null;
+            a.BuildSite = null;
+            a.AttackTarget = null;     // Gebäude-Angriff endet
+            a.UnitTarget = target;
+            a.AttackTimer = 0f;
+            a.TargetPosition = target.Position;
+            a.Path = tileMap.FindPath(a.Position, target.Position);
+            a.State = a.Path.Count > 0 ? UnitState.Moving : UnitState.Idle;
+        }
+    }
+
+    /// <summary>
+    /// Tötet eine Einheit endgültig ab: aus den Listen (tileMap + Player)
+    /// entfernen, alle angreifenden Einheiten abziehen. <paramref name="victim"/>
+    /// muss Health 0 / State Dead haben — das prüft der Aufrufer.
+    /// </summary>
+    internal void DestroyUnit(Unit victim)
+    {
+        victim.State = UnitState.Dead;
+        var owner = victim.OwnerId == 0 ? player1 : player2;
+
+        // Aus allen Listen nehmen. Achtung: units ist alias auf
+        // tileMap.Units (ein und dieselbe Liste) — daher nur ein Remove.
+        owner.RemoveUnit(victim);      // Populations-Zähler + Player-Liste
+        if (units.Contains(victim))
+            units.Remove(victim);
+
+        // Alle, die gegen sie angriffen, lassen davon ab
+        foreach (var unit in units)
+        {
+            if (unit.UnitTarget != victim)
+                continue;
+            unit.UnitTarget = null;
+            unit.Path.Clear();
+            unit.State = UnitState.Idle;
+        }
+
+        if (selectedUnits.Contains(victim))
+            selectedUnits.Remove(victim);
+
+        ShowHudMessage($"{CoreUnits.GermanName(victim.Type)} besiegt");
+    }
+
+    /// <summary>
     /// Alle untätigen Dorfbewohner von Spieler 0: kein Sammelauftrag und
     /// Zustand Idle, in der Reihenfolge der Liste units.
     /// </summary>
@@ -2423,9 +2544,22 @@ public class RTSGameplayScreen : GameScreen
             return;
         }
 
+        // Klick auf eine Kachel mit einer sichtbaren feindlichen EINHEIT:
+        // die Auswahl greift sie direkt an (Einheiten sind prioritätshöchste
+        // Ziele — sie sind die Armee). Sonst läuft es weiter (Sammeln/Lauf).
+        var enemy = EnemyUnitAt(gridPos, ownerId);
+        if (enemy != null)
+        {
+            AttackUnit(selectedUnits, enemy);
+            return;
+        }
+
         // Jeder andere Befehl bricht einen laufenden Angriff ab
         foreach (var unit in selectedUnits)
+        {
             unit.AttackTarget = null;
+            unit.UnitTarget = null;
+        }
 
         var tile = tileMap.GetTile((int)gridPos.X, (int)gridPos.Y);
         // Nur Erforschtes lässt sich gezielt ernten; ein Klick in den Nebel ist ein Laufbefehl
@@ -2878,6 +3012,27 @@ public class RTSGameplayScreen : GameScreen
             return false;
         return townCenter.Training.Enqueue(UnitType.Villager, VillagerCost,
                                            VILLAGER_TRAIN_SECONDS, owner.Resources);
+    }
+
+    /// <summary>
+    /// Owner-generic Version der Soldatenausbildung — die KI-Schnittstelle.
+    /// Bildet in <paramref name="b"/> die Einheit <paramref name="unit"/> aus,
+    /// wenn das Gebäude laut <see cref="Products"/> diese Einheit ausbildet,
+    /// sie fertig ist, das Zeitalter weit genug ist und die Rohstoffe reichen.
+    /// false, wenn der Befehl abgelehnt wurde (ohne HUD-Meldung — die gehört
+    /// der menschlichen Taste).
+    /// </summary>
+    internal bool TrainSoldierForOwner(int ownerId, Data.Building b, UnitType unit)
+    {
+        if (b.OwnerId != ownerId || !b.IsComplete) return false;
+        var entry = Products.FirstOrDefault(p => p.Building == b.Core.BuildingType && p.Unit == unit);
+        if (entry == default) return false;
+        var owner = ownerId == 0 ? player1 : player2;
+        if (entry.From > owner.Ages.Current) return false;
+        if (b.Research.IsBusy) return false;     // das Gebäude forscht gerade
+        if (b.Training.Count >= AoE.Core.Economy.TrainingQueue<UnitType>.MAX_LENGTH)
+            return false;
+        return b.Training.Enqueue(unit, entry.Cost, entry.Seconds, owner.Resources);
     }
 
     /// <summary>
@@ -3361,8 +3516,11 @@ public class RTSGameplayScreen : GameScreen
                     {
                         if (unit.Job != null)
                             ArriveWithJob(unit);
-                        else if (unit.AttackTarget != null)
+                        else if (unit.AttackTarget != null && tileMap.Buildings.Contains(unit.AttackTarget))
                             unit.State = UnitState.Attacking;   // am Gebäude angekommen
+                        else if (unit.UnitTarget is { } ut0 && ut0.State != UnitState.Dead
+                                 && unit.AttackPower > 0)
+                            unit.State = UnitState.Attacking;   // am Einheiten-Ziel angekommen
                         else if (unit.BuildSite != null && !unit.BuildSite.IsComplete)
                             unit.State = UnitState.Building;   // am Bauplatz angekommen
                         else
@@ -3374,20 +3532,30 @@ public class RTSGameplayScreen : GameScreen
                     break;
 
                 case UnitState.Attacking:
-                    // Das Ziel ist weg (zerstört oder null): Angriff abbrechen
-                    if (unit.AttackTarget == null || !tileMap.Buildings.Contains(unit.AttackTarget))
+                    // Gebäude-Angriff?
+                    if (unit.AttackTarget is { } building && tileMap.Buildings.Contains(building))
                     {
-                        unit.AttackTarget = null;
-                        unit.State = UnitState.Idle;
-                        break;
+                        unit.AttackTimer += dt;
+                        if (unit.AttackTimer >= AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS)
+                        {
+                            unit.AttackTimer -= AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS;
+                            if (AoE.Core.Combat.BuildingCombat.Hit(unit.Core, building.Core))
+                                DestroyBuilding(building);   // zerstört
+                        }
                     }
-                    // Schlagtakt: alle RELOAD_SECONDS ein Schlag, der die Stärke senkt
-                    unit.AttackTimer += dt;
-                    if (unit.AttackTimer >= AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS)
+                    else if (unit.UnitTarget is not null && unit.UnitTarget.State != UnitState.Dead)
                     {
-                        unit.AttackTimer -= AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS;
-                        if (AoE.Core.Combat.BuildingCombat.Hit(unit.Core, unit.AttackTarget.Core))
-                            DestroyBuilding(unit.AttackTarget);   // zerstört
+                        // Einheiten-Angriff: Ziel läuft weiter, Reichweite
+                        // prüfen, Schlagtakt, Schaden.
+                        HandleAttack(unit, dt);
+                    }
+                    else
+                    {
+                        // Beide Ziele weg — aus dem Angriffs-Zustand heraus
+                        unit.AttackTarget = null;
+                        unit.UnitTarget = null;
+                        unit.Path.Clear();
+                        unit.State = UnitState.Idle;
                     }
                     break;
 
@@ -3414,12 +3582,71 @@ public class RTSGameplayScreen : GameScreen
                     break;
             }
         }
+
+        // Tote Einheiten endgültig entfernen. NICHT in der Schleife oben —
+        // dann würde units während der Iteration verändert (EnumerationException).
+        for (int i = units.Count - 1; i >= 0; i--)
+        {
+            if (units[i].State != AoE.Core.Entities.UnitState.Dead)
+                continue;
+            DestroyUnit(units[i]);
+        }
     }
 
     /// <summary>
     /// Bewegt die Einheit ein Stück auf ihrem Weg. Gibt true zurück, sobald
     /// der Weg abgelaufen ist.
     /// </summary>
+    /// <summary>
+    /// Einheiten-Angriff: eine angreifende Einheit (State Attacking) mit
+    /// einem Units-Ziel hält den Schlagtakt (alle BuildingCombat.RELOAD_SECONDS)
+    /// ein und führt den Schlag aus (Unit.Attack — Klassenebene, Konter-Dreieck
+    /// via DamageCalculator). Tote Einheiten werden nicht hier entfernt (wir
+    /// iterieren gerade über units) — der Aufräumer am Ende von UpdateUnits tut das.
+    /// </summary>
+    private void HandleAttack(Unit unit, float dt)
+    {
+        if (unit.UnitTarget is not { } target)
+        {
+            unit.State = UnitState.Idle;
+            return;
+        }
+        if (target.State == UnitState.Dead)
+        {
+            unit.UnitTarget = null;
+            unit.State = UnitState.Idle;
+            return;
+        }
+
+        if (unit.AttackPower <= 0)
+        {
+            // Kein Angriff (z. B. Dorfbewohner) — nur stehen
+            return;
+        }
+
+        // In Reichweite? (Chebyshev: |dx|, |dy|; Nahkampf 1, Fernkampf Stats.Range)
+        int range = Math.Max(1, unit.AttackRange);
+        int ts = tileMap.TileSize;
+        int dc = (int)(Math.Abs(target.Position.X - unit.Position.X) / ts);
+        int dr = (int)(Math.Abs(target.Position.Y - unit.Position.Y) / ts);
+        bool inRange = Math.Max(dc, dr) <= range;
+        if (!inRange)
+        {
+            unit.Path = tileMap.FindPath(unit.Position, target.Position);
+            unit.State = UnitState.Moving;
+            return;
+        }
+
+        unit.AttackTimer += dt;
+        if (unit.AttackTimer >= AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS)
+        {
+            unit.AttackTimer -= AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS;
+            unit.Attack(target);
+            // Tote Einheit: nicht hier entfernen (Units-Liste wird gerade
+            // von UpdateUnits iteriert) — der Aufräumer übernimmt.
+        }
+    }
+
     /// <summary>
     /// Synchronisiert die Wild-Reservierungen mit der Realität: ein Schaf
     /// bzw. Reh bleibt reserviert, nur solange ein eigener Dorfbewohner es

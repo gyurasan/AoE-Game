@@ -34,6 +34,10 @@ public sealed class AiAgent
     public IAi Ai => _ai;
     public AiBridge Bridge => _bridge;
 
+    /// <summary>Optionales Debug-Log — wird auf den AI-Kontext und die
+    /// Bridge weitergereicht (Standard: aus; im Spiel leise).</summary>
+    public Action<string>? Log { get; set; }
+
     private readonly AiBridge _bridge;
     private readonly IAi _ai;
     private readonly float _tickInterval;
@@ -50,6 +54,11 @@ public sealed class AiAgent
         while (_elapsed >= _tickInterval)
         {
             _elapsed -= _tickInterval;
+            if (Log is { } log)
+            {
+                _ctx.Log = log;
+                _bridge.DebugLog = log;
+            }
             _ai.Tick(_bridge, _bridge, _tickInterval, _ctx);
         }
     }

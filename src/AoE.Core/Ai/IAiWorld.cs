@@ -60,14 +60,32 @@ public interface IWorldState
     /// </summary>
     bool CanPlace(BuildingType type, int x, int y, int size);
 
-    /// <summary>
-    /// Die nächste Kachel mit einer offenen Menge von <paramref name="resource"/>,
+    /// <summary>Die nächste Kachel mit einer offenen Menge von <paramref name="resource"/>,
     /// an der ein Arbeiter arbeiten kann, maximal <paramref name="maxDistance"/>
     /// Kacheln von (<paramref name="fromX"/>, <paramref name="fromY"/>) entfernt —
-    /// null, wenn es im Umkreis keine gibt.
-    /// </summary>
+    /// null, wenn es im Umkreis keine gibt.</summary>
     (int X, int Y)? FindSource(Resource resource, int fromX, int fromY, int maxDistance);
+
+    /// <summary>
+    /// Die Front des Spielers: eine Kachel je Hauptrichtung (nord, nordost,
+    /// ost, …), am Rand des bereits Erkundeten. Die KI schickt dort
+    /// Erkunder hin — <c>Move</c> auf so eine Kachel legt die Karte auf,
+    /// weil der Weg nur über bekannte Kacheln geplant wird. Leere Liste,
+    /// wenn der Spieler noch nichts (oder in dieser Richtung nichts) gesehen hat.
+    /// </summary>
+    IReadOnlyList<(int X, int Y)> ExploreTargets();
+
+    /// <summary>
+    /// Alle Feinde, die der Spieler gerade mit eigenen Augen sieht (Kachel
+    /// aus seiner Sicht sichtbar): feindliche Einheiten und Gebäude.
+    /// Leere Liste, wenn nichts sichtbar ist.
+    /// </summary>
+    IReadOnlyList<EnemyInfo> VisibleEnemies();
 }
+
+/// <summary>Ein sichtbarer Feind aus Sicht der KI: Kachelkoordinaten,
+/// ob es ein Gebäude ist, und sein aktueller Zustand.</summary>
+public readonly record struct EnemyInfo(int X, int Y, bool IsBuilding, int Health);
 
 /// <summary>Der vierstellige Ressourcenvektor (Nahrung, Holz, Gold, Stein).</summary>
 public readonly record struct ResourceVector(int Food, int Wood, int Gold, int Stone)

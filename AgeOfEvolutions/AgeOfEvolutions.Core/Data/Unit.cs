@@ -123,6 +123,9 @@ public class Unit
     /// <summary>Das fremde Gebäude, das die Einheit auf Befehl angreift, oder null (K2).</summary>
     public Building AttackTarget { get; set; }
 
+    /// <summary>Die feindliche EinHEIT, die die Einheit auf Befehl angreift, oder null.</summary>
+    public Unit UnitTarget { get; set; }
+
     /// <summary>Sekunden seit dem letzten Schlag; ein Schlag alle BuildingCombat.RELOAD_SECONDS.</summary>
     public float AttackTimer { get; set; }
     

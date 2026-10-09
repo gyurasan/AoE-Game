@@ -40,6 +40,14 @@ public sealed class FakeWorld : IWorldState, IWorldActions
     public bool CanPlace(BuildingType t, int x, int y, int size) =>
         !_blocked.Contains((x, y)) && IsExplored(x, y);
 
+    private List<(int X, int Y)> _explore = new();
+    public void AddExploreTarget(int x, int y) => _explore.Add((x, y));
+    public IReadOnlyList<(int X, int Y)> ExploreTargets() => _explore;
+
+    private List<EnemyInfo> _enemies = new();
+    public void AddEnemy(EnemyInfo e) => _enemies.Add(e);
+    public IReadOnlyList<EnemyInfo> VisibleEnemies() => _enemies;
+
     private Dictionary<Resource, (int X, int Y)> _sources = new();
     public void AddSource(Resource t, int x, int y) => _sources[t] = (x, y);
     public (int X, int Y)? FindSource(Resource r, int fx, int fy, int md)
@@ -71,6 +79,8 @@ public sealed class FakeWorld : IWorldState, IWorldActions
         Log.Add("ageup()");
     }
     public void AssignBuilder(int unitId, int buildingId) => Log.Add($"assign({unitId}@{buildingId})");
+    public void Attack(int unitId, int x, int y) => Log.Add($"attack({unitId},{x},{y})");
+    public void TrainSoldier(BuildingType b, UnitKind s) => Log.Add($"soldier({b},{s})");
 
     // --- Factory-Helfer
     private int _next = 1;
@@ -98,7 +108,10 @@ public sealed class FakeWorld : IWorldState, IWorldActions
 /// <summary>Unit-Tests für <see cref="EconomyAi"/>.</summary>
 public class EconomyAiTests
 {
-    static readonly EconomyAi ai = new();
+    // Instance-Feld (nicht static!), damit jede xUnit-Testmethode eine
+    // frische KI bekommt — die KI hält Zustände (_scoutId, _lastRaidTime),
+    // die sonst zwischen Methoden weiterlaufen würden.
+    readonly EconomyAi ai = new();
 
     [Fact]
     public void FillSiteAssignsFreeWorkers()

@@ -40,7 +40,7 @@ public sealed class AiContext
 
     /// <summary>Log-Ausgabe der KI — die KI schreibt hier ihre Entscheidungen
     /// (für Debugging und Tests).</summary>
-    public Action<string> Log { get; }
+    public Action<string> Log { get; set; }
 
     public AiContext(int seed = 1)
     {

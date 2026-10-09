@@ -34,6 +34,9 @@ public sealed class AiBridge : IWorldState, IWorldActions
     /// <summary>Der Spieler, den die Brücke repräsentiert. Standard: 1 (KI/Gegner).</summary>
     public int Owner { get; set; } = 1;
 
+    /// <summary>Optionales Debug-Log (vom Agenten gesetzt); Standard: null.</summary>
+    public Action<string>? DebugLog { get; set; }
+
     // ------------------- IWorldState -------------------
 
     public int Width => _screen.tileMap.Width;
@@ -93,6 +96,50 @@ public sealed class AiBridge : IWorldState, IWorldActions
         return pos is null ? null : (pos.Value.X, pos.Value.Y);
     }
 
+    /// <summary>
+    /// Die Erkundungs-Front des Spielers: eine Zielkachel je Hauptrichtung
+    /// am Rand des Bereichs, den er schon einmal gesehen hat. Die KI schickt
+    /// Einheiten dorthin — der Weg wird nur über bekannte Kacheln geplant,
+    /// und jeder Schritt deckt neue auf.
+    /// </summary>
+    public IReadOnlyList<(int X, int Y)> ExploreTargets()
+    {
+        var tc = TownCenter;
+        if (tc is null) return Array.Empty<(int, int)>();
+        var home = (tc.X + tc.Width / 2, tc.Y + tc.Height / 2);
+        return _screen.tileMap.FrontierTargets(Owner, home);
+    }
+
+    /// <summary>
+    /// Alle Feinde, die der Spieler gerade mit eigenen Augen sieht —
+    /// feindliche Einheiten und Gebäude. Die KI darf nur gegen was
+    /// anschlagen, was sie tatsächlich sieht.
+    /// </summary>
+    public IReadOnlyList<EnemyInfo> VisibleEnemies()
+    {
+        var visible = new List<EnemyInfo>();
+        foreach (var u in _screen.units)
+        {
+            if (u.OwnerId == Owner || u.State == AoE.Core.Entities.UnitState.Dead) continue;
+            var grid = _screen.tileMap.WorldToGrid(u.Position);
+            int x = (int)grid.X, y = (int)grid.Y;
+            if (!_screen.tileMap.IsTileVisible(x, y, Owner)) continue;
+            visible.Add(new EnemyInfo(x, y, IsBuilding: false, Health: u.Health));
+        }
+        foreach (var b in _screen.tileMap.Buildings)
+        {
+            if (b.OwnerId == Owner || b.Core.CurrentHp <= 0) continue;
+            bool seen = false;
+            for (int x = b.X; x < b.X + b.Width && !seen; x++)
+                for (int y = b.Y; y < b.Y + b.Height && !seen; y++)
+                    if (_screen.tileMap.IsTileVisible(x, y, Owner)) seen = true;
+            if (!seen) continue;
+            visible.Add(new EnemyInfo(b.X + b.Width / 2, b.Y + b.Height / 2,
+                                      IsBuilding: true, Health: b.Health));
+        }
+        return visible;
+    }
+
     // ------------------- IWorldActions -------------------
 
     public void Gather(int unitId, int x, int y)
@@ -123,11 +170,15 @@ public sealed class AiBridge : IWorldState, IWorldActions
         }
 
         if (!_screen.PlaceBuildingFor(Owner, type, new Vector2(x, y), builders))
+        {
+            DebugLog?.Invoke($"Build ABGELEHNT: {type} bei ({x},{y}), {builders.Count} Arbeiter");
             return null;
+        }
 
         // Das neue Gebäude ist das letzte der Liste des Owners (AddBuilding
         // hängt hinten an).
         var newest = _screen.tileMap.Buildings.LastOrDefault(b => b.OwnerId == Owner);
+        DebugLog?.Invoke($"Build OK: {type} bei ({x},{y}), {builders.Count} Arbeiter");
         return newest?.Id.GetHashCode();
     }
 
@@ -141,6 +192,47 @@ public sealed class AiBridge : IWorldState, IWorldActions
         var b = OwnBuildings.FirstOrDefault(b => b.Id.GetHashCode() == buildingId);
         if (b is null) return;
         _screen.AssignBuilder(u, b);
+    }
+
+    /// <summary>
+    /// Greift den Feind bei (<paramref name="x"/>, <paramref name="y"/>) an —
+    /// im Idealfall ein sichtbares feindliches Gebäude an genau der Kachel.
+    /// Findet sich dort kein Gebäude, das der Owner greifen kann, fällt der
+    /// Befehl auf eine Bewegung zurück (IssueCommand-Verhalten).
+    /// </summary>
+    public void Attack(int unitId, int x, int y)
+    {
+        var u = UnitOf(unitId);
+        if (u is null) return;
+        _screen.IssueCommand(Owner, new List<Unit> { u }, new Vector2(x, y));
+        DebugLog?.Invoke($"Attack: Einheit {unitId} auf ({x},{y})");
+    }
+
+    /// <summary>
+    /// Bildet einen Soldaten aus. Die Bridge übersetzt <paramref name="soldier"/>
+    /// auf den Spiel-<see cref="AoE.Core.Entities.UnitType"/> und ruft die
+    /// owner-generic Screen-Methode auf. Scheitert still, wenn das Gebäude
+    /// nicht ausbildet, nicht fertig ist, forscht oder kein Zeitalter erreicht
+    /// ist — der Aufrufer liest dann die Warteschlange weiter.
+    /// </summary>
+    public void TrainSoldier(BuildingType building, UnitKind soldier)
+    {
+        Data.UnitType? unitType = soldier switch
+        {
+            UnitKind.Militia  => Data.UnitType.Militia,
+            UnitKind.Spearman => Data.UnitType.SpearMan,
+            UnitKind.Archer   => Data.UnitType.Archer,
+            UnitKind.Cavalry  => Data.UnitType.Scout,
+            _                 => null,
+        };
+        if (unitType is null) return;
+        // Das Gebäude finden: eigenes, fertig, und es bildet genau diese
+        // Einheit aus. Fehlt das, bleibt die KI untätig — die Screen-Prüfung
+        // verwarf die Aktion sonst mit einer Meldung, die niemand liest.
+        var b = OwnBuildings.FirstOrDefault(x => x.Core.BuildingType == building
+                                                 && x.IsComplete);
+        if (b is null) return;
+        _screen.TrainSoldierForOwner(Owner, b, unitType.Value);
     }
 
     // ------------------- Snapshots -------------------
