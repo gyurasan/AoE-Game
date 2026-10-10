@@ -57,6 +57,12 @@ with.
         <Start>&#32;</Start>
         <End>&#254;</End>
       </CharacterRegion>
+
+      <!-- General Punctuation: Em-Dash &amp; Ellipsis, falls doch mal einer hereinkommt -->
+      <CharacterRegion>
+        <Start>&#8211;</Start>
+        <End>&#8230;</End>
+      </CharacterRegion>
     </CharacterRegions>
   </Asset>
 </XnaContent>

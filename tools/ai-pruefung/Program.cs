@@ -30,11 +30,11 @@ using UnitState = AoE.Core.Entities.UnitState;
 const BindingFlags F = BindingFlags.NonPublic | BindingFlags.Instance;
 Type T = typeof(RTSGameplayScreen);
 
-var screen = new RTSGameplayScreen(MapSize.Standard);
+var screen = new RTSGameplayScreen(MapSize.Test);
 
 // Welt manuell aufbauen — wie tools/spielablauf/Welt, ohne ScreenManager.
-int seite = MapSizes.Side(MapSize.Standard);
-var map = new TileMap(seite, seite, 32, MapSettings.ForSize(MapSize.Standard));
+int seite = MapSizes.Side(MapSize.Test);
+var map = new TileMap(seite, seite, 32, MapSettings.ForSize(MapSize.Test));
 var units = map.Units;
 var p1 = new Player(0, "P1", "Briten");
 var p2 = new Player(1, "P2", "Azteken");
@@ -80,8 +80,10 @@ Call("UpdatePopulationLimits");
 
 // Eingebaute KI für beide Owner anstellen — genau das, was die Screen
 // (LoadContent) im Spiel mit BothSidesAi-an tut.
-screen.ActivateAi(new EconomyAi(), owner: 0);
-screen.ActivateAi(new EconomyAi(), owner: 1);
+// Aggressives Testprofil: kurze Cooldowns, kleine Wellengröße, hohe Armee
+// — damit auf der halben Karte schnell ein Dorfzentrum fällt.
+screen.ActivateAi(new EconomyAi(AiProfile.Aggressive), owner: 0);
+screen.ActivateAi(new EconomyAi(AiProfile.Aggressive), owner: 1);
 
 // Debug-Logging der KI-Entscheidungen (nur für diesen Lauf — im Spiel aus).
 var logLines = new System.Collections.Generic.List<string>();
@@ -148,10 +150,13 @@ for (int x = 0; x < map.Width; x++)
 Console.WriteLine($"  Start Owner 0: Pop {popStartP1}, Gebäude {bldStartP1}, erkundet {exploredStartP0} Kacheln");
 Console.WriteLine($"  Start Owner 1: Pop {popStartP2}, Gebäude {bldStartP2}, erkundet {exploredStartP1} Kacheln");
 
-// ---- ~300 s Spielzeit laufen lassen — dieselben Update-Rufe wie im Spiel ----
+// ---- ~600 s Spielzeit laufen lassen (max.) — dieselben Update-Rufe wie im
+//      Spiel. Stoppt früher, wenn eine Seite ihre Dorfzentren verloren hat.
 const float dt = 1f / 60f;
 double zeit = 0;
 int attackSeenP1 = 0, attackSeenP2 = 0;
+int loser = -1;        // Owner, der verloren hat (-1 = noch offen)
+double timeDefeat = -1;
 
 void Schritt()
 {
@@ -174,7 +179,9 @@ void Schritt()
     Invoke0("UpdateSheepClaims");
     InvokeOrNull("UpdateUnits", gt);
     Invoke0("UpdatePopulationLimits");
+    Invoke0("CheckDefeat");
     InvokeOrNull("UpdateTraining", dt);
+    InvokeOrNull("UpdateResearch", dt);
     InvokeOrNull("UpdateAges", dt);
     InvokeOrNull("UpdateConstruction", dt);
     InvokeOrNull("UpdateResources", gt);
@@ -189,6 +196,36 @@ void Schritt()
     // Beide KI-Instanzen ticken — genau wie imSpiel im Update-Loop.
     if (screen.Agents.TryGetValue(0, out var a0)) a0.Tick(dt);
     if (screen.Agents.TryGetValue(1, out var a1)) a1.Tick(dt);
+
+    // Wer hat sein Dorfzentrum verloren? Zählt erst mal — sobald es weg
+    // ist, ist das Spiel zu Ende (kein zweites TC möglich).
+    if (loser < 0)
+    {
+        // DestroyBuilding removes buildings from tileMap.Buildings, so we
+        // check for presence directly.
+        bool tc0 = map.Buildings.Any(b => b.OwnerId == 0 && b.Core.BuildingType == BuildingType.TownCenter);
+        bool tc1 = map.Buildings.Any(b => b.OwnerId == 1 && b.Core.BuildingType == BuildingType.TownCenter);
+        if (!tc0) { loser = 0; timeDefeat = zeit; Console.WriteLine($"  >> Dorfzentrum von Owner 0 zerstört bei t={zeit:0}s"); }
+        else if (!tc1) { loser = 1; timeDefeat = zeit; Console.WriteLine($"  >> Dorfzentrum von Owner 1 zerstört bei t={zeit:0}s"); }
+    }
+
+    // TC-Telemetrie alle 30 s: wer greift auf welches TC, wie viel HP?
+    if (zeit % 30 < dt && zeit >= 30)
+    {
+        foreach (var owner in new[] { 0, 1 })
+        {
+            var tc = map.Buildings.FirstOrDefault(b => b.OwnerId == owner && b.Core.BuildingType == BuildingType.TownCenter);
+            int hitters = units.Count(u => u.OwnerId != owner
+                                          && (u.AttackTarget == tc));
+            int maxHp = tc == null ? 0 : (int)tc.Core.Stats.HitPoints;
+            Console.WriteLine($"    [TC t={zeit:0}s] Owner {owner}: {(tc == null ? "zerstört" : $"@({tc.X},{tc.Y}) HP={tc.Core.CurrentHp}/{maxHp}, Gegner-Angreifer={hitters}")}");
+        }
+        // Kurzer Einheiten-Snapshot (beide Seiten): wer ist wo im Kampf.
+        var s1 = units.Where(u => u.OwnerId == 1 && u.Type != UnitType.Villager && u.State != UnitState.Dead).ToList();
+        var s0 = units.Where(u => u.OwnerId == 0 && u.Type != UnitType.Villager && u.State != UnitState.Dead).ToList();
+        Console.WriteLine($"    [UNITS t={zeit:0}s] P0 Soldaten={s0.Count} (im Kampf={s0.Count(u => u.State == UnitState.Attacking)}), "
+                         + $"P1 Soldaten={s1.Count} (im Kampf={s1.Count(u => u.State == UnitState.Attacking)})");
+    }
 
     // Angriffszustand zählen — der Beweis, dass die KI angreift.
     int a0s = 0, a1s = 0;
@@ -205,10 +242,11 @@ void Schritt()
     if (a1s > attackSeenP2) attackSeenP2 = a1s;
 }
 
-for (int i = 0; i < 300 * 60; i++)
+for (int i = 0; i < 600 * 60; i++)
 {
     zeit += dt;
     Schritt();
+    if (loser >= 0) break;          // Dorfzentrum gefallen — Spiel zu Ende
 }
 
 // ---- Ergebnis-Auswertung: beide Seiten, Militär, Erkundung ----
@@ -269,6 +307,13 @@ else
     // ohne Soldaten ist ein Angriff auch nicht zu erwarten — aber dann
     // schlägt Punkt 2 schon fehl.
     Meld("Kein Angriff — und auch keine Soldaten (Militär fehlt, s.o.)");
+
+// 5) Sieg-Nachweis: auf der halben Karte muss eine Seite ihr Dorfzentrum
+//    verlieren — und dann haben wir das Spielende (kein zweites TC möglich).
+if (loser >= 0)
+    Ok($"Sieg: {(loser == 0 ? "Owner 1" : "Owner 0")} — Dorfzentrum des Verlierers fiel bei t={timeDefeat:0}s (Spiel endete danach, kein neues TC möglich)");
+else
+    Meld("Kein Dorfzentrum fiel — das Spiel lief über die Simulationszeit, ohne ein Ende zu finden");
 
 Console.WriteLine();
 if (Verstoesse > 0)

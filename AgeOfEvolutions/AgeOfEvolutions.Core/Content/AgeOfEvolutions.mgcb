@@ -3544,6 +3544,12 @@
 /processorParam:Quality=Best
 /build:Sounds/PlayerPowerUp.wav
 
+#begin Sounds/Alarm.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/Alarm.wav
+
 #begin Sprites/Gem.png
 /importer:TextureImporter
 /processor:TextureProcessor

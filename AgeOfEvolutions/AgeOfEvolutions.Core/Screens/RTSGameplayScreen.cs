@@ -5,6 +5,7 @@ using AgeOfEvolutions.Core.Data;
 using AgeOfEvolutions.Core.Inputs;
 using AgeOfEvolutions.Screens;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Resource = AoE.Core.Entities.Resource;
@@ -302,6 +303,25 @@ public class RTSGameplayScreen : GameScreen
     private string hudMessage;
     private float hudMessageTimer;
     private const float HUD_MESSAGE_SECONDS = 2.5f;
+
+    // Angriffswarnung: eigene Einheiten oder Gebäude im Umkreis des eigenen
+    // Stadtzentrums werden getroffen — der obere Balken blinkt kurz rot und
+    // ein Warnsignal erklingt. Cooldown, damit im Dauerfeuer nicht jeder
+    // einzelne Schlag neu alarmiert.
+    private float _underAttackTimer;
+    private double _underAttackLastSound = -1e9;
+    private static readonly float UNDER_ATTACK_FLASH_SECONDS = 2.5f;
+    private static readonly double UNDER_ATTACK_SOUND_COOLDOWN = 3.0;
+    private SoundEffect _alarmSound;
+    private bool _underAttackSoundReady;
+    private double _gameSeconds;
+
+    // „Unter Angriff" — das Spiel merkt sich pro Spieler, wann die eigene
+    // Siedlung das letzte Mal einen Treffer kassiert hat (Einheiten oder
+    /// Gebäude). Die KI liest das über <see cref="LastDamageReceivedAt"/>
+    // und wehrt sich automatisch, wenn es frisch ist.
+    private double _lastDamageP0;
+    private double _lastDamageP1;
 
     // Rot für die Bevölkerung am Limit und den Hinweis dazu
     private static readonly Color LimitColor = new Color(235, 80, 60);
@@ -760,6 +780,20 @@ public class RTSGameplayScreen : GameScreen
         tileTexture = CreateTexture(graphicsDevice, 32, 32, Color.Green);
         BuildAoETextures();
 
+        // Alarm beim Angriff: fehlt die Sound-Datei, läuft die Warnung stumm
+        // (rotes Blinken bleibt) — ein fehlendes Asset darf das Spiel nicht
+        // beim Start umbringen.
+        try
+        {
+            _alarmSound = ScreenManager.Game.Content.Load<SoundEffect>("Sounds/Alarm");
+            _underAttackSoundReady = true;
+        }
+        catch (Microsoft.Xna.Framework.Content.ContentLoadException)
+        {
+            _alarmSound = null;
+            _underAttackSoundReady = false;
+        }
+
         // Symbole der Befehlstasten nach dem Namen der Einheit: dieselbe Taste
         // Q heißt je Gebäude etwas anderes (Dorfbewohner, Miliz, Bogenschütze,
         // Späher); fehlt eines, bleibt die Taste ohne Symbol
@@ -959,6 +993,7 @@ public class RTSGameplayScreen : GameScreen
         tileTexture?.Dispose();
         tileTexture = null;
         px?.Dispose(); px = null;
+        _alarmSound?.Dispose(); _alarmSound = null;
         foreach (var t in tileTex.Values) t?.Dispose();
         tileTex.Clear();
         foreach (var t in waterTex) t?.Dispose();
@@ -1023,6 +1058,12 @@ public class RTSGameplayScreen : GameScreen
 
         if (hudMessageTimer > 0f)
             hudMessageTimer -= (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+        // Angriffswarnung abklingen lassen; die Gesamtzeit hält sich
+        // selbst aktuell (Sound-Cooldown).
+        if (_underAttackTimer > 0f)
+            _underAttackTimer -= (float)gameTime.ElapsedGameTime.TotalSeconds;
+        _gameSeconds += gameTime.ElapsedGameTime.TotalSeconds;
 
         // Nebel des Krieges: Sicht von Spieler 0 im Takt FOG_INTERVAL neu rechnen
         fogTimer -= (float)gameTime.ElapsedGameTime.TotalSeconds;
@@ -2460,6 +2501,11 @@ public class RTSGameplayScreen : GameScreen
             a.UnitTarget = target;
             a.AttackTimer = 0f;
             a.TargetPosition = target.Position;
+            // Vollständige Karte statt FindPathKnown: das Ziel ist
+            // feindlicherweise sichtbar aber nicht unbedingt bekannt —
+            // der Weg darf über bekannte Kacheln führen, das Ziel
+            // selbst muss nicht bekannt sein, sonst endet der Pfad an
+            // einer Nebelkante und die Einheit läuft in den Winkel.
             a.Path = tileMap.FindPath(a.Position, target.Position);
             a.State = a.Path.Count > 0 ? UnitState.Moving : UnitState.Idle;
         }
@@ -2962,17 +3008,16 @@ public class RTSGameplayScreen : GameScreen
     /// </summary>
     internal static int DefeatRule(IEnumerable<Unit> units, IEnumerable<Building> buildings, int playerId)
     {
-        bool noVillagers = true;
-        foreach (var u in units)
-            if (u.OwnerId == playerId && u.State != UnitState.Dead && u.Core is CoreVillager)
-            { noVillagers = false; break; }
-
-        bool noTownCenter = true;
+        // Dorfzentrum zerstört = verloren. Ein zweites Dorfzentrum kann
+        // nicht gebaut werden (PlaceBuildingFor sperrt das), also ist der
+        // Verlust endgültig: ohne Dorfzentrum gibt es keine Dorfbewohner-
+        // Quelle mehr und das Dorf verliert unweigerlich. Solange das
+        // Dorfzentrum steht, ist die Seite nicht erledigt — auch wenn
+        // zeitweise keine Dorfbewohner übrig sind.
         foreach (var b in buildings)
             if (b.OwnerId == playerId && b.Core.BuildingType == BuildingType.TownCenter)
-            { noTownCenter = false; break; }
-
-        return (noVillagers && noTownCenter) ? playerId : -1;
+                return -1;
+        return playerId;
     }
 
     /// <summary>
@@ -2997,10 +3042,10 @@ public class RTSGameplayScreen : GameScreen
 
         try
         {
-            ShowHudMessage($"{loserName} hat verloren — {winnerName} gewonnen!");
+            ShowHudMessage($"{loserName} hat verloren - {winnerName} gewonnen!");
             ScreenManager?.AddScreen(new GameOverScreen(
                 winnerName + " gewonnen!",
-                loserName + " hat weder Dorfbewohner noch Gebäude mehr."
+                $"{loserName}s Dorfzentrum ist zerstört - ein zweites ließ sich nicht bauen."
             ), null);
         }
         catch (System.Exception ex)
@@ -3344,6 +3389,14 @@ public class RTSGameplayScreen : GameScreen
     /// </summary>
     internal bool PlaceBuildingFor(int ownerId, BuildingType type, Vector2 cell, List<Unit> builders)
     {
+        // Dorfzentrum: es gibt genau EINES — das Start-Dorfzentrum. Man kann
+        // kein zweites bauen und kein neues, wenn das alte fällt. Damit ist
+        // „Dorfzentrum weg" endgültig die Niederlage (DefeatRule): wer ohne
+        // Dorfzentrum dasteht, hat verloren und kann die Seite nicht mehr
+        // weiterführen (keine Dorfbewohner-Quelle mehr).
+        if (type == BuildingType.TownCenter)
+            return false;
+
         if (!CanPlace(ownerId, type, cell))
             return false;
         var owner = ownerId == 0 ? player1 : player2;
@@ -3650,7 +3703,12 @@ public class RTSGameplayScreen : GameScreen
                         {
                             unit.AttackTimer -= AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS;
                             if (AoE.Core.Combat.BuildingCombat.Hit(unit.Core, building.Core))
+                            {
+                                RegisterDamageTaken(building.OwnerId);
                                 DestroyBuilding(building);   // zerstört
+                            }
+                            else
+                                RegisterDamageTaken(building.OwnerId);
                         }
                     }
                     else if (unit.UnitTarget is not null && unit.UnitTarget.State != UnitState.Dead)
@@ -3752,8 +3810,56 @@ public class RTSGameplayScreen : GameScreen
         {
             unit.AttackTimer -= AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS;
             unit.Attack(target);
+            RegisterDamageTaken(target.OwnerId);
             // Tote Einheit: nicht hier entfernen (Units-Liste wird gerade
             // von UpdateUnits iteriert) — der Aufräumer übernimmt.
+        }
+    }
+
+    /// <summary>
+    /// Unsere Seite (Spieler 0) ist gerade getroffen: Warnung oben in der
+    /// Leiste — der obere Balken blinkt kurz rot, und ein kurzes Warnsignal
+    /// erklingt (alle <see cref="UNDER_ATTACK_SOUND_COOLDOWN"/> Sekunden
+    /// höchstens einmal, damit im Dauerfeuer nicht jeder Schlag neu piept).
+    /// </summary>
+    private void RaiseUnderAttack()
+    {
+        _underAttackTimer = UNDER_ATTACK_FLASH_SECONDS;
+        if (_underAttackSoundReady && _gameSeconds - _underAttackLastSound >= UNDER_ATTACK_SOUND_COOLDOWN)
+        {
+            _underAttackLastSound = _gameSeconds;
+            try { _alarmSound.Play(); }
+            catch { /* kein Audio-Gerät: die Warnung bleibt sichtbar */ }
+        }
+    }
+
+    /// <summary>
+    /// Wann hat <paramref name="playerId"/> das letzte Mal Schaden bekommen?
+    /// 0 = noch nie getroffen. Die KI vergleicht das mit ihrer eigenen
+    /// Taktzeit und wehrt sich automatisch, wenn der Treffer frisch ist.
+    /// </summary>
+    internal double LastDamageReceivedAt(int playerId)
+        => playerId == 0 ? _lastDamageP0 : _lastDamageP1;
+
+    /// <summary>Aktuelle Spielzeit in Sekunden — die Zeitskala, auf der
+    /// <see cref="LastDamageReceivedAt(int)"/> und die KI-Welt laufen.</summary>
+    internal double GameSeconds => _gameSeconds;
+
+    /// <summary>
+    /// Der Spieler <paramref name="playerId"/> hat gerade einen Treffer
+    /// kassiert — Uhr aktualisieren und (nur bei Spieler 0) die Alarm-Warnung
+    /// setzen, weil die Ansicht dem Menschen gehört.
+    /// </summary>
+    private void RegisterDamageTaken(int playerId)
+    {
+        if (playerId == 0)
+        {
+            _lastDamageP0 = _gameSeconds;
+            RaiseUnderAttack();
+        }
+        else
+        {
+            _lastDamageP1 = _gameSeconds;
         }
     }
 
@@ -3798,6 +3904,38 @@ public class RTSGameplayScreen : GameScreen
         // über freies Land geradeaus statt im Zickzack der Kachelmitten
         // ein freier Laufbefehl, kein Sammel- oder Bauweg
         bool free = unit.Job == null && unit.BuildSite == null;
+
+        // Zieh-Angriff zuerst planen: das Ziel läuft (Bogenschütze,
+        // Dorfbewohner) oder der Standplatz hat sich verschoben — wenn
+        // der aktuelle Ziel-Endpunkt mindestens so nah ist wie der
+        // erste Schritt des alten Weges, wird der Weg direkt auf das
+        // jetzt-aktuelle Ziel neu geplant. Sonst läuft der Angreifer
+        // den ersten Weg bis zum Ende und erreicht ein Ziel, das längst
+        // weg ist (das "läuft ins Leere"-Symptom).
+        if (free && unit.UnitTarget is { } uTarget && uTarget.State != UnitState.Dead)
+        {
+            Vector2 desired = uTarget.Position;
+            var desiredPath = tileMap.FindPath(unit.Position, desired);
+            if (desiredPath.Count > 0
+                && (unit.Path.Count == 0
+                    || Vector2.Distance(unit.Position, uTarget.Position)
+                       <= Vector2.Distance(unit.Position, unit.Path[0]) + 2f))
+                unit.Path = desiredPath;
+        }
+        else if (free && unit.AttackTarget is not null)
+        {
+            var b = unit.AttackTarget;
+            if (tileMap.Buildings.Contains(b) && AttackStand(unit, b) is { } stand2)
+            {
+                var desiredPath = tileMap.FindPath(unit.Position, stand2);
+                if (desiredPath.Count > 0
+                    && (unit.Path.Count == 0
+                        || Vector2.Distance(unit.Position, stand2)
+                           <= Vector2.Distance(unit.Position, unit.Path[0]) + 2f))
+                    unit.Path = desiredPath;
+            }
+        }
+
         while (unit.Path.Count >= 2 && tileMap.IsSegmentWalkable(unit.Position, unit.Path[1], 6f, free ? unit.OwnerId : null))
             unit.Path.RemoveAt(0);
 
@@ -5901,6 +6039,20 @@ public class RTSGameplayScreen : GameScreen
         var topBarRect = new Rectangle(0, 0, screenBounds.Width, HUD_TOP_HEIGHT);
         DrawPanel(spriteBatch, topBarRect);
         spriteBatch.Draw(px, new Rectangle(0, HUD_TOP_HEIGHT - 2, screenBounds.Width, 2), new Color(52, 40, 24));
+
+        // Angriffswarnung: die Leiste glüht rot, während _underAttackTimer
+        // läuft — zuletzt getroffen zählt, kurz vor dem Ausklingen wird sie
+        // schwächer („leichtes Blinken" statt Dauerrot).
+        if (_underAttackTimer > 0f)
+        {
+            float t = Math.Min(1f, _underAttackTimer / (UNDER_ATTACK_FLASH_SECONDS * 0.9f));
+            float fade = _underAttackTimer < 0.6f ? _underAttackTimer / 0.6f : 1f;
+            float alpha = 0.30f * t * fade;
+            float pulse = 0.5f + 0.5f * Math.Abs(MathF.Sin((float)_gameSeconds * 6f));
+            float alphaByte = alpha * (0.45f + 0.55f * pulse) * 255f;
+            spriteBatch.Draw(px, topBarRect,
+                new Color(220, 40, 30, (int)Math.Clamp(alphaByte, 0f, 255f)));
+        }
 
         // Ressourcen: je Rohstoff sein Symbol, senkrecht mittig in der Leiste, daneben der Vorrat;
         // ohne Bild das farbige Quadrat

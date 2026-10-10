@@ -67,7 +67,7 @@ public class GameOverScreen : GameScreen
         Vector2 detailPos = (baseSize - detailSize) / 2f;
         detailPos.Y = titlePos.Y + titleSize.Y + 20f;
 
-        string hint = "Enter oder Klick — zurück zum Menü";
+        string hint = "Enter oder Klick - zurück zum Menü";
         Vector2 hintSize = font.MeasureString(hint) * 1.1f;
         Vector2 hintPos = (baseSize - hintSize) / 2f;
         hintPos.Y = baseSize.Y * 0.84f;

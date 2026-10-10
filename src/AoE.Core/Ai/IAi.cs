@@ -28,14 +28,16 @@ public sealed class AiContext
     /// <summary>Gesamtzahl der Takt-Runden, seit die KI existiert.</summary>
     public int Tick { get; internal set; }
 
-    /// <summary>Gesamtzeit in Sekunden, seit dem ersten Takt.</summary>
-    public double Time { get; internal set; }
+    /// <summary>Gesamtzeit in Sekunden, seit dem ersten Takt. Nur die
+    /// Takt-Ausführung darf sie voranstellen — Tests setzen sie, um
+    /// „Zeit seit Start" gezielt zu simulieren.</summary>
+    public double Time { get; set; }
 
     /// <summary>Zufallsgenerator der KI (deterministischer Seed über <see cref="Seed"/>,
     /// wiederholbar in Tests).</summary>
     public Random Rng { get; }
 
-    /// <summary>Seed, mit dem der Zufallsgenerator gestartet wurde.</summary>
+    /// <summary>Seed, mit dem der Zufallswerte gestartet wird.</summary>
     public int Seed { get; }
 
     /// <summary>Log-Ausgabe der KI — die KI schreibt hier ihre Entscheidungen

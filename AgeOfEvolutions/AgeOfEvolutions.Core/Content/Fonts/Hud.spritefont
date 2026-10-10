@@ -58,6 +58,14 @@ with.
         <End>&#254;</End>
       </CharacterRegion>
 
+      <!-- General Punctuation (Em-Dash, Ellipsis, Anführungszeichen):
+           fehlt, so bricht DrawString/MeasureString mit ArgumentException ab
+           — z. B. im Sieg-/Niederlagen-Text. -->
+      <CharacterRegion>
+        <Start>&#8192;</Start>
+        <End>&#8399;</End>
+      </CharacterRegion>
+
       <!-- Hiragana (U+3040 - U+309F) -->
       <CharacterRegion>
         <Start>&#12352;</Start>

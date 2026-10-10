@@ -48,6 +48,14 @@ public sealed class FakeWorld : IWorldState, IWorldActions
     public void AddEnemy(EnemyInfo e) => _enemies.Add(e);
     public IReadOnlyList<EnemyInfo> VisibleEnemies() => _enemies;
 
+    /// <summary>Simuliere „gerade getroffen": der Zeitstempel, zu dem
+    /// die Siedlung zuletzt Schaden kassiert hat. 0 = noch nie.</summary>
+    public double LastDamageAt { get; set; }
+
+    /// <summary>Weltzeit (Sekunden), mit der die KI die Frische eines
+    /// Schadens bewertet. Im Fake frei wählbar.</summary>
+    public double WorldTime { get; set; }
+
     private Dictionary<Resource, (int X, int Y)> _sources = new();
     public void AddSource(Resource t, int x, int y) => _sources[t] = (x, y);
     public (int X, int Y)? FindSource(Resource r, int fx, int fy, int md)
@@ -91,6 +99,15 @@ public sealed class FakeWorld : IWorldState, IWorldActions
         AllUnits.Add(new UnitSnapshot { Id = id, Kind = UnitKind.Villager, X = x, Y = y,
                                         State = s, Gathering = gathering, BuildingId = site,
                                         Health = 25, MaxHealth = 25 });
+        return id;
+    }
+    /// <summary>Milizsoldat im Feld — für die Zeitalter-/Angriffs-Gates.</summary>
+    public int AddSoldier(int x = 0, int y = 0, UnitKind kind = UnitKind.Militia,
+        UnitStateKind s = UnitStateKind.Idle)
+    {
+        int id = _next++;
+        AllUnits.Add(new UnitSnapshot { Id = id, Kind = kind, X = x, Y = y,
+                                        State = s, Health = 100, MaxHealth = 100 });
         return id;
     }
     public BuildingSnapshot AddBuilding(BuildingType t, int x = 0, int y = 0, bool complete = false)
@@ -202,15 +219,50 @@ public class EconomyAiTests
     [Fact]
     public void AgeUpCostCheckFeudal()
     {
-        var poor = new FakeWorld { Resources = new ResourceVector(400, 500, 100, 200), PopulationCapacity = 20 };
-        poor.AddBuilding(BuildingType.TownCenter, 10, 10, complete: true);
-        ai.Tick(poor, poor, 0.1f, new AiContext(1));
-        Assert.DoesNotContain("ageup()", poor.Log);
+        // Neue Doktrin: Aufstieg erst mit wehrbereiter Armee (Kaserne +
+        // Soll-Soldaten), Kosten aufführbar UND 100 Nahrung Reserve danach.
+        void ArmWorld(FakeWorld w)
+        {
+            w.AddBuilding(BuildingType.TownCenter, 10, 10, complete: true);
+            w.AddBuilding(BuildingType.Barracks, 12, 12, complete: true);
+            for (int i = 0; i < AiProfile.Standard.SoldierTarget; i++)
+                w.AddSoldier();
+        }
 
-        var rich = new FakeWorld { Resources = new ResourceVector(500, 500, 100, 200), PopulationCapacity = 20 };
+        // 1) Nahrung reicht für den Kauf, aber Reserve fehlt (< 500+100) → nein.
+        var shortReserve = new FakeWorld { Resources = new ResourceVector(550, 500, 100, 200), PopulationCapacity = 30 };
+        ArmWorld(shortReserve);
+        ai.Tick(shortReserve, shortReserve, 0.1f, new AiContext(1));
+        Assert.DoesNotContain("ageup()", shortReserve.Log);
+
+        // 2) Nahrung reicht gar nicht für die 500 Kosten → nein.
+        var broke = new FakeWorld { Resources = new ResourceVector(300, 500, 100, 200), PopulationCapacity = 30 };
+        ArmWorld(broke);
+        ai.Tick(broke, broke, 0.1f, new AiContext(1));
+        Assert.DoesNotContain("ageup()", broke.Log);
+
+        // 3) Kosten + 100 Reserve + wehrbereit → Aufstieg.
+        var ok = new FakeWorld { Resources = new ResourceVector(650, 500, 100, 200), PopulationCapacity = 30 };
+        ArmWorld(ok);
+        ai.Tick(ok, ok, 0.1f, new AiContext(1));
+        Assert.Contains("ageup()", ok.Log);
+    }
+
+    [Fact]
+    public void AgeUpBlockedWithoutBarracksAndArmy()
+    {
+        // Reiche Wirtschaft, aber kein Militär → der Aufstieg bleibt WARTEN.
+        var rich = new FakeWorld { Resources = new ResourceVector(5000, 5000, 500, 500), PopulationCapacity = 30 };
         rich.AddBuilding(BuildingType.TownCenter, 10, 10, complete: true);
         ai.Tick(rich, rich, 0.1f, new AiContext(1));
-        Assert.Contains("ageup()", rich.Log);
+        Assert.DoesNotContain("ageup()", rich.Log);
+
+        // Kaserne da, aber die Soll-Armee fehlt → weiterhin WARTEN.
+        var onlyBarracks = new FakeWorld { Resources = new ResourceVector(5000, 5000, 500, 500), PopulationCapacity = 30 };
+        onlyBarracks.AddBuilding(BuildingType.TownCenter, 10, 10, complete: true);
+        onlyBarracks.AddBuilding(BuildingType.Barracks, 12, 12, complete: true);
+        ai.Tick(onlyBarracks, onlyBarracks, 0.1f, new AiContext(1));
+        Assert.DoesNotContain("ageup()", onlyBarracks.Log);
     }
 
     [Fact]
@@ -495,5 +547,63 @@ public class EconomyAiTests
         ai.Tick(w, w, 0.1f, new AiContext(1));
 
         Assert.Empty(w.Log.Where(s => s.StartsWith($"attack({working},")));
+    }
+
+    [Fact]
+    public void VillagersCounterAttackWhenSettlementThreatened()
+    {
+        // Der Dorf-Angriffs-Alarm: die eigene Siedlung hat grade einen
+        // Treffer kassiert (WorldTime - LastDamageAt < 6 s) — und die KI
+        // hat noch keine Soldaten. Trotzdem muss sie sofort
+        // zurückschlagen: alle freien Dorfbewohner angreifen, ohne
+        // Mindestgröße und Cooldown.
+        var w = new FakeWorld { Resources = new ResourceVector(500, 500, 100, 200),
+                                 PopulationCapacity = 20, LastDamageAt = 100d, WorldTime = 101d };
+        w.AddBuilding(BuildingType.TownCenter, 32, 32, complete: true);
+        int v1 = w.AddVillager(30, 30);
+        int v2 = w.AddVillager(33, 33);
+        w.AddEnemy(new EnemyInfo(38, 32, IsBuilding: false, Health: 100));   // 6 Kacheln, sichtbar
+
+        ai.Tick(w, w, 0.1f, new AiContext(1));
+
+        Assert.Contains($"attack({v1},38,32)", w.Log);
+        Assert.Contains($"attack({v2},38,32)", w.Log);
+    }
+
+    [Fact]
+    public void NoCounterAttackWhenNoDamageTaken()
+    {
+        // Ein sichtbarer Feind in Sichtweite ist noch kein Angriff auf die
+        // Siedlung — ohne einen Treffer (LastDamageAt = 0) bleibt die
+        // Ökonomie ungestört, und die KI zieht ihre Arbeiter nicht weg.
+        var w = new FakeWorld { Resources = new ResourceVector(500, 500, 100, 200),
+                                 PopulationCapacity = 20, LastDamageAt = 0d, WorldTime = 10d };
+        w.AddBuilding(BuildingType.TownCenter, 32, 32, complete: true);
+        int v = w.AddVillager(35, 35);
+        w.AddEnemy(new EnemyInfo(55, 55, IsBuilding: false, Health: 100)); // 20 Kacheln: auch DefenseRadius verfehlt
+
+        ai.Tick(w, w, 0.1f, new AiContext(1));
+
+        Assert.Empty(w.Log.Where(s => s.StartsWith($"attack({v},")));
+    }
+
+    [Fact]
+    public void NoCounterAttackWhenDamageIsOld()
+    {
+        // Ein Treffer, der älter als das 6-s-Fenster ist, zählt als
+        // abgeklungen — die KI kehrt zur Ökonomie zurück und zerrt
+        // nicht jede Einheit aus der Arbeit.
+        var w = new FakeWorld { Resources = new ResourceVector(500, 500, 100, 200),
+                                 PopulationCapacity = 20, LastDamageAt = 100d, WorldTime = 120d };
+        w.AddBuilding(BuildingType.TownCenter, 32, 32, complete: true);   // TC-Zentrum (34,34)
+        int v = w.AddVillager(35, 35);
+        // Feind 10 Kacheln vom TC, aber > 8 vom Arbeiter: außerhalb der
+        // lokalen Defense, innnerhalb der ThreatRadius — fällt also nur
+        // auf die „unter Angriff"-Klausel an, und die ist hier abgelaufen.
+        w.AddEnemy(new EnemyInfo(44, 34, IsBuilding: false, Health: 100));
+
+        ai.Tick(w, w, 0.1f, new AiContext(1));
+
+        Assert.Empty(w.Log.Where(s => s.StartsWith($"attack({v},")));
     }
 }

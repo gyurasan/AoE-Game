@@ -167,20 +167,23 @@ public class MapSettings
     }
 }
 
-/// <summary>Die Kartengrößen, die das Hauptmenü anbietet.</summary>
-public enum MapSize { Standard, Large, Max }
+/// <summary>Die Kartengrößen, die das Hauptmenü anbietet. <c>Test</c> ist
+/// die halbe Standard-Karte — für schnelle KI-vs-KI-Tests (tools/ai-pruefung).</summary>
+public enum MapSize { Standard, Large, Max, Test }
 
 /// <summary>Seitenlänge und Name der Kartengrößen.</summary>
 public static class MapSizes
 {
     /// <summary>
     /// Seitenlänge der quadratischen Referenzkarte: Standard 64, Groß 90 (fast
-    /// die doppelte Fläche), Maximal 128 (die vierfache).
+    /// die doppelte Fläche), Maximal 128 (die vierfache), Test 32 (die halbe
+    /// Kantenlänge — ein Viertel der Fläche, für kurze Testläufe).
     /// </summary>
     public static int Side(MapSize size) => size switch
     {
         MapSize.Large => 90,
         MapSize.Max => 128,
+        MapSize.Test => 32,
         _ => 64,
     };
 

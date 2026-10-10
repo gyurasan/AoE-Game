@@ -120,3 +120,4 @@ Angebunden, aber nie aufgerufen:
 
 Offene Punkte: [TODO.md](../TODO.md)
 Spielspezifikation: [AgeOfEmpires.md](AgeOfEmpires.md)
+Computergegner im Original: [AoE-Computergegner.md](AoE-Computergegner.md)

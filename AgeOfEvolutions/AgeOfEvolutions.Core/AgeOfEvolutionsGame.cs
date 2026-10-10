@@ -229,7 +229,12 @@ namespace AgeOfEvolutions.Core
                 var size = k >= 0 && k + 1 < args.Length
                     ? args[k + 1] switch { "gross" => Data.MapSize.Large, "max" => Data.MapSize.Max, _ => Data.MapSize.Standard }
                     : Data.MapSize.Standard;
-                screenManager.AddScreen(new RTSGameplayScreen(size), null);
+                var rts = new RTSGameplayScreen(size)
+                {
+                    // --both: beide Seiten von der KI — AI vs. AI, ohne Mensch.
+                    BothSidesAi = args.Contains("--both")
+                };
+                screenManager.AddScreen(rts, null);
             }
             else
             {

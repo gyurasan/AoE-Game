@@ -7,9 +7,16 @@
     <Nullable>annotations</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <!-- Laufzeit-Natives (PrivateAssets=All: fließen nicht an Apps weiter —
+         die Apps referenzieren ihre Plattform-Pakete selbst). -->
     <PackageReference Include="MonoGame.Framework.Native" Version="3.8.*">
       <PrivateAssets>All</PrivateAssets>
     </PackageReference>
+    <!-- Kompilier-Zeittypen: Microsoft.Xna.Framework.* (u.a. SoundEffect aus
+         Microsoft.Xna.Framework.Audio) steckt NICHT im Native-Paket, sondern
+         im Plattform-/Managed-Paket. Ohne diese Referenz bricht Rider beim
+         isolierten Kompilieren dieses Projekts über "SoundEffect nicht gefunden". -->
+    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.*" />
   </ItemGroup>
 
   <ItemGroup>

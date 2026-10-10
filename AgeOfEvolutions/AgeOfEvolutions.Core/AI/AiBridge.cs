@@ -135,10 +135,24 @@ public sealed class AiBridge : IWorldState, IWorldActions
                     if (_screen.tileMap.IsTileVisible(x, y, Owner)) seen = true;
             if (!seen) continue;
             visible.Add(new EnemyInfo(b.X + b.Width / 2, b.Y + b.Height / 2,
-                                      IsBuilding: true, Health: b.Health));
+                                       IsBuilding: true, Health: b.Health,
+                                       IsTownCenter: b.Core.BuildingType == BuildingType.TownCenter));
         }
         return visible;
     }
+
+    /// <summary>
+    /// Wann hat die KI zuletzt Schaden genommen — in der selben Zeiteinheit,
+    /// mit der die KI tickt (Sekunden seit Spielstart). Das Spiel führt die
+    /// Uhr für beide Spieler; wenn noch nie getroffen: 0 (also „vor dem
+    /// Spielbeginn").
+    /// </summary>
+    public double LastDamageAt => _screen.LastDamageReceivedAt(Owner);
+
+    /// <summary>Weltzeit (Sekunden) — gleiche Skala wie
+    /// <see cref="LastDamageAt"/>, damit die KI die Frische eines
+    /// Treffers berechnen kann.</summary>
+    public double WorldTime => _screen.GameSeconds;
 
     // ------------------- IWorldActions -------------------
 
@@ -262,7 +276,8 @@ public sealed class AiBridge : IWorldState, IWorldActions
             Gathering = gathering,
             BuildingId = u.BuildSite is { } s ? s.Id.GetHashCode() : null,
             Health = u.Health,
-            MaxHealth = u.MaxHealth
+            MaxHealth = u.MaxHealth,
+            HasAttack = u.AttackTarget is not null || u.UnitTarget is not null
         };
     }
 

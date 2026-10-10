@@ -81,11 +81,35 @@ public interface IWorldState
     /// Leere Liste, wenn nichts sichtbar ist.
     /// </summary>
     IReadOnlyList<EnemyInfo> VisibleEnemies();
+
+    /// <summary>
+    /// Aktuelle Weltzeit in Sekunden (gleiche Skala wie
+    /// <see cref="LastDamageAt"/>). Die KI vergleicht beide Größen,
+    /// um zu wissen, wie frisch die eigene Siedlung getroffen wurde.
+    /// </summary>
+    double WorldTime { get; }
+
+    /// <summary>
+    /// Wann (KI-Zeit, Sekunden) hat die eigene Siedlung das letzte
+    /// Mal Schaden genommen? „Schaden" = eine eigene Einheit oder
+    /// ein Gebäude hat einen Treffer kassiert. 0 = noch nie getroffen,
+    /// -1 (oder null-ähnlich) = Information nicht verfügbar.
+    ///
+    /// Die KI nutzt diese Uhr, um „unter Angriff" zu erkennen: ein
+    /// sichtbarer Feind ist noch keine Attacke, ein Treffer schon.
+    /// Der Abstand (Sekunden) dieser Uhr und <c>ctx.Time</c> sagt der
+    /// KI, wie frisch sie selbst getroffen wurde — jünger als
+    /// eine kleine Schwelle = Alarm, alle freien Einheiten schlagen
+    /// sofort zurück.
+    /// </summary>
+    double LastDamageAt { get; }
 }
 
 /// <summary>Ein sichtbarer Feind aus Sicht der KI: Kachelkoordinaten,
-/// ob es ein Gebäude ist, und sein aktueller Zustand.</summary>
-public readonly record struct EnemyInfo(int X, int Y, bool IsBuilding, int Health);
+/// ob es ein Gebäude ist, sein aktueller Zustand und — bei Gebäuden —
+/// ob es ein Dorfzentrum ist (das primäre Raubziel, siehe
+/// <see cref="EconomyAi"/>).</summary>
+public readonly record struct EnemyInfo(int X, int Y, bool IsBuilding, int Health, bool IsTownCenter = false);
 
 /// <summary>Der vierstellige Ressourcenvektor (Nahrung, Holz, Gold, Stein).</summary>
 public readonly record struct ResourceVector(int Food, int Wood, int Gold, int Stone)
@@ -137,11 +161,17 @@ public sealed class UnitSnapshot
     /// <summary>Gültig: der Arbeiter ist an (X, Y) beim Sammeln — sonst null.</summary>
     public (int X, int Y, Resource Resource)? Gathering { get; init; }
 
-    /// <summary>Die Einheit ist gerade an Baustelle <see cref="BuildingId"/>.</summary>
+    /// <summary>Die Einheit ist gerade an Baustelle <see cref="BuildingId"/></summary>
     public int? BuildingId { get; init; }
 
     public int Health { get; init; }
     public int MaxHealth { get; init; }
+
+    /// <summary>Die Einheit führt gerade einen Angriff (Einheiten- oder
+    /// Gebäude-Ziel) — das Spiel bestätigt das, damit die KI nicht bei
+    /// jedem Takt "Angegriffen auf (x,y)" für dieselbe Einheit ausgeben und
+    /// damit den Schlag-Timer zurücksetzen muss.</summary>
+    public bool HasAttack { get; init; }
 }
 
 /// <summary>Snapshot eines Gebäudes des Spielers.</summary>
