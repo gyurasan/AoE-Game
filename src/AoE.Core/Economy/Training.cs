@@ -4,7 +4,7 @@ using AoE.Core.Entities;
 namespace AoE.Core.Economy;
 
 /// <summary>
-/// Bevölkerungsregeln der Spezifikation (Kapitel „Bevölkerung und Häuser"):
+/// Bevölkerungsregeln der Spezifikation (Kapitel "Bevölkerung und Häuser"):
 /// jede Einheit belegt einen Platz, Stadtzentrum und Haus geben je fünf, und
 /// Wirtschaft und Armee teilen sich dieselbe Obergrenze.
 /// </summary>
@@ -39,7 +39,7 @@ public static class Population
 ///
 /// Bezahlt wird beim Einreihen. Ausgebildet wird immer nur die vorderste
 /// Einheit. Ist die Bevölkerungsgrenze erreicht, steht die Ausbildung still,
-/// bis wieder Platz ist — „stoppt die Produktion komplett", wie die
+/// bis wieder Platz ist — "stoppt die Produktion komplett", wie die
 /// Spezifikation sagt. Der Fortschritt geht dabei nicht verloren.
 /// </summary>
 public sealed class TrainingQueue<T> where T : notnull

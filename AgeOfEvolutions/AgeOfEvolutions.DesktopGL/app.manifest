@@ -37,6 +37,14 @@
   </compatibility>
 
   <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <!-- Bewusst DPI-UNAWARE: Bei Windows-Anzeigeskalierung (z. B. 200 %)
+         bitmap-vergrößert Windows das ganze Fenster, und die UI-Elemente
+         folgen der Anzeigeskalierung. Damit bleibt die DesktopGL-Version
+         pixelgleich mit DirectX und anderen DPI-unawareen .NET-Exes.
+         -->
+    <windowsSettings xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">
+      <dpiAware>false</dpiAware>
+    </windowsSettings>
   </application>
 
 </assembly>

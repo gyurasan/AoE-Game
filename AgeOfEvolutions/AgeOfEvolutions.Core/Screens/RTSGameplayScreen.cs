@@ -150,6 +150,11 @@ public class RTSGameplayScreen : GameScreen
     private readonly Dictionary<int, AgeOfEvolutions.Core.AI.AiAgent> _agents = new();
     private readonly Queue<System.Action> _orderQueue = new();
 
+    // Spielende (Niederlage): sichert zu, dass der End-Screen nur ein
+    // einziges Mal aufgebaut wird, auch wenn CheckDefeat() mehrere Frames
+    // hintereinander denselben Zustand sieht.
+    private bool _gameOverShown;
+
     /// <summary>
     /// Eine Handlung in den Spiel-Faden einreihen. Thread-sicher — wird im
     /// nächsten <see cref="Update"/>-Frame ausgeführt, wo sie dieselbe
@@ -219,7 +224,9 @@ public class RTSGameplayScreen : GameScreen
     // Höhe der oberen und unteren Leiste aus DrawUI — Klicks dort gelten
     // nicht der Karte. Die untere Leiste trägt Befehlstasten, Einheiteninfo
     // und die Minimap rechts unten
-    private const int HUD_TOP_HEIGHT = 34;
+    // 56 statt 34: die +80 % vergrößerten Rohstoffsymbole (47 px) brauchen Platz,
+    // sonst ragen sie aus der Leiste und werden oben abgeschnitten
+    private const int HUD_TOP_HEIGHT = 56;
     private const int HUD_BOTTOM_HEIGHT = 200;
 
     // Ausbildung im Stadtzentrum, Werte laut Spezifikation (Kapitel
@@ -560,7 +567,9 @@ public class RTSGameplayScreen : GameScreen
         (Resource.Gold, "Icons/rohstoff_gold", new Color(215, 180, 60)),
         (Resource.Stone, "Icons/rohstoff_stein", new Color(160, 160, 165)),
     };
-    private const int RESOURCE_ICON_SIZE = 26;   // doppelt so groß wie die alten 12-px-Quadrate, passt in die 34-px-Leiste
+    // 47 = 26 + 80 %: die Symbole dürfen ruhig aus der 34-px-Leiste ragen,
+    // sie bleiben um ihre Mitte zentriert
+    private const int RESOURCE_ICON_SIZE = 47;
     private readonly Texture2D[] _resourceIconTex = new Texture2D[4];
 
     // Hohes Gras (G13): stehende Büschel aus tools/bilder (Gruppe bueschel), etwa ein Drittel
@@ -996,6 +1005,10 @@ public class RTSGameplayScreen : GameScreen
         UpdateUnits(gameTime);
         UpdateUnitMotion((float)gameTime.ElapsedGameTime.TotalSeconds);
         UpdatePopulationLimits();
+        // Niederlage: ein Spieler ohne Dorfbewohner UND ohne Gebäude ist
+        // erledigt — das Spiel ist beendet. Die Prüfung läuft, sobald die
+        // Bevölkerungszähler und Gebäude-Listen aktuell sind.
+        CheckDefeat();
         UpdateTraining((float)gameTime.ElapsedGameTime.TotalSeconds);
         UpdateResearch((float)gameTime.ElapsedGameTime.TotalSeconds);
         UpdateAges((float)gameTime.ElapsedGameTime.TotalSeconds);
@@ -2935,6 +2948,66 @@ public class RTSGameplayScreen : GameScreen
             player.PopulationLimit = Population.Capacity(
                 tileMap.Buildings.Where(b => b.OwnerId == player.Id && b.IsComplete)
                                  .Select(b => b.Core.BuildingType));
+        }
+    }
+
+    /// <summary>
+    /// Niederlage, Kernregel: ein Spieler ist geschlagen, wenn er keinen
+    /// einzigen LEBCNDEN Dorfbewohner mehr hat UND kein eigenes Stadtzentrum
+    /// (fertig ODER im Bau) hält — das TC ist das einzige Gebäude, das
+    /// neue Dorfbewohner produziert. Reine Logik, ohne MonoGame, damit die
+    /// Regel in tools/spielablauf und tests/AoE.Tests ohne ScreenManager
+    /// geprüft werden kann. Rückgabe-Vertrag:
+    ///   [0,1]  = Owner-Id des Verlierers, oder -1 wenn niemand verloren hat.
+    /// </summary>
+    internal static int DefeatRule(IEnumerable<Unit> units, IEnumerable<Building> buildings, int playerId)
+    {
+        bool noVillagers = true;
+        foreach (var u in units)
+            if (u.OwnerId == playerId && u.State != UnitState.Dead && u.Core is CoreVillager)
+            { noVillagers = false; break; }
+
+        bool noTownCenter = true;
+        foreach (var b in buildings)
+            if (b.OwnerId == playerId && b.Core.BuildingType == BuildingType.TownCenter)
+            { noTownCenter = false; break; }
+
+        return (noVillagers && noTownCenter) ? playerId : -1;
+    }
+
+    /// <summary>
+    /// Niederlag-Prüfung im Frame: ruft die Kernregel für beide Spieler
+    /// auf und zeigt bei Treffer den End-Screen (nur wenn ScreenManager
+    /// vorhanden ist, sonst bricht Headless-Tests ab). Einmal pro Spiel —
+    /// _gameOverShown sichert das.
+    /// </summary>
+    internal void CheckDefeat()
+    {
+        if (_gameOverShown) return;
+
+        // Der erste Treffer zählt.
+        int loser = DefeatRule(units, tileMap.Buildings, 0);
+        if (loser < 0) loser = DefeatRule(units, tileMap.Buildings, 1);
+        if (loser < 0) return;
+
+        _gameOverShown = true;
+        int winnerId  = loser == 0 ? 1 : 0;
+        var winnerName = (winnerId == 0 ? player1 : player2).Name;
+        var loserName  = (loser   == 0 ? player1 : player2).Name;
+
+        try
+        {
+            ShowHudMessage($"{loserName} hat verloren — {winnerName} gewonnen!");
+            ScreenManager?.AddScreen(new GameOverScreen(
+                winnerName + " gewonnen!",
+                loserName + " hat weder Dorfbewohner noch Gebäude mehr."
+            ), null);
+        }
+        catch (System.Exception ex)
+        {
+            // Headless-Tests haben keinen ScreenManager — die Regel selbst
+            // hat schon funktioniert; nur die Anzeige fehlt.
+            System.Diagnostics.Debug.WriteLine($"[CheckDefeat] Anzeige fehlte: {ex.Message}");
         }
     }
 
@@ -5825,9 +5898,9 @@ public class RTSGameplayScreen : GameScreen
         if (ScreenManager.Font == null) return;
 
         // Obere Leiste
-        var topBarRect = new Rectangle(0, 0, screenBounds.Width, 34);
+        var topBarRect = new Rectangle(0, 0, screenBounds.Width, HUD_TOP_HEIGHT);
         DrawPanel(spriteBatch, topBarRect);
-        spriteBatch.Draw(px, new Rectangle(0, 32, screenBounds.Width, 2), new Color(52, 40, 24));
+        spriteBatch.Draw(px, new Rectangle(0, HUD_TOP_HEIGHT - 2, screenBounds.Width, 2), new Color(52, 40, 24));
 
         // Ressourcen: je Rohstoff sein Symbol, senkrecht mittig in der Leiste, daneben der Vorrat;
         // ohne Bild das farbige Quadrat
@@ -5855,7 +5928,10 @@ public class RTSGameplayScreen : GameScreen
                 spriteBatch.Draw(px, new Rectangle(iconRect.X + 7, iconRect.Y + 7, 12, 12), fallback);
             }
             var resText = player1.Resources[res].ToString();
-            spriteBatch.DrawString(ScreenManager.Font, resText, new Vector2(x + RESOURCE_ICON_SIZE + spacing, 6), Color.White);
+            // Schriftvertikal mittel, um der höheren Leiste; die Werte stehen
+            // neben dem Symbol
+            float resTextY = (HUD_TOP_HEIGHT - ScreenManager.Font.LineSpacing) / 2f;
+            spriteBatch.DrawString(ScreenManager.Font, resText, new Vector2(x + RESOURCE_ICON_SIZE + spacing, resTextY), Color.White);
         }
 
 
@@ -5867,8 +5943,9 @@ public class RTSGameplayScreen : GameScreen
         var textX = screenBounds.Width - 10 - popSize.X - ageSize.X - 10;
         // Rot, sobald das Limit erreicht ist - dann steht die Produktion
         var popColor = player1.PopulationCount >= player1.PopulationLimit ? LimitColor : Color.White;
-        spriteBatch.DrawString(ScreenManager.Font, popText, new Vector2(textX, 6), popColor);
-        spriteBatch.DrawString(ScreenManager.Font, ageText, new Vector2(textX + popSize.X + 10, 6), Color.White);
+        float topTextY = (HUD_TOP_HEIGHT - ScreenManager.Font.LineSpacing) / 2f;
+        spriteBatch.DrawString(ScreenManager.Font, popText, new Vector2(textX, topTextY), popColor);
+        spriteBatch.DrawString(ScreenManager.Font, ageText, new Vector2(textX + popSize.X + 10, topTextY), Color.White);
 
         // Mitte der oberen Leiste: Hinweis oder Ausbildung im Stadtzentrum
         string centerText = null;
@@ -5904,7 +5981,7 @@ public class RTSGameplayScreen : GameScreen
         {
             var centerSize = ScreenManager.Font.MeasureString(centerText);
             spriteBatch.DrawString(ScreenManager.Font, centerText,
-                new Vector2((screenBounds.Width - centerSize.X) / 2f, 6), centerColor);
+                new Vector2((screenBounds.Width - centerSize.X) / 2f, topTextY), centerColor);
         }
 
         // Untere Leiste wie in der Spezifikation (Kommandoleiste) und im

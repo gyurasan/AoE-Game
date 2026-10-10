@@ -340,12 +340,67 @@ public class EconomyAiTests
         var w = new FakeWorld { Resources = new ResourceVector(500, 210, 50, 200),
                                  PopulationCapacity = 20 };
         w.AddBuilding(BuildingType.TownCenter, 20, 20, complete: true);
+        w.AddSource(Resource.Wood, 23, 20);   // nahe Quelle — das Lager verankert hier
         w.AddVillager(18, 22);
         w.AddVillager(18, 21);
 
         ai.Tick(w, w, 0.1f, new AiContext(1));
 
+        var build = w.Log.Where(s => s.StartsWith("build(LumberCamp,"))
+                         .Select(s => { var parts = s.Split(','); return (int.Parse(parts[1]), int.Parse(parts[2])); })
+                         .FirstOrDefault();
         Assert.True(w.Log.Any(s => s.StartsWith("build(LumberCamp,")), string.Join(" | ", w.Log));
+        // Direkt an die Quelle, nicht am TC (20,20).
+        Assert.True(Math.Max(Math.Abs(build.Item1 - 23), Math.Abs(build.Item2 - 20)) <= 2,
+                    $"Lager soll an der Quelle (23,20) stehen, nicht am TC — ist bei {build}");
+    }
+
+    [Fact]
+    public void DoesNotBuildLumberCampWithoutSourceNearby()
+    {
+        // Ohne nahe Quelle ist das Lager wertlos — es darf nicht am TC stehen.
+        var w = new FakeWorld { Resources = new ResourceVector(500, 150, 50, 200),
+                                 PopulationCapacity = 20 };
+        w.AddBuilding(BuildingType.TownCenter, 20, 20, complete: true);
+        w.AddSource(Resource.Wood, 60, 60);   // sehr weit weg (> 20)
+        w.AddVillager(18, 22);
+
+        ai.Tick(w, w, 0.1f, new AiContext(1));
+
+        Assert.True(!w.Log.Any(s => s.StartsWith("build(LumberCamp,")), string.Join(" | ", w.Log));
+    }
+
+    [Fact]
+    public void BuildsMillNearFoodSource()
+    {
+        var w = new FakeWorld { Resources = new ResourceVector(500, 210, 50, 200),
+                                 PopulationCapacity = 20 };
+        w.AddBuilding(BuildingType.TownCenter, 20, 20, complete: true);
+        w.AddSource(Resource.Food, 22, 23);   // Naher Schafherde — Mühle verankert hier
+        w.AddVillager(18, 22);
+
+        ai.Tick(w, w, 0.1f, new AiContext(1));
+
+        var build = w.Log.Where(s => s.StartsWith("build(Mill,"))
+                         .Select(s => { var parts = s.Split(','); return (int.Parse(parts[1]), int.Parse(parts[2])); })
+                         .FirstOrDefault();
+        Assert.True(w.Log.Any(s => s.StartsWith("build(Mill,")), string.Join(" | ", w.Log));
+        Assert.True(Math.Max(Math.Abs(build.Item1 - 22), Math.Abs(build.Item2 - 23)) <= 2,
+                    $"Mühle soll an der Nahrung (22,23) stehen — ist bei {build}");
+    }
+
+    [Fact]
+    public void DoesNotBuildMillWithoutFoodSource()
+    {
+        var w = new FakeWorld { Resources = new ResourceVector(500, 210, 50, 200),
+                                 PopulationCapacity = 20 };
+        w.AddBuilding(BuildingType.TownCenter, 20, 20, complete: true);
+        w.AddSource(Resource.Wood, 23, 20);   // nur Holz, keine Nahrung
+        w.AddVillager(18, 22);
+
+        ai.Tick(w, w, 0.1f, new AiContext(1));
+
+        Assert.True(!w.Log.Any(s => s.StartsWith("build(Mill,")), string.Join(" | ", w.Log));
     }
 
     [Fact]
@@ -376,5 +431,69 @@ public class EconomyAiTests
         Assert.True(w.Log.Any(s => s.StartsWith("build(House,")), string.Join(" | ", w.Log));
         Assert.Empty(w.Log.Where(s => s.StartsWith("build(Farm,")));
         Assert.Empty(w.Log.Where(s => s.StartsWith("build(LumberCamp,")));
+    }
+
+    // -----------------------------------------------------------------
+    // Verteidigung: untätige Dorfbewohner greifen sichtbare Feinde an
+    // -----------------------------------------------------------------
+    [Fact]
+    public void IdleVillagerAttacksVisibleEnemyUnit()
+    {
+        var w = new FakeWorld { Resources = new ResourceVector(500, 500, 100, 200),
+                                 PopulationCapacity = 20 };
+        w.AddBuilding(BuildingType.TownCenter, 20, 20, complete: true);
+        int v = w.AddVillager(30, 30);
+        w.AddEnemy(new EnemyInfo(32, 30, IsBuilding: false, Health: 30));   // feindlicher DB
+
+        ai.Tick(w, w, 0.1f, new AiContext(1));
+
+        Assert.True(w.Log.Any(s => s.StartsWith($"attack({v},")), string.Join(" | ", w.Log));
+    }
+
+    [Fact]
+    public void IdleVillagerAttacksVisibleEnemyBuilding()
+    {
+        var w = new FakeWorld { Resources = new ResourceVector(500, 500, 100, 200),
+                                 PopulationCapacity = 20 };
+        w.AddBuilding(BuildingType.TownCenter, 20, 20, complete: true);
+        int v = w.AddVillager(30, 30);
+        w.AddEnemy(new EnemyInfo(34, 33, IsBuilding: true, Health: 400));   // feindliches Lager, nah
+
+        ai.Tick(w, w, 0.1f, new AiContext(1));
+
+        Assert.True(w.Log.Any(s => s.StartsWith($"attack({v},")), string.Join(" | ", w.Log));
+    }
+
+    [Fact]
+    public void VillagerDoesNotAttackFarAwayEnemy()
+    {
+        // Über der Verteidigungsreichweite (8) bleibt der Arbeiter im Dorf —
+        // er wird nicht aus der eigenen Basis gerissen.
+        var w = new FakeWorld { Resources = new ResourceVector(500, 500, 100, 200),
+                                 PopulationCapacity = 20 };
+        w.AddBuilding(BuildingType.TownCenter, 20, 20, complete: true);
+        int v = w.AddVillager(20, 20);
+        w.AddEnemy(new EnemyInfo(55, 55, IsBuilding: false, Health: 30));   // 35 Kacheln
+
+        ai.Tick(w, w, 0.1f, new AiContext(1));
+
+        Assert.Empty(w.Log.Where(s => s.StartsWith($"attack({v},")));
+    }
+
+    [Fact]
+    public void WorkingVillagerNotPulledIntoCombat()
+    {
+        // Ein Dorfbewohner, der gerade sammelt, bleibt an seiner Quelle —
+        // Verteidigung trifft nur untätige Einheiten.
+        var w = new FakeWorld { Resources = new ResourceVector(500, 500, 100, 200),
+                                 PopulationCapacity = 20 };
+        w.AddBuilding(BuildingType.TownCenter, 20, 20, complete: true);
+        int working = w.AddVillager(20, 20, s: UnitStateKind.Gathering,
+                                    gathering: (23, 20, Resource.Wood));
+        w.AddEnemy(new EnemyInfo(25, 25, IsBuilding: false, Health: 30));
+
+        ai.Tick(w, w, 0.1f, new AiContext(1));
+
+        Assert.Empty(w.Log.Where(s => s.StartsWith($"attack({working},")));
     }
 }

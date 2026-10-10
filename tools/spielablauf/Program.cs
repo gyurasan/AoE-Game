@@ -135,6 +135,10 @@ for (int karte = 1; karte <= KARTEN; karte++)
     // Der Wind hängt nicht von der Karte ab
     if (gruppen.Contains("wind") && karte == 1)
         Pruefe("Wind", () => WindProbe(verstoesse));
+    // Niederlage: ohne Dorfbewohner UND ohne Stadtzentrum ist die Seite
+    // verloren — pro Karte, weil jeder Ablauf eine eigene Welt braucht.
+    if (gruppen.Contains("niederlage"))
+        Pruefe($"Karte {karte}, Niederlage", () => Niederlage(karte, verstoesse));
 }
 
 if (verstoesse.Count > 0)
@@ -1538,6 +1542,66 @@ static void WindProbe(List<string> verstoesse)
     if (verstoesse.Count == vorher)
         Console.WriteLine($"  ok  {wer}: Böen wie über dem Weizen, Bäume neigen sich im Mittel mit dem Wind ({kleinste:0.000} bis {groesste:0.000}), Streifen lückenlos");
 }
+
+// Niederlage: ein Spieler ohne LEBCNDEN Dorfbewohner UND ohne Stadtzentrum
+// (fertig oder im Bau) hat das Spiel verloren. Der Ablauf tötet alle
+// Dorfbewohner von P1 (TC steht noch → kein Spielende), dann das TC (→
+// Spielende), prüft, dass es nur einmal ausgelöst wird, und dass P2 damit
+// gewinnt (P2 hat ja noch Leute und Gebäude).
+static void Niederlage(int karte, List<string> verstoesse)
+{
+    var w = new Welt();
+    string wer = $"Karte {karte}, Niederlage";
+    int vorher = verstoesse.Count;
+
+    MethodInfo regel = typeof(RTSGameplayScreen).GetMethod("DefeatRule",
+        BindingFlags.NonPublic | BindingFlags.Static)
+        ?? throw new InvalidOperationException("Methode DefeatRule nicht gefunden - umbenannt?");
+    int Regel() => (int)regel.Invoke(null, new object[] { w.Get("units"), w.Map.Buildings, 0 });
+
+    // VOLL: Dorfbewohner + TC stehen → niemand verloren.
+    if (Regel() != -1)
+        verstoesse.Add($"{wer}: voller Start (Dorfbewohner + TC) gilt schon als Niederlage");
+
+    // Alle Dorfbewohner getötet, TC steht noch → es geht weiter.
+    foreach (var v in w.Dorfbewohner().ToList())
+        w.Call("DestroyUnit", v);
+    if (w.Dorfbewohner().Any())
+        verstoesse.Add($"{wer}: es verbleibt ein Dorfbewohner nach DestroyUnit");
+    if (Regel() != -1)
+        verstoesse.Add($"{wer}: ohne Dorfbewohner, aber mit stehendem TC gilt das Spiel als verloren");
+
+    // Jetzt kommt das TC weg.
+    var tc = w.Map.Buildings.FirstOrDefault(b => b.OwnerId == 0 && b.Core.BuildingType == BuildingType.TownCenter)
+        ?? throw new InvalidOperationException("kein Stadtzentrum von P1 gefunden");
+    w.Call("DestroyBuilding", tc);
+    if (Regel() != 0)
+        verstoesse.Add($"{wer}: ohne Dorfbewohner UND ohne TC gilt das Spiel immer noch nicht als verloren");
+
+    // CheckDefeat() soll die End-Anzeige exakt ein einziges Mal auslösen:
+    // der erste Aufruf setzt _gameOverShown=true und schreibt die HUD-Meldung,
+    // jeder weitere Aufruf muss mit 'if (_gameOverShown) return;' abbrechen.
+    w.Call("CheckDefeat");
+    string meldung = (string)w.Get("hudMessage") ?? "";
+    if (meldung == "")
+        verstoesse.Add($"{wer}: CheckDefeat hat keine End-Meldung gesetzt");
+    bool guard = (bool)Screen_of(w).GetType().GetField("_gameOverShown",
+        BindingFlags.NonPublic | BindingFlags.Instance)
+        .GetValue(Screen_of(w));
+    if (!guard)
+        verstoesse.Add($"{wer}: _gameOverShown wurde nicht gesetzt — GameOverScreen würde doppelt gebaut");
+    w.Call("CheckDefeat");
+    // Zweite Aufrufe müssen überspringen: der Guard ist der einzige Nachweis,
+    // denn ShowHudMessage überschreibt die Meldung sonst noch einmal (und
+    // ScreenManager.AddScreen würde denselben Screen doppelt schieben).
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: Leute+TC => weiter; nur TC weg => noch weiter; beides weg => verloren (Meldung: \"{meldung}\")");
+}
+
+// Der RTSGameplayScreen hinter einer Welt — für Guard-Prüfungen im Niederlage-Ablauf.
+static object Screen_of(Welt w)
+    => w.GetType().GetField("_screen", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(w);
 
 // Trampelpfade (G5): wer eine Kachel betritt, tritt sie aus (TileMap.Trample). Ein
 // Dorfbewohner läuft zwölfmal zwischen zwei Kacheln hin und her; der Ablauf zählt

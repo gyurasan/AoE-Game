@@ -4,8 +4,38 @@
 
 ## Wiederaufnahme — hier weitermachen
 
-Zuletzt angefasst: **KI: beide Seiten spielen, erkunden, militärisch, aggressiv**
-(2026-10-10) — zwei KI-Instanzen (Owner 0 und 1) laufen gleichzeitig
+Zuletzt angefasst: **KI: Mühle/Holzfällerlager an der Ressource, Dorfbewohner verteidigen, Niederlage beim Dorf** (2026-10-10) — drei zusammenhängende KI-/Spiele-Ende-Änderungen, alle drei verifiziert.
+(1) **Gebäude-Anchor:** `EconomyAi.cs` holt jetzt für Holzfällerlager→Wood, MiningCamp→Stone/Gold, Farm→Food eine `state.FindSource(res, tcCenterX, tcCenterY, AnchorSearchRadius=20)` und ruft `TryBuildNear(..., anchor)` mit der Quellemitten-Kachel als Ringzentrum; ein Footprint-Guard verhindert, dass ein 2×2-Lager die Quell-Kachel überdeckt. Fehlt die Quelle >20 Kacheln vom TC entfernt (oder existiert keine), baut die KI dort kein Lager mehr — der sinnlose TC-Bauboom ist weg.
+(2) **Dorfbewohner-Verteidigung:** neue `Defense()`-Methode, in `Tick` nach `Raid()` aufgerufen; für jeden sichtbaren Feind greifen untätige (nicht sammelnde/bauende/scoutende) Dorfbewohner in `DefenseRadius=8` an, max. `DefenseMax=5` Einheiten/Tick. `IWorldActions.Attack` ist der Kanal; der Screen führt den Angriff wie bei `IssueCommand`.
+(3) **Niederlage:** `RTSGameplayScreen.DefeatRule(units, buildings, ownerId)` — statische Kernregel, testbar ohne MonoGame: ein Spieler ist geschlagen, wenn er keinen LEBCNDEN Dorfbewohner UND kein Stadtzentrum (fertig oder im Bau) mehr hat. `CheckDefeat()` wird nach `UpdatePopulationLimits()` im Frame aufgerufen, Guard-Flag `_gameOverShown` stellt sicher, dass die End-Meldung und `ScreenManager.AddScreen(new GameOverScreen(...), null)` einmalig sind. Neuer Screen `AgeOfEvolutions/AgeOfEvolutions.Core/Screens/GameOverScreen.cs`: Titel + Detail, Enter/Klick → `LoadingScreen.Load(..., new MainMenuScreen())`. Headless-Tests ohne ScreenManager werden in `CheckDefeat` in try/catch abgefangen, die Regel selbst bleibt lauffähig.
+Abnahme: `dotnet build` (0 Fehler) · `dotnet test` (274/274, +7 neue) · `tools/ai-pruefung` (6/6: beide KI aktiv, Militär, Erkundung, Angriff) · `tools/spielablauf -- niederlage` (3 Karten: Leute+TC ⇒ weiter, nur TC weg ⇒ noch weiter, beides weg ⇒ verloren + HUD-Meldung "P1 hat verloren — P2 gewonnen!").
+
+Davor: **DX ↔ GL Größenangleichung (DPI) und +80 % Rohstoffsymbole**
+(2026-10-10) — Der DirectX-Build war still DPI-aware (`GetDpiForWindow=192`
+bei System-200 %): Windows hat das Fenster nicht mit-bildvergrößert und die
+UI stand auf 1:1 physische Pixel — die GL-Version ist DPI-unaware
+(`win_dpi=96`) und wird von Windows bei 200 % 2× bitmap-vergrößert.
+Ursache: `System.Windows.Forms.Primitives.dll` (in
+`Microsoft.WindowsDesktop.App/10.0.12/shared/`) ruft
+`SetProcessDpiAwarenessContext` automatisch auf, weil der WindowsDX-csproj
+`<UseWindowsForms>true</UseWindowsForms>` gesetzt hat. Fix: explizit
+`<dpiAware>false</dpiAware>` in BEIDEN `app.manifest` (DesktopGL + WindowsDX)
+unter `<application>/<windowsSettings>`; das Manifest hat Vorrang vor dem
+auto-DPI-Kontext. Danach: beide `win_dpi=96`, pixelgleich.
+`RESOURCE_ICON_SIZE` 26 → 47 px (+80 %), `HUD_TOP_HEIGHT` 34 → 56 px damit die
+Icons Platz haben; obere Leiste (Füllfarbe, Kante, Rohstoffwerte rechts,
+Bev./Zeitalter rechts, Hinweis/Ausbildung Mitte) zieht auf die neue Höhe,
+alle Texte von `y=6` auf die Leistenmitte. `IsOverHud` und
+Kamera-Randberechnungen nutzen `HUD_TOP_HEIGHT` weiter dynamisch.
+**Release-Builds und `release/*.zip` (v0.3.3, 09.10.) sind veraltet** —
+vor dem Icons-/Leisten-Feature und vor dem DPI-Fix. Vor Abgabe neu bauen
+(siehe aoe-release-builds).
+Abnahme: `dotnet build` + `dotnet test` (267), `tools/spielablauf --
+leiste menue` (3 Karten), `GetDpiForWindow` für GL und DX = 96
+(beide, gemessen mit ctypes/user32).
+
+Davor: **KI: beide Seiten spielen, erkunden, militärisch, aggressiv** (2026-10-10) —
+zwei KI-Instanzen (Owner 0 und 1) laufen gleichzeitig
 (`BothSidesAi` an der Screen, `AiAgent` pro Owner). Jede KI führt einen
 festen Erkundungs-Scout (Dorfbewohner, aus dem Bau-/Ernte-Pool
 herausgenommen) zur gegenüberliegenden Kartecke, bis die gegnerische

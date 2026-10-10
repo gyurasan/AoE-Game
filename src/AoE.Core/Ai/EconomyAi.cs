@@ -80,6 +80,35 @@ public sealed class EconomyAi : IAi
     /// unverteidigt lassen.</summary>
     public const int HomeGuard = 1;
 
+    /// <summary>Radius (Kacheln), bis zu dem die KI eine Ressource als
+    /// Verankerungspunkt fürs passende Lagergebäude akzeptiert. Darin baut die
+    /// KI das Lager direkt an die Quelle — nicht am Stadtzentrum. Ist die
+    /// Quelle weiter weg, fällt die KI auf das Stadtzentrum zurück (wie vorher),
+    /// weil ein Lager 30 Kacheln vom Dorf entfernt nutzlos wäre.</summary>
+    public const int AnchorSearchRadius = 20;
+
+    /// <summary>Maximale Chebyshev-Distanz, auf die (untätige) Dorfbewohner
+    /// einen sichtbaren Feind angreifen, statt tatenlos zu stehen. Kleiner als
+    /// die eigene Sichtweite der Bedrohung; große Scharen werden von den
+    /// Soldaten (Raid) gedeckt, hier schmeißen nur wenige nahe Arbeiter los.</summary>
+    public const int DefenseRadius = 8;
+
+    /// <summary>So viele Dorfbewohner springen maximal gleichzeitig als
+    /// Verteidigung zu — der Rest bleibt im Dorf, sonst ist kein Arbeiter
+    /// mehr da, wenn das Dorf angegriffen wird.</summary>
+    public const int DefenseMax = 4;
+
+    /// <summary>Die Ressource, die ein Lager an sich bindet. Mühle → Nahrung,
+    /// Holzfällerlager → Holz, Bergbaulager → Stein. null = Gebäude binden an
+    /// das Stadtzentrum (Haus, Kaserne, Schießstand, Farm).</summary>
+    private static Resource? AnchorResourceFor(BuildingType type) => type switch
+    {
+        BuildingType.Mill        => Resource.Food,
+        BuildingType.LumberCamp  => Resource.Wood,
+        BuildingType.MiningCamp  => Resource.Stone,
+        _                        => null
+    };
+
     private double _lastRaidTime = -1e9;
 
     /// <summary>Id des fahrenden Erkunder-Scouts (eigener Dorfbewohner).
@@ -121,9 +150,13 @@ public sealed class EconomyAi : IAi
         // 4) Freie Dorfbewohner an Quellen — die Ernte bleibt wichtig.
         SendToSources(state, actions, workers);
 
-        // 5) Plünderung — nur mit genug Soldaten und ohne laufende
-        //    Ausbildung (sonst bricht die KI die Kaserne auf).
+        // 5) Plünderung: Soldaten greifen an, wenn es einen sichtbaren Feind
+        //    gibt und der Cooldown abgelaufen ist. Danach Verteidigung:
+        //    untätige Dorfbewohner springen mit ein — sie haben einen
+        //    Angriff (BaseAttack > 0) und sollen bei Sichtkontakt den Feind
+        //    (Dorfbewohner oder Gebäude) angreifen, statt tatenlos zu stehen.
         Raid(state, actions, ctx);
+        Defense(state, actions, ctx);
 
         // 6) Zeitalter — immer am Ende, damit die Aufstiegs-Kosten
         //    nicht im selben Takt wie die Armee ausgebucht werden.
@@ -152,7 +185,7 @@ public sealed class EconomyAi : IAi
             && !state.Buildings.Any(b => b.Type == BuildingType.House)   // fertig ODER im Bau — kein zweites
             && state.Resources.Wood >= 25)
         {
-            if (TryBuildNear(state, actions, workers, BuildingType.House, workersFor: 2, allowPool: true))
+            if (TryBuildNear(state, actions, workers, BuildingType.House, workersFor: 2, allowPool: true, anchor: null))
                 return;
         }
 
@@ -162,29 +195,28 @@ public sealed class EconomyAi : IAi
             && !state.Buildings.Any(b => b.Type == BuildingType.Farm)
             && state.Resources.Wood >= 60)
         {
-            TryBuildNear(state, actions, workers, BuildingType.Farm, workersFor: 1, allowPool: false);
+            TryBuildNear(state, actions, workers, BuildingType.Farm, workersFor: 1, allowPool: false, anchor: null);
         }
 
-        // 3. Holzfällerlager — sobald sich 200 Holz angesammelt haben, kann
-        //    das Dorf es sich leisten (100 Lager plus das nächste Haus).
-        if (state.Resources.Wood >= 200
-            && !state.Buildings.Any(b => b.Type == BuildingType.LumberCamp))
-        {
-            TryBuildNear(state, actions, workers, BuildingType.LumberCamp, workersFor: 2, allowPool: false);
-        }
+        // 3. Lagerräume — direkt an die Quelle, nicht am Stadtzentrum.
+        //    Ein Holzfällerlager ohne Bäume in der Nähe ist wertlos (der
+        //    Arbeiter läuft trotzdem zum Wald und zurück); eine Mühle ohne
+        //    Nahrung nebenan ebenso. Deshalb verankert die KI jedes Lager
+        //    an seiner Ressource: FindSource liefert die Kachel, dort baut
+        //    es. Keine Quelle in Reichweite → das Lager wird übergangen
+        //    (es gäbe nichts abzulegen), statt sinnlos am TC zu stehen.
+        PlanAnchored(state, actions, workers, BuildingType.LumberCamp, workersFor: 2, allowPool: false);
+        PlanAnchored(state, actions, workers, BuildingType.Mill,       workersFor: 1, allowPool: false);
+        PlanAnchored(state, actions, workers, BuildingType.MiningCamp, workersFor: 1, allowPool: false);
 
         // 4. Kaserne — die Basis der Aggressivität. Kosten: 175 Holz
-        //    (lt. BuildingRules). Die Kaserne ist das wichtigste Gebäude
-        //    nach dem Haus: sie bildet die Miliz, die der KI die Angriffe
-        //    liefert. Platzieren wir sie, solange genug Holz im Dorf ist,
-        //    und nehmen 2 Arbeiter (1 frei + 1 aus dem Pool), sonst
-        //    steht sie nie fertig — und die Kaserne ohne Arbeiter
-        //    wird nie fertig.
+        //    (lt. BuildingRules). Am Stadtzentrum: die Soldaten gehören in
+        //    den Kampf, nicht ans Lager.
         if (state.Resources.Wood >= 150
             && !state.Buildings.Any(b => b.Type == BuildingType.Barracks))
         {
             if (TryBuildNear(state, actions, workers, BuildingType.Barracks,
-                             workersFor: 1, allowPool: true))
+                             workersFor: 1, allowPool: true, anchor: null))
                 return;
         }
 
@@ -195,8 +227,32 @@ public sealed class EconomyAi : IAi
             && !state.Buildings.Any(b => b.Type == BuildingType.ArcheryRange))
         {
             TryBuildNear(state, actions, workers, BuildingType.ArcheryRange,
-                         workersFor: 1, allowPool: true);
+                         workersFor: 1, allowPool: true, anchor: null);
         }
+    }
+
+    /// <summary>
+    /// Ein Lager (Mühle, Holzfäller- oder Bergbaulager) an seiner Ressource
+    /// ausrichten: zuerst die Quelle suchen (Nahrung/Holz/Stein), dann rund
+    /// um sie bauen. Gibt es keine Quelle in <see cref="AnchorSearchRadius"/>
+    /// oder ist das Lager schon da/im Bau, passiert nichts — ein Lager ohne
+    /// zu speichernde Quelle wäre verschenktes Holz.
+    /// </summary>
+    private static void PlanAnchored(IWorldState state, IWorldActions actions,
+        List<UnitSnapshot> workers, BuildingType type, int workersFor, bool allowPool)
+    {
+        if (state.Buildings.Any(b => b.Type == type)) return;   // fertig ODER im Bau
+        Resource? res = AnchorResourceFor(type);
+        if (res is null) return;
+        if (state.Resources.Wood < 100) return;                 // Kosten des Lagers
+
+        var tc = state.TownCenter!;
+        (int X, int Y)? anchor = state.FindSource(res.Value, tc.X + tc.Width / 2, tc.Y + tc.Height / 2, AnchorSearchRadius);
+        if (anchor is null) return;   // nichts in der Nähe abzulegen → kein Lager
+        if (!state.IsExplored(anchor.Value.X, anchor.Value.Y)) return;
+
+        TryBuildNear(state, actions, workers, type, workersFor: workersFor, allowPool: allowPool,
+                     anchor: (anchor.Value.X, anchor.Value.Y));
     }
 
     /// <summary>
@@ -325,6 +381,52 @@ public sealed class EconomyAi : IAi
     }
 
     /// <summary>
+    /// Verteidigung: <b>untätige</b> Dorfbewohner, die einen Feind sehen,
+    /// greifen ihn an — einen Dorfbewohner oder ein Gebäude — statt
+    /// tatenlos zu stehen. Dorfbewohner haben im AoE einen Angriff
+    /// (BaseAttack 3), der Screen lässt einen Befehl auf ein sichtbares
+    /// feindliches Ziel automatisch <see cref="IWorldActions.Attack"/> werden.
+    ///
+    /// Bewusst klein gehalten: nur in <see cref="DefenseRadius"/> und max.
+    /// <see cref="DefenseMax"/> Einheiten, und nur untätige (wer sammelt,
+    /// baut oder fährt als Scout bleibt bei seiner Aufgabe). Große Scharen
+    /// decken die Soldaten in <see cref="Raid"/> ab.
+    /// </summary>
+    private void Defense(IWorldState state, IWorldActions actions, AiContext ctx)
+    {
+        var enemies = state.VisibleEnemies().ToList();
+        if (enemies.Count == 0) return;
+
+        var villagers = state.Units
+            .Where(u => u.Kind == UnitKind.Villager
+                        && u.State == UnitStateKind.Idle
+                        && u.Gathering is null
+                        && u.BuildingId is null
+                        && u.Id != _scoutId)
+            .OrderBy(u => u.Id)
+            .ToList();
+
+        int sent = 0;
+        foreach (var v in villagers)
+        {
+            if (sent >= DefenseMax) break;
+
+            // Der in Reichweite nächstgelegene sichtbare Feind.
+            EnemyInfo best = enemies[0];
+            int bestDist = int.MaxValue;
+            foreach (var e in enemies)
+            {
+                int d = Math.Max(Math.Abs(e.X - v.X), Math.Abs(e.Y - v.Y));
+                if (d < bestDist) { bestDist = d; best = e; }
+            }
+            if (bestDist > DefenseRadius) continue;
+
+            actions.Attack(v.Id, best.X, best.Y);
+            sent++;
+        }
+    }
+
+    /// <summary>
     /// Soldaten ausbilden: die Kaserne bildet Milizen, der Schießstand
     /// Bogenschützen. Die KI reihst ein, solange <see cref="SoldierTarget"/>
     /// (im Feld plus in Produktion) noch nicht erreicht sind und die
@@ -357,40 +459,65 @@ public sealed class EconomyAi : IAi
     }
 
     /// <summary>
-    /// Ein Bauplatz im Ring um das Stadtzentrum (nahe → weit) suchen, die
+    /// Ein Bauplatz im Ring um einen Anker suchen (nahe → weit), die
     /// Baustelle anlegen und <paramref name="workersFor"/> Arbeiter dazu
     /// schicken — freie zuerst, bei Bedarf aufgefüllt aus dem Sammelpool
-    /// (nur wenn <paramref name="allowPool"/>). True, wenn die Baustelle stand.
+    /// (nur wenn <paramref name="allowPool"/>). <paramref name="anchor"/>
+    /// ist die Quell-Kachel (z. B. der Wald für das Lagelager); ist sie
+    /// null, wird um das Stadtzentrum gebaut (Haus, Kaserne, Farm). True,
+    /// wenn die Baustelle stand.
     /// </summary>
     private static bool TryBuildNear(IWorldState state, IWorldActions actions,
         List<UnitSnapshot> workers, BuildingType type,
-        int workersFor, bool allowPool)
+        int workersFor, bool allowPool, (int X, int Y)? anchor)
     {
         int size = BuildingRules.SizeOf(type);
         var tc = state.TownCenter!;
-        int x0 = Math.Max(0, tc.X - BuildSpotRadius);
-        int y0 = Math.Max(0, tc.Y - BuildSpotRadius);
-        int x1 = Math.Min(state.Width, tc.X + tc.Width + BuildSpotRadius);
-        int y1 = Math.Min(state.Height, tc.Y + tc.Height + BuildSpotRadius);
+
+        // Anker: die Quell-Kachel selbst (Gebäude 3×3 groß → der Ring
+        // beginnt bei der Kachel direkt daneben) oder die Dorfmitte.
+        int cx, cy;
+        if (anchor is { } a)
+        {
+            cx = a.X; cy = a.Y;
+        }
+        else
+        {
+            cx = tc.X + tc.Width / 2;
+            cy = tc.Y + tc.Height / 2;
+        }
+
+        var b0 = BuildSpotRadius;
+        int x0 = Math.Max(0, cx - b0);
+        int y0 = Math.Max(0, cy - b0);
+        int x1 = Math.Min(state.Width - 1, cx + b0);
+        int y1 = Math.Min(state.Height - 1, cy + b0);
 
         for (int r = 1; r <= BuildSpotRadius; r++)
         {
-            for (int x = x0; x < x1; x++)
+            for (int x = x0; x <= x1; x++)
             {
-                for (int y = y0; y < y1; y++)
+                for (int y = y0; y <= y1; y++)
                 {
-                    // Chebyshev-Ring um das Stadtzentrum (Gebäuderahmens)
-                    int dx = Math.Max(0, Math.Max(tc.X - x, x - (tc.X + tc.Width - 1)));
-                    int dy = Math.Max(0, Math.Max(tc.Y - y, y - (tc.Y + tc.Height - 1)));
-                    if (Math.Max(dx, dy) != r) continue;
+                    // Chebyshev-Ring um den Anker
+                    int d = Math.Max(Math.Abs(x - cx), Math.Abs(y - cy));
+                    if (d != r) continue;
 
+                    if (x + size > state.Width || y + size > state.Height)
+                        continue;
+                    // Ein Lager soll NEBEN der Quelle stehen, nicht auf ihr:
+                    // eine Kachel der Grundfläche über der Quelle wäre nicht
+                    // mehr abbaubar. Alle Positionen, die die Anker-Kachel
+                    // überdecken, überspringen.
+                    if (anchor is { } aa
+                        && aa.X >= x && aa.X < x + size
+                        && aa.Y >= y && aa.Y < y + size)
+                        continue;
                     if (!state.IsExplored(x, y)) continue;
                     if (!state.CanPlace(type, x, y, size)) continue;
 
                     // Arbeiter: zuerst die freien (in workers), dann — falls
-                    // nicht genug und erlaubt — sammelnde aus dem Pool. Das
-                    // Haus ist die einzige Ausnahme: ohne abgezogene Ernte wird
-                    // es nie fertig und das Dorf bleibt an der Grenze sitzen.
+                    // nicht genug und erlaubt — sammelnde aus dem Pool.
                     int n = workersFor;
                     var ids = new List<int>();
                     foreach (var w in workers.Take(n))
@@ -414,8 +541,7 @@ public sealed class EconomyAi : IAi
 
                     if (actions.Build(type, x, y, ids.ToArray()) is not null)
                         return true;
-                    // abgelehnt (Baumarkt leer, CanPlace-Spiel-Kontroll etc.) —
-                    // weiter suchen
+                    // abgelehnt (Rohstoffe, CanPlace-Spiel-Checks etc.) — weitersuchen
                 }
             }
         }
