@@ -63,7 +63,8 @@ public static class Wind
 
     /// <summary>
     /// Wie ein Baumbild, gebogen vom Wind, in <paramref name="target"/> gezeichnet wird:
-    /// in <see cref="TREE_STRIPS"/> waagerechten Streifen. Der Fuß (Unterkante) bleibt
+    /// in <paramref name="strips"/> waagerechten Streifen (Bäume <see cref="TREE_STRIPS"/>, kleine
+    /// Grasbüschel weniger). Der Fuß (Unterkante) bleibt
     /// stehen, die Spitze rückt um <paramref name="sway"/> * target.Height Bildpunkte zur
     /// Seite, dazwischen wächst die Verschiebung mit h^1,5 (h = Höhe über dem Fuß als
     /// Anteil an target.Height, 0 am Fuß, 1 an der Spitze) - der Stamm bleibt fast
@@ -79,13 +80,13 @@ public static class Wind
     /// - Scale: (target.Width / texWidth, target.Height / texHeight).
     /// </summary>
     public static IEnumerable<(Rectangle Source, Vector2 Position, Vector2 Scale)> SwayStrips(
-        Rectangle target, int texWidth, int texHeight, float sway)
+        Rectangle target, int texWidth, int texHeight, float sway, int strips = TREE_STRIPS)
     {
-        float stripHeight = texHeight / (float)TREE_STRIPS;
-        for (int i = 0; i < TREE_STRIPS; i++)
+        float stripHeight = texHeight / (float)strips;
+        for (int i = 0; i < strips; i++)
         {
             int oben = i * (int)stripHeight;
-            int hoehe = i == TREE_STRIPS - 1 ? texHeight - oben : (int)stripHeight;
+            int hoehe = i == strips - 1 ? texHeight - oben : (int)stripHeight;
             float h = 1f - (oben + hoehe / 2f) / texHeight;
             float verschiebung = sway * target.Height * MathF.Pow(h, 1.5f);
             var source = new Rectangle(0, oben, texWidth, hoehe);

@@ -61,6 +61,10 @@ elif teil == "h2":
 elif teil == "h3":
     rts = lies(KERN / "Screens/RTSGameplayScreen.cs")
     tier = methode(rts, "DrawAnimal") or ""
+    # Seit T1a rechnet AnimalFoot die Hufe samt Rest des Schritts für DrawAnimal und die
+    # Tiefenschicht - was dort steht, zählt für DrawAnimal mit
+    if "AnimalFoot(" in tier:
+        tier += methode(rts, "AnimalFoot") or ""
     for muster, grund in ((r"Gait\.Ease\(", "gleitet nicht weich (Gait.Ease)"),
                           (r"Gait\.EaseSpeed\(", "wippt nicht nach dem Tempo (Gait.EaseSpeed)"),
                           (r"\bGlide\b", "zeichnet den Schritt nicht (Glide)"),

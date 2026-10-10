@@ -53,11 +53,14 @@ def rumpf(name, *pflichten):
 
 
 rumpf("TuftSpot", (r"73856093", "nicht fest aus dem Ortshash"))
-rumpf("DrawGrassTuft", (r"\bTuftSpot\s*\(", "fragt TuftSpot nicht"),
-      (r"\bWind\.TreeSway\s*\(", "wiegt sich nicht im Wind"),
-      (r"\bWind\.SwayStrips\s*\([^;]*,\s*\d+\s*\)", "biegt nicht in wenigen Streifen (SwayStrips mit Streifenzahl)"),
-      (r"\bTUFT_HEIGHT\b", "Höhe nicht aus TUFT_HEIGHT"), (r"\bcameraZoom\b", "wächst nicht mit dem Zoom"),
-      (r"\bscreenBounds\b", "cullt nicht am Fenster"))
+rumpf("DrawGrassTuft", (r"\bTuftSpot\s*\(", "fragt TuftSpot nicht"), (r"\bDrawTuftAt\s*\(", "zeichnet nicht mit DrawTuftAt"))
+rumpf("DrawTuftAt", (r"\bWind\.TreeSway\s*\(", "wiegt sich nicht im Wind"),
+      (r"\bWind\.SwayStrips\s*\([^;]*\bsway\s*,", "gibt SwayStrips keine Streifenzahl"),
+      (r"\bTUFT_HEIGHT\b", "Höhe nicht aus TUFT_HEIGHT"), (r"\bTUFT_MIN_PIXELS\b", "keine Mindestgröße (TUFT_MIN_PIXELS)"),
+      (r"\bcameraZoom\b", "wächst nicht mit dem Zoom"), (r"\bscreenBounds\b", "cullt nicht am Fenster"),
+      (r"\balpha\b", "keine Deckkraft (alpha)"))
+rumpf("DrawGrassAroundFeet", (r"\bTallGrassAt\s*\(", "fragt TallGrassAt nicht"),
+      (r"\bDrawTuftAt\s*\(", "zeichnet nicht mit DrawTuftAt"))
 rumpf("BerryFoot", (r"TileScreenRect\s*\(", "nicht in der Kachel"))
 rumpf("DrawBerryBush", (r"\bBerryFoot\s*\(", "steht nicht auf BerryFoot"), (r"\bBERRY_WIDTH\b", "Breite nicht aus BERRY_WIDTH"))
 
@@ -66,7 +69,9 @@ for pflicht, grund in ((r"\bDrawGrassTuft\s*\(", "zeichnet keine Büschel"),
                        (r"\bTallGrassAt\s*\(", "stellt die Büschel nicht nach TallGrassAt"),
                        (r"\bTUFTS_PER_TILE\b", "Anzahl der Büschel nicht aus TUFTS_PER_TILE"),
                        (r"\bDrawBerryBush\s*\(", "zeichnet keine Beerenbüsche"),
-                       (r"\bBerryFoot\s*\(", "sortiert Beerenbüsche nicht nach ihrem Fuß")):
+                       (r"\bBerryFoot\s*\(", "sortiert Beerenbüsche nicht nach ihrem Fuß"),
+                       (r"\bDrawGrassAroundFeet\s*\(\s*spriteBatch\s*,\s*unit\.Position",
+                        "lässt Figuren nicht im hohen Gras stecken (DrawGrassAroundFeet)")):
     if not re.search(pflicht, einheiten):
         fehler.append(f"DrawUnits {grund}")
 karte = methode(cs, "DrawTileMap") or ""

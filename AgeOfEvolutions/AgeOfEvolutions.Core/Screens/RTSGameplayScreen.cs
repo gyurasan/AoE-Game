@@ -544,11 +544,41 @@ public class RTSGameplayScreen : GameScreen
     private Texture2D _sandTex;
     // Die drei weiteren Grassorten für die Wiese im Bodenshader
     private Texture2D _dryGrassTex, _lushGrassTex, _flowerGrassTex;
+    // Hohes Gras und ausgedörrte Erde (G12)
+    private Texture2D _tallGrassTex, _bareEarthTex;
     private Texture2D _waterGroundTex;    // Wasserbild; waterTex sind die gezeichneten Wasserkacheln
     private Texture2D _soilTex;           // abgeerntetes Feld (Felder/acker), ein Bild je Feld
     private Texture2D _wheatTex;          // dasselbe Feld mit reifem Weizen (Felder/weizen)
     private Effect _wheatEffect;          // Weizen im Wind (Effects/Weizen); fehlt er, steht der Weizen still.
     private (Texture2D Tex, float Height, bool Conifer)[] _treeSprites = Array.Empty<(Texture2D, float, bool)>();
+    // Rohstoffsymbole der oberen Leiste (tools/bilder, Gruppe rohstoff_icons), in der Reihenfolge
+    // der Anzeige; fehlt ein Bild, steht dort das farbige Quadrat wie bisher
+    private static readonly (Resource Res, string Asset, Color Fallback)[] ResourceIcons =
+    {
+        (Resource.Food, "Icons/rohstoff_nahrung", new Color(190, 70, 55)),
+        (Resource.Wood, "Icons/rohstoff_holz", new Color(130, 95, 55)),
+        (Resource.Gold, "Icons/rohstoff_gold", new Color(215, 180, 60)),
+        (Resource.Stone, "Icons/rohstoff_stein", new Color(160, 160, 165)),
+    };
+    private const int RESOURCE_ICON_SIZE = 26;   // doppelt so groß wie die alten 12-px-Quadrate, passt in die 34-px-Leiste
+    private readonly Texture2D[] _resourceIconTex = new Texture2D[4];
+
+    // Hohes Gras (G13): stehende Büschel aus tools/bilder (Gruppe bueschel), etwa ein Drittel
+    // so hoch wie ein Dorfbewohner (24); sie wachsen, wo TallGrassAt hohes Gras meldet - dort
+    // malt der Bodenshader auch das hohe Gras (Alphakanal des Lebendbilds)
+    private static readonly string[] TuftAssets =
+        { "Gras/bueschel_hoch", "Gras/bueschel_hoch2", "Gras/bueschel_misch", "Gras/bueschel_trocken" };
+    private const float TUFT_HEIGHT = 8f;    // Welteinheiten, je Büschel 0,9- bis 1,3-mal
+    // Büschel je Kachel: ein Raster von 4 x 4 Plätzen, je Platz ein Büschel mit der Wahrscheinlichkeit
+    // TallGrassAt - so dicht, dass vor jeder Figur im hohen Gras Halme stehen und ihre Beine verdecken
+    private const int TUFTS_PER_TILE = 16;
+    private const float TUFT_MIN_PIXELS = 10f;   // kleiner gezeichnet sieht man nur Punkte - dann die Textur allein
+    private Texture2D[] _tuftSprites = Array.Empty<Texture2D>();
+    // Beerenbüsche (B2) aus tools/bilder (Gruppe beeren), Breite als Anteil an der Kachel
+    private static readonly string[] BerryAssets =
+        { "Nahrung/beerenbusch", "Nahrung/beerenbusch2", "Nahrung/beerenbusch3" };
+    private const float BERRY_WIDTH = 0.95f;
+    private Texture2D[] _berrySprites = Array.Empty<Texture2D>();
     private Texture2D[] _stoneSprites = Array.Empty<Texture2D>();
     private Texture2D[] _goldSprites = Array.Empty<Texture2D>();
     private Texture2D[] _sheepSprites = Array.Empty<Texture2D>();
@@ -780,6 +810,8 @@ public class RTSGameplayScreen : GameScreen
         _dryGrassTex = LoadOptional("Boden/gras_trocken");
         _lushGrassTex = LoadOptional("Boden/gras_dunkel");
         _flowerGrassTex = LoadOptional("Boden/gras_blumen");
+        _tallGrassTex = LoadOptional("Boden/gras_hoch");
+        _bareEarthTex = LoadOptional("Boden/erde_trocken");
         _soilTex = LoadOptional("Felder/acker");
         _wheatTex = LoadOptional("Felder/weizen");
         _waterGroundTex = LoadOptional("Boden/wasser");
@@ -813,6 +845,11 @@ public class RTSGameplayScreen : GameScreen
         // Leistenbilder je Zeitalter laden; fehlt eines, bleibt die Leiste in diesem Zeitalter braun
         for (var i = 0; i < PanelAssets.Length; i++)
             _panelTex[i] = LoadOptional(PanelAssets[i]);
+        for (int i = 0; i < ResourceIcons.Length; i++)
+            _resourceIconTex[i] = LoadOptional(ResourceIcons[i].Asset);
+
+        _tuftSprites = TuftAssets.Select(LoadOptional).Where(t => t != null).ToArray();
+        _berrySprites = BerryAssets.Select(LoadOptional).Where(t => t != null).ToArray();
         _stoneSprites = StoneAssets.Select(LoadOptional).Where(t => t != null).ToArray();
         _goldSprites = GoldAssets.Select(LoadOptional).Where(t => t != null).ToArray();
         _sheepSprites = SheepAssets.Select(LoadOptional).Where(t => t != null).ToArray();
@@ -3855,6 +3892,8 @@ public class RTSGameplayScreen : GameScreen
         p["DryGrassTexture"]?.SetValue(_dryGrassTex ?? _grassTex);
         p["LushGrassTexture"]?.SetValue(_lushGrassTex ?? _grassTex);
         p["FlowerGrassTexture"]?.SetValue(_flowerGrassTex ?? _grassTex);
+        p["TallGrassTexture"]?.SetValue(_tallGrassTex ?? _grassTex);
+        p["BareEarthTexture"]?.SetValue(_bareEarthTex ?? _dryGrassTex ?? _grassTex);
         p["NoiseTexture"]?.SetValue(_groundNoise);
         spriteBatch.Begin(SpriteSortMode.Immediate, BlendState.Opaque, SamplerState.LinearClamp,
                           null, null, _groundEffect);
@@ -4052,11 +4091,155 @@ public class RTSGameplayScreen : GameScreen
             {
                 var tile = tileMap.GetTile(x, y);
                 bool fish = tile.Food == FoodSource.Fish && tile.ResourceAmount > 0;
+                // Alpha: wie hoch das Gras wächst (TallGrassAt) - der Bodenshader malt dort hohes Gras.
                 _groundLiveData[y * w + x] = new Color(tile.Wear, tile.Type == TileType.Forest ? 1f : 0f,
-                                                       fish ? 1f : 0f, 1f);
+                                                       fish ? 1f : 0f, TallGrassAt(x, y));
             }
         }
         _groundLive.SetData(_groundLiveData);
+    }
+
+    /// <summary>
+    /// Wertrauschen 0 bis 1: ein fester Wert je ganzzahligem Gitterpunkt, bilinear
+    /// mit smootherstep geglättet.
+    /// </summary>
+    private static float ValueNoise(float fx, float fy, int salt)
+    {
+        // Fester Wert je Gitterpunkt (gx, gy)
+        static float Wert(int gx, int gy, int s)
+        {
+            return (unchecked(gx * 73856093 ^ gy * 19349663 ^ (s + 1) * 83492791) & 0xFFFF) / 65535f;
+        }
+
+        int x0 = (int)MathF.Floor(fx);
+        int y0 = (int)MathF.Floor(fy);
+        float tx = fx - x0;
+        float ty = fy - y0;
+        // Smoothstep-Glättung
+        tx = tx * tx * (3f - 2f * tx);
+        ty = ty * ty * (3f - 2f * ty);
+        // Bilinear
+        float oben = MathHelper.Lerp(Wert(x0, y0, salt), Wert(x0 + 1, y0, salt), tx);
+        float unten = MathHelper.Lerp(Wert(x0, y0 + 1, salt), Wert(x0 + 1, y0 + 1, salt), tx);
+        return MathHelper.Lerp(oben, unten, ty);
+    }
+
+    /// <summary>
+    /// Wie hoch das Gras auf Kachel (x, y) wächst, 0 (kurz) bis 1 (hüfthoch).
+    /// Flecken von etwa 6 x 5 Kacheln, auf Trampelpfaden niedergetreten.
+    /// </summary>
+    private float TallGrassAt(int x, int y)
+    {
+        var tile = tileMap.GetTile(x, y);
+        if (tile == null || tile.Type != TileType.Grassland
+            || !string.IsNullOrEmpty(tile.Building) || tile.Farm
+            || tile.Food != FoodSource.None)
+            return 0f;
+        float v = ValueNoise(x / 6f, y / 5f, 0) * 0.65f + ValueNoise(x / 2.3f, y / 2.1f, 1) * 0.35f;
+        float t = MathHelper.Clamp((v - 0.47f) / 0.16f, 0f, 1f);
+        return t * t * (3f - 2f * t) * (1f - MathHelper.Clamp(tile.Wear * 2f, 0f, 1f));
+    }
+
+    /// <summary>
+    /// Büschel k (0 bis TUFTS_PER_TILE - 1) der Kachel (x, y): Fuß in Welteinheiten,
+    /// Bild (Index in _tuftSprites), Maßstab, Spiegelung, Look und die Wahrscheinlichkeit,
+    /// mit der es dort wächst. Alles fest aus Lage und k - sonst zappelten die Büschel.
+    /// </summary>
+    private (Vector2 Foot, int Sprite, float Scale, bool Flip, int Look, float Chance) TuftSpot(int x, int y, int k)
+    {
+        int h = unchecked(x * 73856093 ^ y * 19349663 ^ (k + 1) * 83492791) & 0x7FFFFFFF;
+        float zelle = tileMap.TileSize / 4f;
+        var foot = new Vector2(x * tileMap.TileSize + (k % 4) * zelle + 1 + h % 6,
+                               y * tileMap.TileSize + (k / 4) * zelle + 1 + (h >> 7) % 6);
+        int r = (h >> 14) % 20;
+        int sprite = _tuftSprites.Length == 4
+            ? (r < 9 ? 1 : r < 17 ? 0 : r < 19 ? 2 : 3)   // meist grün, selten trocken
+            : (h >> 14) % _tuftSprites.Length;
+        float scale = 0.9f + ((h >> 17) % 41) / 100f;
+        bool flip = ((h >> 24) & 1) == 1;
+        float chance = ((h >> 3) % 1000) / 1000f;
+        return (foot, sprite, scale, flip, h, chance);
+    }
+
+    /// <summary>
+    /// Ein Grasbüschel mit dem Fuß unten in der Mitte, im Wind gebogen (Wind.TreeSway,
+    /// stärker als ein Baum) und in Streifen gezeichnet (Wind.SwayStrips). Cullt selbst.
+    /// </summary>
+    private void DrawTuftAt(SpriteBatch spriteBatch, Vector2 foot, Texture2D tex, float scale, bool flip, int look, float alpha)
+    {
+        int height = (int)(TUFT_HEIGHT * scale * cameraZoom);
+        if (height < TUFT_MIN_PIXELS)
+            return;
+        int width = height * tex.Width / tex.Height;
+        var screen = WorldToScreen(foot);
+        var target = new Rectangle((int)screen.X - width / 2, (int)screen.Y - height, width, height);
+        var cull = new Rectangle(target.Left - height / 4, target.Top, target.Width + height / 2, target.Height);
+        if (!screenBounds.Intersects(cull))
+            return;
+        float sway = 3f * Wind.TreeSway(foot / tileMap.TileSize, animationTime, look);
+        foreach (var strip in Wind.SwayStrips(target, tex.Width, tex.Height, sway, height < 20 ? 1 : 3))
+        {
+            spriteBatch.Draw(tex, strip.Position, strip.Source, Color.White * alpha, 0f, Vector2.Zero, strip.Scale,
+                             flip ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 0f);
+        }
+    }
+
+    /// <summary>Ein Grasbüschel k der Kachel (x, y) nach TuftSpot, in voller Deckkraft.</summary>
+    private void DrawGrassTuft(SpriteBatch spriteBatch, int x, int y, int k)
+    {
+        var (foot, sprite, scale, flip, look, _) = TuftSpot(x, y, k);
+        DrawTuftAt(spriteBatch, foot, _tuftSprites[sprite], scale, flip, look, 1f);
+    }
+
+    /// <summary>
+    /// Drei Büschel um die Füße einer Figur im hohen Gras: sie steckt bis zur Hüfte
+    /// darin, die Halme verdecken ihre Beine. Die Büschel gehen mit der Figur - in
+    /// dichtem Gras fällt das nicht auf. alpha wächst mit der Grasöhe (TallGrassAt).
+    /// </summary>
+    private void DrawGrassAroundFeet(SpriteBatch spriteBatch, Vector2 feet, int seed)
+    {
+        if (_tuftSprites.Length == 0)
+            return;
+        float hoch = TallGrassAt((int)MathF.Floor(feet.X / tileMap.TileSize), (int)MathF.Floor(feet.Y / tileMap.TileSize));
+        float t = MathHelper.Clamp((hoch - 0.25f) / 0.4f, 0f, 1f);
+        if (t <= 0f)
+            return;
+        for (int i = 0; i < 3; i++)
+        {
+            int h = unchecked(seed * 31 + i * 7919) & 0x7FFFFFFF;
+            var foot = feet + new Vector2((i - 1) * 5f, i == 1 ? 2.5f : 1.5f);
+            DrawTuftAt(spriteBatch, foot, _tuftSprites[h % Math.Min(2, _tuftSprites.Length)],
+                       1.05f + (h >> 8) % 20 / 100f, ((h >> 4) & 1) == 1, h, t * t * (3f - 2f * t));
+        }
+    }
+
+    /// <summary>
+    /// Fußpunkt des Beerenbuschs auf Kachel (x, y) in Bildschirmpunkten: im unteren
+    /// Teil der Kachel, waagrecht leicht versetzt - alles fest aus dem Ortshash.
+    /// </summary>
+    private Vector2 BerryFoot(int x, int y)
+    {
+        int h = unchecked(x * 73856093 ^ y * 19349663 ^ 0x2545F491) & 0x7FFFFFFF;
+        var rect = TileScreenRect(x, y);
+        return new Vector2(rect.Center.X + (h % 7 - 3) * rect.Width / 32f, rect.Bottom - rect.Height * 0.2f);
+    }
+
+    /// <summary>
+    /// Ein Beerenbusch als Sprite (B2): so breit wie BERRY_WIDTH der Kachel, Höhe im
+    /// Seitenverhältnis, Fuß unten in der Mitte (BerryFoot). Cullt selbst.
+    /// </summary>
+    private void DrawBerryBush(SpriteBatch spriteBatch, int x, int y)
+    {
+        int h = unchecked(x * 73856093 ^ y * 19349663 ^ 0x2545F491) & 0x7FFFFFFF;
+        var tex = _berrySprites[(h >> 5) % _berrySprites.Length];
+        int width = (int)(TileScreenRect(x, y).Width * BERRY_WIDTH);
+        int height = width * tex.Height / tex.Width;
+        var foot = BerryFoot(x, y);
+        var target = new Rectangle((int)foot.X - width / 2, (int)foot.Y - height, width, height);
+        if (!target.Intersects(screenBounds))
+            return;
+        var effekt = ((h >> 9) & 1) == 1 ? SpriteEffects.FlipHorizontally : SpriteEffects.None;
+        spriteBatch.Draw(tex, target, null, Color.White, 0f, Vector2.Zero, effekt, 0f);
     }
 
     private void DrawTileMap(SpriteBatch spriteBatch)
@@ -4089,6 +4272,9 @@ public class RTSGameplayScreen : GameScreen
                     continue;
                 // Schafe und Rehe mit Bild stehen in der Zeilenschicht (DrawAnimal)
                 if (AnimalSprites(tile.Food).Length > 0)
+                    continue;
+                // Beerenbüsche mit Bild stehen in der Tiefenschicht (DrawBerryBush)
+                if (tile.Food == FoodSource.Berries && _berrySprites.Length > 0)
                     continue;
                 if (isFarm)
                     spriteBatch.Draw(px, rect, new Color(70, 55, 30));
@@ -5133,6 +5319,44 @@ public class RTSGameplayScreen : GameScreen
                 }
             }
 
+        // — Hohes Gras und Beerenbüsche (G13, B2) —
+        // Büschel nur, wenn sie groß genug gezeichnet werden (sonst nur Punkte)
+        bool buschel = _tuftSprites.Length > 0 && TUFT_HEIGHT * 0.9f * cameraZoom >= TUFT_MIN_PIXELS;
+        for (int y = y0; y <= y1; y++)
+            for (int x = x0; x <= x1; x++)
+            {
+                var tile = tileMap.GetTile(x, y);
+                if (tile == null) continue;
+                if (buschel)
+                {
+                    float hoch = TallGrassAt(x, y);
+                    if (hoch > 0f)
+                    {
+                        for (int k = 0; k < TUFTS_PER_TILE; k++)
+                        {
+                            var spot = TuftSpot(x, y, k);
+                            if (spot.Chance < hoch)
+                            {
+                                list.Add(new DepthEntry
+                                {
+                                    Depth = WorldToScreen(spot.Foot).Y,
+                                    Kind = 5, X = x, Y = y, Spot = k,
+                                });
+                            }
+                        }
+                    }
+                }
+                // Beerenbusch mit Vorrat: ein Eintrag, Sohle = Fuß (BerryFoot)
+                if (tile.Food == FoodSource.Berries && tile.ResourceType == Resource.Food && _berrySprites.Length > 0)
+                {
+                    list.Add(new DepthEntry
+                    {
+                        Depth = BerryFoot(x, y).Y,
+                        Kind = 6, X = x, Y = y,
+                    });
+                }
+            }
+
         // — Gebäude —
         foreach (var b in tileMap.Buildings)
         {
@@ -5201,6 +5425,16 @@ public class RTSGameplayScreen : GameScreen
                     DrawTree(spriteBatch, obj.X, obj.Y, obj.Spot);
                     break;
                 }
+                case 5: // Grasbüschel
+                {
+                    DrawGrassTuft(spriteBatch, obj.X, obj.Y, obj.Spot);
+                    break;
+                }
+                case 6: // Beerenbusch
+                {
+                    DrawBerryBush(spriteBatch, obj.X, obj.Y);
+                    break;
+                }
                 case 2: // Tier
                 {
                     DrawAnimal(spriteBatch, obj.Tile, obj.X, obj.Y, AnimalSprites(obj.Tile.Food));
@@ -5241,6 +5475,8 @@ public class RTSGameplayScreen : GameScreen
                     {
                         spriteBatch.Draw(px, screenPos - new Vector2(6, 6), null, tint, 0f, Vector2.Zero, 12 * cameraZoom, SpriteEffects.None, 0f);
                     }
+                    // Im hohen Gras steckt die Figur bis zur Hüfte: Halme vor den Beinen
+                    DrawGrassAroundFeet(spriteBatch, unit.Position, unit.Id.GetHashCode());
                     break;
                 }
             }
@@ -5593,35 +5829,35 @@ public class RTSGameplayScreen : GameScreen
         DrawPanel(spriteBatch, topBarRect);
         spriteBatch.Draw(px, new Rectangle(0, 32, screenBounds.Width, 2), new Color(52, 40, 24));
 
-        // Ressourcen
+        // Ressourcen: je Rohstoff sein Symbol, senkrecht mittig in der Leiste, daneben der Vorrat;
+        // ohne Bild das farbige Quadrat
         int startX = 10;
-        int iconSize = 12;
-        int spacing = 10;
-        int resourceWidth = 110;
+        int spacing = 6;
+        int resourceWidth = 130;
+        for (int i = 0; i < ResourceIcons.Length; i++)
+        {
+            (Resource res, _, Color fallback) = ResourceIcons[i];
+            int x = startX + resourceWidth * i;
+            var iconRect = new Rectangle(x, (HUD_TOP_HEIGHT - RESOURCE_ICON_SIZE) / 2, RESOURCE_ICON_SIZE, RESOURCE_ICON_SIZE);
+            var tex = _resourceIconTex[i];
+            if (tex != null)
+            {
+                float s = Math.Min(iconRect.Width / (float)tex.Width, iconRect.Height / (float)tex.Height);
+                var dest = new Rectangle(
+                    iconRect.X + (iconRect.Width - (int)(tex.Width * s)) / 2,
+                    iconRect.Y + (iconRect.Height - (int)(tex.Height * s)) / 2,
+                    (int)(tex.Width * s),
+                    (int)(tex.Height * s));
+                spriteBatch.Draw(tex, dest, Color.White);
+            }
+            else
+            {
+                spriteBatch.Draw(px, new Rectangle(iconRect.X + 7, iconRect.Y + 7, 12, 12), fallback);
+            }
+            var resText = player1.Resources[res].ToString();
+            spriteBatch.DrawString(ScreenManager.Font, resText, new Vector2(x + RESOURCE_ICON_SIZE + spacing, 6), Color.White);
+        }
 
-        // Food
-        var foodRect = new Rectangle(startX, 6, iconSize, iconSize);
-        spriteBatch.Draw(px, foodRect, new Color(190, 70, 55));
-        var foodText = player1.Resources[Resource.Food].ToString();
-        spriteBatch.DrawString(ScreenManager.Font, foodText, new Vector2(startX + iconSize + spacing, 6), Color.White);
-
-        // Wood
-        var woodRect = new Rectangle(startX + resourceWidth, 6, iconSize, iconSize);
-        spriteBatch.Draw(px, woodRect, new Color(130, 95, 55));
-        var woodText = player1.Resources[Resource.Wood].ToString();
-        spriteBatch.DrawString(ScreenManager.Font, woodText, new Vector2(startX + resourceWidth + iconSize + spacing, 6), Color.White);
-
-        // Gold
-        var goldRect = new Rectangle(startX + resourceWidth * 2, 6, iconSize, iconSize);
-        spriteBatch.Draw(px, goldRect, new Color(215, 180, 60));
-        var goldText = player1.Resources[Resource.Gold].ToString();
-        spriteBatch.DrawString(ScreenManager.Font, goldText, new Vector2(startX + resourceWidth * 2 + iconSize + spacing, 6), Color.White);
-
-        // Stone
-        var stoneRect = new Rectangle(startX + resourceWidth * 3, 6, iconSize, iconSize);
-        spriteBatch.Draw(px, stoneRect, new Color(160, 160, 165));
-        var stoneText = player1.Resources[Resource.Stone].ToString();
-        spriteBatch.DrawString(ScreenManager.Font, stoneText, new Vector2(startX + resourceWidth * 3 + iconSize + spacing, 6), Color.White);
 
         // Bevölkerung und Zeitalter
         var popText = $"Bev. {player1.PopulationCount}/{player1.PopulationLimit}";

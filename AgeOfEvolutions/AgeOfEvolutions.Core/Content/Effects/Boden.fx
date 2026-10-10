@@ -93,6 +93,28 @@ sampler2D FlowerSampler = sampler_state
 	MipFilter = Linear;
 };
 
+Texture2D TallGrassTexture;
+sampler2D TallSampler = sampler_state
+{
+	Texture = <TallGrassTexture>;
+	AddressU = Wrap;
+	AddressV = Wrap;
+	MagFilter = Linear;
+	MinFilter = Linear;
+	MipFilter = Linear;
+};
+
+Texture2D BareEarthTexture;
+sampler2D BareSampler = sampler_state
+{
+	Texture = <BareEarthTexture>;
+	AddressU = Wrap;
+	AddressV = Wrap;
+	MagFilter = Linear;
+	MinFilter = Linear;
+	MipFilter = Linear;
+};
+
 Texture2D NoiseTexture;
 sampler2D NoiseSampler = sampler_state
 {
@@ -144,55 +166,70 @@ float GrassHeight(float3 c, float mean)
 
 // Farbe der Wiese an der Bodenbild-Koordinate g. nl, nm, nf sind das Rauschen groß
 // (~12 Kacheln), mittel (~3) und fein (~0,7) wie in MainPS, forest 0 bis 1 die Nähe
-// zum Wald.
-// VERTRAG:
-// - Grundgras zweimal: a bei g, b bei float2(-g.y, g.x) * 0.83 + float2(0.43, 0.27)
-//   (um 90 Grad gedreht und etwas größer); basis = lerp(a, b, smoothstep(0.4, 0.6, nm.r))
-//   mal float3(0.97, 1.07, 0.9) - frischer als das Bild. So wiederholt es sich nicht
-//   sichtbar.
-// - Die anderen Sorten je an eigener Stelle, damit sich ihre Muster nicht decken:
-//   dry = DrySampler bei g * 0.9 + float2(0.21, 0.62), mal float3(0.74, 0.84, 0.62)
-//   (gelbgrün statt Stroh); lush = LushSampler bei g * 1.1 + float2(0.71, 0.13), mal 1.3;
-//   flower = FlowerSampler bei g + float2(0.37, 0.81).
-// - Gewichte: wDry = smoothstep(0.8, 1.0, nl.g + (nm.b - 0.5) * 0.3) - selten, in
-//   großen Flecken; wLush = max(smoothstep(0.76, 0.97, nl.b + (nm.g - 0.5) * 0.3),
-//   forest * 0.9) - und immer am Wald; wFlower = smoothstep(0.7, 0.8, nm.a)
-//   * smoothstep(0.35, 0.65, nl.r) * (1 - forest) - Blumen in Flecken von zwei bis vier
-//   Kacheln, nur in einem Teil der Wiesen. Das Grundgras hat das feste Gewicht 0.5.
-// - Überblenden nach Halmhöhe: je Sorte s = Gewicht + GrassHeight(Farbe, Mittel) * 0.35,
-//   mit den Mittelwerten 0.35 (Grundgras), 0.45 (trocken), 0.25 (dunkel), 0.44 (Blumen);
-//   top = das größte s; jede Sorte trägt mit max(s - (top - 0.1), 0) bei, das Ergebnis
-//   ist der damit gewichtete Mittelwert der vier Farben (die stärkste trägt immer bei,
-//   die Summe ist also nie 0).
-// - Zuletzt eine leichte Farbschwankung über die Fläche, ohne Flecken: mal
-//   lerp(float3(0.96, 1.0, 0.94), float3(1.04, 1.03, 0.98), nl.a).
-float3 Meadow(float2 g, float4 nl, float4 nm, float4 nf, float forest)
+// zum Wald, tallZone 0 bis 1 wie hoch das Gras dort wächst (TallGrassAt im Spiel, Alpha
+// des Lebendbilds) - dort stehen auch die Büschel.
+// VERTRAG (G12, sechs Flächen: Grundgras, trocken, Kleegras, Blumen, hohes Gras, Erde):
+// - Grundgras zweimal: a bei g, b bei float2(-g.y, g.x) * 0.83 + float2(0.43, 0.27);
+//   basis = lerp(a, b, smoothstep(0.4, 0.6, nm.r)) mal float3(1.06, 1.23, 1.07).
+// - Die anderen je an eigener Stelle: dry = DrySampler bei g + float2(0.21, 0.62), mal
+//   float3(0.95, 1.1, 1.08); lush = LushSampler bei g * 1.8 + float2(0.71, 0.13), mal 1.3;
+//   flower = FlowerSampler bei g + float2(0.37, 0.81); tall = TallSampler bei
+//   g * 1.35 + float2(0.53, 0.19), mal float3(1.12, 1.15, 1.05); bare = BareSampler bei
+//   g * 0.9 + float2(0.11, 0.47), mal float3(0.75, 0.76, 0.78).
+// - Gewichte, mit d = nl.g + (nm.b - 0.5) * 0.3:
+//   wDry = smoothstep(0.8, 1.0, d);
+//   wBare = smoothstep(0.86, 1.0, d + (nf.a - 0.5) * 0.25) * (1 - forest) - kahle, ausgedörrte
+//   Stellen mitten im trockenen Gras;
+//   wLush = max(smoothstep(0.8, 0.97, nl.b + (nm.g - 0.5) * 0.3), forest * 0.7);
+//   wTall = smoothstep(0.25, 0.65, tallZone + (nf.b - 0.5) * 0.3) * (1 - forest * 0.6);
+//   wFlower = smoothstep(0.7, 0.8, nm.a) * smoothstep(0.35, 0.65, nl.r) * (1 - forest).
+// - Höhe je Fläche: sBasis = 0.5 + GrassHeight(basis, 0.36) * 0.35;
+//   sDry = wDry + GrassHeight(dry, 0.46) * 0.35 + 0.03;
+//   sLush = wLush + GrassHeight(lush, 0.26) * 0.35 - 0.03;
+//   sTall = wTall + GrassHeight(tall, 0.3) * 0.35 + 0.05;
+//   sFlower = wFlower + GrassHeight(flower, 0.36) * 0.35;
+//   sBare = wBare + GrassHeight(bare, 0.52) * 0.2 - 0.1.
+// - top = das größte der sechs s; jede Fläche trägt mit max(s - (top - 0.05), 0) bei, das
+//   Ergebnis ist der damit gewichtete Mittelwert der sechs Farben. Das schmale Fenster 0.05
+//   lässt an den Grenzen die Halme ineinandergreifen statt weich zu verschwimmen.
+// - Zuletzt mal lerp(float3(0.96, 1.0, 0.94), float3(1.04, 1.03, 0.98), nl.a).
+float3 Meadow(float2 g, float4 nl, float4 nm, float4 nf, float forest, float tallZone)
 {
 	// Grundgras zweimal, gedreht und versetzt, fleckweise gewechselt
 	float3 a = tex2D(GrassSampler, g).rgb;
 	float3 b = tex2D(GrassSampler, float2(-g.y, g.x) * 0.83 + float2(0.43, 0.27)).rgb;
-	float3 basis = lerp(a, b, smoothstep(0.4, 0.6, nm.r)) * float3(0.97, 1.07, 0.9);
-	// Die anderen Sorten je an eigener Stelle, damit sich ihre Muster nicht decken
-	float3 dry = tex2D(DrySampler, g * 0.9 + float2(0.21, 0.62)).rgb * float3(0.74, 0.84, 0.62);
-	float3 lush = tex2D(LushSampler, g * 1.1 + float2(0.71, 0.13)).rgb * 1.3;
+	float3 basis = lerp(a, b, smoothstep(0.4, 0.6, nm.r)) * float3(1.06, 1.23, 1.07);
+	// Die anderen je an eigener Stelle, damit sich ihre Muster nicht decken
+	float3 dry = tex2D(DrySampler, g + float2(0.21, 0.62)).rgb * float3(0.95, 1.1, 1.08);
+	float3 lush = tex2D(LushSampler, g * 1.8 + float2(0.71, 0.13)).rgb * 1.3;
 	float3 flower = tex2D(FlowerSampler, g + float2(0.37, 0.81)).rgb;
-	// Gewichte: trocken selten in großen Flecken, dunkel immer am Wald, Blumen in
-	// Flecken von zwei bis vier Kacheln, nur in einem Teil der Wiesen
-	float wDry = smoothstep(0.8, 1.0, nl.g + (nm.b - 0.5) * 0.3);
-	float wLush = max(smoothstep(0.76, 0.97, nl.b + (nm.g - 0.5) * 0.3), forest * 0.9);
+	float3 tall = tex2D(TallSampler, g * 1.35 + float2(0.53, 0.19)).rgb * float3(1.12, 1.15, 1.05);
+	float3 bare = tex2D(BareSampler, g * 0.9 + float2(0.11, 0.47)).rgb * float3(0.75, 0.76, 0.78);
+	// Gewichte: trocken und kahl in großen Flecken, Kleegras am Wald, hohes Gras dort,
+	// wo das Spiel es sagt, Blumen in Flecken von zwei bis vier Kacheln
+	float d = nl.g + (nm.b - 0.5) * 0.3;
+	float wDry = smoothstep(0.8, 1.0, d);
+	float wBare = smoothstep(0.86, 1.0, d + (nf.a - 0.5) * 0.25) * (1.0 - forest);
+	float wLush = max(smoothstep(0.8, 0.97, nl.b + (nm.g - 0.5) * 0.3), forest * 0.7);
+	float wTall = smoothstep(0.25, 0.65, tallZone + (nf.b - 0.5) * 0.3) * (1.0 - forest * 0.6);
 	float wFlower = smoothstep(0.7, 0.8, nm.a) * smoothstep(0.35, 0.65, nl.r) * (1.0 - forest);
-	// Überblenden nach Halmhöhe: die stärkste Sorte trägt immer bei
-	float sBasis = 0.5 + GrassHeight(basis, 0.35) * 0.35;
-	float sDry = wDry + GrassHeight(dry, 0.45) * 0.35;
-	float sLush = wLush + GrassHeight(lush, 0.25) * 0.35;
-	float sFlower = wFlower + GrassHeight(flower, 0.44) * 0.35;
-	float top = max(max(sBasis, sDry), max(sLush, sFlower));
-	float cBasis = max(sBasis - (top - 0.1), 0.0);
-	float cDry = max(sDry - (top - 0.1), 0.0);
-	float cLush = max(sLush - (top - 0.1), 0.0);
-	float cFlower = max(sFlower - (top - 0.1), 0.0);
-	float3 col = (basis * cBasis + dry * cDry + lush * cLush + flower * cFlower)
-	           / (cBasis + cDry + cLush + cFlower);
+	// Überblenden nach Halmhöhe: die stärkste Fläche trägt immer bei
+	float sBasis = 0.5 + GrassHeight(basis, 0.36) * 0.35;
+	float sDry = wDry + GrassHeight(dry, 0.46) * 0.35 + 0.03;
+	float sLush = wLush + GrassHeight(lush, 0.26) * 0.35 - 0.03;
+	float sTall = wTall + GrassHeight(tall, 0.3) * 0.35 + 0.05;
+	float sFlower = wFlower + GrassHeight(flower, 0.36) * 0.35;
+	float sBare = wBare + GrassHeight(bare, 0.52) * 0.2 - 0.1;
+	float top = max(max(max(sBasis, sDry), max(sLush, sTall)), max(sFlower, sBare));
+	float cBasis = max(sBasis - (top - 0.05), 0.0);
+	float cDry = max(sDry - (top - 0.05), 0.0);
+	float cLush = max(sLush - (top - 0.05), 0.0);
+	float cTall = max(sTall - (top - 0.05), 0.0);
+	float cFlower = max(sFlower - (top - 0.05), 0.0);
+	float cBare = max(sBare - (top - 0.05), 0.0);
+	float3 col = (basis * cBasis + dry * cDry + lush * cLush + tall * cTall
+	              + flower * cFlower + bare * cBare)
+	           / (cBasis + cDry + cLush + cTall + cFlower + cBare);
 	// Leichte Farbschwankung über die Fläche, ohne Flecken
 	return col * lerp(float3(0.96, 1.0, 0.94), float3(1.04, 1.03, 0.98), nl.a);
 }
@@ -320,7 +357,8 @@ float4 MainPS(VertexShaderOutput input) : COLOR
 	// Unter und neben Bäumen wächst sattes Gras im Schatten der Kronen
 	float forest = smoothstep(0.25, 0.75, live.g + (nm.a - 0.5) * 0.4);
 	// Grasbilder mit eigenem, feinerem Maßstab (GrassScale)
-	float3 grass = Meadow(tile * GrassScale, nl, nm, nf, forest);
+	// live.a: wie hoch das Gras auf der Kachel wächst (TallGrassAt), dort stehen die Büschel.
+	float3 grass = Meadow(tile * GrassScale, nl, nm, nf, forest, live.a);
 	// Kronenschatten, schwächer als früher
 	grass = lerp(grass, grass * float3(0.7, 0.74, 0.66), forest * 0.4);
 

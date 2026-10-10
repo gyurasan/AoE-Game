@@ -22,7 +22,10 @@ Ende von `UpdateUnits` entfernt (nicht während der Iteration).
 Abnahme: `tools/ai-pruefung` (6 Prüfungen), `tools/spielablauf
 -- soldaten linksklick` (3 Karten).
 
-Davor: **Bäume, Gras und Leisten** (2026-10-09, T1b, G11, H1) — acht Baumarten mit
+Davor: **Wiese in drei Höhen, Beerenbüsche, Rohstoffsymbole** (2026-10-10, G12, G13, R1) —
+fünf Grassorten von kurzem Kleegras bis hüfthohem Gras plus ausgedörrte Erde, im hohen Gras
+stehende Büschel, in denen Figuren bis zur Hüfte stecken; Beerenbüsche und die vier
+Rohstoffsymbole oben als Bilder. Davor **Bäume, Gras und Leisten** (2026-10-09, T1b, G11, H1) — acht Baumarten mit
 offener Krone, einzeln in der Tiefenschicht und etwas größer; feineres Gras; die Leisten im Stoff
 des Zeitalters. Dazu die **Durchsicht der Tiefenschicht** (T1a). Davor **Schwertschlag und
 Speerstoß** (C4n) — die Miliz holt beim Angriff
@@ -32,7 +35,7 @@ acht Phasen je Doppelschritt, ohne dass die Füße rutschen. Davor **Forschungen
 Stadtzentrum (W), Pferdekummet, Doppelaxt und Goldbergbau in den Lagern (Q), drei Forschungen in
 der Schmiede (Q, W, E), Maurerkunst in der Universität (Q) —, **Soldaten** (P1; committet mit
 `ad2ca62`) und **Gebäude auswählen und angreifen** (2026-10-06, B1, K1, K2). Handel fehlt noch.
-T1a, T1b, G11 und H1 sind uncommittet im Arbeitsbaum; Commit macht der Nutzer.
+G12, G13 und R1 sind uncommittet im Arbeitsbaum; Commit macht der Nutzer.
 
 Alles baut und läuft: `dotnet build AgeOfEvolutions.slnx` (0 Fehler; Warnungen: NU1902/NU1903
 zu SixLabors.ImageSharp, das MonoGame 3.8.6 mitbringt, dazu CS8766 und xUnit2029 in
@@ -43,6 +46,27 @@ mit `4f85314` (2026-10-03). Commits macht der Nutzer selbst.
 
 Zuletzt fertiggestellt:
 
+- **Wiese in drei Höhen, ausgedörrte Stellen, Beerenbüsche, Rohstoffsymbole (2026-10-10)** —
+  Der Nutzer fand das Gras nach G11 zu eintönig, wie frisch gemäht: Gras sei zwischen kurz und
+  hüfthoch (etwa ein Drittel eines Dorfbewohners), drei bis vier Arten wären gut, manche Stellen
+  ausgedörrt kahl; dazu die Beerenbüsche in hoher Qualität und die Rohstoffsymbole oben als
+  Bilder, doppelt so groß. Boden: sechs Flächen per Qwen-Image (1328 px, 50 Schritte, je zwei
+  Seeds): ungemähte Wiese, kurzes Kleegras, hohes Gras, hohes trockenes Gras, Blumenwiese und
+  rissige Erde (`Boden/gras_hoch`, `Boden/erde_trocken` neu); `Meadow` überblendet sie in einem
+  schmalen Fenster nach Halmhöhe, das hohe Gras wächst, wo `TallGrassAt` es sagt (Flecken aus
+  Wertrauschen, nur auf freier Wiese, auf Trampelpfaden niedergetreten; Alphakanal des
+  Lebendbilds). Höhe: im hohen Gras stehen Büschel als eigene Einträge der Tiefenschicht (bis 16
+  je Kachel, 8 Welteinheiten hoch, im Wind; `TuftSpot`, `DrawTuftAt`, `Gras/bueschel_*`), und eine
+  Figur im hohen Gras bekommt drei Büschel vor die Füße (`DrawGrassAroundFeet`) - sie steckt bis
+  zur Hüfte darin. Unter 10 Bildpunkten Büschelhöhe nur die Textur. Gemessen (Release, 3008 x 1692):
+  60 Bilder je Sekunde, `DrawUnits` 4,3 ms bei Zoom 1,5 statt 0,6 ms ohne Büschel. Beerenbüsche:
+  Beerenstrauch, Johannisbeere, Brombeere (`Nahrung/beerenbusch*`, `DrawBerryBush`), stehend in der
+  Tiefenschicht statt der gezeichneten Kachel. Rohstoffsymbole: Keule mit Brot und Beeren, Holzstapel,
+  Goldhaufen, Steinhaufen (`Icons/rohstoff_*`, `ResourceIcons`, 26 statt 12 px). Code vom lokalen
+  Modell: R1 im ersten Lauf, G12 im zweiten (zwei Typen namens `Tile`; die Startprobe brach einmal
+  ohne Fehler ab, die Fassung lief danach zweimal 10 s), G13 im dritten (falscher Listenname,
+  überzähliges Argument); die Läufe in einer Spiegelkopie, weil das Spiel aus Rider die Exe
+  sperrte. Abnahme `g12_wiese.py`, `g13_bueschel.py`, `r1_rohstoffe.py` *(G12, G13, R1)*
 - **Bäume mit offener Krone, feineres Gras, Leisten je Zeitalter (2026-10-09)** — Wunsch des
   Nutzers: die Bäume in hoher Qualität neu, so offen wie die Tannen, damit sie nicht alles
   dahinter verdecken, und etwas größer; das Gras feiner und im Verhältnis zu den Bäumen kleiner;
@@ -933,6 +957,7 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
 - [x] Leisten im Stoff des Zeitalters: rohe Holzbohlen, Eichenbohlen, Quadermauer, grüner
       Marmor mit Goldkante (`PanelAssets`, `DrawPanel`); dunkles Feld hinter dem Hilfetext
       *(Agent H1)*
+- [x] Rohstoffsymbole oben als Bilder, doppelt so groß (`ResourceIcons`) *(Agent R1)*
 - [ ] Minimap: kleine Karte rechts unten in der Kommandoleiste, in derselben Ansicht wie
       die Spielkarte (zurzeit Draufsicht, Norden oben; Entscheidung 2026-10-03, statt
       der Raute aus dem AoE-II-HUD) — Farben nach dem Referenzbild `docs/overview.jpg`:
@@ -1039,6 +1064,11 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
       (`TreeAssets`, `TreeSpot`, `DrawTree`) *(Agent T1a, T1b)*
 - [x] Gras feiner: vier neue Sorten mit feinen Halmen, im Shader mit eigenem Maßstab
       (`GRASS_TEXELS`, `GrassScale`) *(Agent G11)*
+- [x] Wiese in drei Höhen: kurzes Kleegras, ungemähte Wiese, hohes und hohes trockenes Gras,
+      Blumen und ausgedörrte Erde (`Meadow`, `TallGrassAt`); im hohen Gras stehende Büschel, in
+      denen Figuren bis zur Hüfte stecken (`DrawGrassTuft`, `DrawGrassAroundFeet`) *(Agent G12, G13)*
+- [x] Beerenbüsche als Sprites in drei Arten statt der gezeichneten Kachel (`DrawBerryBush`)
+      *(Agent G13)*
 
 ### C10 · Kamera [R]
 

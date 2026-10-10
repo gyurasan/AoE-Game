@@ -4739,5 +4739,44 @@
     "prompt": "A single clump of tall meadow grass with green and dry yellow blades mixed, arching outward, with a few tiny white and yellow wildflowers among the blades."
    }
   ]
+ },
+ "rohstoff_icons": {
+  "groesse": [
+   1024,
+   1024
+  ],
+  "schritte": 50,
+  "cfg": 3.0,
+  "freistellen": true,
+  "zuschneiden": true,
+  "zielbreite": 96,
+  "stil": "Game user interface resource icon for a medieval strategy game, detailed 16-bit pixel art, crisp pixels, bold readable silhouette, rich warm colors, soft light from the upper left, one single object centered and filling most of the image, three-quarter view, isolated on a plain white background, no shadow on the background, no text.",
+  "negativ": "text, letters, numbers, words, watermark, logo, frame, border, circle badge, multiple objects, cluttered, blurry, photo, 3d render, black background, dark background",
+  "bilder": [
+   {
+    "name": "nahrung",
+    "seed": 9001,
+    "ziel": "Icons/rohstoff_nahrung.png",
+    "prompt": "A food resource icon: a roasted ham leg next to a small bunch of red berries and a loaf of bread."
+   },
+   {
+    "name": "holz",
+    "seed": 9013,
+    "ziel": "Icons/rohstoff_holz.png",
+    "prompt": "A wood resource icon: a small stack of three cut brown logs with visible tree rings on the ends."
+   },
+   {
+    "name": "gold",
+    "seed": 9021,
+    "ziel": "Icons/rohstoff_gold.png",
+    "prompt": "A gold resource icon: a small heap of shiny gold nuggets and a few gold coins."
+   },
+   {
+    "name": "stein",
+    "seed": 9031,
+    "ziel": "Icons/rohstoff_stein.png",
+    "prompt": "A stone resource icon: a small pile of grey cut stone blocks and rough rocks."
+   }
+  ]
  }
 }
