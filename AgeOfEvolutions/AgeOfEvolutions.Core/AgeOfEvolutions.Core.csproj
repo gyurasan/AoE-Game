@@ -15,8 +15,15 @@
     <!-- Kompilier-Zeittypen: Microsoft.Xna.Framework.* (u.a. SoundEffect aus
          Microsoft.Xna.Framework.Audio) steckt NICHT im Native-Paket, sondern
          im Plattform-/Managed-Paket. Ohne diese Referenz bricht Rider beim
-         isolierten Kompilieren dieses Projekts über "SoundEffect nicht gefunden". -->
-    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.*" />
+         isolierten Kompilieren dieses Projekts über "SoundEffect nicht gefunden".
+         ExcludeAssets=runtime;content: NUR Compile-Referenz, die Assembly wird
+         NICHT in die App-Outputs kopiert — sonst landet die DesktopGL-MonoGame
+         auch im WindowsDX-Publish (Assembly-Konflikt MonoGame.Framework.dll) und
+         die DirectX-Version bricht über "effect built for a different platform". -->
+    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.*">
+      <PrivateAssets>all</PrivateAssets>
+      <ExcludeAssets>runtime;content</ExcludeAssets>
+    </PackageReference>
   </ItemGroup>
 
   <ItemGroup>
