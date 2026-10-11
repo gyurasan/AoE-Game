@@ -124,7 +124,12 @@ public sealed class AiBridge : IWorldState, IWorldActions
             var grid = _screen.tileMap.WorldToGrid(u.Position);
             int x = (int)grid.X, y = (int)grid.Y;
             if (!_screen.tileMap.IsTileVisible(x, y, Owner)) continue;
-            visible.Add(new EnemyInfo(x, y, IsBuilding: false, Health: u.Health));
+            // IsAttackingUs: die feindliche Einheit greift gerade etwas des
+            // Owners an — ihr Gebäude- oder Einheiten-Ziel gehört dem Owner.
+            // Damit erkennt die KI einen Angriff auch fern vom Stadtzentrum.
+            bool attackingUs = (u.AttackTarget is { } at && at.OwnerId == Owner)
+                             || (u.UnitTarget is { } ut && ut.OwnerId == Owner);
+            visible.Add(new EnemyInfo(x, y, IsBuilding: false, Health: u.Health, IsAttackingUs: attackingUs));
         }
         foreach (var b in _screen.tileMap.Buildings)
         {

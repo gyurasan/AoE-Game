@@ -108,8 +108,11 @@ public interface IWorldState
 /// <summary>Ein sichtbarer Feind aus Sicht der KI: Kachelkoordinaten,
 /// ob es ein Gebäude ist, sein aktueller Zustand und — bei Gebäuden —
 /// ob es ein Dorfzentrum ist (das primäre Raubziel, siehe
-/// <see cref="EconomyAi"/>).</summary>
-public readonly record struct EnemyInfo(int X, int Y, bool IsBuilding, int Health, bool IsTownCenter = false);
+/// <see cref="EconomyAi"/>). <see cref="IsAttackingUs"/>: die feindliche
+/// Einheit greift gerade eine eigene Einheit oder ein eigenes Gebäude an —
+/// egal wie weit vom Stadtzentrum.</summary>
+public readonly record struct EnemyInfo(int X, int Y, bool IsBuilding, int Health, bool IsTownCenter = false,
+                                        bool IsAttackingUs = false);
 
 /// <summary>Der vierstellige Ressourcenvektor (Nahrung, Holz, Gold, Stein).</summary>
 public readonly record struct ResourceVector(int Food, int Wood, int Gold, int Stone)

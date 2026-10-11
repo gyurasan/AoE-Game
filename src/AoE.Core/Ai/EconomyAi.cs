@@ -55,9 +55,11 @@ public sealed class EconomyAi : IAi
     /// steigt (4 = 2× eines Arbeiters laut AoE-II-Regel).</summary>
     public const int MaxWorkersPerSite = 4;
 
-    /// <summary>Warteschlangenlänge, bei der die KI aufhört auszubilden; 12
-    /// gibt einen Sicherheitsaufschlag unter <c>TrainingQueue.MAX_LENGTH</c> (15).</summary>
-    public const int MaxQueue = 12;
+    /// <summary>Warteschlangenlänge, bei der die KI aufhört auszubilden.
+    /// Bewusst klein (2 statt 12): jeder Platz in der Schlange bindet seine
+    /// Nahrung (25 pro Kopf) schon beim Einreihen — eine lange Schlange
+    /// frisst die Nahrung auf, die Miliz (60) und Aufstieg (500) brauchen.</summary>
+    public const int MaxQueue = 2;
 
     /// <summary>Radius für die Quellensuche (Kacheln).</summary>
     public const int SourceSearchRadius = 16;
@@ -68,8 +70,12 @@ public sealed class EconomyAi : IAi
     /// gibt es nur 4 Kacheln zwischen (60,60)…(63,63); mit Radius 12
     /// bleibt genug Spielraum, eine 3×3-Kaserne (Barracks, 175 Holz)
     /// an ein nicht-Blockiertes Feld zu setzen, selbst wenn das Dorf
-    /// an der Kartenkante sitzt.</summary>
-    public const int BuildSpotRadius = 12;
+    /// an der Kartenkante sitzt.
+    /// 20 statt 12: seit dem Abstand von einer Kachel zu jedem eigenen
+    /// Gebäude (<see cref="TryBuildNear"/>) war der Umkreis 12 in der
+    /// Kartenecke nach wenigen Häusern voll; gesucht wird weiter von innen
+    /// nach außen.</summary>
+    public const int BuildSpotRadius = 20;
 
     /// <summary>Radius (Kacheln), bis zu dem die KI eine Ressource als
     /// Verankerungspunkt fürs passende Lagergebäude akzeptiert. Darin baut die
@@ -119,8 +125,10 @@ public sealed class EconomyAi : IAi
     // Prozentmodelle). Dieselbe Kurve wie im Original: früh viel Nahrung
     // und Holz; ab der Feudalzeit Gold dazu; Stein wächst mit.
     // ---------------------------------------------------------------------
+    // Gold schon in der Dunklen Zeit: die Miliz kostet 20 Gold, und ohne
+    // Goldsammler bleibt die Kaserne ein leeres Gebäude.
     private static readonly Dictionary<Resource, double> W_DARK = new()
-    { [Resource.Food] = 60, [Resource.Wood] = 40 };
+    { [Resource.Food] = 50, [Resource.Wood] = 35, [Resource.Gold] = 15 };
     private static readonly Dictionary<Resource, double> W_FEUDAL = new()
     { [Resource.Food] = 40, [Resource.Wood] = 30, [Resource.Gold] = 20, [Resource.Stone] = 10 };
     private static readonly Dictionary<Resource, double> W_CASTLE = new()
@@ -163,16 +171,22 @@ public sealed class EconomyAi : IAi
     /// zieht er mit zum Angriff.</summary>
     private int? _scoutId;
 
+    /// <summary>Die Kachel, die der Scout gerade erkunden soll, oder null (K8).</summary>
+    private (int X, int Y)? _scoutTarget;
+
+    /// <summary>Ziele, die der Scout nicht erreicht hat: er stand untätig, und sie lagen noch
+    /// im Nebel (K8). Bei der Wahl des nächsten Ziels scheiden sie aus.</summary>
+    private readonly HashSet<(int X, int Y)> _scoutUnreachable = new();
+
     public void Tick(IWorldState state, IWorldActions actions, float dt, AiContext ctx)
     {
         ctx.Advance(dt);
 
         // 0) Scout: der Erkunder ist der einzige Dorfbewohner, den die KI
         //    für die Erkundung „fest einplant". Er sitzt nicht im FreeWorkers-
-        //    Pool (sonst stiehlt ihn Sammeln/Bauen), fährt stattdessen
-        //    dauerhaft Richtung Kartenmitte — dorthin, wo der Gegner ist.
-        //    Solange <c>VisibleEnemies</c> leer ist, wird er nie zu etwas
-        //    anderem abkommandiert. Ist ein Feind sichtbar, zieht er mit.
+        //    Pool (sonst stiehlt ihn Sammeln/Bauen) und erkundet stattdessen
+        //    die nächste Kachel im Nebel - wo der Gegner steht, weiß die KI
+        //    nicht (K8). Sieht sie ein feindliches Gebäude, hält er an.
         RunScout(state, actions, ctx);
 
         var workers = FreeWorkers(state, _scoutId);
@@ -248,13 +262,35 @@ public sealed class EconomyAi : IAi
         //    25 pro Kopf); sie baut, wenn die Bank unter 200 sinkt. Gleiche
         //    Regel wie Haus: höchstens eine offene Baustelle, sonst mehrere
         //    Farmen, sooft die Nahrung knapp wird.
+        //
+        // Die Schwelle für ein neues Feld ist das Maximum aus FarmMinimumFood
+        // und — solange nicht die Imperialzeit erreicht ist — den Nahrungskosten
+        // des nächsten Zeitalters plus 100: die Nahrung muss für den Aufstieg
+        // mit Reserve ankommen, sonst friert die Wirtschaft ein, während
+        // Beeren und Wild vergriffen sind.
+        //
+        // Und: sammelt kein Dorfbewohner Nahrung, darf die Farm einen Bauern
+        // aus dem Sammelpool ziehen (allowPool: true) — ohne Nahrungssammler
+        // gäbe es nie wieder Nahrung und damit keinen neuen Dorfbewohner.
+        // Solange jemand Nahrung sammelt, bleibt es bei freien Arbeitern
+        // (allowPool: false), damit die Ernte nicht unterbrochen wird.
         bool farmPending = state.Buildings.Any(b => b.Type == BuildingType.Farm
                                                     && !b.IsComplete);
+        int farmThreshold = FarmMinimumFood;
+        if (state.Age < Age.Imperial)
+        {
+            var nextCost = AgeRules.CostOf((Age)((int)state.Age + 1));
+            if (nextCost.TryGetValue(Resource.Food, out int nextFood))
+                farmThreshold = Math.Max(farmThreshold, nextFood + 100);
+        }
+        bool anyFoodGatherer = state.Units.Any(u => u.Kind == UnitKind.Villager
+                                                    && u.Gathering is { Resource: Resource.Food });
         if (!farmPending
-            && state.Resources.Food < FarmMinimumFood
+            && state.Resources.Food < farmThreshold
             && state.Resources.Wood >= 60)
         {
-            TryBuildNear(state, actions, workers, BuildingType.Farm, workersFor: 1, allowPool: false, anchor: null);
+            TryBuildNear(state, actions, workers, BuildingType.Farm, workersFor: 1,
+                         allowPool: !anyFoodGatherer, anchor: null);
         }
 
         // 3. Lagerräume — direkt an die Quelle, nicht am Stadtzentrum.
@@ -317,13 +353,25 @@ public sealed class EconomyAi : IAi
     /// <summary>
     /// Der anhaltende Erkundungs-Scout: die KI plant genau einen
     /// Dorfbewohner als fahrenden Erkunder ein. Er sitzt nicht im
-    /// FreeWorkers-Pool (sonst würde ihn Sammeln/Bauen abziehen).
-    /// Jedes Takt fährt er zur gegenüberliegenden Karteck — der
-    /// voraussichtlichen Basis-Position des Gegners. Der Weg wird nur
-    /// über bekannte Kacheln geplant (FindPathKnown), jeder Schritt durch
-    /// den Nebel deckt eine neue Kachel auf (Explored). Der Scout steht
-    /// dort, bis der Gegner sichtbar ist — dann hält er dort, damit die
-    /// eigenen Soldaten (Raid) die Basis angreifen können.
+    /// FreeWorkers-Pool (sonst würde ihn Sammeln/Bauen abziehen). Der Weg
+    /// wird nur über bekannte Kacheln geplant (FindPathKnown), jeder Schritt
+    /// durch den Nebel deckt neue Kacheln auf (Explored).
+    /// VERTRAG ab der Prüfung, ob der Scout noch lebt (K8, Nutzer 2026-10-11: "Aktuell scheint
+    /// der Gegner zu wissen, wo ich bin, das darf so nicht sein") - die KI kennt die Lage des
+    /// Gegners nicht und leitet sie auch nicht aus der Kartenform ab; bis K8 fuhr der Scout
+    /// geradewegs in die gegenüberliegende Ecke, wohin der Kartengenerator das andere
+    /// Stadtzentrum setzt:
+    /// - Lebt der Scout nicht mehr, sind _scoutId und _scoutTarget null, und im nächsten Takt
+    ///   wird ein neuer bestimmt.
+    /// - Sieht die KI ein feindliches Gebäude (VisibleEnemies, IsBuilding), hält der Scout an,
+    ///   wo er ist (kein Befehl) - die Soldaten übernehmen (Raid).
+    /// - Hat er ein Ziel (_scoutTarget), das noch im Nebel liegt (state.IsExplored false), und
+    ///   steht er nicht Idle, ist er unterwegs: kein Befehl.
+    /// - Steht er Idle, obwohl sein Ziel noch im Nebel liegt, kommt er nicht hin: das Ziel kommt
+    ///   in _scoutUnreachable.
+    /// - Sonst (kein Ziel, Ziel erkundet oder unerreichbar) wählt er ein neues:
+    ///   _scoutTarget = NextScoutTarget(state, scout); ist es nicht null,
+    ///   actions.Move(scout.Id, X, Y). Ist es null, ist alles erkundet: kein Befehl.
     /// </summary>
     private void RunScout(IWorldState state, IWorldActions actions, AiContext ctx)
     {
@@ -355,58 +403,107 @@ public sealed class EconomyAi : IAi
         // Scout existiert noch?
         var scout = state.Units.FirstOrDefault(u => u.Id == _scoutId
                                                     && u.State != UnitStateKind.Dead);
-        if (scout is null) { _scoutId = null; return; }
-
-        // Ziel: die gegenüberliegende Karteck — die voraussichtliche
-        // Basis-Position des Gegners. Die KI fährt immer dorthin, bis
-        // der Scout in Sichtweite der gegnerischen Gebäude steht.
-        int mid = Math.Min(state.Width, state.Height);
-        int baseX = tc.X + tc.Width / 2;
-        int baseY = tc.Y + tc.Height / 2;
-        bool xLow = baseX < mid / 2;
-        bool yLow = baseY < mid / 2;
-        (int X, int Y) dst = (
-            xLow ? state.Width - 3 : 3,
-            yLow ? state.Height - 3 : 3);
-
-        // Ist der Gegner (ein Gebäude) sichtbar? Dann ist die Erkundung
-        // fast vollständig — der Scout hält in der Nähe und die KI kann
-        // mit den Soldaten angreifen.
-        bool enemyVisible = state.VisibleEnemies().Any(e => e.IsBuilding);
-        int dist = Math.Max(Math.Abs(dst.X - scout.X), Math.Abs(dst.Y - scout.Y));
-
-        if (enemyVisible && dist <= 8)
+        if (scout is null)
         {
-            // Der Scout ist in Reichweite der gegnerischen Basis —
-            // er hält hier. Die Soldaten übernehmen ab hier.
+            // Der Scout ist tot: Ziel und Id vergessen, im nächsten Takt
+            // wird ein neuer bestimmt.
+            _scoutId = null;
+            _scoutTarget = null;
             return;
         }
 
-        if (dist <= 1)
-        {
-            // Am Ziel, aber noch kein Feindgebäude sichtbar — noch bleiben.
+        // Sieht die KI ein feindliches Gebäude, hält der Scout an, wo er
+        // ist — die Soldaten übernehmen ab hier (Raid).
+        if (state.VisibleEnemies().Any(e => e.IsBuilding))
             return;
+
+        // Hat er ein Ziel, das noch im Nebel liegt, und steht er nicht
+        // untätig, ist er unterwegs: kein Befehl.
+        if (_scoutTarget is { } target
+            && !state.IsExplored(target.X, target.Y)
+            && scout.State != UnitStateKind.Idle)
+            return;
+
+        // Steht er untätig, obwohl sein Ziel noch im Nebel liegt, kommt er
+        // nicht hin: das Ziel kommt in die Liste der unerreichbaren.
+        if (_scoutTarget is { } stuck
+            && !state.IsExplored(stuck.X, stuck.Y)
+            && scout.State == UnitStateKind.Idle)
+        {
+            _scoutUnreachable.Add(stuck);
+            _scoutTarget = null;
         }
 
-        actions.Move(scout.Id, dst.X, dst.Y);
+        // Sonst (kein Ziel, Ziel erkundet oder unerreichbar) wählt er ein
+        // neues: die nächste Kachel im Nebel — die Lage des Gegners spielt
+        // keine Rolle. Gibt es keine, ist alles erkundet: kein Befehl.
+        _scoutTarget = NextScoutTarget(state, scout);
+        if (_scoutTarget is { } next)
+            actions.Move(scout.Id, next.X, next.Y);
+    }
+
+    /// <summary>
+    /// Das nächste Erkundungsziel des Scouts (K8).
+    /// VERTRAG: unter allen Kacheln der Karte (x von 0 bis state.Width - 1, y von 0 bis
+    /// state.Height - 1), die noch im Nebel liegen (state.IsExplored false) und nicht in
+    /// _scoutUnreachable stehen, die dem Scout am nächsten: kleinstes
+    /// (x - scout.X)² + (y - scout.Y)², bei Gleichstand die mit dem kleineren y, dann dem
+    /// kleineren x. Null, wenn es keine gibt. Die Lage des Gegners spielt keine Rolle - so
+    /// erkundet der Scout vom Dorf aus nach außen.
+    /// </summary>
+    private (int X, int Y)? NextScoutTarget(IWorldState state, UnitSnapshot scout)
+    {
+        (int X, int Y)? best = null;
+        long bestDist = long.MaxValue;
+        // Alle Kacheln der Karte durchgehen: äußere Schleife über y, innere
+        // über x. Nur ein echt kleinerer Abstand ersetzt das bisher Beste —
+        // bei Gleichstand bleibt die zuerst gefundene Kachel (kleineres y,
+        // dann kleineres x).
+        for (int y = 0; y < state.Height; y++)
+        {
+            for (int x = 0; x < state.Width; x++)
+            {
+                if (state.IsExplored(x, y)) continue;          // nur Nebel
+                if (_scoutUnreachable.Contains((x, y))) continue; // schon gescheitert
+                long dx = x - scout.X;
+                long dy = y - scout.Y;
+                long dist = dx * dx + dy * dy;
+                if (dist < bestDist)
+                {
+                    bestDist = dist;
+                    best = (x, y);
+                }
+            }
+        }
+        return best;
     }
 
     /// <summary>
     /// Angriff in Wellen (statt Einzeln-hinrennen):
     /// <list type="bullet">
-    ///   <item><b>Dorfverteidigung:</b> steht ein Feind in
+    ///   <item><b>Dorfverteidigung:</b> stehen Eindringlinge (feindliche
+    ///         Einheiten, sonst Gebäude) in
     ///         <see cref="AiProfile.HomeDefenseRadius"/> um das eigene
-    ///         Stadtzentrum, schlägt die KI zurück — sofort, ohne
-    ///         Mindestgröße und ohne Cooldown. Das Dorf darf nicht brennen,
-    ///         während die Truppe auf die Mindestgröße wartet.</item>
+    ///         Stadtzentrum, greifen ALLE Soldaten den der Mitte am nächsten
+    ///         stehenden an — sofort, ohne Heimwache, ohne Mindestgröße und
+    ///         ohne Cooldown, und nie ein Ziel außerhalb des Umkreises. Das
+    ///         Dorf darf nicht brennen, während die Truppe auf die
+    ///         Mindestgröße wartet.</item>
     ///   <item><b>Angriffswelle:</b> ist der Feind in der Fremde, zieht die
     ///         Truppe erst los, wenn <see cref="AiProfile.RaidMinSoldiers"/>
     ///         Soldaten bereit sind UND der Cooldown abgelaufen ist.
     ///         <see cref="AiProfile.HomeGuard"/> Einheiten bleiben als
     ///         Heimwache, die nächste Welle sammelt sich währenddessen neu.</item>
     /// </list>
-    /// <b>Einheiten</b> sind die primären Ziele (die gegnerische Armee),
-    /// <b>Gebäude</b> der Fallback, wenn nur Bauwerke sichtbar sind.
+    /// VERTRAG Ziel der Angriffswelle (K9, Nutzer 2026-10-11: "eventuell sollte der Gegner
+    /// nicht direkt das Dorfzentrum angreifen, sondern das erste Gebäude, das er sieht"): das
+    /// sichtbare feindliche Gebäude (IsBuilding), das der Truppe am nächsten steht -
+    /// Chebyshev-Abstand zu soldiers[soldiers.Count / 2], bei Gleichstand das erste in
+    /// visible -, ohne Vorrang für das Stadtzentrum (IsTownCenter spielt keine Rolle). Nur wenn
+    /// kein Gebäude sichtbar ist, die nächste sichtbare Einheit, ebenso gemessen. Bis K9 ging
+    /// die Welle geradewegs auf ein sichtbares Stadtzentrum - und ohne eins auf (0, 0), weil
+    /// FirstOrDefault auf dem Struct EnemyInfo default statt null liefert: in die Ecke, wo das
+    /// Stadtzentrum des Spielers steht.
     /// </summary>
     private void Raid(IWorldState state, IWorldActions actions, AiContext ctx)
     {
@@ -414,60 +511,77 @@ public sealed class EconomyAi : IAi
         if (visible.Count == 0) return;
 
         // Soldaten ohne laufenden Auftrag; wer schon sammelt oder baut, bleibt.
+        // Wer schon kämpft (HasAttack) bleibt außen vor: die KI befiehlt alle
+        // 0,5 s neu, und jeder Befehl setzt den Schlagtakt (2 s Nachladezeit)
+        // zurück — so würde ein Soldat nie treffen.
         var soldiers = state.Units
             .Where(u => u.Kind != UnitKind.Villager
                         && u.State != UnitStateKind.Dead
                         && u.Gathering is null
-                        && u.BuildingId is null)
+                        && u.BuildingId is null
+                        && !u.HasAttack)
             .ToList();
         if (soldiers.Count == 0) return;
 
-        // Dorfzentrums-Priorität: das TC ist DAS Raubziel — es kostet 500,
-        // es ist das Gebäude, das die Gegner-KI am schnellsten zerstören
-        // muss, und es ist als Startgebäude immer am besten sichtbar.
-        // Fehlt ein sichtbares TC, nimmt die KI das nächste sichtbare
-        // Ziel (Chebyshev) aus Sicht der Truppenmittels.
-        var enemyTc = visible.FirstOrDefault(e => e.IsTownCenter);
-        EnemyInfo target;
-        if (enemyTc is { } tcInfo)
-        {
-            target = tcInfo;
-        }
-        else
-        {
-            // Einheiten zuerst (die Armee), dann Gebäude als Fallback.
-            var primary = visible.Where(e => !e.IsBuilding).ToList();
-            if (primary.Count == 0)
-                primary = visible.Where(e => e.IsBuilding).ToList();
-            if (primary.Count == 0) return;
-
-            var basePos = soldiers[soldiers.Count / 2];
-            target = primary[0];
-            int bestDist = int.MaxValue;
-            foreach (var e in primary)
-            {
-                int d = Math.Max(Math.Abs(e.X - basePos.X), Math.Abs(e.Y - basePos.Y));
-                if (d < bestDist) { bestDist = d; target = e; }
-            }
-        }
-
-        // Dorfverteidigung: Feind im Umkreis des TC → sofort zurückschlagen,
-        // ohne Mindestgröße und ohne Cooldown (das Dorf geht vor der Welle).
+        // Dorfverteidigung: Eindringlinge im Umkreis des eigenen Stadtzentrums
+        // (Profile.HomeDefenseRadius, Chebyshev) — zuerst feindliche Einheiten,
+        // sonst die Gebäude in diesem Umkreis. Gibt es welche, greifen ALLE
+        // Soldaten den der Mitte am nächsten stehenden an — ohne Heimwache und
+        // nie ein Ziel außerhalb des Umkreises. Das Dorf geht vor der Welle.
         var tc = state.TownCenter;
         if (tc is not null)
         {
             int cx = tc.X + tc.Width / 2, cy = tc.Y + tc.Height / 2;
-            bool nearHome = visible.Any(e =>
-                Math.Max(Math.Abs(e.X - cx), Math.Abs(e.Y - cy)) <= Profile.HomeDefenseRadius);
-            if (nearHome)
+            var intruders = visible
+                .Where(e => !e.IsBuilding
+                    && Math.Max(Math.Abs(e.X - cx), Math.Abs(e.Y - cy)) <= Profile.HomeDefenseRadius)
+                .ToList();
+            if (intruders.Count == 0)
+                intruders = visible.Where(e => e.IsBuilding
+                    && Math.Max(Math.Abs(e.X - cx), Math.Abs(e.Y - cy)) <= Profile.HomeDefenseRadius)
+                    .ToList();
+            if (intruders.Count > 0)
             {
-                int guard = Math.Min(soldiers.Count - 1, Profile.HomeGuard);
-                for (int i = 0; i < soldiers.Count - guard; i++)
-                    actions.Attack(soldiers[i].Id, target.X, target.Y);
+                EnemyInfo nearest = intruders[0];
+                int bestDist = int.MaxValue;
+                foreach (var e in intruders)
+                {
+                    int d = Math.Max(Math.Abs(e.X - cx), Math.Abs(e.Y - cy));
+                    if (d < bestDist) { bestDist = d; nearest = e; }
+                }
+                foreach (var s in soldiers)
+                    actions.Attack(s.Id, nearest.X, nearest.Y);
                 _lastRaidTime = ctx.Time;   // Welle neu zählt
                 return;
             }
         }
+
+        // Ziel der Angriffswelle (K9): das sichtbare feindliche Gebäude
+        // (IsBuilding), das der Truppe am nächsten steht — Chebyshev-Abstand
+        // zu soldiers[soldiers.Count / 2], bei Gleichstand das erste in
+        // visible. Ohne Vorrang für das Stadtzentrum (IsTownCenter spielt
+        // keine Rolle). Nur wenn kein Gebäude sichtbar ist, die nächste
+        // sichtbare Einheit, ebenso gemessen.
+        EnemyInfo? found = null;
+        int raidBestDist = int.MaxValue;
+        var raidBase = soldiers[soldiers.Count / 2];
+        foreach (var e in visible)
+        {
+            if (!e.IsBuilding) continue;
+            int d = Math.Max(Math.Abs(e.X - raidBase.X), Math.Abs(e.Y - raidBase.Y));
+            if (d < raidBestDist) { raidBestDist = d; found = e; }
+        }
+        if (found is null)
+        {
+            raidBestDist = int.MaxValue;
+            foreach (var e in visible)
+            {
+                if (e.IsBuilding) continue;
+                int d = Math.Max(Math.Abs(e.X - raidBase.X), Math.Abs(e.Y - raidBase.Y));
+                if (d < raidBestDist) { raidBestDist = d; found = e; }
+            }
+        }
+        if (found is not { } target) return;
 
         // Angriffswelle in der Fremde: Cooldown und Mindestgröße.
         if (ctx.Time - _lastRaidTime < Profile.RaidCooldownSeconds) return;
@@ -537,6 +651,11 @@ public sealed class EconomyAi : IAi
     ///      kassiert (Einheit oder Gebäude) und es ist ein sichtbarer
     ///      Feind in Reichweite.
     ///
+    /// Vor beiden gilt: greift ein sichtbarer feindlicher Soldat (kein
+    /// Gebäude) gerade etwas des Owners an (IsAttackingUs), ist die
+    /// Siedlung bedroht — egal wie weit er vom Stadtzentrum entfernt
+    /// steht; der nächstgelegene davon wird als Bedrohung gemeldet.
+    ///
     /// <paramref name="threat"/> ist dann der sichtbare Feind, der
     /// zum Schaden kam; die Methode liefert true.
     ///
@@ -552,6 +671,24 @@ public sealed class EconomyAi : IAi
         int cx, cy;
         if (state.TownCenter is { } tc) { cx = tc.X + tc.Width / 2; cy = tc.Y + tc.Height / 2; }
         else { var u0 = state.Units.FirstOrDefault(); cx = u0.X; cy = u0.Y; }
+
+        // Vor allen anderen Bedingungen: ein sichtbarer feindlicher Soldat
+        // (kein Gebäude), der gerade etwas des Owners angreift (IsAttackingUs),
+        // macht die Siedlung bedroht — egal wie weit er vom Stadtzentrum
+        // entfernt steht (z. B. ein Haus oder Lager weiter draußen).
+        EnemyInfo? attacker = null;
+        int attackerDist = int.MaxValue;
+        foreach (var e in enemies)
+        {
+            if (e.IsBuilding || !e.IsAttackingUs) continue;
+            int d = Math.Max(Math.Abs(e.X - cx), Math.Abs(e.Y - cy));
+            if (d < attackerDist) { attackerDist = d; attacker = e; }
+        }
+        if (attacker is { } a)
+        {
+            threat = a;
+            return true;
+        }
 
         EnemyInfo closest = enemies[0];
         int closestDist = int.MaxValue;
@@ -599,8 +736,15 @@ public sealed class EconomyAi : IAi
         ctx.Log?.Invoke($"VERTEIDIGUNG: Feind bei ({threat.X},{threat.Y}) — "
             + (threat.IsBuilding ? "Gebäude" : "Einheit") + " zurückschlagen");
 
+        // Soldaten (kein Dorfbewohner) kommen in jedem Zustand außer Dead mit —
+        // auch wenn sie gerade laufen (Moving): sie sind die eigentliche
+        // Gegenwehr. Dorfbewohner wie bisher nur, wenn sie Idle sind. Für alle
+        // gilt: nicht sammeln, nicht bauen und nicht schon im Kampf
+        // (HasAttack) — ein neuer Befehl würde den Schlagtakt (2 s) zurücksetzen
+        // und den laufenden Angriff zerschlagen.
         var free = state.Units.Where(u =>
-            u.State == UnitStateKind.Idle
+            u.State != UnitStateKind.Dead
+            && (u.Kind != UnitKind.Villager || u.State == UnitStateKind.Idle)
             && u.Gathering is null
             && u.BuildingId is null
             && !u.HasAttack).ToList();
@@ -698,6 +842,16 @@ public sealed class EconomyAi : IAi
                     if (!state.IsExplored(x, y)) continue;
                     if (!state.CanPlace(type, x, y, size)) continue;
 
+                    // Eine Kachel Abstand zu jedem eigenen Gebäude (auch
+                    // Baustellen): die Grundfläche um eine Kachel vergrößert
+                    // darf kein eigenes Gebäude berühren — sonst mauern Haus
+                    // und Kaserne das Stadtzentrum ein, und die Sammler mit
+                    // voller Last finden keinen Weg zur Abgabestelle.
+                    bool tooClose = state.Buildings.Any(b =>
+                        x - 1 < b.X + b.Width && x + size + 1 > b.X
+                        && y - 1 < b.Y + b.Height && y + size + 1 > b.Y);
+                    if (tooClose) continue;
+
                     // Arbeiter: zuerst die freien (in workers), dann — falls
                     // nicht genug und erlaubt — sammelnde aus dem Pool.
                     int n = workersFor;
@@ -792,6 +946,17 @@ public sealed class EconomyAi : IAi
         var assigned = new Dictionary<Resource, int>();
         foreach (var r in order) assigned[r] = 0;
 
+        // Jeder Dorfbewohner, der schon sammelt, zählt bei der Ressource
+        // seines Gathering mit — sonst zählte nur, wer in diesem Takt neu
+        // zugeteilt wurde: bei einem einzelnen freien Arbeiter hatte jede
+        // Ressource die Quote 0, und Nahrung (Vorrang) gewann immer.
+        foreach (var u in state.Units)
+        {
+            if (u.Kind != UnitKind.Villager || u.Gathering is null) continue;
+            if (assigned.TryGetValue(u.Gathering.Value.Resource, out int n))
+                assigned[u.Gathering.Value.Resource] = n + 1;
+        }
+
         while (workers.Count > 0)
         {
             // Für jeden freien Arbeiter die günstigste Option suchen
@@ -850,9 +1015,11 @@ public sealed class EconomyAi : IAi
     /// eigenen Armee (Kaserne fertig, 0 Soldaten, food 15).
     /// <list type="number">
     ///   <item>Kaserne steht (militärische Basis vorhanden);</item>
-    ///   <item>die Soll-Armee (<see cref="AiProfile.SoldierTarget"/>) ist
-    ///         ausgebildet (Verluste müssen kompensiert sein, bevor der
-    ///         Aufstieg beginnt);</item>
+    ///   <item>mindestens <see cref="AiProfile.RaidMinSoldiers"/> Soldaten
+    ///         stehen im Feld — die volle Soll-Armee
+    ///         (<see cref="AiProfile.SoldierTarget"/>) muss NICHT stehen,
+    ///         denn ohne Gold wächst sie nie, und der Aufstieg würde ewig
+    ///         warten;</item>
     ///   <item>die Kosten sind aufführbar UND nach dem Kauf bleiben
     ///         mind. 100 Nahrung (Puffer für weitere Milizen).</item>
     /// </list>
@@ -863,12 +1030,12 @@ public sealed class EconomyAi : IAi
         if (state.Age >= Age.Imperial) return;       // letztes Zeitalter
         if (state.TownCenter is null) return;
 
-        // Militärische Basis: Kaserne fertig + Soll-Armee im Feld.
+        // Militärische Basis: Kaserne fertig + Angriffsgruppe im Feld.
         if (!state.Buildings.Any(b => b.Type == BuildingType.Barracks && b.IsComplete))
             return;
         int inField = state.Units.Count(u => u.Kind != UnitKind.Villager
                                              && u.State != UnitStateKind.Dead);
-        if (inField < Profile.SoldierTarget)
+        if (inField < Profile.RaidMinSoldiers)
             return;
 
         Age next = (Age)((int)state.Age + 1);

@@ -19,8 +19,12 @@ fehler = []
 flaeche = methode(text, "UnitWorldRect")
 if flaeche is None:
     fehler.append("Methode UnitWorldRect fehlt")
-elif not all(re.search(m, flaeche) for m in (r"Position\.X\s*-\s*12", r"Position\.Y\s*-\s*24", r"24\s*,\s*24")):
-    fehler.append("UnitWorldRect beschreibt nicht die Figur (X-12, Y-24, 24 x 24)")
+# Seit K5 haengt die Seitenlaenge vom Massstab der Figur ab (der Spaeher zu Pferd ist
+# groesser, SoldierSprites); verlangt war vorher woertlich X-12, Y-24, 24 x 24. Geprueft
+# wird nur noch, dass die Flaeche von den Fuessen aus rechnet und von 24 ausgeht - wo sie
+# genau liegt, prueft die Gruppe zielen in tools/spielablauf am Verhalten.
+elif not all(re.search(m, flaeche) for m in (r"Position\.X\s*-", r"Position\.Y\s*-", r"(?<![\d.])24(?![\d.])")):
+    fehler.append("UnitWorldRect rechnet nicht von den Fuessen aus (Position.X - ..., Position.Y - ..., Grundmass 24)")
 
 rahmen = methode(text, "SelectUnitsInRectangle") or ""
 if "UnitWorldRect" not in rahmen:

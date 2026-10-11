@@ -23,8 +23,8 @@
     <ProjectReference Include="..\AgeOfEvolutions.Core\AgeOfEvolutions.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.*" />
-    <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.*" />
+    <PackageReference Include="MonoGame.Framework.DesktopGL" Version="$(MonoGameVersion)" />
+    <PackageReference Include="MonoGame.Content.Builder.Task" Version="$(MonoGameVersion)" />
   </ItemGroup>
   <!--
     Die Shader in Content/Effects übersetzt MonoGame auf macOS sonst nur mit Wine. Hier

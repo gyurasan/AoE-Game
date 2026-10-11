@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup>
+    <!-- Eine MonoGame-Version für alle Projekte. AgeOfEvolutions.Core kompiliert
+         gegen MonoGame.Framework.Native, die Apps und Werkzeuge liefern
+         WindowsDX bzw. DesktopGL aus. Schwimmen die Pakete getrennt (3.8.*),
+         kann Core auf eine neuere MonoGame.Framework.dll zeigen, als die App
+         mitbringt, und die Exe stirbt beim Start mit FileLoadException. -->
+    <MonoGameVersion>3.8.6</MonoGameVersion>
+  </PropertyGroup>
+</Project>

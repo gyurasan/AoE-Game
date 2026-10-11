@@ -13,6 +13,7 @@
 //   * mindestens eine Seite hat eine Kaserne gebaut
 //   * beide Seiten haben ihre Karte zumindest teilweise weiter erkundet
 //   * mindestens ein Angriff kam zustande (Angriffszustand einer Einheit)
+//   * ein Angriff zerstört ein Gebäude der Gegenseite (ein fallendes Dorfzentrum ist der Sieg)
 //
 // Exit 0 = alles ok, 1 = Verstöße.
 using System;
@@ -26,6 +27,13 @@ using AgeOfEvolutions.Core.Data;
 using AgeOfEvolutions.Core.Screens;
 using Microsoft.Xna.Framework;
 using UnitState = AoE.Core.Entities.UnitState;
+
+// Gruppe gegenwehr: eigene Welten, nur Owner 1 mit KI - siehe Gegenwehr.cs
+if (args.Contains("gegenwehr"))
+    return Gegenwehr.Run();
+// Gruppe entwicklung: die KI allein wie im Spiel, 20 Minuten - siehe Entwicklung.cs
+if (args.Contains("entwicklung"))
+    return Entwicklung.Run(args);
 
 const BindingFlags F = BindingFlags.NonPublic | BindingFlags.Instance;
 Type T = typeof(RTSGameplayScreen);
@@ -150,8 +158,11 @@ for (int x = 0; x < map.Width; x++)
 Console.WriteLine($"  Start Owner 0: Pop {popStartP1}, Gebäude {bldStartP1}, erkundet {exploredStartP0} Kacheln");
 Console.WriteLine($"  Start Owner 1: Pop {popStartP2}, Gebäude {bldStartP2}, erkundet {exploredStartP1} Kacheln");
 
-// ---- ~600 s Spielzeit laufen lassen (max.) — dieselben Update-Rufe wie im
+// ---- ~1200 s Spielzeit laufen lassen (max.) — dieselben Update-Rufe wie im
 //      Spiel. Stoppt früher, wenn eine Seite ihre Dorfzentren verloren hat.
+//      1200 statt 600 s seit K8/K9: die KI kennt die Lage des Gegners nicht mehr,
+//      ihr Scout muss die Basis erst finden (Angriff ab ~500 s statt ~270 s), und die
+//      Wellen nehmen sich Gebäude für Gebäude vor statt gleich das TC (gefallen bei 823 s).
 const float dt = 1f / 60f;
 double zeit = 0;
 int attackSeenP1 = 0, attackSeenP2 = 0;
@@ -242,11 +253,27 @@ void Schritt()
     if (a1s > attackSeenP2) attackSeenP2 = a1s;
 }
 
-for (int i = 0; i < 600 * 60; i++)
+// Zerstörte Gebäude: jedes, das einmal stand und nicht mehr steht (Gebäude verschwinden nur,
+// wenn sie zerstört werden). Die Prüfung endet beim ersten - damit ist Punkt 5 belegt.
+var gesehen = new HashSet<Building>();
+var zerstoert = new List<Building>();
+double ersteZerstoerung = -1;
+for (int i = 0; i < 1200 * 60; i++)
 {
     zeit += dt;
     Schritt();
     if (loser >= 0) break;          // Dorfzentrum gefallen — Spiel zu Ende
+    if (i % 30 == 0)
+    {
+        zerstoert.AddRange(gesehen.Where(b => !map.Buildings.Contains(b)));
+        gesehen.ExceptWith(zerstoert);
+        gesehen.UnionWith(map.Buildings);
+        if (zerstoert.Count > 0)
+        {
+            ersteZerstoerung = zeit;
+            break;
+        }
+    }
 }
 
 // ---- Ergebnis-Auswertung: beide Seiten, Militär, Erkundung ----
@@ -308,12 +335,18 @@ else
     // schlägt Punkt 2 schon fehl.
     Meld("Kein Angriff — und auch keine Soldaten (Militär fehlt, s.o.)");
 
-// 5) Sieg-Nachweis: auf der halben Karte muss eine Seite ihr Dorfzentrum
-//    verlieren — und dann haben wir das Spielende (kein zweites TC möglich).
+// 5) Wirkung: Angriffe zerstören Gebäude der Gegenseite. Bis K9 verlangte dieser Punkt, dass
+//    ein Dorfzentrum fällt. Seit die KI die Lage des Gegners erst erkunden muss (K8) und sich
+//    Gebäude für Gebäude vorarbeitet, statt geradewegs aufs Stadtzentrum zu gehen (K9), endet
+//    ein Spiel auf der kleinen Karte nicht mehr sicher in 20 Minuten: die Gegenseite baut
+//    vorgeschobene Schießstände und Häuser nach (gemessen 2026-10-11: in 3 von 4 Läufen stand
+//    nach 1200 s noch jedes Dorfzentrum). Ein gefallenes Dorfzentrum zählt weiter als Sieg.
 if (loser >= 0)
     Ok($"Sieg: {(loser == 0 ? "Owner 1" : "Owner 0")} — Dorfzentrum des Verlierers fiel bei t={timeDefeat:0}s (Spiel endete danach, kein neues TC möglich)");
+else if (zerstoert.Count > 0)
+    Ok($"Angriffe zeigen Wirkung: {string.Join(", ", zerstoert.Select(b => $"{b.Type} von Owner {b.OwnerId}"))} bei t={ersteZerstoerung:0}s zerstört");
 else
-    Meld("Kein Dorfzentrum fiel — das Spiel lief über die Simulationszeit, ohne ein Ende zu finden");
+    Meld($"Kein Gebäude zerstört — die Angriffe zeigen in {zeit:0} s keine Wirkung");
 
 Console.WriteLine();
 if (Verstoesse > 0)

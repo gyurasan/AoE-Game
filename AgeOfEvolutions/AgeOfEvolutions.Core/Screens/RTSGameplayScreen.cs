@@ -2003,12 +2003,33 @@ public class RTSGameplayScreen : GameScreen
         => p.Y < HUD_TOP_HEIGHT || p.Y >= screenBounds.Height - HUD_BOTTOM_HEIGHT || MinimapPanel().Contains(p);
 
     /// <summary>
-    /// Die Fläche, die eine Einheit in der Welt einnimmt: die Figur steht mit den
-    /// Füßen auf ihrer Position und ist 24 Einheiten breit und hoch – so, wie
-    /// DrawUnits sie zeichnet. Auswahl per Klick und per Rahmen prüfen dagegen.
+    /// Die Fläche, die eine Einheit in der Welt einnimmt - so, wie DrawUnits sie zeichnet.
+    /// Auswahl per Klick und per Rahmen und das Anklicken von Gegnern (EnemyUnitUnder)
+    /// prüfen dagegen.
+    /// VERTRAG (K5): ein Quadrat mit der Seitenlänge size = (int)(24 * Maßstab), waagrecht
+    /// mittig über der Position und mit der Unterkante auf ihr - die Figur steht mit den Füßen
+    /// auf der Position: new Rectangle((int)(Position.X - size / 2f), (int)(Position.Y - size),
+    /// size, size). Der Maßstab ist der Scale aus SoldierSprites für unit.Type (der Späher zu
+    /// Pferd 1,35), für alle anderen Einheiten 1. Bis K5 war die Fläche für alle 24 groß, und
+    /// den Späher traf ein Klick auf den Kopf nicht.
     /// </summary>
     private static Rectangle UnitWorldRect(Unit unit)
-        => new Rectangle((int)(unit.Position.X - 12), (int)(unit.Position.Y - 24), 24, 24);
+    {
+        // Maßstab der Figur aus SoldierSprites (der Späher zu Pferd 1,35);
+        // ohne Eintrag gilt 1
+        float scale = 1f;
+        foreach (var (unitType, _, s) in SoldierSprites)
+        {
+            if (unitType == unit.Type)
+            {
+                scale = s;
+                break;
+            }
+        }
+        // Quadrat mit der Unterkante auf den Füßen, waagrecht mittig über ihnen
+        int size = (int)(24 * scale);
+        return new Rectangle((int)(unit.Position.X - size / 2f), (int)(unit.Position.Y - size), size, size);
+    }
 
     private void SelectUnitsInRectangle(Rectangle selectionRect)
     {
@@ -2279,11 +2300,68 @@ public class RTSGameplayScreen : GameScreen
         return best;
     }
 
+    /// <summary>Rand in Weltpixeln, um den die Trefferfläche einer feindlichen Figur beim
+    /// Anklicken größer ist als UnitWorldRect - laufende Ziele trifft man sonst schwer (K5).</summary>
+    private const int ENEMY_CLICK_SLACK = 4;
+
+    /// <summary>
+    /// Die feindliche Einheit, deren Figur unter <paramref name="worldPos"/> liegt, oder null (K5,
+    /// Nutzer 2026-10-11: "kann ich den Gegner nur schwer auswählen - es scheint so, dass ich ihn
+    /// am Fuß auswählen muss"). EnemyUnitAt sucht nur auf der Kachel unter den Füßen; die Figur
+    /// ragt aber 24 Pixel nach oben und 12 zur Seite in die Nachbarkacheln.
+    /// VERTRAG:
+    /// - In Frage kommen die Einheiten aus units mit OwnerId ungleich 0, die nicht Dead sind und
+    ///   deren Fußkachel (tileMap.WorldToGrid(u.Position)) Spieler 0 gerade sieht
+    ///   (tileMap.IsTileVisible(x, y, 0)).
+    /// - Getroffen ist eine, wenn UnitWorldRect(u), nach allen Seiten um ENEMY_CLICK_SLACK
+    ///   vergrößert (Rectangle.Inflate), den Punkt ((int)worldPos.X, (int)worldPos.Y) enthält.
+    /// - Treffen sich mehrere, gewinnt die mit der größten Position.Y (sie ist vorn gezeichnet),
+    ///   bei gleicher Position.Y die spätere in units.
+    /// </summary>
+    internal Unit EnemyUnitUnder(Vector2 worldPos)
+    {
+        var point = new Point((int)worldPos.X, (int)worldPos.Y);
+        Unit best = null;
+        foreach (var u in units)
+        {
+            // Nur feindliche, lebende Einheiten, deren Fußkachel Spieler 0 sieht
+            if (u.OwnerId == 0 || u.State == UnitState.Dead)
+                continue;
+            var cell = tileMap.WorldToGrid(u.Position);
+            if (!tileMap.IsTileVisible((int)cell.X, (int)cell.Y, 0))
+                continue;
+            // Trefferfläche: die Figur, nach allen Seiten um ENEMY_CLICK_SLACK vergrößert
+            var rect = UnitWorldRect(u);
+            rect.Inflate(ENEMY_CLICK_SLACK, ENEMY_CLICK_SLACK);
+            if (!rect.Contains(point))
+                continue;
+            // Treffen sich mehrere, gewinnt die mit der größten Position.Y
+            // (vorn gezeichnet); bei gleicher Position.Y die spätere in units
+            if (best == null
+                || u.Position.Y > best.Position.Y
+                || (u.Position.Y == best.Position.Y))
+                best = u;
+        }
+        return best;
+    }
+
     /// <summary>
     /// Ein kurzer Linksklick an <paramref name="screenPos"/>. Beim Setzen eines
     /// Gebäudes legt er die Baustelle an. Auf einer eigenen Einheit wählt er sie
     /// aus, statt sie wegzuschicken - vorher zog ein Klick zum Auswählen einen
-    /// Bauarbeiter vom Bau ab. Sonst ist er ein Befehl an die Auswahl.
+    /// Bauarbeiter vom Bau ab. Ohne Auswahl wählt er das Gebäude darunter aus.
+    /// VERTRAG (K5, K5b) - nur mit ausgewählten Einheiten (selectedUnits.Count größer 0):
+    /// - Liegt unter dem Klick die Figur eines sichtbaren Gegners (EnemyUnitUnder(worldPos)),
+    ///   greift die Auswahl ihn an: AttackUnit(selectedUnits, gegner). Geprüft gleich nach dem
+    ///   Setzen eines Gebäudes, also VOR der eigenen Einheit (K5b, Nutzer 2026-10-11: "Wenn
+    ///   einer meiner Leute selektiert ist und ich klicke auf den Gegner, muss dieser
+    ///   angegriffen werden" - stand ein eigener Kämpfer davor, wählte der Klick bis K5b ihn
+    ///   aus, und man konnte keinen zweiten zu Hilfe schicken).
+    /// - Sonst, nach der eigenen Einheit und dem Gebäude ohne Auswahl: liegt unter dem Klick
+    ///   ein fremdes Gebäude (BuildingUnder(worldPos) mit OwnerId ungleich 0), greift die
+    ///   Auswahl es an: AttackBuilding(selectedUnits, gebäude) - auch bei einem Klick aufs
+    ///   Dach, das über die Grundfläche ragt.
+    /// Sonst ist er ein Befehl an die Auswahl (IssueCommand).
     /// </summary>
     private void LeftClick(Vector2 screenPos)
     {
@@ -2291,12 +2369,21 @@ public class RTSGameplayScreen : GameScreen
         var gridPos = WorldToGrid(worldPos);
         if (placing != null)
             PlaceBuilding(placing.Value, gridPos);
+        else if (selectedUnits.Count > 0 && EnemyUnitUnder(worldPos) is { } enemy)
+            // Mit ausgewählten Einheiten: ein Klick auf die Figur eines sichtbaren
+            // Gegners schickt die Auswahl gegen ihn - auch wenn ein eigener
+            // Kämpfer davor steht (K5b)
+            AttackUnit(selectedUnits, enemy);
         else if (OwnUnitAt(worldPos) != null)
             SelectSingleUnit(worldPos);
         else if (selectedUnits.Count == 0 && BuildingUnder(worldPos) is { } building)
             // Ist keine Einheit ausgewählt und liegt unter dem Klick ein Gebäude,
             // wählt der Linksklick es aus; mit Dorfbewohnern bleibt er ein Befehl
             SelectBuilding(building);
+        else if (selectedUnits.Count > 0 && BuildingUnder(worldPos) is { OwnerId: not 0 } foreign)
+            // Sonst ein Klick auf ein fremdes Gebäude (auch aufs Dach): die
+            // Auswahl greift es an
+            AttackBuilding(selectedUnits, foreign);
         else
             IssueCommand(gridPos);
     }
@@ -2308,7 +2395,9 @@ public class RTSGameplayScreen : GameScreen
     /// target, AttackTimer = 0. Ihr Standplatz ist AttackStand(unit, target); gibt es keinen,
     /// bleibt sie stehen (AttackTarget null, Idle). Steht sie schon dort (weniger als 2 Pixel),
     /// greift sie sofort an (State Attacking, Path leer); sonst TargetPosition = Standplatz,
-    /// Path = tileMap.FindPath(...), State Moving - ist der Weg leer, auch AttackTarget null
+    /// Path = tileMap.FindPath(...), State Moving. Ist der Weg leer, steht sie aber schon auf
+    /// der Kachel des Standplatzes, ist der Standplatz der einzige Wegpunkt (FindPath kennt
+    /// keinen Weg innerhalb einer Kachel); ist der Weg sonst leer, auch AttackTarget null
     /// und Idle.
     /// </summary>
     internal void AttackBuilding(List<Unit> attackers, Building target)
@@ -2344,6 +2433,13 @@ public class RTSGameplayScreen : GameScreen
 
             unit.TargetPosition = stand.Value;
             unit.Path = tileMap.FindPath(unit.Position, unit.TargetPosition);
+            // FindPath liefert innerhalb einer Kachel keinen Weg — die Einheit
+            // steht aber schon auf der Kachel des Standplatzes. Dann wird der
+            // Standplatz der einzige Wegpunkt: sie läuft die letzten Pixel,
+            // statt den Angriff zu verlieren.
+            if (unit.Path.Count == 0
+                && tileMap.WorldToGrid(unit.Position) == tileMap.WorldToGrid(stand.Value))
+                unit.Path = new List<Vector2> { stand.Value };
             if (unit.Path.Count > 0)
             {
                 unit.State = UnitState.Moving;
@@ -2485,7 +2581,9 @@ public class RTSGameplayScreen : GameScreen
     /// direkt neben dem Ziel (Nahkampf) bzw. im Ring der Reichweite
     /// (Fernkampf); die Einheit läuft dorthin (State Moving) und greift an,
     /// sobald sie in Reichweite ist (UpdateUnits schaltet auf Attacking).
-    /// Gibt es keinen Standplatz, bleibt sie stehen.
+    /// Gibt es keinen Weg, greift sie gleich an, wenn das Ziel schon in
+    /// Reichweite steht (<see cref="InAttackRange"/>, etwa auf derselben
+    /// Kachel); sonst ist UnitTarget wieder null und sie bleibt untätig.
     /// </summary>
     internal void AttackUnit(List<Unit> attackers, Unit target)
     {
@@ -2507,8 +2605,36 @@ public class RTSGameplayScreen : GameScreen
             // selbst muss nicht bekannt sein, sonst endet der Pfad an
             // einer Nebelkante und die Einheit läuft in den Winkel.
             a.Path = tileMap.FindPath(a.Position, target.Position);
-            a.State = a.Path.Count > 0 ? UnitState.Moving : UnitState.Idle;
+            if (a.Path.Count > 0)
+                a.State = UnitState.Moving;
+            else if (InAttackRange(a, target))
+                // Kein Weg, aber das Ziel ist in Reichweite (z. B. dieselbe
+                // Kachel): sofort angreifen, statt untätig zu stehen.
+                a.State = UnitState.Attacking;
+            else
+            {
+                // Kein Weg und außer Reichweite: kein Angriff. Das Ziel wird
+                // zurückgesetzt — sonst bleibt die Einheit untätig mit gesetztem
+                // Ziel stehen und bekommt von der KI nie wieder einen Befehl.
+                a.UnitTarget = null;
+                a.State = UnitState.Idle;
+            }
         }
+    }
+
+    /// <summary>
+    /// Steht <paramref name="target"/> in Angriffreichweite von
+    /// <paramref name="unit"/>? Dieselbe Rechnung wie in
+    /// <see cref="HandleAttack"/>: Chebyshev-Distanz in Kacheln, Reichweite
+    /// mindestens 1 Kachel (Math.Max(1, unit.AttackRange)).
+    /// </summary>
+    private bool InAttackRange(Unit unit, Unit target)
+    {
+        int range = Math.Max(1, unit.AttackRange);
+        int ts = tileMap.TileSize;
+        int dc = (int)(Math.Abs(target.Position.X - unit.Position.X) / ts);
+        int dr = (int)(Math.Abs(target.Position.Y - unit.Position.Y) / ts);
+        return Math.Max(dc, dr) <= range;
     }
 
     /// <summary>
@@ -3662,9 +3788,96 @@ public class RTSGameplayScreen : GameScreen
         _ => Array.Empty<Resource>()
     };
 
+    /// <summary>Höchstens so viele Kacheln (Luftlinie zur Mitte) steht ein untätiger Soldat von
+    /// seinem Stadtzentrum entfernt, damit er es verteidigt (K6).</summary>
+    private const float TOWN_DEFENSE_RADIUS = 15f;
+    /// <summary>Takt, in dem DefendTownCenters nach Angreifern sucht, in Sekunden (K6).</summary>
+    private const float TOWN_DEFENSE_INTERVAL = 0.5f;
+    private float _townDefenseTimer;
+
+    /// <summary>
+    /// Untätige Soldaten verteidigen ihr Stadtzentrum (K6, Nutzer 2026-10-11: "Zudem sollten
+    /// Soldaten jemanden, der das Dorfzentrum angreift, automatisch angreifen"). Für beide
+    /// Spieler gleich; UpdateUnits ruft es zu Beginn jedes Bilds auf.
+    /// VERTRAG:
+    /// - Gesucht wird nur alle TOWN_DEFENSE_INTERVAL Sekunden: _townDefenseTimer um dt
+    ///   verringern; ist er danach größer als 0, nichts weiter tun, sonst auf
+    ///   TOWN_DEFENSE_INTERVAL setzen und suchen.
+    /// - Angreifer eines Stadtzentrums: jede Einheit aus units mit State Attacking, deren
+    ///   AttackTarget ein Stadtzentrum (Core.BuildingType == BuildingType.TownCenter) mit einer
+    ///   anderen OwnerId als ihrer eigenen ist, das noch in tileMap.Buildings steht.
+    /// - Verteidiger eines angegriffenen Stadtzentrums: die Einheiten seines Besitzers mit
+    ///   AttackPower größer 0, die keine Dorfbewohner sind (Core is not CoreVillager), mit State
+    ///   Idle oder Guarding, ohne UnitTarget, AttackTarget, Job und BuildSite (alle null), deren
+    ///   Position höchstens TOWN_DEFENSE_RADIUS * tileMap.TileSize (Luftlinie) von der Mitte des
+    ///   Stadtzentrums ((X + Width / 2f) * TileSize, (Y + Height / 2f) * TileSize) entfernt ist.
+    /// - Jeder Verteidiger greift den Angreifer dieses Stadtzentrums an, der ihm am nächsten
+    ///   steht: AttackUnit mit einer Liste nur aus dem Verteidiger, und diesem Angreifer.
+    /// - Wer läuft, kämpft, sammelt oder baut, bekommt keinen Befehl: ein Befehl des Spielers hat
+    ///   Vorrang, und ein neuer Angriffsbefehl setzte den Schlagtakt zurück.
+    /// </summary>
+    private void DefendTownCenters(float dt)
+    {
+        // Takt: nur alle TOWN_DEFENSE_INTERVAL Sekunden suchen, das erste Mal
+        // gleich im ersten Bild.
+        _townDefenseTimer -= dt;
+        if (_townDefenseTimer > 0f)
+            return;
+        _townDefenseTimer = TOWN_DEFENSE_INTERVAL;
+
+        // Angreifer: Einheiten, die gerade zuschlagen (State Attacking) und deren
+        // Ziel ein Stadtzentrum eines anderen Besitzers ist, das noch steht.
+        var attackers = units
+            .Where(u => u.State == UnitState.Attacking
+                && u.AttackTarget is { } target
+                && target.Core.BuildingType == BuildingType.TownCenter
+                && target.OwnerId != u.OwnerId
+                && tileMap.Buildings.Contains(target))
+            .ToList();
+
+        // Je angegriffenes Stadtzentrum: Mitte, die Angreifer genau dieses
+        // Stadtzentrums, die Verteidiger, und für jeden Verteidiger seinen
+        // nächsten Angreifer.
+        foreach (var townCenter in attackers.Select(a => a.AttackTarget).Distinct().ToList())
+        {
+            // Mittelpunkt des Stadtzentrums in Weltpixeln.
+            var center = new Vector2(
+                (townCenter.X + townCenter.Width / 2f) * tileMap.TileSize,
+                (townCenter.Y + townCenter.Height / 2f) * tileMap.TileSize);
+
+            // Die Angreifer genau dieses Stadtzentrums.
+            var townAttackers = attackers.Where(a => a.AttackTarget == townCenter).ToList();
+
+            // Verteidiger: untätige Soldaten des Eigentümers im Verteidigungsradius
+            // (Radius in Kacheln, daher mit TileSize in Pixel umrechnen).
+            var defenders = units
+                .Where(u => u.OwnerId == townCenter.OwnerId
+                    && u.AttackPower > 0
+                    && u.Core is not CoreVillager
+                    && (u.State == UnitState.Idle || u.State == UnitState.Guarding)
+                    && u.UnitTarget == null
+                    && u.AttackTarget == null
+                    && u.Job == null
+                    && u.BuildSite == null
+                    && Vector2.Distance(u.Position, center) <= TOWN_DEFENSE_RADIUS * tileMap.TileSize)
+                .ToList();
+
+            // Jeder Verteidiger greift den Angreifer an, der ihm am nächsten steht.
+            foreach (var defender in defenders)
+            {
+                var nearestAttacker = townAttackers
+                    .MinBy(a => Vector2.DistanceSquared(a.Position, defender.Position));
+                AttackUnit(new List<Unit> { defender }, nearestAttacker);
+            }
+        }
+    }
+
     private void UpdateUnits(GameTime gameTime)
     {
         var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+        // Untätige Soldaten verteidigen ihr Stadtzentrum (K6)
+        DefendTownCenters(dt);
 
         // Beide Spieler: die owner-generic Kernlogik (Sammeln, Bauen,
         // Zurückkehren) unterscheidet sich nicht — nur die UI gehört dem
@@ -3793,11 +4006,7 @@ public class RTSGameplayScreen : GameScreen
         }
 
         // In Reichweite? (Chebyshev: |dx|, |dy|; Nahkampf 1, Fernkampf Stats.Range)
-        int range = Math.Max(1, unit.AttackRange);
-        int ts = tileMap.TileSize;
-        int dc = (int)(Math.Abs(target.Position.X - unit.Position.X) / ts);
-        int dr = (int)(Math.Abs(target.Position.Y - unit.Position.Y) / ts);
-        bool inRange = Math.Max(dc, dr) <= range;
+        bool inRange = InAttackRange(unit, target);
         if (!inRange)
         {
             unit.Path = tileMap.FindPath(unit.Position, target.Position);
@@ -5777,6 +5986,11 @@ public class RTSGameplayScreen : GameScreen
                                          (target.Y + target.Height / 2f) * tileMap.TileSize);
                 toward = center - unit.Position;
             }
+            else if (unit.State == UnitState.Attacking && unit.UnitTarget is { } foe)
+            {
+                // Blickrichtung zum angegriffenen Gegner (K7)
+                toward = foe.Position - unit.Position;
+            }
             else if (unit.State == UnitState.Building && unit.BuildSite is { } site)
             {
                 var center = new Vector2((site.X + site.Width / 2f) * tileMap.TileSize,
@@ -5813,9 +6027,9 @@ public class RTSGameplayScreen : GameScreen
             ? _villagerWalk.GetValueOrDefault((AgeOf(unit.OwnerId), unit.OwnerId))
             : _unitWalk.GetValueOrDefault((unit.Type, unit.OwnerId));
         int phase = VillagerWalkPhase(motion.Walked);
-        // Ein Soldat, der ein Gebäude angreift, schwingt seine Waffe (C4n)
+        // Ein Soldat, der ein Gebäude oder eine Einheit angreift, schwingt seine Waffe (C4n, K7)
         var attack = unit.Core is CoreVillager ? null : _unitAttack.GetValueOrDefault((unit.Type, unit.OwnerId));
-        bool striking = !moving && unit.State == UnitState.Attacking && unit.AttackTarget != null && attack != null;
+        bool striking = !moving && attack != null && IsStriking(unit);
 
         float bob = 0f, tilt = 0f, stretch = 1f, hub = 0f;
         if (moving)
@@ -5899,6 +6113,20 @@ public class RTSGameplayScreen : GameScreen
             spriteBatch.Draw(px, new Rectangle(bx, by, bundle, bundle), colour);
         }
     }
+
+    /// <summary>
+    /// Schlägt die Einheit gerade zu? Dann zeigt DrawVillager ihre Schlagbilder (C4n), statt sie
+    /// als Ganzes vor- und zurückkippen zu lassen (K7, Nutzer 2026-10-11: "wieso wippt der
+    /// Soldat, wenn er einen gegnerischen Dorfbewohner angreift, anstatt wie bei einem Gebäude
+    /// die Waffe zu schwingen"). Bis K7 zählte nur ein Gebäude als Ziel.
+    /// VERTRAG: true, wenn unit.State Attacking ist und die Einheit ein Ziel hat: ein Gebäude
+    /// (AttackTarget nicht null) oder eine Einheit (UnitTarget nicht null und deren State nicht
+    /// Dead); sonst false. Ob sie gerade läuft und ob es Schlagbilder gibt, prüft DrawVillager.
+    /// </summary>
+    internal bool IsStriking(Unit unit)
+        => unit.State == UnitState.Attacking
+           && (unit.AttackTarget != null
+               || (unit.UnitTarget is { } foe && foe.State != UnitState.Dead));
 
     /// <summary>
     /// Welches Laufbild eine Figur zeigt, die walked Welteinheiten gegangen ist:

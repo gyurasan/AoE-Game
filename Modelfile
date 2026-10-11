@@ -1,0 +1,4 @@
+FROM qwen3.8:27b-q8_0
+PARAMETER num_ctx 256000
+PARAMETER cache_type_k q4_0
+PARAMETER cache_type_v q4_0

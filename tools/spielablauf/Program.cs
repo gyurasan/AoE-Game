@@ -4,7 +4,9 @@
 //
 // Dazu neubauten (Gebäude der zweiten Tastenreihe), tuer (Abliefern vor der Tür) und
 // auswahl (Gebäude auswählen), angriff (Gebäude angreifen), soldaten
-// (Ausbildung in Kaserne, Schießstand und Stall) und forschung (Forschungen und ihre Wirkung).
+// (Ausbildung in Kaserne, Schießstand und Stall), forschung (Forschungen und ihre Wirkung),
+// zielen (Gegner an der ganzen Figur anklicken), verteidigung (Soldaten verteidigen das
+// Stadtzentrum) und kampfbild (Schlagbilder und Blick gegen Einheiten).
 //
 // Jede genannte Gruppe läuft auf drei frisch erzeugten Karten. Die Spielschleife
 // läuft Bild für Bild (60 je Sekunde) mit denselben Methoden, die Update() im Spiel
@@ -135,6 +137,13 @@ for (int karte = 1; karte <= KARTEN; karte++)
     // Der Wind hängt nicht von der Karte ab
     if (gruppen.Contains("wind") && karte == 1)
         Pruefe("Wind", () => WindProbe(verstoesse));
+    if (gruppen.Contains("zielen"))
+        Pruefe($"Karte {karte}, Zielen", () => Zielen(karte, verstoesse));
+    if (gruppen.Contains("verteidigung"))
+        Pruefe($"Karte {karte}, Verteidigung", () => Verteidigung(karte, verstoesse));
+    // Das Kampfbild hängt nicht von der Karte ab
+    if (gruppen.Contains("kampfbild") && karte == 1)
+        Pruefe("Kampfbild", () => Kampfbild(verstoesse));
     // Niederlage: ohne Dorfbewohner UND ohne Stadtzentrum ist die Seite
     // verloren — pro Karte, weil jeder Ablauf eine eigene Welt braucht.
     if (gruppen.Contains("niederlage"))
@@ -3542,6 +3551,360 @@ static void Feld(List<string> verstoesse)
 }
 
 /// <summary>Eine Spielwelt: echte Karte, zwei Spieler, der Bildschirm ohne Grafik.</summary>
+// Zielen (K5, Nutzer 2026-10-11: "Wenn ich einen Gegner angreifen möchte ..., kann ich ihn nur
+// schwer auswählen. Es scheint so, dass ich ihn am Fuß auswählen muss"): mit ausgewählten
+// Einheiten greift ein Linksklick irgendwo auf die Figur eines sichtbaren Gegners ihn an - bis
+// dahin nur auf der Kachel unter seinen Füßen. Über dem Kopf und im Nebel nicht. Den Späher zu
+// Pferd, größer gezeichnet, wählt ein Klick auf den Kopf aus.
+static void Zielen(int karte, List<string> verstoesse)
+{
+    string wer = $"Karte {karte}, Zielen";
+    int vorher = verstoesse.Count;
+    var w = new Welt();
+    w.Set("cameraZoom", 1f);
+    w.Set("cameraPosition", Vector2.Zero);
+    var dorf = w.Dorfbewohner().ToList();
+    int T = w.Map.TileSize;
+    var start = w.Map.WorldToGrid(dorf[0].Position);
+
+    bool Frei(int x, int y) => w.Map.GetTile(x, y) is { } t && w.Map.IsWalkable(x, y) && t.ResourceType == null
+        && string.IsNullOrEmpty(t.Building) && !w.Map.Units.Any(u => w.Map.WorldToGrid(u.Position) == new Vector2(x, y));
+    IEnumerable<Vector2> Kacheln() => Enumerable.Range(0, w.Map.Width)
+        .SelectMany(x => Enumerable.Range(0, w.Map.Height).Select(y => new Vector2(x, y)));
+    Unit Neu(UnitType typ, int besitzer, Vector2 kachel)
+    {
+        var u = w.Map.AddUnit(typ, (int)kachel.X, (int)kachel.Y, besitzer);
+        (besitzer == 0 ? w.P1 : w.P2).AddUnit(u);
+        return u;
+    }
+    // Eine sichtbare freie Kachel etwa abstand Kacheln vom ersten Dorfbewohner, deren Nachbarn
+    // darüber, rechts und darunter ebenfalls frei sind - dort landen die Klicks neben den Füßen
+    Vector2 Platz(float abstand) => Kacheln()
+        .Where(c => c.Y >= 2 && Frei((int)c.X, (int)c.Y) && Frei((int)c.X, (int)c.Y - 1) && Frei((int)c.X, (int)c.Y - 2)
+                    && Frei((int)c.X + 1, (int)c.Y) && Frei((int)c.X, (int)c.Y + 1) && Frei((int)c.X + 1, (int)c.Y + 1)
+                    && w.Map.IsTileVisible((int)c.X, (int)c.Y, 0))
+        .OrderBy(c => Math.Abs(Vector2.Distance(c, start) - abstand))
+        .First();
+
+    var miliz = new List<Unit> { Neu(UnitType.Militia, 0, w.FreieKachel(dorf[0], 2)),
+                                 Neu(UnitType.Militia, 0, w.FreieKachel(dorf[0], 2)) };
+    var sel = dorf.Concat(miliz).ToList();
+    var feind = Neu(UnitType.Militia, 1, Platz(5));
+    var kachel = w.Map.WorldToGrid(feind.Position);
+    int cx = (int)kachel.X, cy = (int)kachel.Y;
+    // Laufbefehle gehen auf eine freie Kachel, weit genug vom Gegner
+    var weg = Kacheln().Where(c => Frei((int)c.X, (int)c.Y) && Vector2.Distance(c, kachel) >= 3)
+        .OrderBy(c => Math.Abs(Vector2.Distance(c, start) - 2)).First();
+    w.Map.UpdateFogOfWarForPlayer(0, w.Map.Units);
+    if (!w.Map.IsTileVisible(cx, cy, 0))
+    {
+        verstoesse.Add($"{wer}: Testaufbau - der Gegner auf {cx},{cy} ist nicht sichtbar");
+        return;
+    }
+
+    string Ziele() => string.Join(", ", sel.Select(u => u.UnitTarget == feind ? "Gegner" : u.UnitTarget == null ? "nichts" : "anderes"));
+    // Ein Linksklick mit der ganzen Auswahl; unter dem Punkt darf keine eigene Figur stehen
+    void Klick(Vector2 punkt, string was)
+    {
+        if (w.Call("OwnUnitAt", punkt) != null)
+            verstoesse.Add($"{wer}: Testaufbau - {was}: dort steht eine eigene Figur");
+        w.Waehle(sel);
+        w.Linksklick(punkt);
+    }
+    // Ein Laufbefehl hebt jeden Angriff auf
+    bool Zuruecksetzen()
+    {
+        w.Waehle(sel);
+        w.Linksklick(w.Map.GridToWorld(weg));
+        if (sel.All(u => u.UnitTarget == null))
+            return true;
+        verstoesse.Add($"{wer}: Testaufbau - ein Laufbefehl hebt den Angriff nicht auf ({Ziele()})");
+        return false;
+    }
+
+    // 1. Auf die Brust: der Punkt liegt schon auf der Kachel über den Füßen
+    feind.Position = new Vector2(cx * T + 16, cy * T + 5);
+    Klick(feind.Position + new Vector2(0, -15), "Brust");
+    if (sel.Any(u => u.UnitTarget != feind))
+        verstoesse.Add($"{wer}: Klick auf die Brust des Gegners (Kachel über seinen Füßen) - Ziele: {Ziele()}; erwartet alle den Gegner");
+
+    // 2. An die Seite: der Punkt liegt auf der Kachel rechts neben den Füßen
+    if (!Zuruecksetzen()) return;
+    feind.Position = new Vector2(cx * T + 29, cy * T + 20);
+    Klick(feind.Position + new Vector2(9, -12), "Seite");
+    if (sel.Any(u => u.UnitTarget != feind))
+        verstoesse.Add($"{wer}: Klick auf die Seite des Gegners (Kachel rechts neben den Füßen) - Ziele: {Ziele()}; erwartet alle den Gegner");
+
+    // 3. Über dem Kopf (40 Pixel über den Füßen): ein Laufbefehl, kein Angriff
+    if (!Zuruecksetzen()) return;
+    feind.Position = new Vector2(cx * T + 16, cy * T + 20);
+    Klick(feind.Position + new Vector2(0, -40), "über dem Kopf");
+    if (sel.Any(u => u.UnitTarget != null))
+        verstoesse.Add($"{wer}: Klick 40 px über den Füßen des Gegners greift an ({Ziele()}) - erwartet ein Laufbefehl");
+
+    // 4. Im Nebel: einen Gegner, den Spieler 0 gerade nicht sieht, trifft der Klick nicht
+    var nebel = Kacheln().Where(c => w.Map.IsWalkable((int)c.X, (int)c.Y)
+                                     && !w.Map.IsTileVisible((int)c.X, (int)c.Y, 0)
+                                     && !w.Map.IsTileExplored((int)c.X, (int)c.Y, 0))
+        .Select(c => (Vector2?)c).FirstOrDefault();
+    if (nebel is not { } n)
+        verstoesse.Add($"{wer}: Testaufbau - keine begehbare Kachel im Nebel");
+    else
+    {
+        feind.Position = new Vector2(n.X * T + 16, n.Y * T + 20);
+        Klick(feind.Position + new Vector2(0, -12), "Nebel");
+        if (sel.Any(u => u.UnitTarget != null))
+            verstoesse.Add($"{wer}: Klick auf einen Gegner im Nebel ({n.X},{n.Y}) greift ihn an ({Ziele()})");
+    }
+
+    // 5. Den Späher zu Pferd, 1,35-mal so groß gezeichnet, wählt ein Klick auf den Kopf aus
+    var spaeher = Neu(UnitType.Scout, 0, Platz(7));
+    var sk = w.Map.WorldToGrid(spaeher.Position);
+    spaeher.Position = new Vector2(sk.X * T + 16, sk.Y * T + 28);
+    w.Waehle(sel);
+    w.Linksklick(spaeher.Position + new Vector2(0, -29));
+    var auswahl = w.Auswahl();
+    if (auswahl.Count != 1 || auswahl[0] != spaeher)
+        verstoesse.Add($"{wer}: Klick auf den Kopf des Spähers (29 px über den Füßen) wählt ihn nicht aus - ausgewählt sind {auswahl.Count} Einheiten");
+
+    // 6. Ein eigener Kämpfer steht vor dem Gegner (K5b, Nutzer 2026-10-11: "Wenn einer meiner
+    // Leute selektiert ist und ich klicke auf den Gegner, muss dieser angegriffen werden"): mit
+    // Auswahl greift der Klick den Gegner an, statt den Kämpfer davor auszuwählen
+    feind.Position = new Vector2(cx * T + 16, cy * T + 20);
+    var kaempfer = Neu(UnitType.Militia, 0, kachel);
+    kaempfer.Position = feind.Position + new Vector2(0, 6);
+    var ueberlappt = feind.Position + new Vector2(0, -12);
+    var helfer = dorf[0];
+    if (w.Call("OwnUnitAt", ueberlappt) != kaempfer)
+        verstoesse.Add($"{wer}: Testaufbau - der eigene Kämpfer steht nicht vor dem Gegner");
+    else
+    {
+        w.Waehle(new List<Unit> { helfer });
+        w.Linksklick(ueberlappt);
+        if (helfer.UnitTarget != feind || w.Auswahl().Count != 1 || w.Auswahl()[0] != helfer)
+            verstoesse.Add($"{wer}: ein eigener Kämpfer steht vor dem Gegner - der Klick mit einem ausgewählten Dorfbewohner {(w.Auswahl().Contains(kaempfer) ? "wählt den Kämpfer aus" : "greift nicht an")}; erwartet: der Dorfbewohner greift den Gegner an");
+        // Ohne Auswahl wählt derselbe Klick den eigenen Kämpfer aus
+        w.Waehle(new List<Unit>());
+        w.Linksklick(ueberlappt);
+        if (w.Auswahl().Count != 1 || w.Auswahl()[0] != kaempfer)
+            verstoesse.Add($"{wer}: ohne Auswahl wählt ein Klick auf den eigenen Kämpfer vor dem Gegner ihn nicht aus");
+    }
+    kaempfer.Position = w.Map.GridToWorld(weg);
+
+    // 7. Kampf: der an der Brust angeklickte Gegner fällt
+    feind.Position = new Vector2(cx * T + 16, cy * T + 5);
+    Klick(feind.Position + new Vector2(0, -15), "Brust im Kampf");
+    float dauer = w.LaufeBis(() => !w.Map.Units.Contains(feind), 60f);
+    if (w.Map.Units.Contains(feind))
+        verstoesse.Add($"{wer}: der angeklickte Gegner steht nach {dauer:0} s noch ({feind.Health}/{feind.MaxHealth} LP)");
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: Brust und Seite treffen, über dem Kopf und im Nebel nicht, auch hinter einem eigenen Kämpfer; Späher am Kopf auswählbar; Gegner nach {dauer:0.0} s besiegt");
+}
+
+// Verteidigung (K6, Nutzer 2026-10-11: "Zudem sollten Soldaten jemanden, der das Dorfzentrum
+// angreift, automatisch angreifen"): greift ein Gegner ein Stadtzentrum an, greifen ihn die
+// untätigen Soldaten seines Besitzers in der Nähe von selbst an - auf beiden Seiten.
+// Dorfbewohner nicht, Soldaten weit draußen nicht, und wer gerade einen Befehl ausführt,
+// bleibt dabei.
+static void Verteidigung(int karte, List<string> verstoesse)
+{
+    string wer = $"Karte {karte}, Verteidigung";
+    int vorher = verstoesse.Count;
+    var w = new Welt();
+    w.Set("cameraZoom", 1f);
+    w.Set("cameraPosition", Vector2.Zero);
+    var dorf = w.Dorfbewohner().ToList();
+    int T = w.Map.TileSize;
+
+    bool Frei(int x, int y) => w.Map.GetTile(x, y) is { } t && w.Map.IsWalkable(x, y) && t.ResourceType == null
+        && string.IsNullOrEmpty(t.Building) && !w.Map.Units.Any(u => w.Map.WorldToGrid(u.Position) == new Vector2(x, y));
+    Unit Neu(UnitType typ, int besitzer, Vector2 kachel)
+    {
+        var u = w.Map.AddUnit(typ, (int)kachel.X, (int)kachel.Y, besitzer);
+        (besitzer == 0 ? w.P1 : w.P2).AddUnit(u);
+        return u;
+    }
+    Vector2 Mitte(Building b) => new Vector2((b.X + b.Width / 2f) * T, (b.Y + b.Height / 2f) * T);
+    // Eine freie Kachel, deren Mitte etwa abstand Kacheln von der Mitte des Gebäudes liegt
+    Vector2 Kachel(Building b, float abstand) => Enumerable.Range(0, w.Map.Width)
+        .SelectMany(x => Enumerable.Range(0, w.Map.Height).Select(y => new Vector2(x, y)))
+        .Where(c => Frei((int)c.X, (int)c.Y))
+        .OrderBy(c => Math.Abs(Vector2.Distance(w.Map.GridToWorld(c), Mitte(b)) / T - abstand))
+        .First();
+    string Ziel(Unit u, Unit feind) => u.UnitTarget == feind ? "Angreifer" : u.UnitTarget == null ? $"nichts ({u.State})" : "anderes";
+
+    var tc = w.Map.Buildings.First(b => b.OwnerId == 0 && b.Core.BuildingType == BuildingType.TownCenter);
+    var wachen = new List<Unit> { Neu(UnitType.Militia, 0, Kachel(tc, 5)), Neu(UnitType.Militia, 0, Kachel(tc, 5)),
+                                  Neu(UnitType.Archer, 0, Kachel(tc, 6)) };
+    var laeufer = Neu(UnitType.Militia, 0, Kachel(tc, 5));
+    var fern = Neu(UnitType.Militia, 0, Kachel(tc, 24));
+    var feind = Neu(UnitType.Militia, 1, Kachel(tc, 4));
+    // Die Dorfbewohner stehen untätig herum - verteidigen sollen sie trotzdem nicht
+    foreach (var d in dorf)
+    {
+        d.Job = null;
+        d.BuildSite = null;
+        d.Path.Clear();
+        d.State = UnitState.Idle;
+    }
+
+    w.Call("AttackBuilding", new List<Unit> { feind }, tc);
+    // Verteidigt wird erst, wenn der Gegner zuschlägt - nicht schon, während er anrückt;
+    // sonst liefen die Wachen jedem entgegen, der irgendwo aufs Stadtzentrum zuhält
+    bool zuFrueh = false;
+    w.LaufeBis(() =>
+    {
+        if (feind.State != UnitState.Attacking && wachen.Any(u => u.UnitTarget == feind))
+            zuFrueh = true;
+        return feind.State == UnitState.Attacking;
+    }, 40f);
+    if (feind.State != UnitState.Attacking)
+    {
+        verstoesse.Add($"{wer}: Testaufbau - der Gegner kommt nicht ans Stadtzentrum ({feind.State})");
+        return;
+    }
+    if (zuFrueh)
+        verstoesse.Add($"{wer}: die Wachen greifen an, während der Gegner noch zum Stadtzentrum läuft - erst, wenn er zuschlägt");
+
+    // Ein Soldat mit Laufbefehl bleibt dabei
+    w.Waehle(new List<Unit> { laeufer });
+    w.Linksklick(w.Map.GridToWorld(Kachel(tc, 14)));
+    if (laeufer.State != UnitState.Moving)
+        verstoesse.Add($"{wer}: Testaufbau - der Läufer läuft nicht ({laeufer.State})");
+
+    float zeit = w.LaufeBis(() => wachen.All(u => u.UnitTarget == feind), 3f);
+    if (!wachen.All(u => u.UnitTarget == feind))
+        verstoesse.Add($"{wer}: {zeit:0.0} s nach Beginn des Angriffs aufs Stadtzentrum - untätige Soldaten 5 bis 6 Kacheln davon: {string.Join(", ", wachen.Select(u => Ziel(u, feind)))}; erwartet alle den Angreifer");
+    if (laeufer.UnitTarget != null)
+        verstoesse.Add($"{wer}: ein Soldat mit Laufbefehl lässt ihn für die Verteidigung fallen");
+    if (fern.UnitTarget != null)
+        verstoesse.Add($"{wer}: ein Soldat 24 Kacheln vom Stadtzentrum kommt zur Verteidigung");
+    if (dorf.Any(d => d.UnitTarget != null))
+        verstoesse.Add($"{wer}: {dorf.Count(d => d.UnitTarget != null)} Dorfbewohner verteidigen - nur Soldaten sollen es");
+
+    float kampf = w.LaufeBis(() => !w.Map.Units.Contains(feind), 60f);
+    if (w.Map.Units.Contains(feind))
+        verstoesse.Add($"{wer}: der Angreifer steht nach {kampf:0} s Verteidigung noch ({feind.Health}/{feind.MaxHealth} LP)");
+    if (!w.Map.Buildings.Contains(tc))
+        verstoesse.Add($"{wer}: das Stadtzentrum ist gefallen");
+
+    // Zwei Angreifer von zwei Seiten: jeder Verteidiger nimmt den, der ihm am nächsten steht
+    Vector2 Naechste(Vector2 wunsch) => Enumerable.Range(0, w.Map.Width)
+        .SelectMany(x => Enumerable.Range(0, w.Map.Height).Select(y => new Vector2(x, y)))
+        .Where(c => Frei((int)c.X, (int)c.Y))
+        .OrderBy(c => Vector2.Distance(c, wunsch))
+        .First();
+    var feindA = Neu(UnitType.Militia, 1, Naechste(new Vector2(tc.X + tc.Width + 2, tc.Y + 1)));
+    var feindB = Neu(UnitType.Militia, 1, Naechste(new Vector2(tc.X + 1, tc.Y + tc.Height + 2)));
+    w.Call("AttackBuilding", new List<Unit> { feindA, feindB }, tc);
+    w.LaufeBis(() => feindA.State == UnitState.Attacking && feindB.State == UnitState.Attacking, 40f);
+    if (feindA.State != UnitState.Attacking || feindB.State != UnitState.Attacking)
+        verstoesse.Add($"{wer}: Testaufbau - die zwei Gegner kommen nicht ans Stadtzentrum ({feindA.State}, {feindB.State})");
+    else if (Vector2.Distance(feindA.Position, feindB.Position) < 2 * T)
+        verstoesse.Add($"{wer}: Testaufbau - die zwei Gegner stehen nur {Vector2.Distance(feindA.Position, feindB.Position):0} px auseinander");
+    else
+    {
+        // Je eine frische Wache dicht neben jedem Angreifer
+        var wacheA = Neu(UnitType.Militia, 0, w.Map.WorldToGrid(feindA.Position));
+        wacheA.Position = feindA.Position + new Vector2(3, 0);
+        var wacheB = Neu(UnitType.Militia, 0, w.Map.WorldToGrid(feindB.Position));
+        wacheB.Position = feindB.Position + new Vector2(3, 0);
+        w.LaufeBis(() => wacheA.UnitTarget != null && wacheB.UnitTarget != null, 2f);
+        string Wer(Unit u) => u.UnitTarget == feindA ? "A" : u.UnitTarget == feindB ? "B" : "nichts";
+        if (wacheA.UnitTarget != feindA || wacheB.UnitTarget != feindB)
+            verstoesse.Add($"{wer}: zwei Angreifer A und B, je eine Wache daneben - die Wache bei A nimmt {Wer(wacheA)}, die bei B {Wer(wacheB)}; erwartet jede den ihr nächsten");
+    }
+
+    // Auf der Gegenseite gilt dasselbe
+    var tc2 = w.Map.Buildings.First(b => b.OwnerId == 1 && b.Core.BuildingType == BuildingType.TownCenter);
+    var wache2 = Neu(UnitType.Militia, 1, Kachel(tc2, 5));
+    var angreifer = Neu(UnitType.Militia, 0, Kachel(tc2, 4));
+    w.Call("AttackBuilding", new List<Unit> { angreifer }, tc2);
+    w.LaufeBis(() => angreifer.State == UnitState.Attacking, 40f);
+    if (angreifer.State != UnitState.Attacking)
+        verstoesse.Add($"{wer}: Testaufbau - der eigene Angreifer kommt nicht ans gegnerische Stadtzentrum ({angreifer.State})");
+    else
+    {
+        w.LaufeBis(() => wache2.UnitTarget == angreifer, 3f);
+        if (wache2.UnitTarget != angreifer)
+            verstoesse.Add($"{wer}: ein untätiger Soldat des Gegners verteidigt sein Stadtzentrum nicht ({Ziel(wache2, angreifer)})");
+    }
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: drei Wachen greifen nach {zeit:0.0} s an, Läufer, ferner Soldat und Dorfbewohner nicht; Angreifer nach {kampf:0.0} s besiegt; der Gegner verteidigt ebenso");
+}
+
+// Kampfbild (K7, Nutzer 2026-10-11: "wieso wippt der Soldat, wenn er einen gegnerischen
+// Dorfbewohner angreift, anstatt wie bei einem Gebäude die Waffe zu schwingen"): wer eine
+// Einheit angreift, schlägt zu wie gegen ein Gebäude (IsStriking) und blickt zu ihr.
+static void Kampfbild(List<string> verstoesse)
+{
+    const string wer = "Kampfbild";
+    int vorher = verstoesse.Count;
+    var w = new Welt();
+    var dorf = w.Dorfbewohner().ToList();
+    bool Schlaegt(Unit u) => (bool)w.Call("IsStriking", u);
+    bool Links(Unit u)
+    {
+        var m = ((System.Collections.IDictionary)w.Get("_unitMotion"))[u]!;
+        return (bool)m.GetType().GetField("FacingLeft")!.GetValue(m)!;
+    }
+    void Bewegung()
+    {
+        for (int i = 0; i < 30; i++)
+            w.Call("UpdateUnitMotion", 1f / 60f);
+    }
+
+    // Eine Miliz und, 20 Pixel links von ihr, ein gegnerischer Dorfbewohner
+    var platz = w.FreieKachel(dorf[0], 4);
+    var miliz = w.Map.AddUnit(UnitType.Militia, (int)platz.X, (int)platz.Y, 0);
+    w.P1.AddUnit(miliz);
+    var opfer = w.Map.AddUnit(UnitType.Villager, (int)platz.X, (int)platz.Y, 1);
+    w.P2.AddUnit(opfer);
+    opfer.Position = miliz.Position - new Vector2(20, 0);
+
+    w.Call("AttackUnit", new List<Unit> { miliz }, opfer);
+    w.LaufeBis(() => miliz.State == UnitState.Attacking, 5f);
+    if (miliz.State != UnitState.Attacking)
+    {
+        verstoesse.Add($"{wer}: Testaufbau - die Miliz greift den Dorfbewohner nicht an ({miliz.State})");
+        return;
+    }
+    if (!Schlaegt(miliz))
+        verstoesse.Add($"{wer}: die Miliz greift einen Dorfbewohner an - IsStriking ist false, sie wippt statt zuzuschlagen");
+
+    // Blick zum Gegner: erst steht er links, dann rechts von ihr
+    opfer.Position = miliz.Position - new Vector2(20, 0);
+    miliz.Path.Clear();
+    Bewegung();
+    if (!Links(miliz))
+        verstoesse.Add($"{wer}: der angegriffene Dorfbewohner steht links - die Miliz blickt nach rechts");
+    opfer.Position = miliz.Position + new Vector2(20, 0);
+    Bewegung();
+    if (Links(miliz))
+        verstoesse.Add($"{wer}: der angegriffene Dorfbewohner steht rechts - die Miliz blickt nach links");
+
+    // Gegen ein Gebäude wie bisher; untätig oder mit totem Ziel nicht
+    var fremd = w.Map.Buildings.First(b => b.OwnerId == 1);
+    miliz.UnitTarget = null;
+    miliz.AttackTarget = fremd;
+    if (!Schlaegt(miliz))
+        verstoesse.Add($"{wer}: die Miliz greift ein Gebäude an - IsStriking ist false");
+    miliz.AttackTarget = null;
+    miliz.UnitTarget = opfer;
+    miliz.State = UnitState.Idle;
+    if (Schlaegt(miliz))
+        verstoesse.Add($"{wer}: eine untätige Miliz mit Ziel - IsStriking ist true");
+    miliz.State = UnitState.Attacking;
+    opfer.State = UnitState.Dead;
+    if (Schlaegt(miliz))
+        verstoesse.Add($"{wer}: die Miliz greift einen toten Dorfbewohner an - IsStriking ist true");
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: Schlagbilder gegen Einheit und Gebäude, nicht untätig oder gegen Tote; Blick zum Gegner links und rechts");
+}
+
 class Welt
 {
     const BindingFlags F = BindingFlags.NonPublic | BindingFlags.Instance;
