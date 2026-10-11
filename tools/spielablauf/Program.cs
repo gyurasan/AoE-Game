@@ -84,6 +84,7 @@ for (int karte = 1; karte <= KARTEN; karte++)
     {
         Pruefe($"Karte {karte}, nicht durch Gebäude", () => NichtDurchGebaeude(karte, verstoesse));
         Pruefe($"Karte {karte}, nicht durch Wasser", () => NichtDurchWasser(karte, verstoesse));
+        Pruefe($"Karte {karte}, verteilen", () => Verteilen(karte, verstoesse));
     }
     // Lage und Umrechnung der Minimap hängen nicht von der Karte ab, der Zoom auch nicht
     if (gruppen.Contains("minimap") && karte == 1)
@@ -144,6 +145,8 @@ for (int karte = 1; karte <= KARTEN; karte++)
     // Das Kampfbild hängt nicht von der Karte ab
     if (gruppen.Contains("kampfbild") && karte == 1)
         Pruefe("Kampfbild", () => Kampfbild(verstoesse));
+    if (gruppen.Contains("zielwechsel"))
+        Pruefe($"Karte {karte}, Zielwechsel", () => Zielwechsel(karte, verstoesse));
     // Niederlage: ohne Dorfbewohner UND ohne Stadtzentrum ist die Seite
     // verloren — pro Karte, weil jeder Ablauf eine eigene Welt braucht.
     if (gruppen.Contains("niederlage"))
@@ -1331,6 +1334,91 @@ static void NichtDurchGebaeude(int karte, List<string> verstoesse)
         }
     }
     Console.WriteLine($"  ok  {wer}: {weg.Count} Wegpunkte, keiner kreuzt das TC");
+}
+
+// Mehrere selektierte Einheiten bekommen einen Laufbefehl auf denselben
+// Punkt — dann verteilen sie sich im Umkreis, statt auf einen Pixel zu
+// haufen (Nutzer 2026-10-11: „sie verteilen sich nicht ein wenig um den
+// angegebenen Punkt herum … man sieht nur den vordersten"). Ein einzelner
+// läuft weiterhin exakt auf den Punkt.
+static void Verteilen(int karte, List<string> verstoesse)
+{
+    var w = new Welt();
+    string wer = $"Karte {karte}, verteilen";
+    int vorher = verstoesse.Count;
+    var v = w.Dorfbewohner().Take(3).ToList();
+    if (v.Count < 3)
+    {
+        verstoesse.Add($"{wer}: Testaufbau - nur {v.Count} Dorfbewohner");
+        return;
+    }
+    // Start: die erste Dorfbewohner-Kachel ist frei und bekannt; die anderen
+    // drei in den beiden Nachbarkacheln rechts (falls frei), sonst auf der
+    // Startkachel. (Analog: NichtDurchGebaeude.)
+    var startKachel = w.Map.WorldToGrid(v[0].Position);
+    // Drei Startkacheln: 0 = Start, 1 = rechts, 2 = oben (falls frei).
+    var p1 = startKachel + new Vector2(1, 0);
+    var p2 = startKachel + new Vector2(0, 1);
+    // Falls die Neben-Kacheln nicht frei sind, alle drei auf dem Start.
+    bool p1frei = w.Map.IsWalkable((int)p1.X, (int)p1.Y) && w.Map.GetTile((int)p1.X, (int)p1.Y)?.Building == null;
+    bool p2frei = w.Map.IsWalkable((int)p2.X, (int)p2.Y) && w.Map.GetTile((int)p2.X, (int)p2.Y)?.Building == null;
+    v[0].Position = w.Map.GridToWorld(startKachel);
+    (v[1].Position, v[2].Position) = (
+        p1frei ? w.Map.GridToWorld(p1) : w.Map.GridToWorld(startKachel),
+        p2frei ? w.Map.GridToWorld(p2) : w.Map.GridToWorld(startKachel));
+
+    // Ziel: eine freie Kachel ~5 Kacheln vom Start, erreichbar für alle drei.
+    Vector2? ziel = null;
+    var kandidaten = Enumerable.Range(0, 40).SelectMany(x => Enumerable.Range(0, 40).Select(y => new Vector2(x, y)))
+        .Where(c => c.Y >= 1 && c.Y <= w.Map.Height - 2 && c.X >= 1 && c.X <= w.Map.Width - 2
+                    && w.Map.IsWalkable((int)c.X, (int)c.Y) && w.Map.GetTile((int)c.X, (int)c.Y).ResourceType == null
+                    && string.IsNullOrEmpty(w.Map.GetTile((int)c.X, (int)c.Y).Building))
+        .OrderBy(c => Math.Abs(Vector2.Distance(c, startKachel) - 5f))
+        .ToList();
+    foreach (var c in kandidaten)
+    {
+        if (v.All(u => w.Map.FindPath(u.Position, w.Map.GridToWorld(c)).Count > 0))
+        { ziel = c; break; }
+    }
+    if (ziel == null)
+    {
+        verstoesse.Add($"{wer}: Testaufbau - keine erreichbare Zielkachel gefunden");
+        return;
+    }
+    var zielWelt = w.Map.GridToWorld(ziel.Value);
+
+    w.Waehle(v);
+    w.Linksklick(zielWelt);
+
+    float dauer = w.LaufeBis(() => v.All(u => u.State == UnitState.Idle), 30f);
+    if (v.Any(u => u.State != UnitState.Idle))
+    {
+        verstoesse.Add($"{wer}: nach {dauer:0} s sind {v.Count(u => u.State == UnitState.Idle)}/3 noch nicht angekommen ({string.Join(",", v.Select(u => u.State))})");
+        return;
+    }
+
+    // Exaktheiten-Checks:
+    // 1) Der erste in der Liste (index 0) läuft auf den exakten Punkt.
+    float d0 = Vector2.Distance(v[0].Position, zielWelt);
+    if (d0 > 12f)
+        verstoesse.Add($"{wer}: v[0] ist {d0:0} px vom angeklickten Punkt entfernt (sollte exakt dorthin laufen)");
+
+    float minAbstand = float.MaxValue;
+    for (int i = 0; i < 3; i++)
+        for (int j = i + 1; j < 3; j++)
+            minAbstand = Math.Min(minAbstand, Vector2.Distance(v[i].Position, v[j].Position));
+    if (minAbstand < 8f)
+        verstoesse.Add($"{wer}: minimale Zweier-Distanz {minAbstand:0} px — die Einheiten liegen sich im Weg, verteilen sich nicht");
+
+    float d1 = Vector2.Distance(v[1].Position, zielWelt);
+    float d2 = Vector2.Distance(v[2].Position, zielWelt);
+    if (d1 < 1f)
+        verstoesse.Add($"{wer}: v[1] steht exakt auf dem angeklickten Punkt ({d1:0}px) — sollte um den Punkt verteilt sein");
+    if (d2 < 1f)
+        verstoesse.Add($"{wer}: v[2] steht exakt auf dem angeklickten Punkt ({d2:0}px) — sollte um den Punkt verteilt sein");
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: v[0] {d0:0}px, v[1] {d1:0}px, v[2] {d2:0}px; Min-Zweier {minAbstand:0}px");
 }
 
 // Ein Dörfler läuft zu einer Kachel, die hinter einem See liegt — der Pfad
@@ -3905,6 +3993,90 @@ static void Kampfbild(List<string> verstoesse)
 
     if (verstoesse.Count == vorher)
         Console.WriteLine($"  ok  {wer}: Schlagbilder gegen Einheit und Gebäude, nicht untätig oder gegen Tote; Blick zum Gegner links und rechts");
+}
+
+// Zielwechsel: ein Soldat bekämpft den ersten Gegner, und wenn der stirbt,
+// fällt er automatisch auf den nächsten um, statt untätig zu stehen
+// (Nutzer 2026-10-11: „die müssen auch automatisch angegriffen werden.
+// Der Soldat darf dann nach dem ersten nicht einfach aufhören solange
+// noch Gegner da sind").
+static void Zielwechsel(int karte, List<string> verstoesse)
+{
+    string wer = $"Karte {karte}, Zielwechsel";
+    int vorher = verstoesse.Count;
+    var w = new Welt();
+    w.Set("cameraZoom", 1f);
+    w.Set("cameraPosition", Vector2.Zero);
+    var dorf = w.Dorfbewohner().ToList();
+    int T = w.Map.TileSize;
+
+    bool Frei(int x, int y) => w.Map.GetTile(x, y) is { } t && w.Map.IsWalkable(x, y)
+        && string.IsNullOrEmpty(t.Building) && !w.Map.Units.Any(u => w.Map.WorldToGrid(u.Position) == new Vector2(x, y));
+    IEnumerable<Vector2> Kacheln() => Enumerable.Range(0, w.Map.Width)
+        .SelectMany(x => Enumerable.Range(0, w.Map.Height).Select(y => new Vector2(x, y)));
+    var start = w.Map.WorldToGrid(dorf[0].Position);
+    Vector2 Platz(float abstand) => Kacheln()
+        .Where(c => c.Y >= 1 && c.Y < w.Map.Height - 1 && c.X >= 1 && c.X < w.Map.Width - 1
+                    && Frei((int)c.X, (int)c.Y) && Frei((int)c.X + 1, (int)c.Y))
+        .OrderBy(c => Math.Abs(Vector2.Distance(c, start) - abstand)).First();
+    Unit Neu(UnitType typ, int besitzer, Vector2 kachel)
+    {
+        var u = w.Map.AddUnit(typ, (int)kachel.X, (int)kachel.Y, besitzer);
+        (besitzer == 0 ? w.P1 : w.P2).AddUnit(u);
+        return u;
+    }
+
+    // Der Angreifer (Miliz) steht nah an den Dorfbewohnern (deren Sicht
+    /// trägt), A 3 Kacheln weiter, B zwei dahinter in derselben Richtung —
+    // alles im 6-Kachel-Umzugsradius und im Dorfbewohner-Sichtfeld, damit
+    // beides sichtbar ist.
+    var milizPos = w.FreieKachel(dorf[0], 2);
+    var aPos = Kacheln()
+        .Where(c => c.Y >= 1 && c.Y < w.Map.Height - 1 && c.X >= 1 && c.X < w.Map.Width - 1
+                    && w.Map.IsTileVisible((int)c.X, (int)c.Y, 0)
+                    && w.Map.IsWalkable((int)c.X, (int)c.Y)
+                    && string.IsNullOrEmpty(w.Map.GetTile((int)c.X, (int)c.Y).Building)
+                    && Math.Abs(Vector2.Distance(c, milizPos) - 3f) < 1f)
+        .OrderBy(c => Vector2.Distance(c, milizPos) - 3f).First();
+    var dir = (aPos - milizPos); float len = dir.Length(); dir = len > 0.5f ? dir / len : new Vector2(1, 0);
+    var bPos = new Vector2((int)Math.Round(aPos.X + dir.X * 2.5f), (int)Math.Round(aPos.Y + dir.Y * 2.5f));
+    var miliz = Neu(UnitType.Militia, 0, milizPos);
+    var a = Neu(UnitType.Villager, 1, aPos);
+    var b = Neu(UnitType.Villager, 1, bPos);
+    w.Map.UpdateFogOfWarForPlayer(0, w.Map.Units);
+    if (!w.Map.IsTileExplored((int)aPos.X, (int)aPos.Y, 0) || !w.Map.IsTileExplored((int)bPos.X, (int)bPos.Y, 0))
+    {
+        verstoesse.Add($"{wer}: Testaufbau - A oder B nicht sichtbar ({(int)aPos.X},{(int)aPos.Y} / {(int)bPos.X},{(int)bPos.Y})");
+        return;
+    }
+
+    // A angreifen
+    w.Call("AttackUnit", new List<Unit> { miliz }, a);
+
+    // A muss sterben
+    float tA = w.LaufeBis(() => a.Health <= 0 || !w.Map.Units.Contains(a), 60f);
+    if (a.Health > 0 && w.Map.Units.Contains(a))
+    {
+        verstoesse.Add($"{wer}: A stirbt nach {tA:0} s nicht (LP {a.Health}/{a.MaxHealth})");
+        return;
+    }
+
+    // Kurzes Fenster: direkt nach dem Tod von A muss der Angreifer bereits B
+    // verfolgen (UnitTarget == B) – kein Idle-Zwischenzustand.
+    w.LaufeBis(() => false, 0.5f);
+    if (miliz.UnitTarget != b && miliz.State == UnitState.Idle)
+        verstoesse.Add($"{wer}: nach Tod von A ist der Soldat untätig statt auf B zu schalten");
+
+    // B muss folgen
+    float tB = w.LaufeBis(() => b.Health <= 0 || !w.Map.Units.Contains(b), 60f);
+    if (b.Health > 0 && w.Map.Units.Contains(b))
+    {
+        verstoesse.Add($"{wer}: B stirbt nach {tB:0} s nicht, obwohl der Soldat weiterkämpfen sollte (LP {b.Health}/{b.MaxHealth})");
+    }
+    else if (verstoesse.Count == vorher)
+    {
+        Console.WriteLine($"  ok  {wer}: A nach {tA:0} s besiegt, Soldat weicht auf B aus, B nach {tB:0} s ebenfalls besiegt");
+    }
 }
 
 class Welt

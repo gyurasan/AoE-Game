@@ -2754,6 +2754,32 @@ public class RTSGameplayScreen : GameScreen
     }
 
     /// <summary>
+    /// Der nächstgelegene lebende Feind einer <paramref name="unit"/> innerhalb
+    /// von <paramref name="maxRange"/> Weltpixeln, oder null. Feind heißt:
+    /// anderer <c>OwnerId</c>, nicht tot. Dient zum Weiterkämpfen nach dem Tod
+    /// des aktuellen Ziels (DestroyUnit): der Soldat fällt sofort auf den
+    /// nächsten Gegner in der Nähe zurück, statt untätig zu stehen
+    /// (Nutzer 2026-10-11).
+    /// </summary>
+    internal Unit NearestLiveEnemy(Unit unit, float maxRange)
+    {
+        Unit best = null;
+        float bestDist = maxRange;
+        foreach (var u in units)
+        {
+            if (u.OwnerId == unit.OwnerId || u.State == UnitState.Dead)
+                continue;
+            float d = Vector2.Distance(u.Position, unit.Position);
+            if (d <= bestDist)
+            {
+                bestDist = d;
+                best = u;
+            }
+        }
+        return best;
+    }
+
+    /// <summary>
     /// Tötet eine Einheit endgültig ab: aus den Listen (tileMap + Player)
     /// entfernen, alle angreifenden Einheiten abziehen. <paramref name="victim"/>
     /// muss Health 0 / State Dead haben — das prüft der Aufrufer.
@@ -2769,14 +2795,34 @@ public class RTSGameplayScreen : GameScreen
         if (units.Contains(victim))
             units.Remove(victim);
 
-        // Alle, die gegen sie angriffen, lassen davon ab
+        // Alle, die gegen sie angriffen: nicht einfach aufhören (Idle), sondern
+        // solange weiterkämpfen, bis keine Feinde mehr in der Nähe sind
+        // (Nutzer 2026-10-11: „Der Soldat darf dann nicht nach dem ersten einfach
+        // aufhören solange noch Gegner da sind").
         foreach (var unit in units)
         {
             if (unit.UnitTarget != victim)
                 continue;
-            unit.UnitTarget = null;
-            unit.Path.Clear();
-            unit.State = UnitState.Idle;
+            var next = NearestLiveEnemy(unit, maxRange: 6f * tileMap.TileSize);
+            if (next != null)
+            {
+                // Weitermachen: neues Ziel + Standpunkt, ohne den ganzen
+                // Angriffs-Befehl von vorn (AttackUnit würde auch Job/Build
+                // rühren).
+                unit.UnitTarget = next;
+                unit.AttackTimer = 0f;
+                unit.TargetPosition = next.Position;
+                unit.Path = tileMap.FindPath(unit.Position, AttackStandPoint(unit, next));
+                if (unit.Path.Count > 0) unit.State = UnitState.Moving;
+                else if (InAttackRange(unit, next)) unit.State = UnitState.Attacking;
+                else { unit.UnitTarget = null; unit.State = UnitState.Idle; }
+            }
+            else
+            {
+                unit.UnitTarget = null;
+                unit.Path.Clear();
+                unit.State = UnitState.Idle;
+            }
         }
 
         if (selectedUnits.Contains(victim))
@@ -2909,6 +2955,14 @@ public class RTSGameplayScreen : GameScreen
         if (site != null && (site.OwnerId != ownerId || site.IsComplete))
             site = null;
 
+        // Laufbefehl: eine einzige Einheit läuft auf den exakten
+        // angeklickten Punkt; mehrere verteilen sich im Umkreis (je ein
+        // Standplatz pro Einheit), damit alle sichtbar bleiben und nicht
+        // auf denselben Pixeln übereinander stehen (Nutzer 2026-10-11).
+        bool isMove = site == null && !isSource;
+        bool spread = isMove && selectedUnits.Count > 1;
+        var assigned = new List<Vector2>(selectedUnits.Count);   // bereits vergebene Standplätze
+
         foreach (var unit in selectedUnits)
         {
             unit.BuildSite = null;
@@ -2928,12 +2982,102 @@ public class RTSGameplayScreen : GameScreen
             else
             {
                 unit.Job = null;
-                unit.TargetPosition = GridToWorld(gridPos);
+                unit.TargetPosition = spread
+                    ? MoveStandPoint(gridPos, assigned.Count, assigned)
+                    : GridToWorld(gridPos);
+                if (spread)
+                    assigned.Add(unit.TargetPosition);
                 // geplant nur mit dem Wissen des Spielers, damit ein Klick ins Schwarze nicht verrät, was darunter liegt
                 unit.Path = tileMap.FindPathKnown(unit.OwnerId, unit.Position, unit.TargetPosition);
-                unit.State = UnitState.Moving;
+                if (unit.Path.Count == 0)
+                    // Ziel-Kachel nicht begehbar (Wasser/Ruin): untätig statt ewig Moving.
+                    unit.State = UnitState.Idle;
+                else
+                    unit.State = UnitState.Moving;
             }
         }
+    }
+
+    /// <summary>
+    /// Der Lauf-Standplatz für <paramref name="unit"/> bei einem Mehrheits-
+    /// Laufbefehl: ein fächerförmiger (Fibonacci/Sonnenblumen-Spirale)
+    /// Posten im Umkreis des angeklickten Punkts — gleichverteilte Ringe,
+    /// sodass sich mehrere Einheiten sichtbar um den Punkt verteilen statt
+    /// sich darin zu überlagern (Nutzer 2026-10-11: „sie verteilen sich
+    /// ein wenig um den angegebenen Punkt herum … eine einzelne läuft
+    /// exakt auf den Punkt").
+    ///
+    /// Regeln:
+    /// - Einzelne Einheit (spread=false) oder erster in der Liste → exakt
+    ///   der Klickpunkt.
+    /// - Mindest-Abstand COMBAT_SPACING_TILES Kacheln zu jeder anderen
+    ///   schon vergebenen Einheit aus <paramref name="taken"/>.
+    /// - Die Posten wachsen in Abständen von
+    ///   COMBAT_SPACING_TILES Kacheln von der Mitte weg (goldener Winkel
+    ///   2.3999… rad pro Schritt).
+    /// - Wenn die Kachel am Posten nicht begehbar ist, rückt die Einheit
+    ///   in einem kleinen Schritt auf einen begehbar Punkt im Nachbar-
+    ///   umkreis (Radius 2,5 Kacheln).
+    /// </summary>
+    private Vector2 MoveStandPoint(Vector2 gridTarget, int index, List<Vector2> assigned)
+    {
+        // index 0 = auf genau den angeklickten Punkt (Nutzer 2026-10-11:
+        // eine einzelne läuft exakt auf den Punkt); jeder weitere bekommt
+        // einen eigenen Posten im Umkreis, damit alle sichtbar bleiben.
+        var center = GridToWorld(gridTarget);
+        if (index == 0)
+            return center;
+
+        float spacing = COMBAT_SPACING_TILES * tileMap.TileSize;   // ~0.5 Kachel
+        float gold = 2.39996323f;    // goldener Winkel (137.5°)
+        // radius = sqrt(index) * spacing * 1.4  ->  Sonnenblumen-Spirale
+        float radius = MathF.Sqrt(index) * spacing * 1.4f;
+
+        var ideal = center + new Vector2(MathF.Cos(index * gold), MathF.Sin(index * gold)) * radius;
+
+        // Mindest-Abstand zu allen schon vergebenen Standpunkten halten (2 Runden).
+        var stand = ideal;
+        for (int i = 0; i < 2; i++)
+        {
+            bool moved = false;
+            foreach (var pt in assigned)
+            {
+                var d = stand - pt;
+                float dist = d.Length();
+                if (dist < spacing && dist > 0.01f)
+                {
+                    stand += d / dist * (spacing - dist);
+                    moved = true;
+                    break;
+                }
+            }
+            if (!moved) break;
+        }
+
+        // Begehbare Kachel suchen (2.5 Kacheln Umkreis, kleiner Schritt)
+        var cell = tileMap.WorldToGrid(stand);
+        int cx = (int)cell.X, cy = (int)cell.Y;
+        if (tileMap.IsWalkable(cx, cy) && string.IsNullOrEmpty(tileMap.GetTile(cx, cy).Building))
+            return stand;
+
+        // Nachbar-Scan: 8 Nachbar-Kacheln im Ring, dann 3er-Ring
+        Vector2[] deltas = {
+            new( 1, 0), new(-1, 0), new( 0, 1), new( 0,-1),
+            new( 1, 1), new( 1,-1), new(-1, 1), new(-1,-1),
+            new( 2, 0), new(-2, 0), new( 0, 2), new( 0,-2),
+            new( 2, 2), new( 2,-2), new(-2, 2), new(-2,-2),
+        };
+        foreach (var d in deltas)
+        {
+            int nx = cx + (int)d.X, ny = cy + (int)d.Y;
+            if (nx < 0 || ny < 0 || nx >= tileMap.Width || ny >= tileMap.Height) continue;
+            if (tileMap.IsWalkable(nx, ny) && string.IsNullOrEmpty(tileMap.GetTile(nx, ny).Building))
+                return tileMap.GridToWorld(new Vector2(nx, ny));
+        }
+
+        // Fallback: der Originalpunkt (FindPathKnown liefert leer → Idle
+        // statt ewig Moving), besser als ein nicht begehbarer Punkt.
+        return GridToWorld(gridTarget);
     }
 
     /// <summary>
