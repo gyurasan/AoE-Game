@@ -2421,13 +2421,14 @@ static void Auswahl(int karte, List<string> verstoesse)
     void Maus(Vector2 p, ButtonState links, ButtonState rechts)
         => w.Call("HandleRtsInput", gt, new KeyboardState(),
                   new MouseState((int)p.X, (int)p.Y, 0, links, ButtonState.Released, rechts, ButtonState.Released, ButtonState.Released));
-    // Kamera so, dass der Weltpunkt mitten über der Karte steht (nicht unter der Leiste);
-    // die Maus dabei in der Bildmitte, damit kein Kantenscrollen auslöst. Zurück kommt
-    // der Bildschirmpunkt des Weltpunkts nach ClampCamera
+    // Kamera so, dass der Weltpunkt mittig im freien Kartenbereich steht (zwischen
+    // oberer und unterer Leiste); die Maus dabei mittig, damit kein Kantenscrollen
+    // auslöst. Zurück kommt der Bildschirmpunkt des Weltpunkts nach ClampCamera
     Vector2 ZeigeAuf(Vector2 welt)
     {
-        w.Set("cameraPosition", new Vector2(bw / 2f, (bh - 200) / 2f) / zoom - welt);
-        Maus(new Vector2(bw / 2f, (bh - 200) / 2f), ButtonState.Released, ButtonState.Released);
+        int mitte = 56 + (bh - 56 - 200) / 2;   // Mitte des freien Kartenbereichs (HUD_TOP 56, Leiste 200)
+        w.Set("cameraPosition", new Vector2(bw / 2f, mitte) / zoom - welt);
+        Maus(new Vector2(bw / 2f, mitte), ButtonState.Released, ButtonState.Released);
         return (welt + (Vector2)w.Get("cameraPosition")) * zoom;
     }
     // Ein Punkt des Gebäudes, der nach dem Ausrichten nicht unter Leiste oder Minimap
@@ -3182,7 +3183,8 @@ static void Kartengroessen(List<string> verstoesse)
 
     // Der Bildschirm, den das Spiel zur Kartenformung nutzt — hier fest,
     // damit die Prüfung reproduzierbar bleibt. Der Spielscreen leitet die
-    // Karte aus screenBounds.Width/screenBounds.Height ab.
+    // Karte aus screenBounds.Width/screenBounds.Height ab (Menüleisten fliegen
+    // NICHT in die Rechnung ein).
     int sw = 2406, sh = 1353;
     float aspect = (float)sw / sh;
     var erwartet = new Dictionary<MapSize, int> { [MapSize.Standard] = 64, [MapSize.Large] = 90, [MapSize.Max] = 128 };

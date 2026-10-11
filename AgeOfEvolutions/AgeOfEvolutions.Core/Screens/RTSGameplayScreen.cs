@@ -51,7 +51,12 @@ public class RTSGameplayScreen : GameScreen
     // zeichnet (2707 px hoch). Mit festen Grenzen kam man dort nur halb so nah.
     private const float ZOOM_REFERENCE_HEIGHT = 1080f;
 
-    /// <summary>Faktor für Zoomgrenzen und Startzoom: 1 bis 1080 px Fensterhöhe, darüber proportional.</summary>
+    /// <summary>Fensterhöhe minus obere und untere Leiste — so groß ist der Kartenbereich,
+    /// den die Karte abdeckt. Das Kartenformat wird daraus abgeleitet (siehe Aspekt in LoadContent).</summary>
+    private int FreeHeight => Math.Max(1, screenBounds.Height - HUD_TOP_HEIGHT - HUD_BOTTOM_HEIGHT);
+
+    /// <summary>Faktor für Zoomgrenzen und Startzoom: 1 bis 1080 px Fensterhöhe, darüber proportional
+    /// (bleibt in Fensterhöhe referenziert; die Zoom-Abnahme prüft dieses Verhalten).</summary>
     private float ZoomScale => Math.Max(1f, screenBounds.Height / ZOOM_REFERENCE_HEIGHT);
     // Testmodus (--test): die ganze Karte auf einen Blick — der minimale Zoom
     // darf dann so weit heraus, dass Karte und Leisten ins Fenster passen.
@@ -732,10 +737,12 @@ public class RTSGameplayScreen : GameScreen
                                           graphicsDevice.PresentationParameters.BackBufferHeight);
 
         // Initialize game — die Karte nimmt das Seitenverhältnis des
-        // Bildschirms an (breite statt quadratische Karte), bei jeder
-        // Kartengröße die gleiche Fläche wie früher.
-        var mapDims = MapSizes.Dimensions(_mapSize,
-            (float)screenBounds.Width / Math.Max(1, screenBounds.Height));
+        // BILDSCHIRMS an (Fensterbreite / Fensterhöhe), bei jeder Kartengröße
+        // die gleiche Fläche wie früher. Die Menüleisten fliegen NICHT in die
+        // Rechnung ein (User-Entscheidung 2026-10-11); die Kamera hält die
+        // Karte trotzdem zwischen ihnen (ClampCamera).
+        float aspect = (float)screenBounds.Width / Math.Max(1, screenBounds.Height);
+        var mapDims = MapSizes.Dimensions(_mapSize, aspect);
         tileMap = new TileMap(mapDims.Width, mapDims.Height, 32, MapSettings.ForSize(_mapSize));
         gatherWorld = new TileMapGatherWorld(tileMap);
         player1 = new Data.Player(0, "Player 1", "Briten");
@@ -961,23 +968,24 @@ public class RTSGameplayScreen : GameScreen
 
         // Start the camera on player 1's town center instead of the map corner.
         // Startzoom wie die Zoomgrenzen an der Fensterhöhe ausgerichtet; die
-        // Bildmitte liegt in Weltkoordinaten bei bildschirm / (2 * zoom).
+        // Kartenmitte (Mittenpunkt des freien Bereichs zwischen den Leisten)
+        // liegt in Weltkoordinaten bei bildschirm / (2 * zoom).
         cameraZoom = ZoomScale;
         _appliedZoomScale = cameraZoom;
         var start = tileMap.GridToWorld(new Vector2(3, 3));
         cameraPosition = new Vector2(screenBounds.Width / (2f * cameraZoom),
-                                     screenBounds.Height / (2f * cameraZoom)) - start;
+                                     HUD_TOP_HEIGHT / cameraZoom + FreeHeight / (2f * cameraZoom)) - start;
         ClampCamera();
 
         // Testmodus (--test): die ganze Karte in einen Blick — Zoom so weit
-        // heraus, dass Karte plus untere Leiste ins Fenster passen, Kamera
+        // heraus, dass Karte plus beide Leisten ins Fenster passen, Kamera
         // zeigt die Kartenmitte. Nebel bleibt per TileMap.TestNoFog aus.
         if (Data.TileMap.TestNoFog)
         {
             float mapW = tileMap.Width * tileMap.TileSize;
             float mapH = tileMap.Height * tileMap.TileSize;
             _testFit = Math.Min(screenBounds.Width / mapW,
-                                (screenBounds.Height - 240f) / mapH) * 0.98f;
+                                FreeHeight / mapH) * 0.98f;
             cameraZoom = Math.Max(0.05f, _testFit);
             _appliedZoomScale = ZoomScale;   // SyncZoomToWindow nicht erneut skalieren
             cameraPosition = Vector2.Zero;
@@ -993,6 +1001,7 @@ public class RTSGameplayScreen : GameScreen
         tileTexture?.Dispose();
         tileTexture = null;
         px?.Dispose(); px = null;
+        _fogMask?.Dispose(); _fogMask = null; _fogMaskBuf = null; _fogBlur = null; _fogRaw = null; _fogTemp = null;
         _alarmSound?.Dispose(); _alarmSound = null;
         foreach (var t in tileTex.Values) t?.Dispose();
         tileTex.Clear();
@@ -2604,7 +2613,25 @@ public class RTSGameplayScreen : GameScreen
             // der Weg darf über bekannte Kacheln führen, das Ziel
             // selbst muss nicht bekannt sein, sonst endet der Pfad an
             // einer Nebelkante und die Einheit läuft in den Winkel.
-            a.Path = tileMap.FindPath(a.Position, target.Position);
+            // Endpunkt ist der STANDPUNKT (Abstand zum Gegner + Platz im
+            // Verband), nicht das Ziel selbst — so halten Nahkämpfer
+            // Abstand, Bogenschützen die Bogenvorlage, und niemand steht
+            // auf dem Gegner (Nutzer 2026-10-11: Schlachten unübersichtlich,
+            // alle an der gleichen Stelle). FindPath liefert die leere Liste,
+            // wenn die Zielkachel nicht begehbar ist (z. B. Steilkante
+            // dahinter) — dann herunterschrauben, bis die Kachel frei wird
+            // (maximal bis direkt am Kantenrand), sonst könnte die Einheit
+            // auf einer nicht-reichen Distanz stehen bleiben.
+            var stand = AttackStandPoint(a, target);
+            a.Path = tileMap.FindPath(a.Position, stand);
+            while (a.Path.Count == 0 && Vector2.Distance(stand, target.Position) > tileMap.TileSize * 0.6f)
+            {
+                var g = tileMap.WorldToGrid(stand);
+                if (tileMap.IsWalkable((int)g.X, (int)g.Y))
+                    break;                              // Kachel frei, Weg fehlt aber — nicht weiter
+                stand = stand + (target.Position - stand) * 0.5f;   // Näher, bis die Kachel frei wird
+                a.Path = tileMap.FindPath(a.Position, stand);
+            }
             if (a.Path.Count > 0)
                 a.State = UnitState.Moving;
             else if (InAttackRange(a, target))
@@ -2624,17 +2651,106 @@ public class RTSGameplayScreen : GameScreen
 
     /// <summary>
     /// Steht <paramref name="target"/> in Angriffreichweite von
-    /// <paramref name="unit"/>? Dieselbe Rechnung wie in
-    /// <see cref="HandleAttack"/>: Chebyshev-Distanz in Kacheln, Reichweite
-    /// mindestens 1 Kachel (Math.Max(1, unit.AttackRange)).
+    /// <paramref name="unit"/>? Chebyshev, pixelgenau, mit
+    /// <see cref="COMBAT_SPACING_TILES"/>-Aufschlag, da der Standpunkt durch
+    /// die Verbands-Abweichung bis COMBAT_SPACING_TILES vom idealen Punkt
+    /// weichen darf. Die Einheit hält dort an und ist bis hier angreifbar —
+    /// so pendelt sie nicht zwischen „zu weit" und „zu nah".
     /// </summary>
     private bool InAttackRange(Unit unit, Unit target)
     {
-        int range = Math.Max(1, unit.AttackRange);
-        int ts = tileMap.TileSize;
-        int dc = (int)(Math.Abs(target.Position.X - unit.Position.X) / ts);
-        int dr = (int)(Math.Abs(target.Position.Y - unit.Position.Y) / ts);
+        float range = AttackStopDistance(unit) + COMBAT_SPACING_TILES * tileMap.TileSize;
+        float dc = Math.Abs(target.Position.X - unit.Position.X);
+        float dr = Math.Abs(target.Position.Y - unit.Position.Y);
         return Math.Max(dc, dr) <= range;
+    }
+
+    /// <summary>
+    /// Anhalt-Abstand in Kacheln (Zentrum zu Zentrum): Nahkampf 0.5 Kachel
+    /// (bei 32-Pixel-Kacheln 16 px — die Figuren stehen fast berührungnah,
+    /// Waffe an Waffe; Nutzer 2026-10-11: „mach lieber 0.5 Kacheln"),
+    /// Bogenschützen ihre volle Bogenvorlage (Stats.Range).
+    /// </summary>
+    private const float MELEE_STOP_TILES = 0.5f;
+
+    /// <summary>Abstand zwischen zwei Kämpfern (Zentrum zu Zentrum,
+    /// bei 32-Pixel-Kacheln 0.5 Kachel), ob Verbündete oder Gegner — damit
+    /// im Kampf niemand auf einem anderen steht (Nutzer 2026-10-11: „Abstand
+    /// nicht nur zu den eigenen Soldaten sondern auch zu den Gegern"), aber
+    /// das Gefecht dicht zusammenbleibt. Gleiche Größe wie der Nahkampf-
+    /// Anhalt. Dient auch als Rand für die Verbands-Ausweichung, damit die
+    /// Einheit in der (stop + spacing)-Reichweite bleiben kann.</summary>
+    private const float COMBAT_SPACING_TILES = 0.5f;
+
+    /// <summary>Anhalt-Entfernung in Weltpixeln: Nahkampf
+    /// <see cref="MELEE_STOP_TILES"/>, Bogenschützen die eigene Bogenvorlage
+    /// (Stats.Range in Kacheln) — sie greifen aus der Ferne, statt dicht
+    /// ranzugehen (Nutzer 2026-10-11: „Bogenschützen müssen nicht in die
+    /// Nähe des Gegners … Sie haben ja die Bogen", „ab zwei Häuser Abstand
+    /// können sie schon angreifen").</summary>
+    private float AttackStopDistance(Unit unit)
+        => (unit.AttackRange > 0 ? unit.AttackRange : MELEE_STOP_TILES) * tileMap.TileSize;
+
+    /// <summary>
+    /// Der Punkt, an dem <paramref name="unit"/> gegen <paramref name="target"/>
+    /// antritt: auf der Linie Ziel→Einheit in Anhalt-Entfernung, so halten
+    /// Nahkämpfer Abstand statt auf dem Gegner zu stehen, und Bogenschützen
+    /// schießen aus voller Bogenvorlage. Zusätzlich wird der Punkt radiale
+    /// um <see cref="COMBAT_SPACING_TILES"/> von jeder anderen Verbündeten
+    /// Einheit abgewichen — aber niemals über die (stop + spacing)-Reichweite,
+    /// damit die Einheit dort angreifen kann, statt endlos umherzulaufen.
+    /// Der Standpunkt wird bei jedem Pfadplan (AttackUnit, HandleAttack,
+    /// StepAlongPath) neu gerechnet.
+    /// </summary>
+    private Vector2 AttackStandPoint(Unit unit, Unit target)
+    {
+        var dir = unit.Position - target.Position;
+        if (dir.Length() < 0.5f)
+            dir = new Vector2(1, 0);        // exakt gleiche Lage: Seitenstand wählen
+        dir.Normalize();
+        var ideal = target.Position + dir * AttackStopDistance(unit);
+
+        // Mindest-Abstand zu ALLEN anderen Kämpfern halten (2 Pässe, radial
+        // begrenzt): Verbündete UND Gegner, sonst steht wieder jemand auf
+        // jemandem (Nutzer: „Abstand nicht nur zu den eigenen Soldaten
+        // sondern auch zu den Gegnern"). Die Ausweich darf nur so weit vom
+        // Idealpunkt weg wie ein Mindest-Abstand, damit die Einheit in der
+        // (stop + spacing)-Reichweite bleibt und angreifen kann, statt zu
+        // pendeln.
+        var stand = ideal;
+        float gap = COMBAT_SPACING_TILES * tileMap.TileSize;
+        for (int i = 0; i < 2; i++)
+        {
+            var push = Vector2.Zero;
+            bool moved = false;
+            foreach (var u in units)
+            {
+                if (ReferenceEquals(u, unit) || u.State == UnitState.Dead)
+                    continue;
+                var d = stand - u.Position;
+                float dist = d.Length();
+                if (dist < gap)
+                {
+                    // radial weg davon (fast gleiche Lage: radial vom Gegner)
+                    var away = dist > 0.01f ? d / dist
+                        : (stand - target.Position) / Math.Max(1f, (stand - target.Position).Length());
+                    push += away * (gap - dist);
+                    moved = true;
+                }
+            }
+            if (!moved) break;
+            stand += push;
+        }
+
+        // Radiale Begrenzung: die Ausweich darf nur so weit vom ideal Punkt
+        // weg wie ein Mindest-Abstand (stop + spacing bleibt immer erreichbar)
+        var offset = stand - ideal;
+        if (offset.Length() > gap)
+            stand = ideal + offset / offset.Length() * gap;
+
+        // In der Karte halten
+        return new Vector2(Math.Clamp(stand.X, 0f, tileMap.Width * tileMap.TileSize),
+                           Math.Clamp(stand.Y, 0f, tileMap.Height * tileMap.TileSize));
     }
 
     /// <summary>
@@ -3503,9 +3619,35 @@ public class RTSGameplayScreen : GameScreen
     /// </summary>
     private void PlaceBuilding(BuildingType type, Vector2 cell)
     {
-        if (!PlaceBuildingFor(0, type, cell,
-                             selectedUnits.Where(u => u.OwnerId == 0).ToList()))
+        // 1) Platz nicht frei ODER Stadtzentrum (es gibt genau EINES — das
+        //    Start-Dorfzentrum, PlaceBuildingFor verbietet es): generische
+        //    Meldung, der Nutzer sieht ja, wo er hinwollte.
+        if (type == BuildingType.TownCenter || !CanPlace(0, type, cell))
+        {
             ShowHudMessage("Hier kann nicht gebaut werden");
+            return;
+        }
+
+        // 2) Rohstoffe fehlen: die fehlenden Mengen benennen, statt
+        //    „Hier kann nicht gebaut werden" zu melden (Nutzer 2026-10-11:
+        //    „Macht keinen Sinn wenn einfach bestimmte Rohstoffe fehlen").
+        var cost = BuildingRules.CostOf(type);
+        if (!player1.Resources.HasEnough(cost))
+        {
+            var fehlt = new System.Collections.Generic.List<string>();
+            foreach (var (res, amt) in cost)
+            {
+                int habe = player1.Resources[res];
+                if (habe < amt)
+                    fehlt.Add($"{amt} {ResourceName(res)}");
+            }
+            ShowHudMessage("Fehlende Rohstoffe: " + string.Join(" + ", fehlt));
+            return;
+        }
+
+        // 3) Platz + Rohstoffe ok — bauen lassen (KI-Logik in PlaceBuildingFor).
+        PlaceBuildingFor(0, type, cell,
+                         selectedUnits.Where(u => u.OwnerId == 0).ToList());
     }
 
     /// <summary>
@@ -4005,11 +4147,15 @@ public class RTSGameplayScreen : GameScreen
             return;
         }
 
-        // In Reichweite? (Chebyshev: |dx|, |dy|; Nahkampf 1, Fernkampf Stats.Range)
+        // In Reichweite? (Chebyshev, pixelgenau — gleiche Rechnung wie der
+        // Standpunkt, an dem die Einheit hält, siehe InAttackRange)
         bool inRange = InAttackRange(unit, target);
         if (!inRange)
         {
-            unit.Path = tileMap.FindPath(unit.Position, target.Position);
+            // Zum STANDPUNKT laufen (Abstand zum Gegner, Platz im Verband),
+            // nicht auf das Ziel — sonst stapeln sich alle aufeinander,
+            // und Bogenschützen ginge die Bogenvorlage verloren.
+            unit.Path = tileMap.FindPath(unit.Position, AttackStandPoint(unit, target));
             unit.State = UnitState.Moving;
             return;
         }
@@ -4020,6 +4166,28 @@ public class RTSGameplayScreen : GameScreen
             unit.AttackTimer -= AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS;
             unit.Attack(target);
             RegisterDamageTaken(target.OwnerId);
+
+            // AUTOMATISCHE GEGENWEHR (Nutzer 2026-10-11: „wenn ein Soldat
+            // angegriffen wird, muss er sich automatisch wehren"). Der
+            // Getroffene schlägt zurück, sobald er (a) überhaupt angreifen
+            // kann (AttackPower > 0 — Soldat UND Dorfbewohner, wie in AoE)
+            // und (b) noch kein eigenes Ziel hat: dann bricht er aus
+            // Sammel-/Baustellung aus und greift den Angreifer an. Ist er
+            // schon selbst auf ein Ziel angesetzt (UnitTarget/AttackTarget
+            // gesetzt), bleibt sein Ziel unverändert — kein Abbrechen beim
+            // laufenden Kampf. Einheit-gegen-Einheit-Schaden läuft an genau
+            // dieser Stelle durch (HandleAttack ruft unit.Attack), daher
+            // deckt dieser Hook jeden Angriffsablauf ab: Klick-Auswahl,
+            // KI-Befehl und die K6-TZ-Defense.
+            if (target.OwnerId != unit.OwnerId
+                && target.AttackPower > 0
+                && target.UnitTarget == null
+                && target.AttackTarget == null
+                && target.State != UnitState.Dead)
+            {
+                AttackUnit(new List<Unit> { target }, unit);
+            }
+
             // Tote Einheit: nicht hier entfernen (Units-Liste wird gerade
             // von UpdateUnits iteriert) — der Aufräumer übernimmt.
         }
@@ -4123,7 +4291,11 @@ public class RTSGameplayScreen : GameScreen
         // weg ist (das "läuft ins Leere"-Symptom).
         if (free && unit.UnitTarget is { } uTarget && uTarget.State != UnitState.Dead)
         {
-            Vector2 desired = uTarget.Position;
+            // Re-Plan auf dem STANDPUNKT (Abstand halten + Platz im Verband),
+            // nicht auf dem Ziel selbst: der Angreifer hält Abstand
+            // (Nahkampf) bzw. Bogenvorlage (Fernkampf) — und läuft nicht
+            // auf das Ziel auf, das längst weg ist.
+            Vector2 desired = AttackStandPoint(unit, uTarget);
             var desiredPath = tileMap.FindPath(unit.Position, desired);
             if (desiredPath.Count > 0
                 && (unit.Path.Count == 0
@@ -4191,8 +4363,10 @@ public class RTSGameplayScreen : GameScreen
     {
         spriteBatch = ScreenManager.SpriteBatch;
 
-        // Clear background — must happen outside of Begin/End.
-        graphicsDevice.Clear(new Color(22, 79, 45)); // Grass color
+        // Clear background — alles VOR der Karte (außerhalb ihrer Flächen,
+        // an den Leistenrändern) bleibt schwarz. Die Karte selbst malt ihren
+        // Boden drüber.
+        graphicsDevice.Clear(Color.Black);
 
         // Deliberately drawn without ScreenManager.GlobalTransformation: this screen
         // renders in raw backbuffer space so that mouse coordinates and drawn pixels
@@ -4219,8 +4393,13 @@ public class RTSGameplayScreen : GameScreen
         // was weiter oben steht (Haufen und Fleisch liegen flach in DrawTileMap)
         DrawUnits(spriteBatch);
 
-        // Nebel über Karte und Einheiten, unter Auswahlrahmen und Leisten
+        // Nebel über Karte und Einheiten, unter Auswahlrahmen und Leisten.
+        // Eigener linear-gesampelter Batch (fließende/gerundete Nebelkante) —
+        // daher die Leisten/Selektion-Draws danach erst wieder im äußeren,
+        // Punkt-gesampelten Deferred-Batch.
+        spriteBatch.End();
         DrawFog(spriteBatch);
+        spriteBatch.Begin();
 
         // Beim Setzen eines Gebäudes: Grundfläche unter dem Mauszeiger, grün wenn frei
         if (placing != null)
@@ -6219,10 +6398,13 @@ public class RTSGameplayScreen : GameScreen
         return new Vector2(column, count > 0 ? (float)sum / count : tex.Height / 2f);
     }
 
-    /// <summary>Weicher, ovaler Schatten: in der Mitte dunkel, zum Rand durchsichtig.</summary>
+    /// <summary>Weicher, ovaler, abgerundeter Schatten: in der Mitte dunkel,
+    /// zum Rand durchsichtig. Hohe Auflösung (72×28) + lineares Filter, damit
+    /// der Rand bei jeder Zielgröße weich ausläuft statt pixelig abzubrechen
+    /// (Nutzer 2026-10-11: „Schatten abrunden").</summary>
     private static Texture2D BuildShadowTexture(GraphicsDevice gd)
     {
-        var b = new TextureBuilder(32, 12);
+        var b = new TextureBuilder(72, 28);
         for (int y = 0; y < b.H; y++)
         {
             for (int x = 0; x < b.W; x++)
@@ -6233,31 +6415,115 @@ public class RTSGameplayScreen : GameScreen
                     b.Set(x, y, Color.Black * (0.35f * (1f - d)));
             }
         }
-        return b.Build(gd);
+        var t = b.Build(gd);
+        return t;   // MonoGame 3.8: kein Filter/AddressMode auf Texture2D —
+                    // die weiche Kante kommt über die hohe Auflösung
+                    // (mehr Stufen pro gestrecktem Ziel-Pixel).
     }
 
     /// <summary>
     /// Nebel des Krieges für Spieler 0: nie Gesehenes schwarz, einmal Gesehenes
     /// abgedunkelt – dort zeigt die Karte den letzten bekannten Stand.
+    /// Weiche, fließende Kante + abgerundete Ecken (Nutzer 2026-10-11): 1-Farb-
+    /// Textur pro Kachel wird GPU-bilinear hochskaliert – die weiche Mischzone
+    /// liegt dabei auf der Kachel selbst (nicht auf dem schwarzen Bereich).
     /// </summary>
     private void DrawFog(SpriteBatch spriteBatch)
     {
-        var dimmed = new Color(0, 0, 0, 110);
-        for (int x = 0; x < tileMap.Width; x++)
-        {
-            for (int y = 0; y < tileMap.Height; y++)
-            {
-                var rect = TileScreenRect(x, y);
-                if (!rect.Intersects(screenBounds))
-                    continue;
+        int tw = tileMap.Width, th = tileMap.Height;
+        int mw = tw, mh = th;   // 1 Pixel pro Kachel – die Weichheit kommt aus
+                                // der geglätteten Maske + dem linearen Sampler
 
-                if (!tileMap.IsTileExplored(x, y, 0))
-                    spriteBatch.Draw(px, rect, Color.Black);
-                else if (!tileMap.IsTileVisible(x, y, 0))
-                    spriteBatch.Draw(px, rect, dimmed);
+        if (_fogMask == null || _fogMask.Width != mw || _fogMask.Height != mh)
+        {
+            _fogMask?.Dispose();
+            _fogMask = new Texture2D(graphicsDevice, mw, mh);
+            _fogMaskBuf = new Color[mw * mh];
+        }
+
+        // Maske: 0 = frei sichtbar, 0.43 = bekannt aber gerade nicht sichtbar,
+        // 1 = nie entdeckt. Der Gauß-Weichzug rundet alle Kanten/Ecken, dadurch
+        // ist kein hartes Rechteck mehr sichtbar (Nutzer 2026-10-11:
+        // „Übergang fließender ins Schwarze, Ecken runder").
+        BuildFogMaskBlur();
+        for (int i = 0; i < mw * mh; i++)
+            _fogMaskBuf[i] = new Color(0, 0, 0, (int)(_fogBlur[i] * 255f));
+        _fogMask.SetData(_fogMaskBuf);
+
+        var mapRect = TileScreenRect(0, 0, tw, th);
+        if (!mapRect.Intersects(screenBounds)) return;
+
+        // Eigener Batch mit linearem Sampler: so interpoliert die GPU über jede
+        // Grenze hinweg → fließender Übergang + runde Ecken. (Eigene Begin/End,
+        // dasselbe Muster wie DrawWheat/DrawGround; der Nebel ist semi-transparent
+        // und deckt die darunter schon gezeichneten Karte+Einheiten ab.)
+        spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend,
+                          SamplerState.LinearClamp, null, null, null);
+        spriteBatch.Draw(_fogMask, mapRect, Color.White);
+        spriteBatch.End();
+    }
+
+    /// <summary>
+    /// Macht aus der harten pro-Kachel-Maske (frei = 0, abgedunkelt = 0.43,
+    /// nie entdeckt = 1) weiche, fließende Grenzen: ein separabler Gauß-Blauf
+    /// (Kern 1,4,6,4,1, einmal waagrecht + einmal senkrecht) glättet jede
+    /// Kante. So "fließt" das Schwarz in die bekannte Fläche hinein und die
+    /// Kachel-Ecken werden zu sanften Rundungen (Nutzer 2026-10-11).
+    /// </summary>
+    private void BuildFogMaskBlur()
+    {
+        int tw = tileMap.Width, th = tileMap.Height, n = tw * th;
+        if (_fogRaw  == null || _fogRaw.Length   != n) _fogRaw  = new float[n];
+        if (_fogBlur == null || _fogBlur.Length  != n) _fogBlur = new float[n];
+        if (_fogTemp == null || _fogTemp.Length  != n) _fogTemp = new float[n];
+
+        // 1) Quelle befragen
+        for (int y = 0; y < th; y++)
+            for (int x = 0; x < tw; x++)
+                _fogRaw[y * tw + x] = tileMap.IsTileExplored(x, y, 0)
+                    ? (tileMap.IsTileVisible(x, y, 0) ? 0f : 0.43f)
+                    : 1f;
+
+        // 2) waagerechter Gauss-Pass (Kern 1,4,6,4,1, /16)  -> _fogTemp
+        float[] w = { 1f, 4f, 6f, 4f, 1f };
+        float inv = 1f / 16f;
+        for (int y = 0; y < th; y++)
+        {
+            for (int x = 0; x < tw; x++)
+            {
+                float acc = 0f;
+                for (int k = -2; k <= 2; k++)
+                {
+                    int xx = x + k;
+                    if (xx < 0) xx = 0; else if (xx >= tw) xx = tw - 1;
+                    acc += w[k + 2] * _fogRaw[y * tw + xx];
+                }
+                _fogTemp[y * tw + x] = acc * inv;
+            }
+        }
+
+        // 3) senkrechter Gauss-Pass auf _fogTemp -> _fogBlur
+        for (int x = 0; x < tw; x++)
+        {
+            for (int y = 0; y < th; y++)
+            {
+                float acc = 0f;
+                for (int k = -2; k <= 2; k++)
+                {
+                    int yy = y + k;
+                    if (yy < 0) yy = 0; else if (yy >= th) yy = th - 1;
+                    acc += w[k + 2] * _fogTemp[yy * tw + x];
+                }
+                _fogBlur[y * tw + x] = acc * inv;
             }
         }
     }
+
+    private Texture2D _fogMask;
+    private Color[]   _fogMaskBuf;
+    private float[]   _fogBlur;
+    private float[]   _fogRaw;
+    private float[]   _fogTemp;
 
     private void DrawUI(SpriteBatch spriteBatch)
     {
@@ -6887,29 +7153,37 @@ public class RTSGameplayScreen : GameScreen
         float mapHeight = tileMap.Height * tileMap.TileSize;
 
         float viewWidth = screenBounds.Width / cameraZoom;
-        float viewHeight = screenBounds.Height / cameraZoom;
 
         cameraPosition.X = viewWidth >= mapWidth
             ? (viewWidth - mapWidth) / 2f
             : MathHelper.Clamp(cameraPosition.X, viewWidth - mapWidth, 0f);
 
-        // Sichtbarer Kartenbereich: ganz oben am Bildschirmrand, unten an der
-        // Kante der unteren Menüleiste. Bei maximalem Runterscrollen liegt der
-        // Kartenboden exakt auf der Leistenkante — nicht darunter (der
-        // verschwindet sonst hinter der Leiste und der Scrollweg endet zu
-        // früh). Ist die Karte kleiner als die Fläche, zentriert sie in ihr.
-        float regionBottom = screenBounds.Height - HUD_BOTTOM_HEIGHT;
-        if (viewHeight >= mapHeight)
+        // Sichtbarer Kartenbereich: der freie Streifen ZWISCHEN oberer (Ressourcenanzeige)
+        // und unterer (Befehlsleiste) Menüleiste, also die Bildzeilen
+        // [HUD_TOP, Height - HUD_BOTTOM]. Welt→Bildschirm: (weltY + camY) * zoom.
+        //   - Ist die Karte HÖHER als der Streifen (in Welteinheiten), bleibt sie
+        //     zwischen beiden Leisten eingespannt: oben kann die Kartenoberkante
+        //     höchstens bei HUD_TOP liegen, unten die Kartenunterkante höchstens
+        //     beim Streifenende — der Spieler pans das Spielfeld ab.
+        //   - Ist sie KÜRZER, wird sie im Streifen zentriert: oben und unten bleibt
+        //     gleich viel freie (schwarze) Fläche.
+        float stripTop    = HUD_TOP_HEIGHT;
+        float stripBottom = screenBounds.Height - HUD_BOTTOM_HEIGHT;
+        float stripHoch   = (stripBottom - stripTop) / cameraZoom;   // freie Höhe, Welteinheiten
+        if (mapHeight <= stripHoch)
         {
-            // Karte passt: vertikal zentriert im freien Bereich (0 bis Leistenkante):
-            // Kartenmitte bei regionBottom/2.
-            cameraPosition.Y = (regionBottom / cameraZoom - mapHeight) / 2f;
+            float mitte = (stripTop + stripBottom) / 2f;
+            cameraPosition.Y = mitte / cameraZoom - mapHeight / 2f;
         }
         else
         {
+            // camY so, dass oben Kartenoberkante ≥ HUD_TOP und unten Kartenunterkante
+            // ≤ Streifenende gilt:
+            //   camY ≤ HUD_TOP / zoom            (Kartenoberkante nicht über der oberen Leiste)
+            //   camY ≥ (Streifenende / zoom) - Karte (Kartenunterkante nicht unter der unteren Leiste)
             cameraPosition.Y = MathHelper.Clamp(cameraPosition.Y,
-                                                 regionBottom / cameraZoom - mapHeight,
-                                                 0f);
+                                                 stripBottom / cameraZoom - mapHeight,
+                                                 stripTop / cameraZoom);
         }
     }
 
