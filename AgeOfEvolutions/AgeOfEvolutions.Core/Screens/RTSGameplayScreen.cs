@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AgeOfEvolutions.Core.Audio;
 using AgeOfEvolutions.Core.Data;
 using AgeOfEvolutions.Core.Inputs;
 using AgeOfEvolutions.Screens;
@@ -320,6 +321,18 @@ public class RTSGameplayScreen : GameScreen
     private SoundEffect _alarmSound;
     private bool _underAttackSoundReady;
     private double _gameSeconds;
+
+    // Geräusche der Spielwelt (tools/klang): Werkzeugschläge, Hiebe, Schüsse, Tod und
+    // Einsturz. Man hört, was im Bild und knapp daneben geschieht, und nur, was Spieler 0
+    // gerade sieht - im Nebel bleibt es still.
+    private SoundBoard _sounds;
+    // Jedes Geräusch, das EmitSound auslöst, mit Ort - nur tools/spielablauf setzt die
+    // Liste, im Spiel bleibt sie null
+    internal List<(string Name, Vector2 Position)> SoundLog = null;
+    // Außerhalb des Bildausschnitts klingt ein Geräusch über so viele Kacheln aus
+    private const float SOUND_FADE_TILES = 8f;
+    // Wie weit ein Geräusch am Bildrand zur Seite rückt (1 = ganz auf einen Lautsprecher)
+    private const float SOUND_PAN_WIDTH = 0.7f;
 
     // „Unter Angriff" — das Spiel merkt sich pro Spieler, wann die eigene
     // Siedlung das letzte Mal einen Treffer kassiert hat (Einheiten oder
@@ -801,6 +814,11 @@ public class RTSGameplayScreen : GameScreen
             _underAttackSoundReady = false;
         }
 
+        // Geräusche der Spielwelt aus tools/klang; was fehlt, bleibt stumm
+        _sounds = new SoundBoard();
+        int loadedSounds = _sounds.Load(ScreenManager.Game.Content);
+        Console.WriteLine($"[Klang] {loadedSounds} von {SoundBoard.Names.Length * SoundBoard.VARIANTS} Geräuschvarianten geladen");
+
         // Symbole der Befehlstasten nach dem Namen der Einheit: dieselbe Taste
         // Q heißt je Gebäude etwas anderes (Dorfbewohner, Miliz, Bogenschütze,
         // Späher); fehlt eines, bleibt die Taste ohne Symbol
@@ -1048,6 +1066,7 @@ public class RTSGameplayScreen : GameScreen
         HandleRtsInput(gameTime);
         UpdateUnits(gameTime);
         UpdateUnitMotion((float)gameTime.ElapsedGameTime.TotalSeconds);
+        UpdateWorkSounds((float)gameTime.ElapsedGameTime.TotalSeconds);
         UpdatePopulationLimits();
         // Niederlage: ein Spieler ohne Dorfbewohner UND ohne Gebäude ist
         // erledigt — das Spiel ist beendet. Die Prüfung läuft, sobald die
@@ -2529,6 +2548,9 @@ public class RTSGameplayScreen : GameScreen
     /// </summary>
     internal void DestroyBuilding(Building b)
     {
+        // Es stürzt hörbar ein: die Mitte der Grundfläche in Weltpixeln
+        EmitSound("einsturz", new Vector2((b.X + b.Width / 2f) * tileMap.TileSize,
+                                         (b.Y + b.Height / 2f) * tileMap.TileSize));
         // Forscht es gerade, bricht die Forschung ab (P2): die Kosten kommen
         // dem Besitzer zurück
         var owner = b.OwnerId == 0 ? player1 : player2;
@@ -2786,6 +2808,8 @@ public class RTSGameplayScreen : GameScreen
     /// </summary>
     internal void DestroyUnit(Unit victim)
     {
+        // Wer stirbt, fällt hörbar
+        EmitSound("tod", victim.Position);
         victim.State = UnitState.Dead;
         var owner = victim.OwnerId == 0 ? player1 : player2;
 
@@ -4201,6 +4225,8 @@ public class RTSGameplayScreen : GameScreen
                         if (unit.AttackTimer >= AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS)
                         {
                             unit.AttackTimer -= AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS;
+                            // Hörbar beim Angreifer: der Bogen oder der Schlag an der Wand
+                            EmitSound(unit.AttackType == AttackType.Ranged ? "bogen" : "gebaeude", unit.Position);
                             if (AoE.Core.Combat.BuildingCombat.Hit(unit.Core, building.Core))
                             {
                                 RegisterDamageTaken(building.OwnerId);
@@ -4311,6 +4337,10 @@ public class RTSGameplayScreen : GameScreen
             unit.Attack(target);
             RegisterDamageTaken(target.OwnerId);
 
+            // Der Bogen erklingt beim Schützen, Hieb und Klinge beim Getroffenen
+            EmitSound(UnitHitSound(unit, target),
+                      unit.AttackType == AttackType.Ranged ? unit.Position : target.Position);
+
             // AUTOMATISCHE GEGENWEHR (Nutzer 2026-10-11: „wenn ein Soldat
             // angegriffen wird, muss er sich automatisch wehren"). Der
             // Getroffene schlägt zurück, sobald er (a) überhaupt angreifen
@@ -4352,6 +4382,165 @@ public class RTSGameplayScreen : GameScreen
             try { _alarmSound.Play(); }
             catch { /* kein Audio-Gerät: die Warnung bleibt sichtbar */ }
         }
+    }
+
+    /// <summary>
+    /// Ein Geräusch der Spielwelt an <paramref name="worldPos"/> (Weltpixel).
+    /// VERTRAG: zuerst SoundLog?.Add((name, worldPos)) - immer, auch ohne Ton. Dann nur,
+    /// wenn _sounds nicht null ist und Spieler 0 die Kachel unter worldPos gerade sieht
+    /// (WorldToGrid, dann tileMap.IsTileVisible(x, y, 0)): Lautstärke und Lage aus SoundMix
+    /// mit dem Bildausschnitt ScreenToWorld(Vector2.Zero) bis
+    /// ScreenToWorld(new Vector2(screenBounds.Width, screenBounds.Height)) und der
+    /// Ausklingstrecke SOUND_FADE_TILES * tileMap.TileSize; ist die Lautstärke größer 0,
+    /// _sounds.Play(name, Lautstärke, Lage, _gameSeconds).
+    /// </summary>
+    internal void EmitSound(string name, Vector2 worldPos)
+    {
+        // Immer merken, auch ohne Ton - tools/spielablauf prüft die Liste
+        SoundLog?.Add((name, worldPos));
+
+        // Nur, wenn das SoundBoard geladen ist und Spieler 0 die Kachel gerade sieht
+        if (_sounds == null)
+            return;
+        var grid = WorldToGrid(worldPos);
+        if (!tileMap.IsTileVisible((int)grid.X, (int)grid.Y, 0))
+            return;
+
+        // Bildausschnitt in Weltkoordinaten und Ausklingstrecke in Weltpixeln
+        var viewMin = ScreenToWorld(Vector2.Zero);
+        var viewMax = ScreenToWorld(new Vector2(screenBounds.Width, screenBounds.Height));
+        float fade = SOUND_FADE_TILES * tileMap.TileSize;
+        var (volume, pan) = SoundMix(worldPos, viewMin, viewMax, fade);
+        if (volume > 0f)
+            _sounds.Play(name, volume, pan, _gameSeconds);
+    }
+
+    /// <summary>
+    /// Wie laut und von wo man ein Geräusch an <paramref name="worldPos"/> hört, wenn der
+    /// Bildausschnitt die Welt von <paramref name="viewMin"/> (oben links) bis
+    /// <paramref name="viewMax"/> (unten rechts) zeigt.
+    /// VERTRAG: d = Abstand von worldPos zum Rechteck viewMin bis viewMax (0, wenn worldPos
+    /// darin liegt; sonst der Abstand zum nächsten Punkt des Rechtecks). Volume = 1 - d / fade,
+    /// auf 0 bis 1 begrenzt. Pan = (worldPos.X - Mitte des Rechtecks in X) / (halbe Breite
+    /// des Rechtecks), auf -1 bis 1 begrenzt, mal SOUND_PAN_WIDTH; ist die Breite nicht
+    /// größer 0, ist Pan 0.
+    /// </summary>
+    internal static (float Volume, float Pan) SoundMix(Vector2 worldPos, Vector2 viewMin, Vector2 viewMax, float fade)
+    {
+        // Echter Abstand zum Rechteck, auch schräg vor einer Ecke
+        float dx = Math.Max(0f, Math.Max(viewMin.X - worldPos.X, worldPos.X - viewMax.X));
+        float dy = Math.Max(0f, Math.Max(viewMin.Y - worldPos.Y, worldPos.Y - viewMax.Y));
+        float d = MathF.Sqrt(dx * dx + dy * dy);
+
+        // Lautstärke: 1 im Bild, auf 0 nach fade Weltpixeln
+        float volume = Math.Clamp(1f - d / fade, 0f, 1f);
+
+        // Lage: Mitte des Bilds 0, Ränder -1 bis 1, auf SOUND_PAN_WIDTH begrenzt
+        float width = viewMax.X - viewMin.X;
+        float pan = width > 0f
+            ? Math.Clamp((worldPos.X - (viewMin.X + viewMax.X) / 2f) / (width / 2f), -1f, 1f) * SOUND_PAN_WIDTH
+            : 0f;
+        return (volume, pan);
+    }
+
+    /// <summary>
+    /// Trifft ein Werkzeug zwischen den Animationszeiten t - dt und t auf? SwingAngle
+    /// schlägt am Ende jedes Takts auf - dort, wo t * rate eine ganze Zahl erreicht.
+    /// VERTRAG: false, wenn dt &lt;= 0; sonst true genau dann, wenn
+    /// MathF.Floor(t * rate) größer als MathF.Floor((t - dt) * rate) ist.
+    /// </summary>
+    internal static bool StrikeLanded(float t, float dt, float rate)
+        => dt > 0f && MathF.Floor(t * rate) > MathF.Floor((t - dt) * rate);
+
+    /// <summary>
+    /// Welches Geräusch macht <paramref name="unit"/> gerade bei der Arbeit?
+    /// VERTRAG: null, wenn unit kein Dorfbewohner ist (unit.Core is not CoreVillager).
+    /// State Building: "hammer". Sonst nur in der Sammelphase (unit.Job?.Phase ==
+    /// GatherPhase.Gathering), nach unit.Job.Resource: Wood "axt"; Stone und Gold
+    /// "spitzhacke"; Food nach der Quelle auf der Kachel unit.Job.Source
+    /// (tileMap.GetTile(x, y)?.Food): FoodSource.Farm "erde", FoodSource.Berries "rascheln",
+    /// jede andere Quelle null (Angel und Fleisch klingen nicht). In jedem anderen Fall null.
+    /// </summary>
+    private string WorkSoundFor(Unit unit)
+    {
+        // Nur Dorfbewohner arbeiten mit Werkzeugen
+        if (unit.Core is not CoreVillager)
+            return null;
+
+        // Am Bau hämmert es
+        if (unit.State == UnitState.Building)
+            return "hammer";
+
+        // Sonst nur in der Sammelphase
+        if (unit.Job is not { Phase: GatherPhase.Gathering } job)
+            return null;
+
+        return job.Resource switch
+        {
+            Resource.Wood => "axt",
+            Resource.Stone or Resource.Gold => "spitzhacke",
+            Resource.Food => tileMap.GetTile(job.Source.X, job.Source.Y)?.Food switch
+            {
+                FoodSource.Farm => "erde",
+                FoodSource.Berries => "rascheln",
+                _ => null,   // Angel und Fleisch klingen nicht
+            },
+            _ => null,
+        };
+    }
+
+    /// <summary>
+    /// Werkzeugschläge hörbar machen: jeder arbeitende Dorfbewohner schlägt im Takt seiner
+    /// Animation auf (DrawVillager, SwingAngle), und genau dann klingt es.
+    /// VERTRAG: für jede Einheit in units mit WorkSoundFor(unit) nicht null, die nicht läuft
+    /// (_unitMotion.GetValueOrDefault(unit).MovingFor &lt;= 0): t = animationTime +
+    /// (unit.GetHashCode() &amp; 0xFF) / 40f - derselbe Takt wie in DrawVillager -, rate =
+    /// ToolStyles[ToolFor(unit)].Rate; gilt StrikeLanded(t, dt, rate), dann
+    /// EmitSound(WorkSoundFor(unit), unit.Position). Update ruft es direkt nach
+    /// UpdateUnitMotion auf - animationTime ist dann schon um dt weiter.
+    /// </summary>
+    private void UpdateWorkSounds(float dt)
+    {
+        foreach (var unit in units)
+        {
+            // Das Geräusch einmal ermitteln und merken
+            if (WorkSoundFor(unit) is not { } sound)
+                continue;
+
+            // Wer läuft, schlägt nicht im Takt zu
+            if (_unitMotion.GetValueOrDefault(unit).MovingFor > 0f)
+                continue;
+
+            // Derselbe Takt wie in DrawVillager
+            float t = animationTime + (unit.GetHashCode() & 0xFF) / 40f;
+            float rate = ToolStyles[ToolFor(unit)].Rate;
+            if (StrikeLanded(t, dt, rate))
+                EmitSound(sound, unit.Position);
+        }
+    }
+
+    /// <summary>
+    /// Welches Geräusch macht ein Treffer von <paramref name="attacker"/> auf
+    /// <paramref name="target"/>?
+    /// VERTRAG: "bogen", wenn attacker ein Fernkämpfer ist (attacker.AttackType ==
+    /// AttackType.Ranged). Sonst "schwert", wenn beide bewaffnete Nahkämpfer sind - kein
+    /// Dorfbewohner (Core is not CoreVillager), AttackPower &gt; 0 und AttackType ==
+    /// AttackType.Melee -, da klirren die Klingen; in jedem anderen Fall "treffer".
+    /// </summary>
+    internal static string UnitHitSound(Unit attacker, Unit target)
+    {
+        // Bewaffneter Nahkämpfer: kein Dorfbewohner, AttackPower > 0 und AttackType Melee
+        static bool Armed(Unit u)
+            => u.Core is not CoreVillager && u.AttackPower > 0 && u.AttackType == AttackType.Melee;
+
+        // Fernkämpfer: der Bogen
+        if (attacker.AttackType == AttackType.Ranged)
+            return "bogen";
+        // Beide bewaffnete Nahkämpfer: da klirren die Klingen
+        if (Armed(attacker) && Armed(target))
+            return "schwert";
+        // In jedem anderen Fall
+        return "treffer";
     }
 
     /// <summary>

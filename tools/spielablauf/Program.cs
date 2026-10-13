@@ -6,7 +6,9 @@
 // auswahl (Gebäude auswählen), angriff (Gebäude angreifen), soldaten
 // (Ausbildung in Kaserne, Schießstand und Stall), forschung (Forschungen und ihre Wirkung),
 // zielen (Gegner an der ganzen Figur anklicken), verteidigung (Soldaten verteidigen das
-// Stadtzentrum) und kampfbild (Schlagbilder und Blick gegen Einheiten).
+// Stadtzentrum) und kampfbild (Schlagbilder und Blick gegen Einheiten). Die Geräusche
+// (tools/klang) prüfen klangbrett (Drossel des SoundBoard), arbeitsklang (Werkzeugschläge im
+// Takt, Hörweite und Lage) und kampfklang (Hieb, Klinge, Bogen, Tod, Einsturz).
 //
 // Jede genannte Gruppe läuft auf drei frisch erzeugten Karten. Die Spielschleife
 // läuft Bild für Bild (60 je Sekunde) mit denselben Methoden, die Update() im Spiel
@@ -19,6 +21,7 @@
 // Erst diese Nachstellung klärte, dass die Bauarbeiter abgezogen worden waren -
 // per Linksklick, der in diesem Spiel ein Befehl ist.
 using System.Reflection;
+using AgeOfEvolutions.Core.Audio;
 using AgeOfEvolutions.Core.Data;
 using AgeOfEvolutions.Core.Screens;
 using Microsoft.Xna.Framework;
@@ -147,6 +150,13 @@ for (int karte = 1; karte <= KARTEN; karte++)
         Pruefe("Kampfbild", () => Kampfbild(verstoesse));
     if (gruppen.Contains("zielwechsel"))
         Pruefe($"Karte {karte}, Zielwechsel", () => Zielwechsel(karte, verstoesse));
+    // Die Drossel und die reinen Rechnungen hängen nicht von der Karte ab
+    if (gruppen.Contains("klangbrett") && karte == 1)
+        Pruefe("Klangbrett", () => Klangbrett(verstoesse));
+    if (gruppen.Contains("arbeitsklang"))
+        Pruefe($"Karte {karte}, Arbeitsklang", () => Arbeitsklang(karte, verstoesse));
+    if (gruppen.Contains("kampfklang"))
+        Pruefe($"Karte {karte}, Kampfklang", () => Kampfklang(karte, verstoesse));
     // Niederlage: ohne Dorfbewohner UND ohne Stadtzentrum ist die Seite
     // verloren — pro Karte, weil jeder Ablauf eine eigene Welt braucht.
     if (gruppen.Contains("niederlage"))
@@ -4077,6 +4087,478 @@ static void Zielwechsel(int karte, List<string> verstoesse)
     {
         Console.WriteLine($"  ok  {wer}: A nach {tA:0} s besiegt, Soldat weicht auf B aus, B nach {tB:0} s ebenfalls besiegt");
     }
+}
+
+// Eine statische Methode des Bildschirms (Welt.Call findet nur Instanzmethoden)
+static object Statisch(string name, params object[] args)
+{
+    var m = typeof(RTSGameplayScreen).GetMethods(BindingFlags.NonPublic | BindingFlags.Static)
+        .FirstOrDefault(x => x.Name == name && x.GetParameters().Length == args.Length)
+        ?? throw new InvalidOperationException(
+            $"statische Methode RTSGameplayScreen.{name}({args.Length} Argumente) nicht gefunden - umbenannt?");
+    return m.Invoke(null, args);
+}
+
+static Unit NeueEinheit(Welt w, UnitType typ, int besitzer, Vector2 kachel)
+{
+    var u = w.Map.AddUnit(typ, (int)kachel.X, (int)kachel.Y, besitzer);
+    (besitzer == 0 ? w.P1 : w.P2).AddUnit(u);
+    return u;
+}
+
+// Klangbrett (Nutzer 2026-10-11: "die sound effekte sind scheinbar generiert aber noch nicht
+// eingebaut"): die Drossel des SoundBoard lässt jedes Geräusch höchstens alle MIN_GAP Sekunden
+// zu, jedes für sich, und ein abgelehnter Versuch verschiebt sie nicht. Ohne geladene Datei
+// bleibt Play stumm und belegt die Drossel nicht. Ob die Dateien wirklich laden, zeigt der
+// Start des Spiels (checks/s_klang.py) - ohne Spielfenster gibt es kein Audiogerät.
+static void Klangbrett(List<string> verstoesse)
+{
+    const string wer = "Klangbrett";
+    int vorher = verstoesse.Count;
+    var brett = new SoundBoard(new Random(1));
+
+    if (brett.Count("axt") != 0 || brett.Count("gibt es nicht") != 0)
+        verstoesse.Add($"{wer}: ohne Laden meldet Count schon Varianten (axt {brett.Count("axt")})");
+    if (brett.Play("axt", 1f, 0f, 0.0))
+        verstoesse.Add($"{wer}: Play ohne geladene Datei meldet abgespielt");
+    if (!brett.Allow("axt", 0.0))
+        verstoesse.Add($"{wer}: nach einem stummen Play ist axt gedrosselt - Play darf die Drossel erst nach der Datei befragen");
+    if (brett.Allow("axt", 0.03))
+        verstoesse.Add($"{wer}: axt 0,03 s nach dem letzten erlaubt - MIN_GAP ist {SoundBoard.MIN_GAP} s");
+    if (!brett.Allow("hammer", 0.03))
+        verstoesse.Add($"{wer}: hammer 0,03 s nach axt gedrosselt - jedes Geräusch hat seine eigene Drossel");
+    // 0,03 wurde abgelehnt: die Drossel zählt weiter ab 0,0, also ist 0,08 erlaubt
+    if (!brett.Allow("axt", 0.08))
+        verstoesse.Add($"{wer}: axt 0,08 s nach dem letzten erlaubten abgelehnt - verschiebt ein abgelehnter Versuch die Drossel?");
+    if (brett.Allow("axt", 0.10))
+        verstoesse.Add($"{wer}: axt 0,02 s nach dem letzten erlaubt");
+
+    // Jedes Bild ein Versuch: durch kommt, was MIN_GAP nach dem letzten Durchgelassenen liegt
+    var neu = new SoundBoard(new Random(2));
+    int durch = 0, soll = 0;
+    double letzte = double.NegativeInfinity;
+    for (int i = 0; i < 60; i++)
+    {
+        if (neu.Allow("tod", i / 60.0))
+            durch++;
+        if (i / 60.0 - letzte >= SoundBoard.MIN_GAP)
+        {
+            soll++;
+            letzte = i / 60.0;
+        }
+    }
+    if (durch != soll)
+        verstoesse.Add($"{wer}: bei 60 Versuchen in einer Sekunde kommen {durch} durch, erwartet {soll} (Abstand {SoundBoard.MIN_GAP} s)");
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: ohne Datei stumm, Drossel {SoundBoard.MIN_GAP} s je Geräusch ({soll} je Sekunde), abgelehnte Versuche verschieben sie nicht");
+}
+
+// Arbeitsklang: ein arbeitender Dorfbewohner klingt genau dann, wenn sein Werkzeug in der
+// Animation aufschlägt (StrikeLanded im Takt von SwingAngle) - der Holzfäller mit der Axt, der
+// Bauarbeiter mit dem Hammer; welches Geräusch, hängt an Rohstoff und Quelle (WorkSoundFor).
+// Hörweite und Stereo-Lage rechnet SoundMix aus dem Bildausschnitt.
+static void Arbeitsklang(int karte, List<string> verstoesse)
+{
+    string wer = $"Karte {karte}, Arbeitsklang";
+    int vorher = verstoesse.Count;
+    const float DT = 1f / 60f;
+    var gathering = AoE.Core.Economy.GatherPhase.Gathering;
+    float Rate(string werkzeug)
+    {
+        const BindingFlags S = BindingFlags.NonPublic | BindingFlags.Static;
+        var typ = typeof(RTSGameplayScreen);
+        var stile = (System.Collections.IDictionary)(typ.GetField("ToolStyles", S)?.GetValue(null)
+            ?? throw new InvalidOperationException("Feld RTSGameplayScreen.ToolStyles nicht gefunden - umbenannt?"));
+        var stil = stile[Enum.Parse(typ.GetNestedType("Tool", BindingFlags.NonPublic)!, werkzeug)]!;
+        return (float)stil.GetType().GetProperty("Rate")!.GetValue(stil)!;
+    }
+
+    if (karte == 1)
+    {
+        // Der Aufschlag: dort, wo t * rate eine ganze Zahl erreicht
+        bool Schlag(float t, float dt, float rate) => (bool)Statisch("StrikeLanded", t, dt, rate);
+        if (!Schlag(2.01f, 0.02f, 1f))
+            verstoesse.Add($"{wer}: StrikeLanded(2,01; 0,02; 1) ist false - zwischen 1,99 und 2,01 schlägt das Werkzeug auf");
+        if (Schlag(2.5f, 0.02f, 1f))
+            verstoesse.Add($"{wer}: StrikeLanded(2,5; 0,02; 1) ist true - mitten im Takt schlägt nichts auf");
+        if (Schlag(2.01f, 0f, 1f))
+            verstoesse.Add($"{wer}: StrikeLanded mit dt 0 ist true");
+        if (!Schlag(0.63f, 0.02f, 1.6f))
+            verstoesse.Add($"{wer}: StrikeLanded(0,63; 0,02; 1,6) ist false - bei 1,6 Schlägen je Sekunde trifft er bei 0,625 auf");
+        foreach (var rate in new[] { 0.9f, 1f, 1.3f, 1.6f })
+        {
+            const float t0 = 0.37f;
+            int zahl = Enumerable.Range(1, 600).Count(i => Schlag(t0 + i * DT, DT, rate));
+            int soll = (int)MathF.Floor((t0 + 600 * DT) * rate) - (int)MathF.Floor(t0 * rate);
+            if (Math.Abs(zahl - soll) > 1)
+                verstoesse.Add($"{wer}: in 10 s bei {rate} Schlägen je Sekunde {zahl} Aufschläge, erwartet {soll}");
+        }
+
+        // Hörweite und Lage: Ausschnitt 800 x 600 Weltpixel, Ausklingen über 256 px
+        float breite = (float)(typeof(RTSGameplayScreen).GetField("SOUND_PAN_WIDTH", BindingFlags.NonPublic | BindingFlags.Static)?.GetValue(null)
+            ?? throw new InvalidOperationException("Konstante RTSGameplayScreen.SOUND_PAN_WIDTH nicht gefunden - umbenannt?"));
+        (float, float) Mix(float x, float y, float x0 = 0, float y0 = 0, float x1 = 800, float y1 = 600)
+            => ((float, float))Statisch("SoundMix", new Vector2(x, y), new Vector2(x0, y0), new Vector2(x1, y1), 256f);
+        void ErwarteMix(string fall, (float, float) ist, float lautstaerke, float lage)
+        {
+            if (Math.Abs(ist.Item1 - lautstaerke) > 0.01f || Math.Abs(ist.Item2 - lage) > 0.01f)
+                verstoesse.Add($"{wer}: SoundMix {fall}: Lautstärke {ist.Item1:0.00}, Lage {ist.Item2:0.00} - erwartet {lautstaerke:0.00}, {lage:0.00}");
+        }
+        ErwarteMix("in der Bildmitte", Mix(400, 300), 1f, 0f);
+        ErwarteMix("am linken Rand", Mix(0, 300), 1f, -breite);
+        ErwarteMix("am rechten Rand", Mix(800, 300), 1f, breite);
+        ErwarteMix("halb rechts", Mix(600, 300), 1f, breite / 2f);
+        ErwarteMix("128 px rechts neben dem Bild", Mix(928, 300), 0.5f, breite);
+        ErwarteMix("128 px über dem Bild", Mix(400, -128), 0.5f, 0f);
+        ErwarteMix("schräg vor der Ecke oben links (96 und 72 px)", Mix(-96, -72), 1f - 120f / 256f, -breite);
+        ErwarteMix("weit rechts außerhalb", Mix(1100, 300), 0f, breite);
+        ErwarteMix("bei einem Ausschnitt ohne Breite", Mix(100, 100, 100, 100, 100, 100), 1f, 0f);
+    }
+
+    // Ein Klick sammelt nur an erkundeten Kacheln, und zu Beginn ist kein Baum erkundet -
+    // wie bei den Türen sieht dieser Ablauf die ganze Karte
+    TileMap.TestNoFog = true;
+    try
+    {
+        var w = new Welt();
+        w.Set("cameraZoom", 1f);
+        w.Set("cameraPosition", Vector2.Zero);
+        var log = new List<(string Name, Vector2 Position)>();
+        w.Set("SoundLog", log);
+        int gesehen = 0;
+        bool Laeuft(Unit u)
+        {
+            var bewegung = (System.Collections.IDictionary)w.Get("_unitMotion");
+            if (!bewegung.Contains(u))
+                return false;
+            var m = bewegung[u]!;
+            return (float)m.GetType().GetField("MovingFor")!.GetValue(m)! > 0f;
+        }
+        // Ein Bild wie in Update: Spiellogik, Bewegung, dann die Werkzeugschläge
+        void Bild(Action danach = null)
+        {
+            w.LaufeBis(() => false, DT);
+            w.Call("UpdateUnitMotion", DT);
+            w.Call("UpdateWorkSounds", DT);
+            danach?.Invoke();
+            gesehen = log.Count;
+        }
+        // Neue Geräusche dieses Bilds mit dem Namen name: Ort bei u und im Takt der Animation?
+        int abseits = 0, ausDemTakt = 0;
+        void PruefeSchlaege(string name, Unit u, float rate)
+        {
+            foreach (var e in log.Skip(gesehen).Where(e => e.Name == name))
+            {
+                if (Vector2.Distance(e.Position, u.Position) > 1f)
+                    abseits++;
+                float phase = ((float)w.Get("animationTime") + (u.GetHashCode() & 0xFF) / 40f) * rate % 1f;
+                if (phase > rate * DT + 0.001f)
+                    ausDemTakt++;
+            }
+        }
+
+        // Ein Holzfäller am nächsten Baum
+        var holz = w.Dorfbewohner().First();
+        var start = w.Map.WorldToGrid(holz.Position);
+        Vector2? baum = null;
+        float best = float.MaxValue;
+        for (int x = 0; x < w.Map.Width; x++)
+            for (int y = 0; y < w.Map.Height; y++)
+            {
+                var t = w.Map.GetTile(x, y);
+                if (t?.ResourceType != Resource.Wood || t.ResourceAmount <= 0)
+                    continue;
+                float d = Vector2.Distance(start, new Vector2(x, y));
+                if (d < best && Enumerable.Range(-1, 3).Any(dx => w.Map.IsWalkable(x + dx, y)))
+                {
+                    best = d;
+                    baum = new Vector2(x, y);
+                }
+            }
+        w.Waehle(new List<Unit> { holz });
+        w.Linksklick(w.Map.GridToWorld(baum ?? throw new InvalidOperationException("kein Wald")));
+        for (int i = 0; i < 40 * 60 && holz.Job?.Phase != gathering; i++)
+            Bild();
+        if (holz.Job?.Phase != gathering)
+        {
+            verstoesse.Add($"{wer}: Testaufbau - der Holzfäller erreicht in 40 s keinen Baum ({holz.State})");
+            return;
+        }
+        float axtRate = Rate("Axe");
+        log.Clear();
+        gesehen = 0;
+        int hackt = 0;
+        for (int i = 0; i < 6 * 60; i++)
+            Bild(() =>
+            {
+                if (holz.Job?.Phase == gathering && !Laeuft(holz))
+                    hackt++;
+                PruefeSchlaege("axt", holz, axtRate);
+            });
+        int axt = log.Count(e => e.Name == "axt");
+        if (hackt < 3 * 60)
+            verstoesse.Add($"{wer}: Testaufbau - der Holzfäller hackt in 6 s nur {hackt / 60f:0.0} s");
+        else if (Math.Abs(axt - hackt / 60f * axtRate) > 2f)
+            verstoesse.Add($"{wer}: der Holzfäller hackt {hackt / 60f:0.0} s bei {axtRate} Schlägen je Sekunde - {axt} Axtschläge zu hören");
+        if (log.Any(e => e.Name != "axt"))
+            verstoesse.Add($"{wer}: außer dem Holzfäller arbeitet niemand - trotzdem zu hören: {string.Join(", ", log.Where(e => e.Name != "axt").Select(e => e.Name).Distinct())}");
+
+        // Ein Bauarbeiter am Haus; der Holzfäller hört auf
+        holz.Job = null;
+        holz.Path.Clear();
+        holz.State = UnitState.Idle;
+        var bauer = w.Dorfbewohner().Skip(1).First();
+        w.Waehle(new List<Unit> { bauer });
+        var platz = w.Bauplatz(BuildingType.House, bauer, 3);
+        w.Call("PlaceBuilding", BuildingType.House, platz);
+        var haus = w.Map.Buildings.Last();
+        float hammerRate = Rate("Hammer");
+        log.Clear();
+        gesehen = 0;
+        int baut = 0;
+        for (int i = 0; i < 90 * 60 && !haus.IsComplete; i++)
+            Bild(() =>
+            {
+                if (bauer.State == UnitState.Building && !Laeuft(bauer))
+                    baut++;
+                PruefeSchlaege("hammer", bauer, hammerRate);
+            });
+        int hammer = log.Count(e => e.Name == "hammer");
+        if (!haus.IsComplete || baut < 3 * 60)
+            verstoesse.Add($"{wer}: Testaufbau - das Haus wird in 90 s nicht fertig oder er baut nur {baut / 60f:0.0} s");
+        else if (Math.Abs(hammer - baut / 60f * hammerRate) > 2f)
+            verstoesse.Add($"{wer}: der Bauarbeiter baut {baut / 60f:0.0} s bei {hammerRate} Schlägen je Sekunde - {hammer} Hammerschläge zu hören");
+        if (log.Any(e => e.Name != "hammer"))
+            verstoesse.Add($"{wer}: nur der Bauarbeiter arbeitet - trotzdem zu hören: {string.Join(", ", log.Where(e => e.Name != "hammer").Select(e => e.Name).Distinct())}");
+        log.Clear();
+        gesehen = 0;
+        for (int i = 0; i < 3 * 60; i++)
+            Bild();
+        if (log.Count > 0)
+            verstoesse.Add($"{wer}: das Haus ist fertig, niemand arbeitet - trotzdem zu hören: {string.Join(", ", log.Select(e => e.Name).Distinct())}");
+        if (abseits > 0)
+            verstoesse.Add($"{wer}: {abseits} Werkzeugschläge erklingen nicht am Platz des Arbeiters");
+        if (ausDemTakt > 0)
+            verstoesse.Add($"{wer}: {ausDemTakt} Werkzeugschläge nicht im Takt der Animation (Aufschlag am Ende des Takts, animationTime wie in DrawVillager)");
+
+        // Welches Geräusch zu welcher Arbeit (WorkSoundFor)
+        var dorf = w.Dorfbewohner().Last();
+        var welt = (AoE.Core.Economy.IGatherWorld)w.Get("gatherWorld");
+        void ErwarteKlang(Unit u, string arbeit, string soll)
+        {
+            var ist = (string)w.Call("WorkSoundFor", u);
+            if (ist != soll)
+                verstoesse.Add($"{wer}: {arbeit} klingt {(ist == null ? "nicht" : $"nach {ist}")}, erwartet {soll ?? "Stille"}");
+        }
+        Tile Kachel(Func<Tile, bool> passt)
+        {
+            for (int x = 0; x < w.Map.Width; x++)
+                for (int y = 0; y < w.Map.Height; y++)
+                    if (w.Map.GetTile(x, y) is { } k && k.ResourceAmount > 0 && passt(k))
+                        return k;
+            return null;
+        }
+        dorf.Job = null;
+        dorf.State = UnitState.Idle;
+        ErwarteKlang(dorf, "ein untätiger Dorfbewohner", null);
+        dorf.State = UnitState.Building;
+        ErwarteKlang(dorf, "ein Dorfbewohner am Bau", "hammer");
+        dorf.State = UnitState.Gathering;
+        w.Map.PlantCrop(1, 1, 3);
+        foreach (var (fall, rohstoff, quelle, soll) in new (string, Resource, FoodSource?, string)[]
+                 {
+                     ("Holz", Resource.Wood, null, "axt"), ("Stein", Resource.Stone, null, "spitzhacke"),
+                     ("Gold", Resource.Gold, null, "spitzhacke"), ("dem Feld", Resource.Food, FoodSource.Farm, "erde"),
+                     ("dem Beerenbusch", Resource.Food, FoodSource.Berries, "rascheln"),
+                     ("dem Fischgrund", Resource.Food, FoodSource.Fish, null),
+                 })
+        {
+            var k = Kachel(t => quelle == null ? t.ResourceType == rohstoff : t.Food == quelle);
+            if (k == null)
+                continue;   // nicht jede Karte hat Beeren oder Fische
+            var job = new GatherJob(0, rohstoff, new CorePosition(k.X, k.Y));
+            dorf.Job = job;
+            ErwarteKlang(dorf, $"der Weg zu {fall}", null);
+            job.Arrive(welt);
+            if (job.Phase != gathering)
+            {
+                verstoesse.Add($"{wer}: Testaufbau - an {fall} ({k.X},{k.Y}) beginnt die Sammelphase nicht ({job.Phase})");
+                continue;
+            }
+            ErwarteKlang(dorf, $"die Arbeit an {fall}", soll);
+        }
+        var miliz = NeueEinheit(w, UnitType.Militia, 0, w.FreieKachel(dorf, 3));
+        miliz.State = UnitState.Building;
+        ErwarteKlang(miliz, "eine Miliz im Zustand Building", null);
+
+        if (verstoesse.Count == vorher)
+            Console.WriteLine($"  ok  {wer}: {axt} Axtschläge in {hackt / 60f:0.0} s, {hammer} Hammerschläge in {baut / 60f:0.0} s, im Takt und am Platz; danach still; Geräusch je Arbeit stimmt");
+    }
+    finally
+    {
+        TileMap.TestNoFog = false;
+    }
+}
+
+// Kampfklang: jeder Treffer klingt - der Bogen beim Schützen, Hieb (treffer) und Klinge
+// (schwert, zwei bewaffnete Nahkämpfer) beim Getroffenen, der Schlag an der Wand (gebaeude)
+// beim Angreifer; wer stirbt, fällt hörbar (tod), ein zerstörtes Gebäude stürzt ein (einsturz).
+static void Kampfklang(int karte, List<string> verstoesse)
+{
+    string wer = $"Karte {karte}, Kampfklang";
+    int vorher = verstoesse.Count;
+
+    // Welches Geräusch ein Treffer macht (UnitHitSound)
+    {
+        var w0 = new Welt();
+        var p = w0.FreieKachel(w0.Dorfbewohner().First(), 4);
+        Unit Neu0(UnitType typ, int besitzer) => w0.Map.AddUnit(typ, (int)p.X, (int)p.Y, besitzer);
+        var miliz = Neu0(UnitType.Militia, 0);
+        var gegner = Neu0(UnitType.Militia, 1);
+        var schuetze = Neu0(UnitType.Archer, 0);
+        var gegnerSchuetze = Neu0(UnitType.Archer, 1);
+        var dorf = Neu0(UnitType.Villager, 1);
+        var spaeher = Neu0(UnitType.Scout, 1);
+        void ErwarteHieb(string fall, Unit a, Unit z, string soll)
+        {
+            var ist = (string)Statisch("UnitHitSound", a, z);
+            if (ist != soll)
+                verstoesse.Add($"{wer}: {fall} klingt nach {ist ?? "nichts"}, erwartet {soll}");
+        }
+        ErwarteHieb("Miliz gegen Dorfbewohner", miliz, dorf, "treffer");
+        ErwarteHieb("Dorfbewohner gegen Miliz", dorf, miliz, "treffer");
+        ErwarteHieb("Miliz gegen Miliz", miliz, gegner, "schwert");
+        ErwarteHieb("Miliz gegen Späher", miliz, spaeher, "schwert");
+        ErwarteHieb("Miliz gegen Bogenschütze", miliz, gegnerSchuetze, "treffer");
+        ErwarteHieb("Bogenschütze gegen Miliz", schuetze, gegner, "bogen");
+        ErwarteHieb("Bogenschütze gegen Dorfbewohner", schuetze, dorf, "bogen");
+    }
+
+    // Ein Zweikampf bis zum Tod von opfer: jeder Treffer - Lebenspunkte sinken - klingt genau
+    // einmal nach erwartet, beim Getroffenen (beim Bogen: beim Schützen); opfer fällt einmal
+    // hörbar, an seinem Sterbeort. Andere Geräusche als erwartet und tod darf es nicht geben.
+    void Zweikampf(string fall, UnitType angreiferTyp, UnitType opferTyp, float abstand, string erwartet)
+    {
+        var w = new Welt();
+        var log = new List<(string Name, Vector2 Position)>();
+        w.Set("SoundLog", log);
+        var platz = w.FreieKachel(w.Dorfbewohner().First(), 4);
+        var angreifer = NeueEinheit(w, angreiferTyp, 0, platz);
+        var opfer = NeueEinheit(w, opferTyp, 1, platz);
+        opfer.Position = angreifer.Position - new Vector2(abstand, 0);
+        w.Call("AttackUnit", new List<Unit> { angreifer }, opfer);
+
+        int treffer = 0, gesehen = 0, abseits = 0;
+        int lpA = angreifer.Health, lpO = opfer.Health;
+        var sterbeort = opfer.Position;
+        w.LaufeBis(() =>
+        {
+            bool aGetroffen = angreifer.Health < lpA, oGetroffen = opfer.Health < lpO;
+            treffer += (aGetroffen ? 1 : 0) + (oGetroffen ? 1 : 0);
+            foreach (var e in log.Skip(gesehen).Where(e => e.Name != "tod"))
+            {
+                // Der Bogen erklingt beim Schützen, Hieb und Klinge beim Getroffenen
+                bool passt = e.Name == "bogen"
+                    ? Vector2.Distance(e.Position, angreifer.Position) < 2f
+                    : (aGetroffen && Vector2.Distance(e.Position, angreifer.Position) < 2f)
+                      || (oGetroffen && Vector2.Distance(e.Position, opfer.Position) < 2f);
+                if (!passt)
+                    abseits++;
+            }
+            gesehen = log.Count;
+            lpA = angreifer.Health;
+            lpO = opfer.Health;
+            if (w.Map.Units.Contains(opfer))
+                sterbeort = opfer.Position;
+            return !w.Map.Units.Contains(opfer) || !w.Map.Units.Contains(angreifer);
+        }, 90f);
+
+        if (w.Map.Units.Contains(opfer) && w.Map.Units.Contains(angreifer))
+        {
+            verstoesse.Add($"{wer}, {fall}: Testaufbau - nach 90 s ist keiner gefallen ({angreifer.State}, LP {opfer.Health}/{opfer.MaxHealth})");
+            return;
+        }
+        int gehoert = log.Count(e => e.Name != "tod");
+        if (treffer == 0)
+            verstoesse.Add($"{wer}, {fall}: Testaufbau - kein Treffer beobachtet");
+        if (gehoert != treffer)
+            verstoesse.Add($"{wer}, {fall}: {treffer} Treffer, aber {gehoert} Treffergeräusche");
+        var fremd = log.Select(e => e.Name).Where(n => n != "tod" && n != erwartet && !(erwartet == "bogen" && n == "treffer")).Distinct().ToList();
+        if (fremd.Count > 0)
+            verstoesse.Add($"{wer}, {fall}: zu hören ist {string.Join(", ", fremd)}, erwartet {erwartet}");
+        if (log.Count(e => e.Name == erwartet) == 0)
+            verstoesse.Add($"{wer}, {fall}: kein einziges Mal {erwartet} zu hören");
+        if (abseits > 0)
+            verstoesse.Add($"{wer}, {fall}: {abseits} Treffergeräusche nicht am richtigen Ort (Bogen beim Schützen, Hiebe beim Getroffenen)");
+        var tod = log.Where(e => e.Name == "tod").ToList();
+        if (tod.Count != 1)
+            verstoesse.Add($"{wer}, {fall}: einer fällt - {tod.Count}-mal tod zu hören, erwartet einmal");
+        else if (!w.Map.Units.Contains(opfer) && Vector2.Distance(tod[0].Position, sterbeort) > 2f)
+            verstoesse.Add($"{wer}, {fall}: tod erklingt {Vector2.Distance(tod[0].Position, sterbeort):0} px vom Sterbeort");
+    }
+    Zweikampf("Miliz gegen Dorfbewohner", UnitType.Militia, UnitType.Villager, 20f, "treffer");
+    Zweikampf("Miliz gegen Miliz", UnitType.Militia, UnitType.Militia, 20f, "schwert");
+    // Der Dorfbewohner wehrt sich und schlägt den Schützen: dort klingt es nach treffer
+    Zweikampf("Bogenschütze gegen Dorfbewohner", UnitType.Archer, UnitType.Villager, 3f * 32f, "bogen");
+
+    // Ein Gebäude: der Schlag an der Wand beim Angreifer, beim Bogenschützen der Bogen; das
+    // letzte stürzt hörbar ein, in der Mitte seiner Grundfläche
+    void Wand(string fall, UnitType typ, bool bisZumEinsturz)
+    {
+        var w = new Welt();
+        var log = new List<(string Name, Vector2 Position)>();
+        w.Set("SoundLog", log);
+        int T = w.Map.TileSize;
+        var dorf0 = w.Dorfbewohner().First();
+        var platz = w.Bauplatz(BuildingType.House, dorf0, 6);
+        var haus = w.Map.AddBuilding((int)platz.X, (int)platz.Y, "Haus", 1, 2);
+        var mitte = new Vector2((haus.X + haus.Width / 2f) * T, (haus.Y + haus.Height / 2f) * T);
+        var angreifer = NeueEinheit(w, typ, 0, w.FreieKachel(dorf0, 2));
+        if (bisZumEinsturz)
+            haus.Health = Math.Min(haus.Health, 12);
+        w.Call("AttackBuilding", new List<Unit> { angreifer }, haus);
+        string erwartet = typ == UnitType.Archer ? "bogen" : "gebaeude";
+
+        int schlaege = 0, gesehen = 0, abseits = 0, lp = haus.Health;
+        float dauer = w.LaufeBis(() =>
+        {
+            if (haus.Health < lp)
+                schlaege++;
+            foreach (var e in log.Skip(gesehen).Where(e => e.Name != "einsturz"))
+                if (Vector2.Distance(e.Position, angreifer.Position) > 2f)
+                    abseits++;
+            gesehen = log.Count;
+            lp = haus.Health;
+            return bisZumEinsturz ? !w.Map.Buildings.Contains(haus) : schlaege >= 3;
+        }, 120f);
+
+        if (schlaege == 0 || (bisZumEinsturz && w.Map.Buildings.Contains(haus)))
+        {
+            verstoesse.Add($"{wer}, {fall}: Testaufbau - nach {dauer:0} s {schlaege} Schläge, Haus {(w.Map.Buildings.Contains(haus) ? "steht" : "fiel")} ({angreifer.State})");
+            return;
+        }
+        int gehoert = log.Count(e => e.Name == erwartet);
+        if (gehoert != schlaege)
+            verstoesse.Add($"{wer}, {fall}: {schlaege} Schläge ans Haus, aber {gehoert}-mal {erwartet}");
+        var fremd = log.Select(e => e.Name).Where(n => n != erwartet && n != "einsturz").Distinct().ToList();
+        if (fremd.Count > 0)
+            verstoesse.Add($"{wer}, {fall}: zu hören ist {string.Join(", ", fremd)}, erwartet {erwartet}");
+        if (abseits > 0)
+            verstoesse.Add($"{wer}, {fall}: {abseits} Schläge erklingen nicht beim Angreifer");
+        var einsturz = log.Where(e => e.Name == "einsturz").ToList();
+        if (!bisZumEinsturz && einsturz.Count > 0)
+            verstoesse.Add($"{wer}, {fall}: das Haus steht noch - trotzdem einsturz zu hören");
+        if (bisZumEinsturz && einsturz.Count != 1)
+            verstoesse.Add($"{wer}, {fall}: das Haus fällt - {einsturz.Count}-mal einsturz zu hören, erwartet einmal");
+        else if (bisZumEinsturz && Vector2.Distance(einsturz[0].Position, mitte) > 2f)
+            verstoesse.Add($"{wer}, {fall}: einsturz erklingt {Vector2.Distance(einsturz[0].Position, mitte):0} px von der Mitte des Hauses");
+    }
+    Wand("Miliz gegen Haus", UnitType.Militia, true);
+    Wand("Bogenschütze gegen Haus", UnitType.Archer, false);
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: Hieb, Klinge und Bogen je Treffer am richtigen Ort, Schlag an der Wand, je ein tod und einsturz");
 }
 
 class Welt

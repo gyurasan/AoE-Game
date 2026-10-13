@@ -20,7 +20,7 @@ src/AoE.Core/ - net10.0, MonoGame-unabhängige Spiellogik:
     Map/VisibilitySystem.cs (412) - enthält AUCH die Klasse MapGrid; es gibt keine eigene MapGrid.cs
     Pathfinding/Pathfinding.cs (316) - A-Stern und Formationsbewegung
 AgeOfEvolutions/ - das MonoGame-Spiel:
-    AgeOfEvolutions.Core/ (net10.0) mit Data/, Screens/, Effects/, Inputs/, ScreenManagers/, Localization/, Settings/, Content/
+    AgeOfEvolutions.Core/ (net10.0) mit Audio/, Data/, Screens/, Effects/, Inputs/, ScreenManagers/, Localization/, Settings/, Content/
         Content/ - Backgrounds/menu.png, Icons/, Gebaeude/ (je Zeitalter in dunkel/, feudal/, ritter/, imperial/), Einheiten/ (ab der Feudalzeit je Zeitalter in feudal/, ritter/, imperial/), Werkzeuge/, Boden/, Felder/, Baeume/, Rohstoffe/, Tiere/, Leiste/, Gras/, Nahrung/ (aus tools/bilder), Fonts/Hud und Fonts/Menu
     AgeOfEvolutions.DesktopGL/ (net10.0) - Windows, macOS, Linux; RuntimeIdentifiers win-x64, osx-x64, osx-arm64, linux-x64
     AgeOfEvolutions.WindowsDX/ (net10.0-windows) - nur Windows
@@ -30,7 +30,8 @@ demo/DemoApp.csproj - net10.0, kleine Konsolen-Testapp
 tools/ollama-agent/ - Harness, der TODO-Punkte an ein lokales Ollama-Modell verteilt
 tools/kartenpruefung/ - prüft Regeln des Kartengenerators über 50 erzeugte Karten
 tools/bilder/ - erzeugt Spielgrafiken mit Qwen-Image über ComfyUI; Prompts und Seeds in bilder.json, uebernehmen.ps1 bereitet die gewählten Bilder für Content/ auf; gang.py stellt aus einem Standbild acht Gehphasen (Bein-Skelett, Gelenke in gang.json), schlag.py acht Schlagphasen (Waffenarm oder Speer über einem Rumpf ohne Waffe, schlag.json)
-tools/spielablauf/ - lässt die Spielschleife ohne Grafik laufen und prüft Abläufe (Bauen, Weiterbauen, Linksklick, Farm, Schafe, Bewegen, Minimap, Zoom, Leiste, Zeitalter, Wachturm, Hauptmenü, Animation, Fenster, Werkzeug, Feld, Trampelpfad, Wind, Gang, Blick, Dunkel, Neubauten, Türen, Gebäudeauswahl, Angriff, Soldaten, Forschung, Schlag)
+tools/klang/ - erzeugt die Geräusche für Arbeit und Kampf synthetisch (klang.py, numpy und scipy aus der Python von ComfyUI) nach Content/Sounds; --vorschau schreibt alle Varianten zum Anhören in ausgabe/
+tools/spielablauf/ - lässt die Spielschleife ohne Grafik laufen und prüft Abläufe (Bauen, Weiterbauen, Linksklick, Farm, Schafe, Bewegen, Minimap, Zoom, Leiste, Zeitalter, Wachturm, Hauptmenü, Animation, Fenster, Werkzeug, Feld, Trampelpfad, Wind, Gang, Blick, Dunkel, Neubauten, Türen, Gebäudeauswahl, Angriff, Soldaten, Forschung, Schlag, Klangbrett, Arbeitsklang, Kampfklang)
 ```
 
 ## Wichtige Dateien
@@ -57,6 +58,7 @@ tools/spielablauf/ - lässt die Spielschleife ohne Grafik laufen und prüft Abl�
 | Unit.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/Unit.cs | 216 Zeilen, Spieleinheit; hält über `Unit.Core` eine `UnitEntity` aus AoE.Core und reicht Kampfwerte, Lebenspunkte und Zustand durch; hält den Sammelauftrag (`Job`) und die Baustelle (`BuildSite`), seit K2 das angegriffene Gebäude (`AttackTarget`) |
 | CoreUnits.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/CoreUnits.cs | 105 Zeilen, bildet alle 19 Einheitentypen des Spiels auf Klassen aus AoE.Core ab |
 | CoreBuildings.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Data/CoreBuildings.cs | 50 Zeilen, bildet alle Gebäude des Baumenüs auf BuildingEntity aus AoE.Core ab |
+| SoundBoard.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Audio/SoundBoard.cs | 147 Zeilen, lädt die Geräusche aus tools/klang (je Geräusch drei Varianten, fehlende bleiben stumm), wählt zufällig, verstimmt leicht und drosselt jedes Geräusch auf einmal je 0,07 s |
 | RTSGameplayScreen.cs | AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs | 6522 Zeilen, prozedurale Texturen und Spielschleife; Gras, Sand und Wasser aus dem Bodenshader (`DrawGroundShaded`), Weizen (`DrawWheat`) und Bäume (`DrawTree`, Wind.cs) im Wind; Bäume, Tiere, Gebäude und Figuren nach ihrer Sohle sortiert in einer Tiefenschicht (`DrawUnits`); Leisten im Stoff des Zeitalters (`DrawPanel`); Gehen nach Strecke mit Anfahren und Abbremsen (Gait.cs); Gebäude- und Dorfbewohnerbilder je Zeitalter des Besitzers; Gebäude auswählen mit Rahmen, Lebensbalken und Status, Ausbildung im ausgewählten Gebäude nach `Products` (Taste Q: Dorfbewohner, Miliz, Bogenschütze, Späher), Forschungen im ausgewählten Gebäude nach `Researches` (`Research`, `UpdateResearch`), Angriff auf fremde Gebäude (`AttackBuilding`), Zeitalter (A), Baumenü in zwei Tastenreihen (H, M, F, B, G, T; darunter die zweite Reihe K, P, S, L, E, R, W, Z, X, U, O, C, N), Baustellen, Minimap und die Klick-Entscheidung (`LeftClick`) |
 
 ## Grafik
@@ -96,6 +98,18 @@ Das Programmsymbol (Dorfbewohner vor dem Wappenschild, Gruppe `spielicon`) schre
 `ApplicationIcon` einbinden, und als `Content/Icon.bmp` für das Fenster: MonoGame lädt
 das Fenstersymbol aus der eingebetteten Ressource `Icon.bmp`, ohne sie zeigt es sein
 eigenes Logo.
+
+## Geräusche
+
+Werkzeugschläge und Kampf kommen aus `tools/klang/klang.py`: synthetisch aus gedämpften
+Eigenschwingungen, gefiltertem Rauschen und Karplus-Strong, ohne Aufnahmen. Elf Geräusche zu je drei
+Varianten (`axt`, `spitzhacke`, `hammer`, `erde`, `rascheln`, `schwert`, `treffer`, `gebaeude`,
+`bogen`, `tod`, `einsturz`) liegen in `Content/Sounds/` und sind in `AgeOfEvolutions.mgcb`
+eingetragen. `Audio/SoundBoard.cs` lädt und drosselt sie; `RTSGameplayScreen.EmitSound` spielt nur, was
+Spieler 0 sieht, im Bild voll und daneben über acht Kacheln ausklingend, mit Stereo-Lage nach der
+Bildschirmseite (`SoundMix`). Werkzeuge klingen im Takt ihrer Animation (`UpdateWorkSounds`,
+`StrikeLanded`), Treffer an der Stelle des Schlags (`UnitHitSound`), dazu `tod` in `DestroyUnit` und
+`einsturz` in `DestroyBuilding`. Beim Start meldet die Konsole, wie viele Varianten geladen sind.
 
 ## Build-Status
 

@@ -3550,6 +3550,204 @@
 /processorParam:Quality=Best
 /build:Sounds/Alarm.wav
 
+#begin Sounds/axt_1.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/axt_1.wav
+
+#begin Sounds/axt_2.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/axt_2.wav
+
+#begin Sounds/axt_3.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/axt_3.wav
+
+#begin Sounds/spitzhacke_1.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/spitzhacke_1.wav
+
+#begin Sounds/spitzhacke_2.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/spitzhacke_2.wav
+
+#begin Sounds/spitzhacke_3.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/spitzhacke_3.wav
+
+#begin Sounds/hammer_1.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/hammer_1.wav
+
+#begin Sounds/hammer_2.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/hammer_2.wav
+
+#begin Sounds/hammer_3.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/hammer_3.wav
+
+#begin Sounds/erde_1.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/erde_1.wav
+
+#begin Sounds/erde_2.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/erde_2.wav
+
+#begin Sounds/erde_3.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/erde_3.wav
+
+#begin Sounds/rascheln_1.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/rascheln_1.wav
+
+#begin Sounds/rascheln_2.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/rascheln_2.wav
+
+#begin Sounds/rascheln_3.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/rascheln_3.wav
+
+#begin Sounds/schwert_1.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/schwert_1.wav
+
+#begin Sounds/schwert_2.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/schwert_2.wav
+
+#begin Sounds/schwert_3.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/schwert_3.wav
+
+#begin Sounds/treffer_1.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/treffer_1.wav
+
+#begin Sounds/treffer_2.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/treffer_2.wav
+
+#begin Sounds/treffer_3.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/treffer_3.wav
+
+#begin Sounds/gebaeude_1.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/gebaeude_1.wav
+
+#begin Sounds/gebaeude_2.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/gebaeude_2.wav
+
+#begin Sounds/gebaeude_3.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/gebaeude_3.wav
+
+#begin Sounds/bogen_1.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/bogen_1.wav
+
+#begin Sounds/bogen_2.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/bogen_2.wav
+
+#begin Sounds/bogen_3.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/bogen_3.wav
+
+#begin Sounds/tod_1.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/tod_1.wav
+
+#begin Sounds/tod_2.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/tod_2.wav
+
+#begin Sounds/tod_3.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/tod_3.wav
+
+#begin Sounds/einsturz_1.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/einsturz_1.wav
+
+#begin Sounds/einsturz_2.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/einsturz_2.wav
+
+#begin Sounds/einsturz_3.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/build:Sounds/einsturz_3.wav
+
 #begin Sprites/Gem.png
 /importer:TextureImporter
 /processor:TextureProcessor
