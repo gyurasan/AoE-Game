@@ -176,10 +176,11 @@ ein Shader (`Content/Effects/Boden.fx`) aus diesen Bildern zusammen - das Gras a
 er nach Halmhöhe ineinander blendet, der Weizen wiegt sich in `Content/Effects/Weizen.fx`; Gehen,
 Schlagen, Wind und Fische rechnet das Spiel selbst.
 
-Die Geräusche sind synthetisch, ohne Aufnahmen und ohne KI-Modell: `tools/klang/klang.py` baut
-sie aus gedämpften Eigenschwingungen von Holz, Metall und Stein, gefiltertem Rauschen und
-Karplus-Strong für die Bogensehne, je Geräusch in drei Varianten; Einzelheiten in der
-[Projektstruktur](docs/PROJEKT_STRUKTUR.md#geräusche).
+Die Geräusche sind echte Aufnahmen von [Freesound](https://freesound.org), alle unter CC0
+(gemeinfrei): eine Axt im Stamm eines Baums, eine Spitzhacke auf Stein, ein Hammer auf Nagel und
+Brett, Schwerter, eine Bogensehne, ein einstürzendes Holzhaus. `tools/klang/klang.py` lädt sie,
+schneidet je Geräusch drei Einzelschläge heraus und gleicht die Lautstärke an; Urheber und Schnitte
+stehen dort, Einzelheiten in der [Projektstruktur](docs/PROJEKT_STRUKTUR.md#geräusche).
 
 ## Dokumentation
 

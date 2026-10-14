@@ -30,7 +30,7 @@ demo/DemoApp.csproj - net10.0, kleine Konsolen-Testapp
 tools/ollama-agent/ - Harness, der TODO-Punkte an ein lokales Ollama-Modell verteilt
 tools/kartenpruefung/ - prüft Regeln des Kartengenerators über 50 erzeugte Karten
 tools/bilder/ - erzeugt Spielgrafiken mit Qwen-Image über ComfyUI; Prompts und Seeds in bilder.json, uebernehmen.ps1 bereitet die gewählten Bilder für Content/ auf; gang.py stellt aus einem Standbild acht Gehphasen (Bein-Skelett, Gelenke in gang.json), schlag.py acht Schlagphasen (Waffenarm oder Speer über einem Rumpf ohne Waffe, schlag.json)
-tools/klang/ - erzeugt die Geräusche für Arbeit und Kampf synthetisch (klang.py, numpy und scipy aus der Python von ComfyUI) nach Content/Sounds; --vorschau schreibt alle Varianten zum Anhören in ausgabe/
+tools/klang/ - schneidet die Geräusche für Arbeit und Kampf aus CC0-Aufnahmen von Freesound (klang.py, numpy und scipy aus der Python von ComfyUI, ffmpeg) nach Content/Sounds; --vorschau schreibt alle Varianten zum Anhören in ausgabe/
 tools/spielablauf/ - lässt die Spielschleife ohne Grafik laufen und prüft Abläufe (Bauen, Weiterbauen, Linksklick, Farm, Schafe, Bewegen, Minimap, Zoom, Leiste, Zeitalter, Wachturm, Hauptmenü, Animation, Fenster, Werkzeug, Feld, Trampelpfad, Wind, Gang, Blick, Dunkel, Neubauten, Türen, Gebäudeauswahl, Angriff, Soldaten, Forschung, Schlag, Klangbrett, Arbeitsklang, Kampfklang)
 ```
 
@@ -101,8 +101,12 @@ eigenes Logo.
 
 ## Geräusche
 
-Werkzeugschläge und Kampf kommen aus `tools/klang/klang.py`: synthetisch aus gedämpften
-Eigenschwingungen, gefiltertem Rauschen und Karplus-Strong, ohne Aufnahmen. Elf Geräusche zu je drei
+Werkzeugschläge und Kampf kommen aus `tools/klang/klang.py`: Einzelschläge aus CC0-Aufnahmen von
+Freesound (Tabelle `QUELLEN` mit Urhebern, `SCHNITTE` mit Beginn und Länge je Variante). Das Skript
+lädt die Vorschauen einmal nach `tools/klang/ausgabe/roh`, dekodiert mit ffmpeg, schneidet ab dem
+Einsatz des Schlags (damit er mit dem Aufschlag der Animation zusammenfällt), filtert Rumpeln weg,
+blendet aus und bringt jedes Geräusch auf seine Lautheit (`LAUTHEIT`). Bis 2026-10-13 waren die
+Geräusche synthetisch, klangen aber nicht nach der Arbeit, die man sieht. Elf Geräusche zu je drei
 Varianten (`axt`, `spitzhacke`, `hammer`, `erde`, `rascheln`, `schwert`, `treffer`, `gebaeude`,
 `bogen`, `tod`, `einsturz`) liegen in `Content/Sounds/` und sind in `AgeOfEvolutions.mgcb`
 eingetragen. `Audio/SoundBoard.cs` lädt und drosselt sie; `RTSGameplayScreen.EmitSound` spielt nur, was

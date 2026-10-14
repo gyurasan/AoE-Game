@@ -1,244 +1,164 @@
-"""Erzeugt die Geräusche für Arbeit und Kampf - synthetisch, ohne Aufnahmen und ohne KI-Modell.
+"""Baut die Geräusche für Arbeit und Kampf aus echten Aufnahmen von Freesound - alle unter CC0
+(gemeinfrei, ohne Namensnennung nutzbar; die Urheber stehen trotzdem in QUELLEN).
 
-Jedes Geräusch entsteht aus physikalischen Bausteinen: gedämpfte Eigenschwingungen (Holz,
-Metall, Stein schwingen in wenigen Moden und klingen verschieden schnell ab), gefiltertes
-Rauschen für Aufprall, Splitter und Staub, und Karplus-Strong für die Bogensehne. Je Geräusch
-entstehen mehrere Varianten mit anderem Zufallssamen, damit dreißig Holzfäller nicht wie
-einer im Gleichschritt klingen.
+Bis 2026-10-13 waren die Geräusche synthetisch (gedämpfte Sinus-Eigenschwingungen und gefiltertes
+Rauschen). Feedback: „die generierten sounds passen nicht zu den handlungen" - ein Holzfäller soll
+nach Axt in Holz klingen, nicht nach einem Holzblock-Instrument. Seitdem schneidet das Skript aus
+Aufnahmen der echten Handlung je Geräusch drei Einzelschläge heraus (SCHNITTE): Baumfällen mit der
+Axt, Spitzhacke auf Stein, Hammer auf Nagel und Brett, Schaufel in Erde, Schnitt durch Pflanzen,
+Klinge auf Klinge, Schlag auf Körper, Axt gegen Holztür, Bogensehne, Körper fällt, Holzhaus stürzt ein.
 
-Braucht numpy und scipy - die Python von ComfyUI hat beides:
+Ablauf je Schnitt: Freesound-Vorschau (OGG, 44,1 kHz) einmal nach tools/klang/ausgabe/roh laden,
+mit ffmpeg nach mono dekodieren, ab dem Einsatz des Schlags ausschneiden (der Schlag sitzt am
+Dateianfang, damit er mit dem Aufschlag der Animation zusammenfällt), Rumpeln unter 40 Hz
+wegfiltern, das letzte Drittel ausblenden, auf die Lautheit des Geräuschs bringen (LAUTHEIT: die
+lauteste 50-ms-Strecke, wie bei den alten Geräuschen gemessen) und die Spitze auf -1 dBFS begrenzen
+(Begrenzer mit 4 ms Vorlauf, höchstens 6 dB).
+Die Länge eines Schnitts bleibt unter dem Schlagabstand des Werkzeugs (ToolStyles.Rate im Screen).
+
+Braucht numpy, scipy und ffmpeg im PATH - die Python von ComfyUI hat beides:
 
     D:/Apps/ComfyUI/ComfyUI_windows_portable/python_embeded/python.exe tools/klang/klang.py [ziel] [name ...]
 
 Ohne Ziel schreibt es nach AgeOfEvolutions/AgeOfEvolutions.Core/Content/Sounds. Ausgabe: 16 Bit,
-mono, 44,1 kHz, Spitze bei -2 dBFS; Dateiname <name>_<n>.wav. Mit --vorschau entsteht statt dessen
+mono, 44,1 kHz; Dateiname <name>_<n>.wav. Mit --vorschau entsteht statt dessen
 tools/klang/ausgabe/vorschau.wav: alle Varianten hintereinander zum Anhören, mit Zeitplan.
 """
+import subprocess
 import sys
+import urllib.request
 import wave
 from pathlib import Path
 
 import numpy as np
-from scipy import signal
+from scipy import ndimage, signal
 
 SR = 44100
-VARIANTEN = 3
+HIER = Path(__file__).resolve().parent
+ROH = HIER / "ausgabe" / "roh"
+CDN = "https://cdn.freesound.org/previews"
 
-
-# ------------------------------------------------------------------ Bausteine
-def zeit(dauer):
-    return np.arange(int(dauer * SR)) / SR
-
-
-def abklingen(t, tau):
-    return np.exp(-t / tau)
-
-
-def band(x, lo, hi, ordnung=2):
-    sos = signal.butter(ordnung, [lo, hi], btype="bandpass", fs=SR, output="sos")
-    return signal.sosfilt(sos, x)
-
-
-def tief(x, grenze, ordnung=2):
-    sos = signal.butter(ordnung, grenze, btype="lowpass", fs=SR, output="sos")
-    return signal.sosfilt(sos, x)
-
-
-def hoch(x, grenze, ordnung=2):
-    sos = signal.butter(ordnung, grenze, btype="highpass", fs=SR, output="sos")
-    return signal.sosfilt(sos, x)
-
-
-def moden(t, freqs, taus, amps, rng):
-    """Gedämpfte Eigenschwingungen mit zufälliger Phase - so klingt ein angeschlagener Körper."""
-    x = np.zeros_like(t)
-    for f, tau, a in zip(freqs, taus, amps):
-        x += a * np.sin(2 * np.pi * f * t + rng.uniform(0, 2 * np.pi)) * abklingen(t, tau)
-    return x
-
-
-def stoss(t, lo, hi, tau, rng):
-    """Der Aufprall selbst: ein kurzer Rauschstoß im Band lo bis hi."""
-    return band(rng.standard_normal(len(t)), lo, hi) * abklingen(t, tau)
-
-
-def knistern(t, anzahl, bis, lo, hi, rng, abfall=0.08):
-    """Splitter und Krümel: einzelne kurze Klicks in den ersten bis Sekunden, leiser werdend."""
-    x = np.zeros_like(t)
-    for _ in range(anzahl):
-        start = rng.uniform(0.003, bis)
-        i = int(start * SR)
-        n = int(0.004 * SR)
-        if i + n >= len(t):
-            continue
-        klick = rng.standard_normal(n) * np.exp(-np.arange(n) / (0.0008 * SR))
-        x[i:i + n] += klick * rng.uniform(0.3, 1.0) * np.exp(-start / abfall)
-    return band(x, lo, hi)
-
-
-def anschlag(x, ms=1.0):
-    """Weicher Einsatz und Ausklang ohne Knacken."""
-    n = max(1, int(ms / 1000 * SR))
-    x[:n] *= np.linspace(0, 1, n)
-    m = int(0.012 * SR)
-    x[-m:] *= np.linspace(1, 0, m)
-    return x
-
-
-def karplus(f, dauer, verlust, rng):
-    """Gezupfte Saite (Karplus-Strong): Rauschen in einer Verzögerungsschleife mit Tiefpass."""
-    n = int(dauer * SR)
-    p = int(SR / f)
-    puffer = rng.uniform(-1, 1, p)
-    out = np.zeros(n)
-    for i in range(n):
-        out[i] = puffer[i % p]
-        puffer[i % p] = verlust * 0.5 * (puffer[i % p] + puffer[(i + 1) % p])
-    return out
-
-
-# ------------------------------------------------------------------ Geräusche
-def axt(rng):
-    """Axt in Holz: harter Einschlag, dumpfer Holzkörper, Splittern."""
-    t = zeit(0.38)
-    f0 = rng.uniform(150, 210)
-    x = moden(t, [f0, f0 * 2.3, f0 * 3.9, f0 * 5.4], [0.07, 0.04, 0.022, 0.012], [1.0, 0.55, 0.35, 0.2], rng)
-    x += 0.7 * stoss(t, 1800, 9000, 0.004, rng)
-    x += 0.45 * stoss(t, 500, 2600, 0.03, rng)
-    x += 0.5 * knistern(t, 14, 0.06, 1500, 7000, rng, 0.03)
-    return x
-
-
-def spitzhacke(rng):
-    """Spitzhacke auf Stein oder Erz: Stahl klingt hell nach, Steinkrümel springen weg."""
-    t = zeit(0.45)
-    s = rng.uniform(0.95, 1.06)
-    x = moden(t, [2150 * s, 3480 * s, 5230 * s, 7400 * s], [0.09, 0.06, 0.04, 0.025], [0.45, 0.4, 0.3, 0.18], rng)
-    x += 1.0 * stoss(t, 1400, 7000, 0.007, rng)
-    x += 0.35 * moden(t, [rng.uniform(85, 110)], [0.03], [1.0], rng)
-    x += 0.6 * knistern(t, 18, 0.22, 2500, 9000, rng, 0.09)
-    return x
-
-
-def hammer(rng):
-    """Hammer auf Balken und Nagel: kurzer, heller Holzklang mit leisem Metallnachklang."""
-    t = zeit(0.3)
-    f0 = rng.uniform(290, 370)
-    x = moden(t, [f0, f0 * 2.6, f0 * 4.1], [0.045, 0.025, 0.014], [1.0, 0.5, 0.3], rng)
-    x += 0.8 * stoss(t, 1200, 7000, 0.0025, rng)
-    x += 0.18 * moden(t, [rng.uniform(2500, 3200)], [0.07], [1.0], rng)
-    return x
-
-
-def erde(rng):
-    """Hacke in Erde: dumpf und weich, mit rieselnder Krume."""
-    t = zeit(0.3)
-    x = 0.9 * stoss(t, 120, 900, 0.035, rng)
-    x += 0.4 * moden(t, [rng.uniform(70, 95)], [0.04], [1.0], rng)
-    x += 0.3 * knistern(t, 10, 0.15, 1200, 5000, rng, 0.08)
-    return x
-
-
-def rascheln(rng):
-    """Sichel durch Beerenbusch und Halme: kurzes Rascheln von Laub."""
-    t = zeit(0.32)
-    huelle = np.sin(np.pi * np.clip(t / 0.25, 0, 1)) ** 2
-    rauschen = band(rng.standard_normal(len(t)), 2200, 8000)
-    flattern = 0.6 + 0.4 * np.sin(2 * np.pi * rng.uniform(28, 40) * t)
-    x = rauschen * huelle * flattern
-    x += 0.4 * knistern(t, 12, 0.22, 3000, 9000, rng, 0.2)
-    return x
-
-
-def schwert(rng):
-    """Klinge auf Klinge: ein angeschlagener Stab klingt in unharmonischen Teiltönen lange nach."""
-    t = zeit(0.85)
-    f1 = rng.uniform(720, 940)
-    ratios = [1.0, 2.76, 5.40, 8.93, 13.34]
-    freqs = [f1 * r for r in ratios]
-    x = moden(t, freqs, [0.42, 0.26, 0.15, 0.09, 0.06], [0.55, 0.8, 0.5, 0.33, 0.2], rng)
-    # zwei leicht verstimmte Klingen: Schwebung
-    x += moden(t, [f * 1.004 + 2 for f in freqs[:3]], [0.35, 0.2, 0.12], [0.3, 0.45, 0.25], rng)
-    x += 0.9 * stoss(t, 3000, 12000, 0.004, rng)
-    x += 0.15 * stoss(t, 2000, 7000, 0.06, rng)
-    return x
-
-
-def treffer(rng):
-    """Schlag auf Körper und Kleidung: dumpfer Stoß mit kurzem Zischen der Klinge."""
-    t = zeit(0.3)
-    f = np.linspace(rng.uniform(130, 160), 55, len(t))
-    x = np.sin(2 * np.pi * np.cumsum(f) / SR) * abklingen(t, 0.06)
-    x += 0.55 * tief(rng.standard_normal(len(t)), 1500) * abklingen(t, 0.025)
-    x += 0.3 * stoss(t, 2000, 6000, 0.015, rng)
-    return x
-
-
-def gebaeude(rng):
-    """Waffe gegen Wand und Balken: schwerer Holzschlag, es rappelt nach."""
-    t = zeit(0.5)
-    f0 = rng.uniform(85, 115)
-    x = moden(t, [f0, f0 * 2.1, f0 * 3.3, f0 * 5.0], [0.12, 0.07, 0.04, 0.02], [1.0, 0.6, 0.4, 0.2], rng)
-    x += 0.6 * stoss(t, 300, 1800, 0.03, rng)
-    x += 0.5 * stoss(t, 1500, 7000, 0.004, rng)
-    x += 0.35 * knistern(t, 16, 0.3, 800, 4000, rng, 0.12)
-    return x
-
-
-def bogen(rng):
-    """Bogenschuss: die Sehne schnellt, der Pfeil zischt davon."""
-    t = zeit(0.45)
-    sehne = karplus(rng.uniform(140, 180), 0.45, 0.985, rng)
-    sehne = tief(sehne, 2500) * abklingen(t, 0.09)
-    zisch = rng.standard_normal(len(t))
-    # das Band wandert nach oben, während der Pfeil wegfliegt
-    zisch = np.concatenate([band(seg, lo, lo * 3) for seg, lo in
-                            zip(np.array_split(zisch, 6), np.geomspace(700, 2600, 6))])
-    huelle = np.clip((t - 0.02) / 0.05, 0, 1) * abklingen(np.clip(t - 0.07, 0, None), 0.08)
-    return 1.0 * sehne + 0.45 * zisch * huelle + 0.4 * stoss(t, 1500, 6000, 0.003, rng)
-
-
-def tod(rng):
-    """Eine Figur fällt: dumpfer Aufschlag am Boden, die Ausrüstung scheppert kurz."""
-    t = zeit(0.45)
-    x = moden(t, [rng.uniform(60, 80), rng.uniform(140, 170)], [0.09, 0.05], [1.0, 0.4], rng)
-    x += 0.7 * tief(rng.standard_normal(len(t)), 700) * abklingen(t, 0.06)
-    x += 0.25 * knistern(t, 8, 0.12, 2000, 8000, rng, 0.08)
-    return x
-
-
-def einsturz(rng):
-    """Ein Gebäude bricht zusammen: Grollen, splitternde Balken, rieselnder Schutt."""
-    t = zeit(1.8)
-    grollen = tief(rng.standard_normal(len(t)), 180, 4) * np.clip(t / 0.06, 0, 1) * abklingen(t, 0.55)
-    x = 2.2 * grollen
-    for _ in range(26):
-        start = rng.uniform(0.0, 1.0) ** 1.6
-        dauer = 0.3
-        i = int(start * SR)
-        tt = zeit(dauer)
-        f0 = rng.uniform(120, 320)
-        knack = moden(tt, [f0, f0 * 2.4, f0 * 4.0], [0.05, 0.03, 0.015], [1.0, 0.5, 0.3], rng)
-        knack += 0.8 * stoss(tt, 1500, 8000, 0.004, rng)
-        knack *= rng.uniform(0.3, 1.0) * np.exp(-start / 0.8)
-        n = min(len(knack), len(x) - i)
-        x[i:i + n] += 0.6 * knack[:n]
-    x += 0.35 * band(rng.standard_normal(len(t)), 900, 5000) * np.clip(t / 0.1, 0, 1) * abklingen(t, 0.5)
-    return x
-
-
-GERAEUSCHE = {
-    "axt": axt, "spitzhacke": spitzhacke, "hammer": hammer, "erde": erde, "rascheln": rascheln,
-    "schwert": schwert, "treffer": treffer, "gebaeude": gebaeude, "bogen": bogen, "tod": tod,
-    "einsturz": einsturz,
+# Freesound-id: (Urheber, Titel, Vorschau ohne "-hq.ogg"). Seite: https://freesound.org/s/<id>/
+QUELLEN = {
+    401730: ("tomattka", "Felling a tree with an axe", "401/401730_6351775"),
+    753925: ("xkeril", "Axe chopping wood", "753/753925_13504080"),
+    184383: ("qubodup", "Gathering Stone Resources", "184/184383_71257"),
+    431019: ("CamoMano", "Stone hit", "431/431019_5635287"),
+    204946: ("CapsLok", "Hammering_Wood", "204/204946_850742"),
+    540139: ("aidansamuel", "Hitting nails with Hammer", "540/540139_10965608"),
+    503672: ("RavenWolfProds", "Shovel in dirt", "503/503672_9619518"),
+    353907: ("dr19", "Shovel_dirt", "353/353907_5984825"),
+    488378: ("wobesound", "Harvest Sounds", "488/488378_10523948"),
+    327894: ("Kreastricon62", "Bush Cut", "327/327894_4336114"),
+    364531: ("Christopherderp", "Swords Clash - High Quality #3", "364/364531_3908740"),
+    442769: ("qubodup", "Sword Hit", "442/442769_71257"),
+    471095: ("spycrah", "Sword clash 1", "471/471095_9856191"),
+    797822: ("HECKFRICKER", "Thwack 02", "797/797822_12863902"),
+    797821: ("HECKFRICKER", "Thwack 01", "797/797821_12863902"),
+    420673: ("SypherZent", "Basic Melee Hit", "420/420673_6544098"),
+    481105: ("craigsmith", "R27-18 Axe Hits Wood Door", "481/481105_2524442"),
+    394179: ("saturdaysoundguy", "Longbow Release 2", "394/394179_7280678"),
+    394185: ("saturdaysoundguy", "Arrow Loose", "394/394185_7280678"),
+    384918: ("Ali_6868", "Bow Release (Bow and Arrow) 3", "384/384918_984733"),
+    504626: ("leonelmail", "BODY FALL - V HVY - DIRT", "504/504626_4437257"),
+    346694: ("deleted_user_2104797", "Body fall_02", "346/346694_2104797"),
+    614064: ("magnuswaker", "Bodyfall", "614/614064_11537497"),
+    675900: ("craigsmith", "S37-15 Wooden building collapses quickly", "675/675900_2524442"),
+    721600: ("DasWaff", "Bakers house collapse", "721/721600_2617407"),
+    487142: ("craigsmith", "R29-04 Crashing Collapse of Wood Building", "487/487142_2524442"),
 }
+
+# Je Geräusch drei Varianten: (Freesound-id, Beginn in s, Länge in s). Der Beginn liegt 4 ms vor
+# dem Einsatz des Schlags in der Aufnahme.
+SCHNITTE = {
+    # Axt in den Stamm (Rate 1,0/s)
+    "axt": [(401730, 2.937, 0.50), (401730, 13.735, 0.45), (753925, 5.869, 0.50)],
+    # Spitzhacke auf Stein, mit wegspringendem Geröll (Rate 0,9/s)
+    "spitzhacke": [(184383, 6.170, 0.55), (184383, 7.662, 0.55), (431019, 0.039, 0.31)],
+    # Hammer auf Nagel und Brett (Rate 1,6/s)
+    "hammer": [(204946, 2.036, 0.30), (204946, 8.962, 0.30), (540139, 2.153, 0.40)],
+    # Hacke auf dem Feld: Blatt sticht in die Erde (Rate 0,9/s)
+    "erde": [(503672, 2.861, 0.38), (353907, 0.320, 0.32), (503672, 5.232, 0.38)],
+    # Sichel durch den Beerenbusch (Rate 1,3/s)
+    "rascheln": [(488378, 1.561, 0.45), (327894, 0.046, 0.42), (488378, 4.604, 0.45)],
+    # Klinge auf Klinge
+    "schwert": [(364531, 0.019, 0.70), (442769, 0.000, 0.70), (471095, 0.992, 0.70)],
+    # Schlag auf Körper und Kleidung
+    "treffer": [(797822, 0.000, 0.17), (797821, 0.000, 0.21), (420673, 0.000, 0.17)],
+    # Waffe gegen Holzwand
+    "gebaeude": [(481105, 1.263, 0.60), (481105, 11.617, 0.60), (481105, 19.814, 0.60)],
+    # Bogensehne beim Schuss
+    "bogen": [(394179, 0.102, 0.19), (394185, 0.092, 0.17), (384918, 0.077, 0.40)],
+    # Eine Figur fällt zu Boden
+    "tod": [(504626, 0.330, 1.10), (346694, 0.420, 0.80), (614064, 0.020, 0.90)],
+    # Ein Holzhaus stürzt ein
+    "einsturz": [(675900, 0.078, 3.00), (721600, 0.080, 3.00), (487142, 0.000, 3.00)],
+}
+
+# Lautheit je Geräusch in dBFS: die lauteste 50-ms-Strecke (RMS). Grundlage sind die alten
+# synthetischen Geräusche, damit die Mischung im Spiel gleich bleibt; Feld und Busch etwas leiser.
+LAUTHEIT = {
+    "axt": -12, "spitzhacke": -13, "hammer": -13, "erde": -15, "rascheln": -17,
+    "schwert": -12, "treffer": -11, "gebaeude": -11, "bogen": -14, "tod": -11, "einsturz": -11,
+}
+SPITZE = 10 ** (-1 / 20)
+
+
+# ------------------------------------------------------------------ Aufnahmen
+def aufnahme(sid):
+    """Die Vorschau zu sid als mono float64 bei SR - beim ersten Mal von Freesound geladen."""
+    ogg = ROH / f"{sid}.ogg"
+    if not ogg.exists():
+        ROH.mkdir(parents=True, exist_ok=True)
+        anfrage = urllib.request.Request(f"{CDN}/{QUELLEN[sid][2]}-hq.ogg", headers={"User-Agent": "Mozilla/5.0"})
+        ogg.write_bytes(urllib.request.urlopen(anfrage, timeout=60).read())
+    roh = subprocess.run(["ffmpeg", "-v", "error", "-i", str(ogg), "-ac", "1", "-ar", str(SR), "-f", "f32le", "-"],
+                         capture_output=True, check=True).stdout
+    return np.frombuffer(roh, "<f4").astype(np.float64)
+
+
+def lautheit(x):
+    """Die lauteste 50-ms-Strecke als RMS."""
+    h = int(0.05 * SR)
+    m = len(x) // h
+    if m == 0:
+        return np.sqrt(np.mean(x ** 2))
+    return np.sqrt(np.mean(x[:m * h].reshape(m, h) ** 2, axis=1)).max()
+
+
+def schnitt(name, sid, beginn, laenge):
+    """Ein Schlag aus der Aufnahme, gefiltert, ausgeblendet und auf die Lautheit von name gebracht."""
+    x = aufnahme(sid)
+    i = int(beginn * SR)
+    x = x[i:i + int(laenge * SR)].copy()
+    x = signal.sosfilt(signal.butter(2, 40, btype="highpass", fs=SR, output="sos"), x)
+    n = int(0.002 * SR)
+    x[:n] *= np.linspace(0, 1, n)
+    m = int(len(x) / 3)
+    x[-m:] *= 0.5 + 0.5 * np.cos(np.linspace(0, np.pi, m))
+    # Auf die Lautheit bringen, aber höchstens 6 dB über das, was die Spitze ohne Begrenzer erlaubt -
+    # den Rest fängt der Begrenzer ab, sonst klänge ein Schlag mit scharfer Spitze leiser als seine
+    # Geschwister
+    spitze = np.max(np.abs(x)) + 1e-9
+    x *= min(10 ** (LAUTHEIT[name] / 20) / (lautheit(x) + 1e-9), 2 * SPITZE / spitze)
+    x = begrenzer(x)
+    spitze = np.max(np.abs(x))
+    return x * (SPITZE / spitze) if spitze > SPITZE else x
+
+
+def begrenzer(x, vorlauf=0.004):
+    """Drückt Spitzen über SPITZE mit 4 ms Vorlauf herunter: die nötige Absenkung je Abtastwert,
+    über ±vorlauf das Minimum genommen und über vorlauf geglättet - so liegt die Absenkung an
+    jeder Spitze vollständig an und setzt weich ein und aus."""
+    n = int(vorlauf * SR)
+    g = np.minimum(1.0, SPITZE / (np.abs(x) + 1e-12))
+    g = ndimage.minimum_filter1d(g, 2 * n + 1)
+    g = ndimage.uniform_filter1d(g, n + 1)
+    return x * g
 
 
 def schreibe(pfad, x):
-    x = anschlag(np.asarray(x, dtype=np.float64))
-    x = x - np.mean(x)
-    x = x / (np.max(np.abs(x)) + 1e-9) * 10 ** (-2 / 20)
-    daten = (x * 32767).astype("<i2").tobytes()
+    daten = (np.clip(x, -1, 1) * 32767).astype("<i2").tobytes()
     with wave.open(str(pfad), "wb") as w:
         w.setnchannels(1)
         w.setsampwidth(2)
@@ -251,11 +171,10 @@ def vorschau(pfad):
     0,4 s Pause, zwischen den Geräuschen 1 s. Gibt aus, wann welches Geräusch beginnt."""
     stille = lambda s: np.zeros(int(s * SR))
     teile, start = [], 0.0
-    for name, erzeuge in GERAEUSCHE.items():
+    for name, varianten in SCHNITTE.items():
         print(f"{start:6.1f} s  {name}")
-        for n in range(1, VARIANTEN + 1):
-            x = anschlag(np.asarray(erzeuge(np.random.default_rng(sum(map(ord, name)) * 100 + n)), dtype=np.float64))
-            x = x / (np.max(np.abs(x)) + 1e-9) * 10 ** (-2 / 20)
+        for sid, beginn, laenge in varianten:
+            x = schnitt(name, sid, beginn, laenge)
             teile += [x, stille(0.4)]
             start += len(x) / SR + 0.4
         teile.append(stille(1.0))
@@ -268,18 +187,16 @@ def vorschau(pfad):
 def main():
     args = sys.argv[1:]
     if args[:1] == ["--vorschau"]:
-        vorschau(Path(__file__).resolve().parent / "ausgabe" / "vorschau.wav")
+        vorschau(HIER / "ausgabe" / "vorschau.wav")
         return
-    ziel = Path(args.pop(0)) if args and not args[0] in GERAEUSCHE else \
-        Path(__file__).resolve().parents[2] / "AgeOfEvolutions/AgeOfEvolutions.Core/Content/Sounds"
-    namen = args or list(GERAEUSCHE)
+    ziel = Path(args.pop(0)) if args and not args[0] in SCHNITTE else \
+        HIER.parents[1] / "AgeOfEvolutions/AgeOfEvolutions.Core/Content/Sounds"
+    namen = args or list(SCHNITTE)
     ziel.mkdir(parents=True, exist_ok=True)
     for name in namen:
-        for n in range(1, VARIANTEN + 1):
-            # fester Samen je Geräusch und Variante: jeder Lauf ergibt dieselben Dateien
-            rng = np.random.default_rng(sum(map(ord, name)) * 100 + n)
-            schreibe(ziel / f"{name}_{n}.wav", GERAEUSCHE[name](rng))
-        print(f"{name}: {VARIANTEN} Varianten")
+        for n, (sid, beginn, laenge) in enumerate(SCHNITTE[name], 1):
+            schreibe(ziel / f"{name}_{n}.wav", schnitt(name, sid, beginn, laenge))
+        print(f"{name}: {len(SCHNITTE[name])} Varianten")
 
 
 if __name__ == "__main__":
