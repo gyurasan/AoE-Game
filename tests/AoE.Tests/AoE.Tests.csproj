@@ -14,6 +14,15 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <!-- Runtime-Assembly für Player & SoundBoard: AgeOfEvolutions.Core hält
+         MonoGame.Native mit PrivateAssets=All (die DLL darf nicht in die
+         DX/GL-Apps wandern). Die Tests laden die Typen ZUR LAUFEIT und
+         brauchen die MonoGame.Framework.dll im Test-Output — also hier
+         direkt referenzieren, ohne PrivateAssets. -->
+    <PackageReference Include="MonoGame.Framework.Native" Version="$(MonoGameVersion)" />
     <ProjectReference Include="..\..\src\AoE.Core\AoE.Core.csproj" />
+    <!-- Player (Data) + Settings + SoundBoard; die dazu nötige
+         MonoGame.Framework.dll liefert das Paketreferenz oben. -->
+    <ProjectReference Include="..\..\AgeOfEvolutions\AgeOfEvolutions.Core\AgeOfEvolutions.Core.csproj" />
   </ItemGroup>
 </Project>

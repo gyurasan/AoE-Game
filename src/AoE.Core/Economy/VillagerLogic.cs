@@ -20,13 +20,22 @@ public sealed class ResourcePool
     public const int START_FOOD = 200;
     
     public ResourcePool()
+        : this(START_FOOD, START_WOOD, START_GOLD, START_STONE)
+    {
+    }
+
+    /// <summary>
+    /// Eigenes Startkapital (Menü-Option „Startkapital"): jede Ressource
+    /// startet mit der gegebenen Menge statt den Standardwerten.
+    /// </summary>
+    public ResourcePool(int food, int wood, int gold, int stone)
     {
         _resources = new Dictionary<Resource, int>
         {
-            [Resource.Food] = START_FOOD,
-            [Resource.Wood] = START_WOOD,
-            [Resource.Gold] = START_GOLD,
-            [Resource.Stone] = START_STONE,
+            [Resource.Food] = food,
+            [Resource.Wood] = wood,
+            [Resource.Gold] = gold,
+            [Resource.Stone] = stone,
             [Resource.Population] = 0  // Wird durch Häuser bestimmt
         };
     }

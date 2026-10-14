@@ -2,6 +2,9 @@
 .vs/
 *.user
 
+# Rider
+*.idea
+
 # Build-Artefakte
 bin/
 obj/
@@ -19,3 +22,4 @@ packages/
 TestResults/
 coverage.*.xml
 *.coverage
+errors

@@ -27,6 +27,14 @@ public sealed class SoundBoard
     /// <summary>Lautstärke der Weltgeräusche; die Angriffswarnung bleibt voll.</summary>
     public const float VOLUME = 0.6f;
 
+    /// <summary>
+    /// Gesamtlautstärke (Menü-Option „Sound"): jede abgespielte Lautstärke
+    /// wird vom Caller noch multipliziert mit diesem Faktor. Default ist
+    /// <see cref="VOLUME"/> = bisheriges Verhalten; der Spielbildschirm setzt es
+    /// pro Spiel aus den Einstellungen.
+    /// </summary>
+    public float MasterVolume { get; set; } = VOLUME;
+
     /// <summary>Zufällige Verstimmung je Abspielen, in Oktaven (plus oder minus).</summary>
     public const float PITCH_SPREAD = 0.08f;
 
@@ -110,7 +118,7 @@ public sealed class SoundBoard
     /// VERTRAG: false ohne Ton, wenn volume &lt;= 0 ist, keine Variante von name geladen ist
     /// oder Allow(name, now) false liefert - in dieser Reihenfolge, damit ein stummes
     /// Geräusch die Drossel nicht belegt. Sonst eine zufällige Variante (_random) per
-    /// SoundEffect.Play(Lautstärke, Tonhöhe, Lage): Lautstärke = volume * VOLUME, auf 0 bis 1
+    /// SoundEffect.Play(Lautstärke, Tonhöhe, Lage): Lautstärke = volume * MasterVolume, auf 0 bis 1
     /// begrenzt; Tonhöhe zufällig zwischen -PITCH_SPREAD und PITCH_SPREAD; Lage = pan, auf
     /// -1 bis 1 begrenzt. Wirft das Abspielen (kein Audiogerät), false. Rückgabe: true, wenn
     /// abgespielt (das Ergebnis von SoundEffect.Play).
@@ -130,7 +138,7 @@ public sealed class SoundBoard
             return false;
         }
 
-        float loudness = Math.Clamp(volume * VOLUME, 0f, 1f);
+        float loudness = Math.Clamp(volume * MasterVolume, 0f, 1f);
         float pitch = ((float)_random.NextDouble() * 2f - 1f) * PITCH_SPREAD;
         float position = Math.Clamp(pan, -1f, 1f);
 

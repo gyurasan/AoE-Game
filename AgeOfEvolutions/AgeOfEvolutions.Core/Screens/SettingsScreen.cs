@@ -1,12 +1,10 @@
+using System;
 using System.Collections.Generic;
-using System.Globalization;
 using AgeOfEvolutions.Core;
-using AgeOfEvolutions.Core.Effects;
 using AgeOfEvolutions.Core.Localization;
 using AgeOfEvolutions.Core.Settings;
 using AgeOfEvolutions.ScreenManagers;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Graphics;
 
 namespace AgeOfEvolutions.Screens;
 
@@ -18,22 +16,24 @@ namespace AgeOfEvolutions.Screens;
 class SettingsScreen : MenuScreen
 {
     private MenuEntry fullscreenMenuEntry;
-    private MenuEntry languageMenuEntry;
-    private MenuEntry particleEffectMenuEntry;
     private MenuEntry backMenuEntry;
-    private static List<CultureInfo> languages;
-    private static int currentLanguage = 0;
+
+    // Die zehn Gameplay-Optionen; jede blätter bei einem Klick auf die nächste
+    // Stufe (siehe GameplayOptions) und nimmt die gewählte in settingsManager.
+    private MenuEntry soundVolumeEntry;
+    private MenuEntry aiDifficultyEntry;
+    private MenuEntry startingCapitalEntry;
+    private MenuEntry populationCapEntry;
+    private MenuEntry unitSpeedEntry;
+    private MenuEntry gatherSpeedEntry;
+    private MenuEntry productionSpeedEntry;
+    private MenuEntry meleeStopEntry;
+    private MenuEntry formationSpacingEntry;
+    private MenuEntry cameraPanEntry;
 
     private GraphicsDeviceManager gdm;
 
-    private static ParticleEffectType currentParticleEffect = ParticleEffectType.Fireworks;
-    /// <summary>
-    /// Gets the currently selected particle effect type.
-    /// </summary>
-    public static ParticleEffectType CurrentParticleEffect { get => currentParticleEffect; }
-
     private SettingsManager<AgeOfEvolutionsSettings> settingsManager;
-    private ParticleManager particleManager;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SettingsScreen"/> class.
@@ -41,30 +41,115 @@ class SettingsScreen : MenuScreen
     public SettingsScreen()
         : base(Resources.Settings)
     {
-        List<CultureInfo> cultures = LocalizationManager.GetSupportedCultures();
-        languages = new List<CultureInfo>();
-        for (int i = 0; i < cultures.Count; i++)
-        {
-            languages.Add(cultures[i]);
-        }
-
         // Create our menu entries.
         fullscreenMenuEntry = new MenuEntry(string.Empty);
-        languageMenuEntry = new MenuEntry(string.Empty);
-        particleEffectMenuEntry = new MenuEntry(string.Empty);
         backMenuEntry = new MenuEntry(string.Empty);
 
         // Hook up menu event handlers.
         fullscreenMenuEntry.Selected += FullScreenMenuEntrySelected;
-        languageMenuEntry.Selected += LanguageMenuEntrySelected;
-        particleEffectMenuEntry.Selected += ParticleEffectMenuEntrySelected;
         backMenuEntry.Selected += OnCancel;
 
+        // Die zehn Gameplay-Optionen, jede ein eigener Eintrag.
+        soundVolumeEntry = AddGameOption("Lautstärke", GameplayOptions.SoundVolume,
+            () => settingsManager.Settings.SoundVolume, v => settingsManager.Settings.SoundVolume = v,
+            v => v.ToString() + " %");
+        aiDifficultyEntry = AddGameOption("KI-Schwierigkeit", GameplayOptions.AiDifficulty,
+            () => settingsManager.Settings.AiDifficulty, v => settingsManager.Settings.AiDifficulty = v,
+            v => GameplayOptions.AiNames[v]);
+        startingCapitalEntry = AddGameOption("Startkapital", GameplayOptions.StartingCapital,
+            () => settingsManager.Settings.StartingCapital, v => settingsManager.Settings.StartingCapital = v,
+            v => GameplayOptions.CapitalNames[v]);
+        populationCapEntry = AddGameOption("Bevölkerungsgrenze", GameplayOptions.PopulationCap,
+            () => settingsManager.Settings.PopulationCap, v => settingsManager.Settings.PopulationCap = v,
+            v => v.ToString());
+        unitSpeedEntry = AddGameOption("Einheiten-Tempo", GameplayOptions.UnitSpeed,
+            () => settingsManager.Settings.UnitSpeed, v => settingsManager.Settings.UnitSpeed = v,
+            v => GameplayOptions.Percent(v));
+        gatherSpeedEntry = AddGameOption("Sammeln", GameplayOptions.GatherSpeed,
+            () => settingsManager.Settings.GatherSpeed, v => settingsManager.Settings.GatherSpeed = v,
+            v => GameplayOptions.Percent(v));
+        productionSpeedEntry = AddGameOption("Produktion", GameplayOptions.ProductionSpeed,
+            () => settingsManager.Settings.ProductionSpeed, v => settingsManager.Settings.ProductionSpeed = v,
+            v => GameplayOptions.Percent(v));
+        meleeStopEntry = AddGameOption("Kampf-Abstand", GameplayOptions.MeleeStopTiles,
+            () => settingsManager.Settings.MeleeStopTiles, v => settingsManager.Settings.MeleeStopTiles = v,
+            v => GameplayOptions.TileHunderts(v));
+        formationSpacingEntry = AddGameOption("Verbands-Abstand", GameplayOptions.FormationSpacingTiles,
+            () => settingsManager.Settings.FormationSpacingTiles, v => settingsManager.Settings.FormationSpacingTiles = v,
+            v => GameplayOptions.TileHunderts(v));
+        cameraPanEntry = AddGameOption("Kamera-Pan", GameplayOptions.CameraPanSpeed,
+            () => settingsManager.Settings.CameraPanSpeed, v => settingsManager.Settings.CameraPanSpeed = v,
+            v => v.ToString() + " px/s");
+
         // Add entries to the menu.
+        MenuEntries.Add(soundVolumeEntry);
+        MenuEntries.Add(aiDifficultyEntry);
+        MenuEntries.Add(startingCapitalEntry);
+        MenuEntries.Add(populationCapEntry);
+        MenuEntries.Add(unitSpeedEntry);
+        MenuEntries.Add(gatherSpeedEntry);
+        MenuEntries.Add(productionSpeedEntry);
+        MenuEntries.Add(meleeStopEntry);
+        MenuEntries.Add(formationSpacingEntry);
+        MenuEntries.Add(cameraPanEntry);
         MenuEntries.Add(fullscreenMenuEntry);
-        MenuEntries.Add(languageMenuEntry);
-        MenuEntries.Add(particleEffectMenuEntry);
         MenuEntries.Add(backMenuEntry);
+    }
+
+    /// <summary>
+    /// Beschreibung einer Gameplay-Option: Beschriftung, Stufen und die
+    /// Zugriffspfade auf settingsManager. Die Einträge werden im Konstruktor
+    /// angelegt und in LoadContent beschriftet — davor ist settingsManager
+    /// noch null (lazy), und der erste Text darf deshalb nicht da kommen.
+    /// </summary>
+    private class GameOption
+    {
+        public MenuEntry Entry;
+        public string Label;
+        public int[] Steps;
+        public Func<int> Getter;
+        public Action<int> Setter;
+        public Func<int, string> Format;
+    }
+
+    private readonly List<GameOption> gameOptions = new();
+
+    /// <summary>
+    /// Ein Optionseintrag: bei jeder Auswahl die nächste Stufe setzen
+    /// (über der höchsten Stufe zurück zur ersten) und die gewählte zeigen.
+    /// Die Werte leben in settingsManager; PropertyChanged dort speichert.
+    /// </summary>
+    private MenuEntry AddGameOption(string label, int[] steps, Func<int> getter, Action<int> setter, Func<int, string> format)
+    {
+        MenuEntry entry = new MenuEntry(string.Empty);
+        GameOption option = new GameOption
+        {
+            Entry = entry,
+            Label = label,
+            Steps = steps,
+            Getter = getter,
+            Setter = setter,
+            Format = format,
+        };
+        entry.Selected += (sender, e) =>
+        {
+            if (settingsManager?.Settings is null)
+                return;   // LoadContent noch nicht gelaufen: nichts zu wechseln
+            int next = GameplayOptions.Next(option.Getter(), option.Steps);
+            option.Setter(next);
+            entry.Text = option.Label + ": " + option.Format(next);
+        };
+        gameOptions.Add(option);
+        return entry;
+    }
+
+    /// <summary>Die aktuellen Werte aller zehn Optionen in die Eintragstexte.</summary>
+    private void SetGameOptionTexts()
+    {
+        if (settingsManager?.Settings is null)
+            return;
+        foreach (GameOption option in gameOptions)
+            option.Entry.Text = option.Label + ": " + option.Format(option.Getter());
     }
 
     /// <summary>
@@ -81,68 +166,27 @@ class SettingsScreen : MenuScreen
 
         settingsManager.Settings.PropertyChanged += (s, e) =>
         {
-            SetLanguageText();
+            SetMenuTexts();
+            SetGameOptionTexts();
 
             settingsManager.Save();
         };
 
-        currentLanguage = settingsManager.Settings.Language;
-        currentParticleEffect = settingsManager.Settings.ParticleEffect;
         // Die Anzeige zeigt, wie das Spiel gerade läuft (gdm.IsFullScreen); die
         // gespeicherte Einstellung hat der Start schon übernommen. Sie hier ohne
         // ApplyChanges zu setzen, ließ das Menü "Vollbild" zeigen, während das
         // Spiel im Fenster lief.
 
-        SetLanguageText();
-
-        particleManager ??= ScreenManager.Game.Services.GetService<ParticleManager>();
-    }
-
-    /// <summary>
-    /// Updates the settings screen, including particle effects.
-    /// </summary>
-    /// <param name="gameTime">Provides a snapshot of timing values.</param>
-    /// <param name="otherScreenHasFocus">Indicates whether another screen has focus.</param>
-    /// <param name="coveredByOtherScreen">Indicates whether the screen is covered by another screen.</param>
-    public override void Update(GameTime gameTime, bool otherScreenHasFocus, bool coveredByOtherScreen)
-    {
-        base.Update(gameTime, otherScreenHasFocus, coveredByOtherScreen);
-
-        particleManager.Update(gameTime);
-    }
-
-    /// <summary>
-    /// Draws the settings screen, including particle effects.
-    /// </summary>
-    /// <param name="gameTime">Provides a snapshot of timing values.</param>
-    public override void Draw(GameTime gameTime)
-    {
-        SpriteBatch spriteBatch = ScreenManager.SpriteBatch;
-
-        spriteBatch.Begin(SpriteSortMode.Deferred, null, null, null, null, null, ScreenManager.GlobalTransformation);
-
-        particleManager.Draw(spriteBatch);
-
-        spriteBatch.End();
-
-        base.Draw(gameTime);
+        SetMenuTexts();
+        SetGameOptionTexts();
     }
 
     /// <summary>
     /// Fills in the latest values for the options screen menu text.
     /// </summary>
-    private void SetLanguageText()
+    private void SetMenuTexts()
     {
         fullscreenMenuEntry.Text = string.Format(Resources.DisplayMode, gdm.IsFullScreen ? Resources.FullScreen : Resources.Windowed);
-
-        var selectedLanguage = languages[currentLanguage].DisplayName;
-        if (selectedLanguage.Contains("Invariant"))
-        {
-            selectedLanguage = Resources.English;
-        }
-        languageMenuEntry.Text = Resources.Language + selectedLanguage;
-
-        particleEffectMenuEntry.Text = Resources.ParticleEffect + currentParticleEffect;
 
         backMenuEntry.Text = Resources.Back;
 
@@ -161,39 +205,5 @@ class SettingsScreen : MenuScreen
         ((AgeOfEvolutionsGame)ScreenManager.Game).ToggleFullScreen();
 
         settingsManager.Settings.FullScreen = gdm.IsFullScreen;
-    }
-
-    /// <summary>
-    /// Event handler for when the Language menu entry is selected.
-    /// </summary>
-    /// <param name="sender">The source of the event.</param>
-    /// <param name="e">The <see cref="PlayerIndexEventArgs"/> instance containing the event data.</param>
-    private void LanguageMenuEntrySelected(object sender, PlayerIndexEventArgs e)
-    {
-        currentLanguage = (currentLanguage + 1) % languages.Count;
-
-        var selectedLanguage = languages[currentLanguage].Name;
-        LocalizationManager.SetCulture(selectedLanguage);
-
-        settingsManager.Settings.Language = currentLanguage;
-    }
-
-    /// <summary>
-    /// Event handler for when the Particle menu entry is selected.
-    /// </summary>
-    /// <param name="sender">The source of the event.</param>
-    /// <param name="e">The <see cref="PlayerIndexEventArgs"/> instance containing the event data.</param>
-    private void ParticleEffectMenuEntrySelected(object sender, PlayerIndexEventArgs e)
-    {
-        currentParticleEffect++;
-
-        if (currentParticleEffect > ParticleEffectType.Sparkles)
-        {
-            currentParticleEffect = 0;
-        }
-
-        settingsManager.Settings.ParticleEffect = currentParticleEffect;
-
-        particleManager.Emit(100, currentParticleEffect);  // Emit 100 particles
     }
 }

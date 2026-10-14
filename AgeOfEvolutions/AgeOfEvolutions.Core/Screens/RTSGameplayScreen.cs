@@ -745,6 +745,11 @@ public class RTSGameplayScreen : GameScreen
     {
         base.LoadContent();
 
+        // Einstellungen aus dem Hauptmenü übernehmen (KI, Startkapital, Tempos,
+        // Abstände, Kamera, Ton). Ohne ScreenManager (headless-Tools) bleiben
+        // die Defaults, also exakt das bisherige Verhalten.
+        ApplyStoredGameSettings();
+
         graphicsDevice = ScreenManager.GraphicsDevice;
         screenBounds = new Rectangle(0, 0, graphicsDevice.PresentationParameters.BackBufferWidth,
                                           graphicsDevice.PresentationParameters.BackBufferHeight);
@@ -758,8 +763,8 @@ public class RTSGameplayScreen : GameScreen
         var mapDims = MapSizes.Dimensions(_mapSize, aspect);
         tileMap = new TileMap(mapDims.Width, mapDims.Height, 32, MapSettings.ForSize(_mapSize));
         gatherWorld = new TileMapGatherWorld(tileMap);
-        player1 = new Data.Player(0, "Player 1", "Briten");
-        player2 = new Data.Player(1, "Player 2", "Azteken");
+        player1 = new Data.Player(0, "Player 1", "Briten", _capital);
+        player2 = new Data.Player(1, "Player 2", "Azteken", _capital);
 
         // Add units from tilemap
         units = tileMap.Units;
@@ -785,13 +790,13 @@ public class RTSGameplayScreen : GameScreen
             {
                 // Beide Seiten KI — für das Testen von Aggressivität und
                 /// Erkundung: je eine <c>EconomyAi</c> pro Owner.
-                ActivateAi(new AoE.Core.Ai.EconomyAi(), owner: 0);
-                ActivateAi(new AoE.Core.Ai.EconomyAi(), owner: 1);
+                ActivateAi(new AoE.Core.Ai.EconomyAi(_aiProfile), owner: 0);
+                ActivateAi(new AoE.Core.Ai.EconomyAi(_aiProfile), owner: 1);
                 System.Diagnostics.Debug.WriteLine("[AI] Beide Seiten KI (Owner 0 und 1) aktiv.");
             }
             else
             {
-                ActivateAi(new AoE.Core.Ai.EconomyAi(), owner: 1);
+                ActivateAi(new AoE.Core.Ai.EconomyAi(_aiProfile), owner: 1);
                 System.Diagnostics.Debug.WriteLine("[AI] Eingebaute Wirtschaft-KI als Gegner (Owner 1) aktiv.");
             }
         }
@@ -818,6 +823,10 @@ public class RTSGameplayScreen : GameScreen
         _sounds = new SoundBoard();
         int loadedSounds = _sounds.Load(ScreenManager.Game.Content);
         Console.WriteLine($"[Klang] {loadedSounds} von {SoundBoard.Names.Length * SoundBoard.VARIANTS} Geräuschvarianten geladen");
+
+        // Gesamtlautstärke der Weltgeräusche (Menü-Option „Sound"); die
+        // Angriffswarnung spielt über _alarmSound und bleibt voll.
+        _sounds.MasterVolume = _soundVolume;
 
         // Symbole der Befehlstasten nach dem Namen der Einheit: dieselbe Taste
         // Q heißt je Gebäude etwas anderes (Dorfbewohner, Miliz, Bogenschütze,
@@ -1822,7 +1831,7 @@ public class RTSGameplayScreen : GameScreen
         if (dir != Vector2.Zero)
         {
             dir.Normalize(); // diagonal nicht schneller
-            cameraPosition -= dir * CAMERA_PAN_SPEED * dt / cameraZoom;
+            cameraPosition -= dir * _cameraPanSpeed * dt / cameraZoom;
         }
     }
 
@@ -2681,7 +2690,7 @@ public class RTSGameplayScreen : GameScreen
     /// </summary>
     private bool InAttackRange(Unit unit, Unit target)
     {
-        float range = AttackStopDistance(unit) + COMBAT_SPACING_TILES * tileMap.TileSize;
+        float range = AttackStopDistance(unit) + _combatSpacingTiles * tileMap.TileSize;
         float dc = Math.Abs(target.Position.X - unit.Position.X);
         float dr = Math.Abs(target.Position.Y - unit.Position.Y);
         return Math.Max(dc, dr) <= range;
@@ -2704,6 +2713,25 @@ public class RTSGameplayScreen : GameScreen
     /// Einheit in der (stop + spacing)-Reichweite bleiben kann.</summary>
     private const float COMBAT_SPACING_TILES = 0.5f;
 
+    // --- Einstellbare Spielwerte (Hauptmenü → Einstellungen) ----------------
+    // Die Konstanten oben bleiben als DEFAULTS (und für die XML-Crefs); die
+    // Felder tragen die für DAS Spiel gültigen Werte. LoadContent liest sie
+    // aus den Einstellungen — ohne ScreenManager (headless) behalten sie die
+    // Defaults, also genau das bisherige Verhalten.
+    private float _meleeStopTiles = MELEE_STOP_TILES;
+    private float _combatSpacingTiles = COMBAT_SPACING_TILES;
+    private float _cameraPanSpeed = CAMERA_PAN_SPEED;
+    private float _unitSpeed = 1f;
+    private float _gatherSpeed = 1f;
+    private float _productionSpeed = 1f;
+    private float _soundVolume = SoundBoard.VOLUME;
+    private int _populationCap = AoE.Core.Economy.Population.DEFAULT_LIMIT;
+    private AoE.Core.Ai.AiProfile _aiProfile = AoE.Core.Ai.AiProfile.Standard;
+    private AoE.Core.Economy.StartingCapital _capital = AoE.Core.Economy.StartingCapital.Normal;
+
+    /// <summary>Die für dieses Spiel gültige KI-Schwierigkeit (Menü-Option).</summary>
+    internal AoE.Core.Ai.AiProfile AiProfile => _aiProfile;
+
     /// <summary>Anhalt-Entfernung in Weltpixeln: Nahkampf
     /// <see cref="MELEE_STOP_TILES"/>, Bogenschützen die eigene Bogenvorlage
     /// (Stats.Range in Kacheln) — sie greifen aus der Ferne, statt dicht
@@ -2711,7 +2739,7 @@ public class RTSGameplayScreen : GameScreen
     /// Nähe des Gegners … Sie haben ja die Bogen", „ab zwei Häuser Abstand
     /// können sie schon angreifen").</summary>
     private float AttackStopDistance(Unit unit)
-        => (unit.AttackRange > 0 ? unit.AttackRange : MELEE_STOP_TILES) * tileMap.TileSize;
+        => (unit.AttackRange > 0 ? unit.AttackRange : _meleeStopTiles) * tileMap.TileSize;
 
     /// <summary>
     /// Der Punkt, an dem <paramref name="unit"/> gegen <paramref name="target"/>
@@ -2740,7 +2768,7 @@ public class RTSGameplayScreen : GameScreen
         // (stop + spacing)-Reichweite bleibt und angreifen kann, statt zu
         // pendeln.
         var stand = ideal;
-        float gap = COMBAT_SPACING_TILES * tileMap.TileSize;
+        float gap = _combatSpacingTiles * tileMap.TileSize;
         for (int i = 0; i < 2; i++)
         {
             var push = Vector2.Zero;
@@ -3052,7 +3080,7 @@ public class RTSGameplayScreen : GameScreen
         if (index == 0)
             return center;
 
-        float spacing = COMBAT_SPACING_TILES * tileMap.TileSize;   // ~0.5 Kachel
+        float spacing = _combatSpacingTiles * tileMap.TileSize;   // ~0.5 Kachel
         float gold = 2.39996323f;    // goldener Winkel (137.5°)
         // radius = sqrt(index) * spacing * 1.4  ->  Sonnenblumen-Spirale
         float radius = MathF.Sqrt(index) * spacing * 1.4f;
@@ -3393,6 +3421,61 @@ public class RTSGameplayScreen : GameScreen
                                                && b.Core.BuildingType == BuildingType.TownCenter);
 
     /// <summary>
+    /// Liest die Menü-Einstellungen (Hauptmenü → Einstellungen) in die
+    /// Einstellbaren-Spielwerte-Felder ein. Aufruf in LoadContent, WÄHREND die
+    /// Welt noch steht: ohne ScreenManager oder Dienst (headless-Tools) bleibt
+    /// alles bei den Default-Werten, also genau dem bisherischen Verhalten.
+    /// </summary>
+    private void ApplyStoredGameSettings()
+    {
+        try
+        {
+            if (ScreenManager?.Game is null)
+                return;
+            var manager = ScreenManager.Game.Services
+                .GetService<AgeOfEvolutions.Core.Settings.SettingsManager<AgeOfEvolutions.Core.Settings.AgeOfEvolutionsSettings>>();
+            if (manager?.Settings is { } settings)
+                ApplyGameSettings(settings);
+        }
+        catch (Exception)
+        {
+            // Kein ScreenManager, kein Dienst, kaputtes settings.json: der
+            // bisherige Stand (Defaults) bleibt — das Spiel startet trotzdem.
+        }
+    }
+
+    /// <summary>
+    /// Setzt die Einstellbaren-Spielwerte aus einer Settings-Instanz. Reine
+    /// Zuweisung, keine Welt — internal, damit tools/spielablauf und tests mit
+    /// Reflection gezielt Stufen prüfen können (z. B. dass 150 % Tempo auch
+    /// 1,5-mal so schnell ist).
+    /// </summary>
+    internal void ApplyGameSettings(AgeOfEvolutions.Core.Settings.AgeOfEvolutionsSettings s)
+    {
+        _soundVolume = Math.Clamp(s.SoundVolume, 0, 100) / 100f;
+        _aiProfile = s.AiDifficulty switch
+        {
+            0 => AoE.Core.Ai.AiProfile.Easy,
+            2 => AoE.Core.Ai.AiProfile.Hard,
+            3 => AoE.Core.Ai.AiProfile.Extreme,
+            _ => AoE.Core.Ai.AiProfile.Standard,
+        };
+        _capital = s.StartingCapital switch
+        {
+            0 => AoE.Core.Economy.StartingCapital.Arm,
+            2 => AoE.Core.Economy.StartingCapital.Reich,
+            _ => AoE.Core.Economy.StartingCapital.Normal,
+        };
+        _populationCap = Math.Max(1, s.PopulationCap);
+        _unitSpeed = Math.Max(0.1f, s.UnitSpeed / 100f);
+        _gatherSpeed = Math.Max(0.1f, s.GatherSpeed / 100f);
+        _productionSpeed = Math.Max(0.1f, s.ProductionSpeed / 100f);
+        _meleeStopTiles = Math.Max(0.1f, s.MeleeStopTiles / 100f);
+        _combatSpacingTiles = Math.Max(0.1f, s.FormationSpacingTiles / 100f);
+        _cameraPanSpeed = Math.Max(50f, s.CameraPanSpeed);
+    }
+
+    /// <summary>
     /// Bevölkerungsgrenze beider Spieler aus ihren fertigen Gebäuden:
     /// Stadtzentrum und Haus geben je 5 Plätze, höchstens 200 (AoE.Core,
     /// Population.Capacity). Eine Baustelle zählt noch nicht.
@@ -3403,7 +3486,8 @@ public class RTSGameplayScreen : GameScreen
         {
             player.PopulationLimit = Population.Capacity(
                 tileMap.Buildings.Where(b => b.OwnerId == player.Id && b.IsComplete)
-                                 .Select(b => b.Core.BuildingType));
+                                 .Select(b => b.Core.BuildingType),
+                _populationCap);
         }
     }
 
@@ -3650,9 +3734,10 @@ public class RTSGameplayScreen : GameScreen
     /// </summary>
     private void UpdateAges(float dt)
     {
-        if (player1.Ages.Update(dt))
+        float dts = dt * _productionSpeed;
+        if (player1.Ages.Update(dts))
             ShowHudMessage($"{AgeRules.NameOf(player1.Ages.Current)} erreicht");
-        player2.Ages.Update(dt);
+        player2.Ages.Update(dts);
     }
 
     private void ShowHudMessage(string text)
@@ -3668,6 +3753,7 @@ public class RTSGameplayScreen : GameScreen
     /// </summary>
     private void UpdateTraining(float dt)
     {
+        float dts = dt * _productionSpeed;
         foreach (var building in tileMap.Buildings)
         {
             var player = building.OwnerId == 0 ? player1 : player2;
@@ -3678,7 +3764,7 @@ public class RTSGameplayScreen : GameScreen
             if (building.Research.IsBusy)
                 continue;
             // Die fertige Einheit aufheben: sie erscheint am Gebäude (P1)
-            if (!building.Training.Update(dt, player.PopulationCount, player.PopulationLimit, out var finished))
+            if (!building.Training.Update(dts, player.PopulationCount, player.PopulationLimit, out var finished))
                 continue;
 
             // Bisher bildet nur das Stadtzentrum aus, und zwar Dorfbewohner
@@ -3708,7 +3794,7 @@ public class RTSGameplayScreen : GameScreen
         {
             var owner = b.OwnerId == 0 ? player1 : player2;
             // Forscht das Gebäude und ist die Forschung fertig?
-            if (!b.Research.Update(dt, owner.Techs, out var tech))
+            if (!b.Research.Update(dt * _productionSpeed, owner.Techs, out var tech))
                 continue;
 
             // Die fertige Forschung wirkt auf alles, was der Spieler hat und
@@ -4005,7 +4091,7 @@ public class RTSGameplayScreen : GameScreen
         foreach (var site in tileMap.Buildings.Where(b => !b.IsComplete).ToList())
         {
             int builders = units.Count(u => u.BuildSite == site && u.State == UnitState.Building);
-            if (site.Construction.Update(dt, builders))
+            if (site.Construction.Update(dt * _productionSpeed, builders))
             {
                 site.Construction = null;
                 FinishConstruction(site);
@@ -4269,7 +4355,7 @@ public class RTSGameplayScreen : GameScreen
                     }
                     // Doppelaxt und Goldbergbau (P2): der Auftrag läuft schneller,
                     // je nach den Forschungen des Besitzers und der gesammelten Ressource
-                    unit.Job.Update(dt * TechEffects.GatherFactor(unit.OwnerId == 0 ? player1.Techs : player2.Techs, unit.Job.Resource), gatherWorld);
+                    unit.Job.Update(dt * _gatherSpeed * TechEffects.GatherFactor(unit.OwnerId == 0 ? player1.Techs : player2.Techs, unit.Job.Resource), gatherWorld);
                     if (unit.Job.Phase != GatherPhase.Gathering)
                         FollowJob(unit);
                     break;
@@ -4670,7 +4756,7 @@ public class RTSGameplayScreen : GameScreen
             remaining += Vector2.Distance(unit.Path[i - 1], unit.Path[i]);
         unit.Pace = Gait.Approach(unit.Pace, Gait.ArrivalSpeed(remaining), dt);
         var before = tileMap.WorldToGrid(unit.Position);
-        var next = unit.Position + direction * unit.MovementSpeed * 40 * unit.Pace * dt;
+        var next = unit.Position + direction * unit.MovementSpeed * 40 * unit.Pace * dt * _unitSpeed;
         var nextCell = tileMap.WorldToGrid(next);
         // dort ist etwas, das die Einheit erst jetzt sieht: nicht betreten, neuen Weg suchen
         if (nextCell != before && !tileMap.IsWalkable((int)nextCell.X, (int)nextCell.Y))

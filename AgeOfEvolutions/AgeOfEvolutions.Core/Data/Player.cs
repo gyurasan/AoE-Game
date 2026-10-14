@@ -16,8 +16,9 @@ public class Player
     public string Civilization { get; set; }
     
     // Ressourcen: eine ResourcePool aus AoE.Core statt eines eigenen Dictionary.
-    // Startkapital und Verrechnung kommen damit aus der getesteten Kernbibliothek.
-    public ResourcePool Resources { get; } = new ResourcePool();
+    // Startkapital und Verrechnung kommen damit aus der getesteten Kernbibliothek;
+    // das Niveau (Arm/Normal/Reich) ist die Menü-Option „Startkapital".
+    public ResourcePool Resources { get; }
     
     // Population
     public int Population { get; set; }
@@ -46,15 +47,18 @@ public class Player
     public List<Building> Buildings { get; set; } = new List<Building>();
     
     // Constructor
-    public Player(int id, string name, string civilization)
+    public Player(int id, string name, string civilization,
+                  AoE.Core.Economy.StartingCapital capital = AoE.Core.Economy.StartingCapital.Normal)
     {
         Id = id;
         Name = name;
         Civilization = civilization;
-        
-        // Startkapital setzt die ResourcePool selbst: 200 Nahrung, 200 Holz,
-        // 100 Gold, 200 Stein. Hier nichts nachlegen - ResourcePool.Add addiert
-        // und ueberschreibt nicht, sonst stuende das Startkapital doppelt.
+
+        // Startkapital nach der gewählten Stufe (Menü-Option „Startkapital"):
+        // ResourcePool.Add addiert und ueberschreibt nicht, also kommt der
+        // Wert direkt aus dem Konstruktor, nichts nachlegen.
+        var start = AoE.Core.Economy.StartingCapitalRules.Values(capital);
+        Resources = new ResourcePool(start.Food, start.Wood, start.Gold, start.Stone);
         
         // Setup civilization
         SetupCivilization();
