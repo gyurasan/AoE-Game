@@ -737,6 +737,16 @@ public class RTSGameplayScreen : GameScreen
         TransitionOffTime = TimeSpan.FromSeconds(0.5);
     }
 
+    // Spielstand, aus dem LoadContent die Welt baut (Spiel laden); null bei einem neuen Spiel
+    private readonly SaveGame _loadedSave;
+
+    /// <summary>Setzt ein gespeichertes Spiel fort (Hauptmenü → Spiel laden).</summary>
+    public RTSGameplayScreen(SaveGame save)
+        : this(save?.MapSize ?? MapSize.Standard)
+    {
+        _loadedSave = save ?? throw new ArgumentNullException(nameof(save));
+    }
+
     /// <summary>
     /// The world is built here rather than in the constructor, because the
     /// GraphicsDevice is only reachable once the ScreenManager has adopted us.
@@ -761,10 +771,18 @@ public class RTSGameplayScreen : GameScreen
         // Karte trotzdem zwischen ihnen (ClampCamera).
         float aspect = (float)screenBounds.Width / Math.Max(1, screenBounds.Height);
         var mapDims = MapSizes.Dimensions(_mapSize, aspect);
-        tileMap = new TileMap(mapDims.Width, mapDims.Height, 32, MapSettings.ForSize(_mapSize));
+        if (_loadedSave != null)
+        {
+            // Spiel laden: die gespeicherte Welt statt einer neuen Karte
+            RestoreWorld(_loadedSave);
+        }
+        else
+        {
+            tileMap = new TileMap(mapDims.Width, mapDims.Height, 32, MapSettings.ForSize(_mapSize));
+            player1 = new Data.Player(0, "Player 1", "Briten", _capital);
+            player2 = new Data.Player(1, "Player 2", "Azteken", _capital);
+        }
         gatherWorld = new TileMapGatherWorld(tileMap);
-        player1 = new Data.Player(0, "Player 1", "Briten", _capital);
-        player2 = new Data.Player(1, "Player 2", "Azteken", _capital);
 
         // Add units from tilemap
         units = tileMap.Units;
@@ -1003,6 +1021,10 @@ public class RTSGameplayScreen : GameScreen
         cameraPosition = new Vector2(screenBounds.Width / (2f * cameraZoom),
                                      HUD_TOP_HEIGHT / cameraZoom + FreeHeight / (2f * cameraZoom)) - start;
         ClampCamera();
+
+        // Spiel laden: die gespeicherte Kamera statt des Startblicks
+        if (_loadedSave != null)
+            RestoreCamera(_loadedSave);
 
         // Testmodus (--test): die ganze Karte in einen Blick — Zoom so weit
         // heraus, dass Karte plus beide Leisten ins Fenster passen, Kamera
@@ -3419,6 +3441,90 @@ public class RTSGameplayScreen : GameScreen
     internal Building TownCenterOf(int ownerId)
         => tileMap.Buildings.FirstOrDefault(b => b.OwnerId == ownerId
                                                && b.Core.BuildingType == BuildingType.TownCenter);
+
+    /// <summary>
+    /// Das laufende Spiel als Spielstand (Pausenmenü → Spiel speichern). Ändert nichts am Spiel.
+    /// VERTRAG: save = SaveGameMapper.Capture(tileMap, player1, player2, _mapSize); dazu
+    /// - SavedAt = DateTime.Now, GameSeconds = _gameSeconds, AnimationTime = animationTime;
+    /// - AiDifficulty aus _aiProfile, die Zuordnung von ApplyGameSettings rückwärts:
+    ///   AiProfile.Easy 0, AiProfile.Hard 2, AiProfile.Extreme 3, jedes andere 1 (Vergleich mit
+    ///   ReferenceEquals bzw. ==, die Profile sind feste Instanzen);
+    /// - AiEnabled = AiEnabled, BothSidesAi = BothSidesAi;
+    /// - RelativeZoom = cameraZoom / ZoomScale;
+    /// - CameraCenterX/CameraCenterY = der Weltpunkt in der Mitte des Spielfelds zwischen den
+    ///   Leisten: new Vector2(screenBounds.Width / (2f * cameraZoom), HUD_TOP_HEIGHT / cameraZoom
+    ///   + FreeHeight / (2f * cameraZoom)) - cameraPosition.
+    /// Rückgabe: save.
+    /// </summary>
+    internal SaveGame CaptureSave()
+    {
+        // Spielstand aus der Welt; die Welt bleibt unangetastet
+        var save = SaveGameMapper.Capture(tileMap, player1, player2, _mapSize);
+        save.SavedAt = DateTime.Now;
+        save.GameSeconds = _gameSeconds;
+        save.AnimationTime = animationTime;
+        // KI-Schwierigkeit rückwärts aus dem Profil (die Profile sind feste
+        // Instanzen, kein const - daher == statt switch-Mustern)
+        save.AiDifficulty = _aiProfile == AoE.Core.Ai.AiProfile.Easy ? 0
+            : _aiProfile == AoE.Core.Ai.AiProfile.Hard ? 2
+            : _aiProfile == AoE.Core.Ai.AiProfile.Extreme ? 3
+            : 1;
+        save.AiEnabled = AiEnabled;
+        save.BothSidesAi = BothSidesAi;
+        save.RelativeZoom = cameraZoom / ZoomScale;
+        // Weltpunkt in der Mitte des Spielfelds zwischen den Leisten
+        save.CameraCenterX = screenBounds.Width / (2f * cameraZoom) - cameraPosition.X;
+        save.CameraCenterY = HUD_TOP_HEIGHT / cameraZoom + FreeHeight / (2f * cameraZoom) - cameraPosition.Y;
+        return save;
+    }
+
+    /// <summary>
+    /// Baut die Welt aus einem Spielstand statt einer neuen Karte (LoadContent, Spiel laden).
+    /// VERTRAG: (tileMap, player1, player2) = SaveGameMapper.Restore(save); _gameSeconds =
+    /// save.GameSeconds; animationTime = save.AnimationTime; _aiProfile nach save.AiDifficulty
+    /// genau wie in ApplyGameSettings (0 Easy, 2 Hard, 3 Extreme, sonst Standard); AiEnabled =
+    /// save.AiEnabled; BothSidesAi = save.BothSidesAi. Sonst nichts - gatherWorld, units, die
+    /// Spielerlisten und die Bevölkerung richtet LoadContent danach für beide Wege gleich ein.
+    /// </summary>
+    private void RestoreWorld(SaveGame save)
+    {
+        // Die gespeicherte Welt statt einer neuen Karte
+        (tileMap, player1, player2) = SaveGameMapper.Restore(save);
+        _gameSeconds = save.GameSeconds;
+        animationTime = save.AnimationTime;
+        // KI-Schwierigkeit wie in ApplyGameSettings
+        _aiProfile = save.AiDifficulty switch
+        {
+            0 => AoE.Core.Ai.AiProfile.Easy,
+            2 => AoE.Core.Ai.AiProfile.Hard,
+            3 => AoE.Core.Ai.AiProfile.Extreme,
+            _ => AoE.Core.Ai.AiProfile.Standard,
+        };
+        AiEnabled = save.AiEnabled;
+        BothSidesAi = save.BothSidesAi;
+    }
+
+    /// <summary>
+    /// Stellt die gespeicherte Kamera ein (LoadContent, nach dem Startblick auf das Stadtzentrum).
+    /// VERTRAG: rel = save.RelativeZoom, 1 wenn nicht größer als 0; cameraZoom =
+    /// MathHelper.Clamp(rel * ZoomScale, MinZoom, MaxZoom); _appliedZoomScale = ZoomScale;
+    /// cameraPosition = new Vector2(screenBounds.Width / (2f * cameraZoom), HUD_TOP_HEIGHT /
+    /// cameraZoom + FreeHeight / (2f * cameraZoom)) - new Vector2(save.CameraCenterX,
+    /// save.CameraCenterY) - der gespeicherte Weltpunkt liegt wieder in der Mitte des Spielfelds,
+    /// auch bei anderer Fenstergröße; zuletzt ClampCamera().
+    /// </summary>
+    private void RestoreCamera(SaveGame save)
+    {
+        // Der gespeicherte Weltpunkt liegt wieder in der Mitte des Spielfelds,
+        // auch bei anderer Fenstergröße
+        float rel = save.RelativeZoom > 0f ? save.RelativeZoom : 1f;
+        cameraZoom = MathHelper.Clamp(rel * ZoomScale, MinZoom, MaxZoom);
+        _appliedZoomScale = ZoomScale;
+        cameraPosition = new Vector2(screenBounds.Width / (2f * cameraZoom),
+                                     HUD_TOP_HEIGHT / cameraZoom + FreeHeight / (2f * cameraZoom))
+                         - new Vector2(save.CameraCenterX, save.CameraCenterY);
+        ClampCamera();
+    }
 
     /// <summary>
     /// Liest die Menü-Einstellungen (Hauptmenü → Einstellungen) in die

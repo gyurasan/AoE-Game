@@ -223,6 +223,36 @@ public sealed class TechProgress
         Version++;
         return true;
     }
+
+    /// <summary>
+    /// Der Forschungsstand für einen Spielstand.
+    /// VERTRAG: ein neuer <see cref="TechProgressState"/>: Researched sind die erforschten,
+    /// Pending die laufenden Forschungen, je als neue Liste aufsteigend nach dem Wert der
+    /// Aufzählung <see cref="Tech"/> sortiert; Version ist <see cref="Version"/>. Ändert nichts.
+    /// </summary>
+    public TechProgressState ToState()
+        => new(_researched.OrderBy(t => t).ToList(), _pending.OrderBy(t => t).ToList(), Version);
+
+    /// <summary>
+    /// Ersetzt den ganzen Stand durch einen gespeicherten (Spielstand laden).
+    /// VERTRAG: Erst prüfen, dann ändern - steht eine Forschung sowohl in state.Researched als
+    /// auch in state.Pending, wirft die Methode eine <see cref="ArgumentException"/> und ändert
+    /// nichts. Sonst: erforscht sind genau die Forschungen aus state.Researched, laufend genau die
+    /// aus state.Pending (doppelte Einträge zählen einmal), <see cref="Version"/> wird
+    /// state.Version.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="state"/> ist null.</exception>
+    public void Restore(TechProgressState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        if (state.Researched.Intersect(state.Pending).Any())
+            throw new ArgumentException("Eine Forschung ist gleichzeitig erforscht und laufend.");
+        _researched.Clear();
+        _researched.UnionWith(state.Researched);
+        _pending.Clear();
+        _pending.UnionWith(state.Pending);
+        Version = state.Version;
+    }
 }
 
 /// <summary>
@@ -320,7 +350,35 @@ public sealed class ResearchSlot
         _elapsed = 0f;
         return true;
     }
+
+    /// <summary>
+    /// Der Stand des Gebäudes für einen Spielstand.
+    /// VERTRAG: ein neuer <see cref="ResearchSlotState"/> mit <see cref="Current"/> und der
+    /// bisherigen Forschungszeit (_elapsed) als Elapsed. Ändert nichts.
+    /// </summary>
+    public ResearchSlotState ToState() => new(Current, _elapsed);
+
+    /// <summary>
+    /// Übernimmt einen gespeicherten Stand (Spielstand laden).
+    /// VERTRAG: <see cref="Current"/> wird state.Current; _elapsed wird state.Elapsed, aber 0, wenn
+    /// state.Current null ist, und nie negativ. Bucht nichts ab und meldet nichts an
+    /// <see cref="TechProgress"/> - der Forschungsstand des Spielers kommt mit
+    /// <see cref="TechProgress.Restore"/> getrennt zurück.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="state"/> ist null.</exception>
+    public void Restore(ResearchSlotState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        Current = state.Current;
+        _elapsed = state.Current is null ? 0f : Math.Max(0f, state.Elapsed);
+    }
 }
+
+/// <summary>Gespeicherter Stand eines <see cref="ResearchSlot"/> (Spielstand).</summary>
+public sealed record ResearchSlotState(Tech? Current, float Elapsed);
+
+/// <summary>Gespeicherter Forschungsstand eines Spielers (<see cref="TechProgress"/>, Spielstand).</summary>
+public sealed record TechProgressState(List<Tech> Researched, List<Tech> Pending, int Version);
 
 /// <summary>
 /// Was eine Forschung bewirkt - reine Logik ohne MonoGame. Werte nach AoE II, vereinfacht

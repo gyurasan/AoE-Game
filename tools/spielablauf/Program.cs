@@ -161,6 +161,9 @@ for (int karte = 1; karte <= KARTEN; karte++)
     // verloren — pro Karte, weil jeder Ablauf eine eigene Welt braucht.
     if (gruppen.Contains("niederlage"))
         Pruefe($"Karte {karte}, Niederlage", () => Niederlage(karte, verstoesse));
+    // Spielstand (SV3): speichern, laden, weiterspielen - pro Karte eine eigene Welt
+    if (gruppen.Contains("speichern"))
+        Pruefe($"Karte {karte}, Spielstand", () => Speichern(karte, verstoesse));
 }
 
 if (verstoesse.Count > 0)
@@ -3321,6 +3324,112 @@ static void Kartengroessen(List<string> verstoesse)
     }
 }
 
+// Spielstand (SV3): mitten im Spiel speichern, über JSON laden und weiterspielen. Die
+// geladene Welt muss genau so weitermachen wie die, aus der sie kam: dasselbe Haus wird zur
+// selben Zeit fertig, dieselben Dorfbewohner sammeln dasselbe Holz und stehen am Ende an
+// derselben Stelle. Dazu prüft die Gruppe, was der Spielbildschirm selbst einträgt
+// (Spielzeit, KI, Kamera) - und dass die Kamera auch in einem doppelt so großen Fenster auf
+// denselben Weltpunkt zeigt. Mit AOE_SPIELSTAND_DATEI schreibt sie den Spielstand von Karte 1
+// dorthin; checks/sv_laden.py startet damit das echte Spiel (--laden).
+static void Speichern(int karte, List<string> verstoesse)
+{
+    string wer = $"Karte {karte}, Spielstand";
+    int vorher = verstoesse.Count;
+    var a = new Welt();
+    var arbeiter = a.Dorfbewohner().ToList();
+    a.Waehle(arbeiter.Take(2).ToList());
+    a.Call("PlaceBuilding", BuildingType.LumberCamp, a.Bauplatz(BuildingType.LumberCamp, arbeiter[0], 3, waldImUmkreis: 5));
+    var lager = a.Map.Buildings.Last();
+    a.Waehle(arbeiter.Skip(2).ToList());
+    a.Call("PlaceBuilding", BuildingType.House, a.Bauplatz(BuildingType.House, arbeiter[2], 5));
+    var haus = a.Map.Buildings.Last();
+    a.LaufeBis(() => false, 12f);
+    if (lager.IsComplete || haus.IsComplete)
+    {
+        verstoesse.Add($"{wer}: nach 12 s schon fertig - der Ablauf speichert zu spät");
+        return;
+    }
+
+    // Was der Spielbildschirm selbst einträgt; die Kamera blickt auf die Kartenmitte
+    var fenster = new Rectangle(0, 0, 1920, 1080);
+    a.Set("screenBounds", fenster);
+    a.Set("_gameSeconds", 1234.5);
+    a.Set("animationTime", 77.25f);
+    a.Set("_aiProfile", AoE.Core.Ai.AiProfile.Hard);
+    float zoom = 1.7f * (float)a.Prop("ZoomScale");
+    var mitte = new Vector2(a.Map.Width * a.Map.TileSize / 2f, a.Map.Height * a.Map.TileSize / 2f);
+    Vector2 Blick(Rectangle f, float z, int frei)
+        => new Vector2(f.Width / (2f * z), (int)Welt.Konstante("HUD_TOP_HEIGHT") / z + frei / (2f * z));
+    a.Set("cameraZoom", zoom);
+    a.Set("cameraPosition", Blick(fenster, zoom, (int)a.Prop("FreeHeight")) - mitte);
+
+    var stand = (SaveGame)a.Call("CaptureSave");
+    if (stand.GameSeconds != 1234.5 || stand.AnimationTime != 77.25f)
+        verstoesse.Add($"{wer}: Spielzeit {stand.GameSeconds} / Takt {stand.AnimationTime} statt 1234.5 / 77.25");
+    if (stand.AiDifficulty != 2 || !stand.AiEnabled || stand.BothSidesAi)
+        verstoesse.Add($"{wer}: KI {stand.AiDifficulty}, an {stand.AiEnabled}, beide {stand.BothSidesAi} statt 2 (Schwer), an, nur Gegner");
+    if (Math.Abs((DateTime.Now - stand.SavedAt).TotalMinutes) > 1)
+        verstoesse.Add($"{wer}: Speicherzeit {stand.SavedAt} ist nicht jetzt");
+    if (Math.Abs(stand.RelativeZoom - 1.7f) > 0.001f)
+        verstoesse.Add($"{wer}: relativer Zoom {stand.RelativeZoom} statt 1.7");
+    if (Vector2.Distance(new Vector2(stand.CameraCenterX, stand.CameraCenterY), mitte) > 0.5f)
+        verstoesse.Add($"{wer}: Kameramitte ({stand.CameraCenterX}, {stand.CameraCenterY}) statt der Kartenmitte {mitte}");
+    if (stand.Units.Count != a.Map.Units.Count || stand.Buildings.Count != a.Map.Buildings.Count)
+        verstoesse.Add($"{wer}: {stand.Units.Count} Einheiten / {stand.Buildings.Count} Gebäude statt {a.Map.Units.Count} / {a.Map.Buildings.Count}");
+
+    string json = SaveGameStore.Serialize(stand);
+    var datei = Environment.GetEnvironmentVariable("AOE_SPIELSTAND_DATEI");
+    if (!string.IsNullOrEmpty(datei) && karte == 1)
+        new SaveGameStore(datei).Save(stand);
+
+    var b = new Welt(SaveGameStore.Deserialize(json));
+    if ((double)b.Get("_gameSeconds") != 1234.5 || (float)b.Get("animationTime") != 77.25f)
+        verstoesse.Add($"{wer}: geladen läuft die Spielzeit bei {b.Get("_gameSeconds")} / {b.Get("animationTime")}");
+    if (!ReferenceEquals(b.Get("_aiProfile"), AoE.Core.Ai.AiProfile.Hard))
+        verstoesse.Add($"{wer}: geladen ist die KI nicht mehr „Schwer“");
+
+    // Kamera: im selben Fenster dieselbe, im doppelt so großen derselbe Weltpunkt in der Mitte
+    b.Set("screenBounds", fenster);
+    b.Call("RestoreCamera", stand);
+    if (Math.Abs((float)b.Get("cameraZoom") - zoom) > 0.001f
+        || Vector2.Distance((Vector2)b.Get("cameraPosition"), (Vector2)a.Get("cameraPosition")) > 0.5f)
+        verstoesse.Add($"{wer}: geladene Kamera {b.Get("cameraPosition")} / Zoom {b.Get("cameraZoom")} statt {a.Get("cameraPosition")} / {zoom}");
+    var gross = new Rectangle(0, 0, 3840, 2160);
+    b.Set("screenBounds", gross);
+    b.Call("RestoreCamera", stand);
+    float zoomGross = (float)b.Get("cameraZoom");
+    var blickGross = Blick(gross, zoomGross, (int)b.Prop("FreeHeight")) - (Vector2)b.Get("cameraPosition");
+    if (Math.Abs(zoomGross - 1.7f * (float)b.Prop("ZoomScale")) > 0.001f || Vector2.Distance(blickGross, mitte) > 0.5f)
+        verstoesse.Add($"{wer}: im großen Fenster Zoom {zoomGross}, Mitte {blickGross} statt {1.7f * (float)b.Prop("ZoomScale")}, {mitte}");
+
+    // Weiterspielen: beide Welten bis das Haus steht, dann noch 90 s - lang genug, dass das
+    // Lager fertig wird und Holz ankommt; erst damit vergleicht der Ablauf auch das Sammeln
+    int holzBeimSpeichern = a.P1.Resources[Resource.Wood];
+    var hausB = b.Map.Buildings[a.Map.Buildings.IndexOf(haus)];
+    float tA = a.LaufeBis(() => haus.IsComplete, 60f);
+    float tB = b.LaufeBis(() => hausB.IsComplete, 60f);
+    if (!haus.IsComplete || !hausB.IsComplete || Math.Abs(tA - tB) > 0.05f)
+        verstoesse.Add($"{wer}: das Haus wird ohne Laden nach {tA:0.00} s fertig ({haus.IsComplete}), geladen nach {tB:0.00} s ({hausB.IsComplete})");
+    a.LaufeBis(() => false, 90f);
+    b.LaufeBis(() => false, 90f);
+    if (a.P1.Resources[Resource.Wood] <= holzBeimSpeichern)
+        verstoesse.Add($"{wer}: in 90 s kam kein Holz an ({a.P1.Resources[Resource.Wood]}) - der Ablauf vergleicht das Sammeln nicht");
+    var lagerB = b.Map.Buildings[a.Map.Buildings.IndexOf(lager)];
+    if (lager.IsComplete != lagerB.IsComplete)
+        verstoesse.Add($"{wer}: das Holzfällerlager ist ohne Laden {(lager.IsComplete ? "fertig" : "nicht fertig")}, geladen nicht");
+    foreach (var r in new[] { Resource.Food, Resource.Wood, Resource.Gold, Resource.Stone })
+        if (a.P1.Resources[r] != b.P1.Resources[r])
+            verstoesse.Add($"{wer}: nach dem Weiterspielen {r} {a.P1.Resources[r]} ohne Laden, {b.P1.Resources[r]} geladen");
+    for (int i = 0; i < a.Map.Units.Count; i++)
+    {
+        var (ua, ub) = (a.Map.Units[i], b.Map.Units[i]);
+        if (ua.OwnerId == 0 && Vector2.Distance(ua.Position, ub.Position) > 1f)
+            verstoesse.Add($"{wer}: Einheit {i} steht ohne Laden bei {ua.Position}, geladen bei {ub.Position}");
+    }
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: geladen wie gespeichert - Haus nach {tB:0.0} s, Holz {b.P1.Resources[Resource.Wood]}, Kamera auch im großen Fenster");
+}
+
 // Hauptmenü (E12): die Einträge stehen mittig, wachsen mit dem Fenster und
 // überlappen nicht; die Maus wählt beim Zeigen und startet beim Loslassen über
 // einem aktiven Eintrag, eine ruhende Maus überstimmt die Tastatur nicht, und
@@ -3411,8 +3520,46 @@ static void Hauptmenue(List<string> verstoesse)
     if ((string)Methode("EntryText").Invoke(menue, new object[] { 0 }) != "Neues Spiel")
         verstoesse.Add($"{wer}: der erste Eintrag heißt nicht mehr „Neues Spiel“");
 
+    // Spiel laden (SV3): ohne Spielstand gesperrt - die Auswahl verlässt den Eintrag -,
+    // mit Spielstand frei, mit der Maus startbar und mit den Pfeiltasten erreichbar
+    var saves = typ.GetField("saves", F)
+        ?? throw new InvalidOperationException("Feld MainMenuScreen.saves nicht gefunden");
+    string pfad = Path.Combine(Path.GetTempPath(), $"aoe-menue-{Guid.NewGuid():N}.json");
+    saves.SetValue(menue, new SaveGameStore(pfad));
+    Rectangle Laden() => (Rectangle)Methode("EntryRect").Invoke(null, new object[] { 2, 1920, 1080 });
+    (int, bool) Klick(Rectangle r) => ((int, bool))Methode("EvaluateMouse").Invoke(menue,
+        new object[] { Maus(r.Center, false), Maus(r.Center, true), 1920, 1080 });
+    try
+    {
+        auswahl.SetValue(menue, 2);
+        Methode("RefreshLoadEntry").Invoke(menue, null);
+        if ((int)auswahl.GetValue(menue) != 0)
+            verstoesse.Add($"{wer}: ohne Spielstand bleibt die Auswahl auf dem gesperrten „Spiel laden“");
+        if (Klick(Laden()) != (0, false))
+            verstoesse.Add($"{wer}: ohne Spielstand lässt sich „Spiel laden“ anklicken");
+
+        File.WriteAllText(pfad, "{}");
+        Methode("RefreshLoadEntry").Invoke(menue, null);
+        if (Klick(Laden()) != (2, true))
+            verstoesse.Add($"{wer}: mit Spielstand startet ein Klick „Spiel laden“ nicht");
+        auswahl.SetValue(menue, 1);
+        Methode("MoveSelection").Invoke(menue, new object[] { 1 });
+        if ((int)auswahl.GetValue(menue) != 2)
+            verstoesse.Add($"{wer}: mit Spielstand führt Pfeil nach unten von „Karte“ auf {auswahl.GetValue(menue)} statt auf „Spiel laden“");
+
+        File.Delete(pfad);
+        Methode("RefreshLoadEntry").Invoke(menue, null);
+        if ((int)auswahl.GetValue(menue) != 0 || Klick(Laden()) != (0, false))
+            verstoesse.Add($"{wer}: nach dem Löschen des Spielstands ist „Spiel laden“ nicht wieder gesperrt");
+    }
+    finally
+    {
+        if (File.Exists(pfad))
+            File.Delete(pfad);
+    }
+
     if (verstoesse.Count == vorher)
-        Console.WriteLine($"  ok  {wer}: mittig, wächst mit dem Fenster, Zeigen wählt, Klick startet, „Spiel laden“ gesperrt, Karte wechselt die Größe");
+        Console.WriteLine($"  ok  {wer}: mittig, wächst mit dem Fenster, Zeigen wählt, Klick startet, „Spiel laden“ nur mit Spielstand, Karte wechselt die Größe");
 }
 
 // Bewegung der Figuren (C6v): UpdateUnitMotion erkennt, ob eine Einheit läuft
@@ -4567,12 +4714,14 @@ class Welt
     static readonly Type T = typeof(RTSGameplayScreen);
     readonly RTSGameplayScreen _screen = new();
     public readonly TileMap Map;
-    public readonly Player P1 = new(0, "P1", "Briten"), P2 = new(1, "P2", "Azteken");
+    public readonly Player P1, P2;
     readonly List<Unit> _units;
     double _zeit, _nebel;
 
     public Welt(MapSize groesse = MapSize.Standard, float aspect = 1f)
     {
+        P1 = new(0, "P1", "Briten");
+        P2 = new(1, "P2", "Azteken");
         var dims = MapSizes.Dimensions(groesse, aspect);
         Map = new TileMap(dims.Width, dims.Height, 32, MapSettings.ForSize(groesse));
         _units = Map.Units;
@@ -4587,6 +4736,35 @@ class Welt
         Map.UpdateFogOfWarForPlayer(0, _units);
         Call("UpdatePopulationLimits");
     }
+
+    /// <summary>
+    /// Eine Welt aus einem Spielstand (SV3), so wie LoadContent sie beim Laden aufbaut:
+    /// RestoreWorld, dann Spielerlisten, Sammelwelt, Einheitenliste, Sicht und Bevölkerung.
+    /// </summary>
+    public Welt(SaveGame stand)
+    {
+        Call("RestoreWorld", stand);
+        Map = (TileMap)Get("tileMap");
+        P1 = (Player)Get("player1");
+        P2 = (Player)Get("player2");
+        _units = Map.Units;
+        foreach (var u in _units)
+            (u.OwnerId == 0 ? P1 : P2).AddUnit(u);
+        Set("gatherWorld", new TileMapGatherWorld(Map));
+        Set("units", _units);
+        Map.UpdateFogOfWarForPlayer(0, _units);
+        Call("UpdatePopulationLimits");
+    }
+
+    /// <summary>Wert einer privaten Eigenschaft des Spielbildschirms (ZoomScale, FreeHeight).</summary>
+    public object Prop(string name) => (T.GetProperty(name, F)
+        ?? throw new InvalidOperationException($"Eigenschaft RTSGameplayScreen.{name} nicht gefunden - umbenannt?"))
+        .GetValue(_screen);
+
+    /// <summary>Wert einer Konstante des Spielbildschirms (HUD_TOP_HEIGHT).</summary>
+    public static object Konstante(string name) => (T.GetField(name, BindingFlags.NonPublic | BindingFlags.Static)
+        ?? throw new InvalidOperationException($"Konstante RTSGameplayScreen.{name} nicht gefunden - umbenannt?"))
+        .GetValue(null);
 
     // Seit C4b; fehlt sie, laufen die übrigen Gruppen trotzdem - die Gruppe
     // zeitalter verlangt sie ausdrücklich

@@ -151,4 +151,51 @@ public sealed class TrainingQueue<T> where T : notnull
             _elapsed = 0;
         return true;
     }
+
+    /// <summary>
+    /// Der vollständige Stand der Warteschlange für einen Spielstand.
+    /// VERTRAG: ein neuer <see cref="TrainingQueueState{T}"/>: Entries hat je eingereihter
+    /// Einheit, in derselben Reihenfolge (die gerade ausgebildete zuerst), einen
+    /// <see cref="TrainingEntry{T}"/> mit Einheit, einer KOPIE ihres Kosten-Wörterbuchs und ihrer
+    /// vollen Ausbildungszeit; Elapsed ist die bisherige Ausbildungszeit der vordersten Einheit
+    /// (_elapsed). Ändert die Warteschlange nicht.
+    /// </summary>
+    public TrainingQueueState<T> ToState()
+        => new(_entries.Select(e => new TrainingEntry<T>(e.Unit, new Dictionary<Resource, int>(e.Cost), e.Seconds)).ToList(),
+               _elapsed);
+
+    /// <summary>
+    /// Ersetzt den ganzen Inhalt durch einen gespeicherten Stand (Spielstand laden).
+    /// VERTRAG: Erst prüfen, dann ändern - wirft, ohne etwas zu ändern, eine
+    /// <see cref="ArgumentException"/>, wenn state.Entries mehr als <see cref="MAX_LENGTH"/>
+    /// Einträge hat, und eine <see cref="ArgumentOutOfRangeException"/>, wenn ein Eintrag Seconds
+    /// nicht größer als 0 hat. Sonst: die bisherigen Einträge verwerfen (nichts erstatten), die
+    /// Einträge aus state in derselben Reihenfolge übernehmen, jedes Kosten-Wörterbuch als KOPIE
+    /// (spätere Änderungen am state wirken nicht auf die Warteschlange); _elapsed wird
+    /// state.Elapsed, aber 0 bei leerer Warteschlange und nie negativ; <see cref="IsBlocked"/> wird
+    /// false.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="state"/> ist null.</exception>
+    public void Restore(TrainingQueueState<T> state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        if (state.Entries.Count > MAX_LENGTH)
+            throw new ArgumentException("Die Warteschlange hat zu viele Einträge.");
+        foreach (var entry in state.Entries)
+        {
+            if (entry.Seconds <= 0)
+                throw new ArgumentOutOfRangeException(nameof(state), "Ein Eintrag hat keine gültige Ausbildungszeit.");
+        }
+        _entries.Clear();
+        foreach (var entry in state.Entries)
+            _entries.Add((entry.Unit, new Dictionary<Resource, int>(entry.Cost), entry.Seconds));
+        _elapsed = _entries.Count == 0 ? 0f : Math.Max(0f, state.Elapsed);
+        IsBlocked = false;
+    }
 }
+
+/// <summary>Eine eingereihte Einheit im Spielstand: was, was sie gekostet hat, wie lange sie braucht.</summary>
+public sealed record TrainingEntry<T>(T Unit, Dictionary<Resource, int> Cost, float Seconds) where T : notnull;
+
+/// <summary>Gespeicherter Stand einer <see cref="TrainingQueue{T}"/> (Spielstand).</summary>
+public sealed record TrainingQueueState<T>(List<TrainingEntry<T>> Entries, float Elapsed) where T : notnull;

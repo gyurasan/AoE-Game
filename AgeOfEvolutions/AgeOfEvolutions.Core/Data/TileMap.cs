@@ -38,15 +38,90 @@ public class TileMap
 
     // Constructor
     public TileMap(int width, int height, int tileSize = 32, MapSettings settings = null)
+        : this(width, height, tileSize, settings, true)
+    {
+    }
+
+    /// <summary>
+    /// Gemeinsamer Konstruktor: <paramref name="generate"/> true erzeugt eine zufällige
+    /// Karte, false eine leere Karte (CreateBlank).
+    /// </summary>
+    private TileMap(int width, int height, int tileSize, MapSettings settings, bool generate)
     {
         Width = width;
         Height = height;
         TileSize = tileSize;
         Settings = settings ?? MapSettings.Default;
         tiles = new Tile[width, height];
-        InitializeRandomMap();
+        if (generate)
+        {
+            InitializeRandomMap();
+        }
+        else
+        {
+            // Leere Karte: jede Kachel ist Wiese, keine Zufallserzeugung.
+            for (int x = 0; x < width; x++)
+            {
+                for (int y = 0; y < height; y++)
+                {
+                    tiles[x, y] = new Tile(x, y, TileType.Grassland);
+                }
+            }
+        }
     }
-    
+
+    /// <summary>
+    /// Eine leere Karte für einen Spielstand, ohne Zufallserzeugung.
+    /// VERTRAG: Width, Height und TileSize wie übergeben, Settings = <paramref name="settings"/>
+    /// oder MapSettings.Default; jede Kachel ist new Tile(x, y, TileType.Grassland); keine
+    /// Einheiten, keine Gebäude, keine Tiere (SheepCount, DeerCount, RabbitCount, BoarCount 0).
+    /// InitializeRandomMap läuft NICHT. Dafür ein privater Konstruktor
+    /// TileMap(int width, int height, int tileSize, MapSettings settings, bool generate), den der
+    /// öffentliche Konstruktor mit generate = true aufruft.
+    /// </summary>
+    public static TileMap CreateBlank(int width, int height, int tileSize, MapSettings settings)
+        => new TileMap(width, height, tileSize, settings, generate: false);
+
+    /// <summary>
+    /// Baut die Wander-Bestände der Tiere aus den Kacheln neu auf (nach dem Laden eines Spielstands).
+    /// VERTRAG: leert _sheepCoords, _deerCoords, _rabbitCoords, _boarCoords und _claimed; geht dann
+    /// alle Kacheln durch (x außen, y innen, je aufsteigend) und trägt jede Kachel mit
+    /// Food Sheep in _sheepCoords, Deer in _deerCoords, Rabbit in _rabbitCoords und Boar in
+    /// _boarCoords ein. Andere Kacheln bleiben außen vor.
+    /// </summary>
+    public void RebuildWildAnimals()
+    {
+        // Alte Bestände und Reservierungen verwerfen, dann aus den Kacheln neu aufbauen.
+        _sheepCoords.Clear();
+        _deerCoords.Clear();
+        _rabbitCoords.Clear();
+        _boarCoords.Clear();
+        _claimed.Clear();
+
+        for (int x = 0; x < Width; x++)
+        {
+            for (int y = 0; y < Height; y++)
+            {
+                var t = tiles[x, y];
+                switch (t.Food)
+                {
+                    case FoodSource.Sheep:
+                        _sheepCoords.Add((x, y));
+                        break;
+                    case FoodSource.Deer:
+                        _deerCoords.Add((x, y));
+                        break;
+                    case FoodSource.Rabbit:
+                        _rabbitCoords.Add((x, y));
+                        break;
+                    case FoodSource.Boar:
+                        _boarCoords.Add((x, y));
+                        break;
+                }
+            }
+        }
+    }
+
     // Initialize a random map
     // Zufallszahlengenerator für Kartengenerierung (vorher: DateTime.Now.Ticks % Range
     // → in einer eng takteten Schleife nahezu konstante Werte, alle Flecken übereinander)
@@ -1358,6 +1433,51 @@ public class TileMap
             building.Core.IsUnderConstruction = !building.IsComplete;
 
         _visibility.UpdateVisibility(playerId);
+    }
+
+    /// <summary>
+    /// Was der Spieler schon von der Karte kennt, für einen Spielstand.
+    /// VERTRAG: eine Zeichenkette der Länge Width · Height; das Zeichen an Index y · Width + x ist
+    /// '1', wenn NavGrid.GetTile(x, y).GetVisibility(playerId) nicht TileVisibility.Unexplored
+    /// ist (erkundet oder gerade sichtbar), sonst '0'. Unabhängig von <see cref="TestNoFog"/>.
+    /// Ändert nichts.
+    /// </summary>
+    public string ExploredMask(int playerId)
+    {
+        var mask = new char[Width * Height];
+        for (int x = 0; x < Width; x++)
+        {
+            for (int y = 0; y < Height; y++)
+            {
+                // '1' erkundet oder gerade sichtbar, '0' unerforscht.
+                mask[y * Width + x] = NavGrid.GetTile(x, y).GetVisibility(playerId) != TileVisibility.Unexplored
+                    ? '1'
+                    : '0';
+            }
+        }
+        return new string(mask);
+    }
+
+    /// <summary>
+    /// Übernimmt eine Maske aus <see cref="ExploredMask"/> (Spielstand laden).
+    /// VERTRAG: für jede Kachel setzt NavGrid.GetTile(x, y).SetVisibility(playerId, …) den
+    /// Zustand TileVisibility.Explored, wenn das Zeichen an Index y · Width + x '1' ist, sonst
+    /// TileVisibility.Unexplored. Fehlt das Zeichen (Maske zu kurz oder null), gilt '0'. Was
+    /// gerade sichtbar ist, rechnet der nächste <see cref="UpdateFogOfWarForPlayer"/>.
+    /// </summary>
+    public void RestoreExplored(int playerId, string mask)
+    {
+        for (int x = 0; x < Width; x++)
+        {
+            for (int y = 0; y < Height; y++)
+            {
+                // Fehlt das Zeichen (Maske zu kurz oder null), gilt '0'.
+                int index = y * Width + x;
+                bool explored = mask != null && index < mask.Length && mask[index] == '1';
+                NavGrid.GetTile(x, y).SetVisibility(playerId,
+                    explored ? TileVisibility.Explored : TileVisibility.Unexplored);
+            }
+        }
     }
 
     /// <summary>Kachel ist gerade einsehbar.</summary>

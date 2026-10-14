@@ -261,4 +261,40 @@ public sealed class GatherJob
         Phase = GatherPhase.Done;
         DropOff = null;
     }
+
+    /// <summary>
+    /// Der vollständige Stand des Auftrags für einen Spielstand.
+    /// VERTRAG: ein neuer <see cref="GatherJobState"/> mit <see cref="OwnerId"/>,
+    /// <see cref="Resource"/>, <see cref="Source"/>, <see cref="DropOff"/>, <see cref="Phase"/>,
+    /// <see cref="Carrying"/> und den angesammelten Bruchteilen (_progress) als Progress.
+    /// Ändert den Auftrag nicht.
+    /// </summary>
+    public GatherJobState ToState() => new(OwnerId, Resource, Source, DropOff, Phase, Carrying, _progress);
+
+    /// <summary>
+    /// Stellt einen Auftrag aus einem Spielstand wieder her.
+    /// VERTRAG: ein neuer Auftrag, dessen OwnerId, Resource, Source, DropOff und Phase genau die
+    /// Werte aus <paramref name="state"/> sind; Carrying ist state.Carrying, begrenzt auf 0 bis
+    /// <see cref="CARRY_CAPACITY"/>; die angesammelten Bruchteile (_progress) sind
+    /// state.Progress, begrenzt auf 0 bis unter 1 (negativ wird 0, ab 1 wird 0.999f). Danach
+    /// verhält sich der Auftrag bei <see cref="Update"/> und <see cref="Arrive"/> genau wie der,
+    /// aus dem der Stand kam.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="state"/> ist null.</exception>
+    public static GatherJob FromState(GatherJobState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        var job = new GatherJob(state.OwnerId, state.Resource, state.Source, state.Carrying);
+        job.DropOff = state.DropOff;
+        job.Phase = state.Phase;
+        job._progress = state.Progress < 0 ? 0f : Math.Min(state.Progress, 0.999f);
+        return job;
+    }
 }
+
+/// <summary>
+/// Gespeicherter Stand eines <see cref="GatherJob"/> (Spielstand): alles, was der Auftrag
+/// braucht, um nach dem Laden genau dort weiterzumachen, wo er war.
+/// </summary>
+public sealed record GatherJobState(int OwnerId, Resource Resource, Position Source, Position? DropOff,
+                                    GatherPhase Phase, int Carrying, float Progress);

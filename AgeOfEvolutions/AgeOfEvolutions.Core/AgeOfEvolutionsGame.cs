@@ -197,6 +197,42 @@ namespace AgeOfEvolutions.Core
         /// Initializes the game, including setting up localization and adding the 
         /// initial screens to the ScreenManager.
         /// </summary>
+        /// <summary>
+        /// Startschalter --laden: das Spiel beginnt gleich mit einem Spielstand statt im Menü -
+        /// für Tests und Fotos, wie --rts für ein neues Spiel.
+        /// VERTRAG: ohne "--laden" in <paramref name="args"/>: null. Sonst den Spielstand lesen -
+        /// aus dem Pfad direkt nach "--laden", wenn dort ein Argument steht, das nicht mit "--"
+        /// beginnt, sonst aus new Data.SaveGameStore() (Standardort; mit Pfad: new
+        /// Data.SaveGameStore(pfad)) -, ihn zur Probe mit Data.SaveGameMapper.Restore prüfen
+        /// (Ergebnis verwerfen) und new RTSGameplayScreen(save) zurückgeben. Jede Ausnahme
+        /// dabei: Console.WriteLine("[Laden] Spielstand nicht lesbar: " + ex.Message) und null -
+        /// dann startet das Spiel wie ohne Schalter.
+        /// </summary>
+        internal static RTSGameplayScreen ScreenFromCommandLine(string[] args)
+        {
+            int i = Array.IndexOf(args, "--laden");
+            if (i < 0)
+                return null;
+
+            try
+            {
+                Data.SaveGameStore store;
+                if (i + 1 < args.Length && !args[i + 1].StartsWith("--"))
+                    store = new Data.SaveGameStore(args[i + 1]);
+                else
+                    store = new Data.SaveGameStore();
+
+                var save = store.Load();
+                Data.SaveGameMapper.Restore(save);
+                return new RTSGameplayScreen(save);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("[Laden] Spielstand nicht lesbar: " + ex.Message);
+                return null;
+            }
+        }
+
         protected override void Initialize()
         {
             base.Initialize();
@@ -222,7 +258,13 @@ namespace AgeOfEvolutions.Core
 
             // Boot into the menu. The RTS mode is reachable from there, or directly
             // via the --rts command line switch (see below).
-            if (args.Contains("--rts"))
+            // --laden [pfad]: gleich mit einem Spielstand beginnen
+            var loaded = ScreenFromCommandLine(args);
+            if (loaded != null)
+            {
+                screenManager.AddScreen(loaded, null);
+            }
+            else if (args.Contains("--rts"))
             {
                 // --karte gross bzw. --karte max startet auf einer größeren Karte
                 int k = Array.IndexOf(args, "--karte");

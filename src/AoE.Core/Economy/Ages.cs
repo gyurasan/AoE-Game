@@ -173,4 +173,34 @@ public sealed class AgeProgress
         _researchedSeconds = 0f;
         return true;
     }
+
+    /// <summary>
+    /// Zeitalter und laufender Aufstieg für einen Spielstand.
+    /// VERTRAG: ein neuer <see cref="AgeProgressState"/> mit <see cref="Current"/>,
+    /// <see cref="Target"/> und der erforschten Zeit (_researchedSeconds) als
+    /// ResearchedSeconds. Ändert nichts.
+    /// </summary>
+    public AgeProgressState ToState() => new(Current, Target, _researchedSeconds);
+
+    /// <summary>
+    /// Übernimmt einen gespeicherten Stand (Spielstand laden).
+    /// VERTRAG: Erst prüfen, dann ändern - ist state.Target nicht null und nicht genau
+    /// <see cref="AgeRules.Next"/>(state.Current), wirft die Methode eine
+    /// <see cref="ArgumentException"/> und ändert nichts. Sonst: <see cref="Current"/> wird
+    /// state.Current, <see cref="Target"/> state.Target, _researchedSeconds state.ResearchedSeconds
+    /// - aber 0, wenn state.Target null ist, und nie negativ. Bucht nichts ab.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="state"/> ist null.</exception>
+    public void Restore(AgeProgressState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        if (state.Target is { } target && AgeRules.Next(state.Current) != target)
+            throw new ArgumentException("Das Ziel-Zeitalter ist nicht das nächste.");
+        Current = state.Current;
+        Target = state.Target;
+        _researchedSeconds = state.Target is null ? 0f : Math.Max(0f, state.ResearchedSeconds);
+    }
 }
+
+/// <summary>Gespeicherter Stand eines <see cref="AgeProgress"/> (Spielstand).</summary>
+public sealed record AgeProgressState(Age Current, Age? Target, float ResearchedSeconds);

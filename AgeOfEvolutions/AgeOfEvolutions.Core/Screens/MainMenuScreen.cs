@@ -29,8 +29,8 @@ public class MainMenuScreen : GameScreen
     Texture2D menuButton;
     SoundEffect soundButton;
 
-    // „Spiel laden" gibt es noch nicht: grau und nicht wählbar statt eines
-    // Eintrags, der beim Klick nichts tut
+    // „Spiel laden" ist grau und nicht wählbar, solange es keinen Spielstand gibt;
+    // LoadContent schaltet den Eintrag frei, wenn die Datei da ist
     readonly (string Text, bool Enabled)[] menuOptions =
     {
         ("Neues Spiel", true),
@@ -46,6 +46,10 @@ public class MainMenuScreen : GameScreen
     private const int MAP_ENTRY = 1;
     MapSize mapSize = MapSize.Standard;
     SettingsManager<AgeOfEvolutionsSettings> settingsManager;
+
+    // „Spiel laden": der Spielstand am Standardort (neben den Einstellungen)
+    private const int LOAD_ENTRY = 2;
+    readonly SaveGameStore saves = new SaveGameStore();
 
     public MainMenuScreen()
     {
@@ -69,6 +73,9 @@ public class MainMenuScreen : GameScreen
         settingsManager = ScreenManager.Game.Services.GetService<SettingsManager<AgeOfEvolutionsSettings>>();
         if (settingsManager != null)
             mapSize = (MapSize)Math.Clamp(settingsManager.Settings.MapSize, 0, 2);
+
+        // „Spiel laden" nur, wenn es einen Spielstand gibt
+        RefreshLoadEntry();
 
         // 1x1 white texture, tinted per draw call for panels, plates and bars.
         menuButton = new Texture2D(ScreenManager.GraphicsDevice, 1, 1);
@@ -202,12 +209,56 @@ public class MainMenuScreen : GameScreen
                     settingsManager.Save();
                 }
                 break;
+            case LOAD_ENTRY: // Spiel laden
+                LoadSavedGame();
+                break;
             case 3: // Settings
                 ScreenManager.AddScreen(new SettingsScreen(), ControllingPlayer);
                 break;
             case 4: // Exit
                 ScreenManager.Game.Exit();
                 break;
+        }
+    }
+
+    /// <summary>
+    /// Schaltet „Spiel laden" frei, wenn es einen Spielstand gibt, sonst sperrt es den Eintrag.
+    /// LoadContent ruft sie auf; tools/spielablauf (Gruppe menue) prüft sie ohne Grafik.
+    /// VERTRAG: menuOptions[LOAD_ENTRY] = ("Spiel laden", saves.Exists); steht die Auswahl
+    /// (selectedIndex) auf dem nun gesperrten Eintrag, springt sie auf 0 („Neues Spiel").
+    /// </summary>
+    private void RefreshLoadEntry()
+    {
+        menuOptions[LOAD_ENTRY] = ("Spiel laden", saves.Exists);
+        if (selectedIndex == LOAD_ENTRY && !menuOptions[LOAD_ENTRY].Enabled)
+            selectedIndex = 0;
+    }
+
+    /// <summary>
+    /// Setzt das gespeicherte Spiel fort (Eintrag „Spiel laden").
+    /// VERTRAG: in einem try: save = saves.Load(); zur Probe
+    /// SaveGameMapper.Restore(save) (Ergebnis verwerfen - ein kaputter Spielstand fällt so
+    /// hier auf und nicht erst mitten im Ladebildschirm); dann wie „Neues Spiel"
+    /// LoadingScreen.Load(ScreenManager, true, ControllingPlayer, new RTSGameplayScreen(save)).
+    /// Jede Ausnahme (catch Exception ex): das Hauptmenü bleibt, der Eintrag wird gesperrt
+    /// (menuOptions[LOAD_ENTRY] = ("Spiel laden", false)), die Auswahl springt auf „Neues Spiel"
+    /// (selectedIndex = 0), und ScreenManager.AddScreen(new MessageBoxScreen("Spielstand nicht
+    /// lesbar: " + ex.Message, false, TimeSpan.FromSeconds(3), true), ControllingPlayer) zeigt es.
+    /// </summary>
+    private void LoadSavedGame()
+    {
+        try
+        {
+            var save = saves.Load();
+            SaveGameMapper.Restore(save);
+            LoadingScreen.Load(ScreenManager, true, ControllingPlayer, new RTSGameplayScreen(save));
+        }
+        catch (Exception ex)
+        {
+            menuOptions[LOAD_ENTRY] = ("Spiel laden", false);
+            selectedIndex = 0;
+            ScreenManager.AddScreen(new MessageBoxScreen("Spielstand nicht lesbar: " + ex.Message, false,
+                                                         TimeSpan.FromSeconds(3), true), ControllingPlayer);
         }
     }
 

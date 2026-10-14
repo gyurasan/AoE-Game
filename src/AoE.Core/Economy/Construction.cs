@@ -128,4 +128,27 @@ public sealed class Construction
         Progress = Math.Min(1f, Progress + dt * BuildingRules.SpeedFactor(builders) / BuildSeconds);
         return IsComplete;
     }
+
+    /// <summary>
+    /// Die Baustelle für einen Spielstand.
+    /// VERTRAG: ein neuer <see cref="ConstructionState"/> mit <see cref="BuildSeconds"/> und
+    /// <see cref="Progress"/>. Ändert nichts.
+    /// </summary>
+    public ConstructionState ToState() => new(BuildSeconds, Progress);
+
+    /// <summary>
+    /// Stellt eine Baustelle aus einem Spielstand wieder her.
+    /// VERTRAG: eine neue Baustelle mit state.BuildSeconds (nicht größer als 0: dieselbe
+    /// <see cref="ArgumentOutOfRangeException"/> wie der Konstruktor) und Progress
+    /// state.Progress, begrenzt auf 0 bis 1.
+    /// </summary>
+    /// <exception cref="ArgumentNullException"><paramref name="state"/> ist null.</exception>
+    public static Construction FromState(ConstructionState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        return new Construction(state.BuildSeconds) { Progress = Math.Clamp(state.Progress, 0f, 1f) };
+    }
 }
+
+/// <summary>Gespeicherter Stand einer <see cref="Construction"/> (Spielstand).</summary>
+public sealed record ConstructionState(float BuildSeconds, float Progress);
