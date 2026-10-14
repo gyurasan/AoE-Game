@@ -28,7 +28,10 @@ public class ScreenManager : DrawableGameComponent
     // Shared resources for drawing and content management.
     private SpriteBatch spriteBatch;
     private SpriteFont font;
+    private SpriteFont menuFont;
+    private SpriteFont menuFontLarge;
     private Texture2D blankTexture;
+    private Texture2D whitePixel;
 
     private bool isInitialized;
     private bool traceEnabled;
@@ -61,6 +64,23 @@ public class ScreenManager : DrawableGameComponent
     /// Provides access to a shared SpriteFont instance for text rendering.
     /// </summary>
     public SpriteFont Font => font;
+
+    /// <summary>Weißes 1×1-Pixel, pro Zeichnung eingefärbt für Tafeln und Ränder.</summary>
+    public Texture2D WhitePixel => whitePixel;
+
+    /// <summary>
+    /// Menüschrift für Text, der in echten Fensterpixeln <paramref name="pixelHeight"/>
+    /// hoch gezeichnet wird: die 40-pt-Schrift, solange sie dafür nicht gestreckt
+    /// werden muss, darüber die 80-pt-Schrift. Gestreckte Schrift wird unscharf,
+    /// zu stark verkleinerte flimmert - so bleibt der Maßstab grob bei 0,5 bis 1,5.
+    /// Fehlen die Menüschriften, tut es die HUD-Schrift.
+    /// </summary>
+    public SpriteFont MenuFontFor(float pixelHeight)
+    {
+        if (menuFontLarge != null && (menuFont == null || pixelHeight > menuFont.LineSpacing))
+            return menuFontLarge;
+        return menuFont ?? font;
+    }
 
     /// <summary>
     /// Enables or disables screen tracing for debugging purposes.
@@ -106,11 +126,27 @@ public class ScreenManager : DrawableGameComponent
         ContentManager content = Game.Content;
         spriteBatch = new SpriteBatch(GraphicsDevice);
         font = content.Load<SpriteFont>("Fonts/Hud");
+        menuFont = TryLoadFont(content, "Fonts/Menu");
+        menuFontLarge = TryLoadFont(content, "Fonts/MenuLarge");
         blankTexture = content.Load<Texture2D>("Sprites/blank");
+        whitePixel = new Texture2D(GraphicsDevice, 1, 1);
+        whitePixel.SetData(new[] { Color.White });
 
         foreach (GameScreen screen in screens)
         {
             screen.LoadContent();
+        }
+    }
+
+    private static SpriteFont TryLoadFont(ContentManager content, string asset)
+    {
+        try
+        {
+            return content.Load<SpriteFont>(asset);
+        }
+        catch (ContentLoadException)
+        {
+            return null;
         }
     }
 
@@ -200,6 +236,7 @@ public class ScreenManager : DrawableGameComponent
             {
                 // Dispose of managed resources.
                 spriteBatch?.Dispose();
+                whitePixel?.Dispose();
             }
             // No unmanaged resources to dispose in this example.
         }

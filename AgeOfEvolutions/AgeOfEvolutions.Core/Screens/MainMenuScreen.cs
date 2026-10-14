@@ -27,7 +27,6 @@ public class MainMenuScreen : GameScreen
 
     Texture2D menuBackground;
     Texture2D menuButton;
-    SpriteFont menuFont;
     SoundEffect soundButton;
 
     // „Spiel laden" gibt es noch nicht: grau und nicht wählbar statt eines
@@ -65,10 +64,6 @@ public class MainMenuScreen : GameScreen
         // parchment look rather than taking the whole game down on startup.
         menuBackground = TryLoad<Texture2D>(content, "Backgrounds/menu");
         soundButton = TryLoad<SoundEffect>(content, "Sounds/PlayerGemCollected");
-
-        // Eigene, große Schrift: die HUD-Schrift (14 pt) würde auf Menügröße
-        // gestreckt unscharf. Fehlt sie, tut es die HUD-Schrift.
-        menuFont = TryLoad<SpriteFont>(content, "Fonts/Menu") ?? ScreenManager.Font;
 
         // Die zuletzt gewählte Kartengröße
         settingsManager = ScreenManager.Game.Services.GetService<SettingsManager<AgeOfEvolutionsSettings>>();
@@ -273,19 +268,14 @@ public class MainMenuScreen : GameScreen
 
     /// <summary>
     /// Text mit Schatten, mittig auf <paramref name="center"/> und
-    /// <paramref name="pixelHeight"/> Pixel hoch - die Schrift wird dafür
-    /// skaliert, gleich ob die Menü- oder die HUD-Schrift geladen ist.
+    /// <paramref name="pixelHeight"/> Pixel hoch. Die Schrift wählt
+    /// ScreenManager.MenuFontFor passend zur Höhe (40 oder 80 pt), damit
+    /// sie auf großen Fenstern nicht gestreckt und unscharf wird.
     /// </summary>
     private void DrawCentered(SpriteBatch spriteBatch, string text, Vector2 center, float pixelHeight,
                               Color color, int shadow)
     {
-        float scale = pixelHeight / menuFont.LineSpacing;
-        var size = menuFont.MeasureString(text) * scale;
-        var position = center - size / 2f;
-        spriteBatch.DrawString(menuFont, text, position + new Vector2(shadow, shadow), Color.Black,
-                               0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
-        spriteBatch.DrawString(menuFont, text, position, color,
-                               0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+        MenuStyle.DrawText(ScreenManager, text, center, pixelHeight, color, 1f, shadow);
     }
 
     /// <summary>

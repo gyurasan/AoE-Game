@@ -3,27 +3,29 @@ using AgeOfEvolutions.Core;
 using AgeOfEvolutions.Core.Inputs;
 using AgeOfEvolutions.Core.Localization;
 using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input.Touch;
 
 namespace AgeOfEvolutions.Screens;
 
 /// <summary>
 /// A popup message box screen, used to display messages and prompt user input.
 /// </summary>
+/// <remarks>
+/// Gezeichnet wie die Menüs (<see cref="MenuStyle"/>) in echten Fensterpixeln;
+/// vorher streckte die GlobalTransformation die 14-pt-HUD-Schrift unscharf.
+/// </remarks>
 class MessageBoxScreen : GameScreen
 {
     private string message;
-    private Texture2D gradientTexture;
     private readonly bool toastMessage;
     private readonly TimeSpan toastDuration;
     private TimeSpan toastTimer;
-    private Vector2 yesButtonPosition;
-    private Vector2 noButtonPosition;
-    private Vector2 messageTextPosition;
-    private Vector2 yesTextSize;
-    private Vector2 noTextSize;
+    private Rectangle yesButtonRect;
+    private Rectangle noButtonRect;
+    private Vector2 messageCenter;
     private Rectangle backgroundRectangle;
+    private float ui = 1f;
 
     /// <summary>
     /// Event raised when the user accepts the message box.
@@ -35,9 +37,12 @@ class MessageBoxScreen : GameScreen
     /// </summary>
     public event EventHandler<PlayerIndexEventArgs> Cancelled;
 
-    // The background includes a border somewhat larger than the text itself.
-    private const int hPad = 32;
-    private const int vPad = 16;
+    // Entwurfsmaße für 1080 px Fensterhöhe; MenuStyle.UiScale rechnet sie um.
+    // Der Rahmen ist etwas größer als der Text selbst.
+    private const float TEXT_HEIGHT = 32f;
+    private const float H_PAD = 40f;
+    private const float V_PAD = 28f;
+    private const float BUTTON_GAP = 32f;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MessageBoxScreen"/> class, automatically including usage text.
@@ -72,15 +77,8 @@ class MessageBoxScreen : GameScreen
         TransitionOffTime = TimeSpan.FromSeconds(0.2);
     }
 
-    /// <summary>
-    /// Loads graphics content for this screen.
-    /// </summary>
-    public override void LoadContent()
-    {
-        ContentManager content = ScreenManager.Game.Content;
-
-        gradientTexture = content.Load<Texture2D>("Sprites/gradient");
-    }
+    /// <summary>Ob die Ja/Nein-Knöpfe zum Antippen gezeigt werden (nur mobil).</summary>
+    private bool ShowsButtons => AgeOfEvolutionsGame.IsMobile && !toastMessage;
 
     /// <summary>
     /// Responds to user input, accepting or cancelling the message box.
@@ -105,8 +103,7 @@ class MessageBoxScreen : GameScreen
         // actually provided the input. We pass that through to our Accepted and
         // Cancelled events, so they can tell which player triggered them.
         if (inputState.IsMenuSelect(ControllingPlayer, out playerIndex)
-            || (AgeOfEvolutionsGame.IsMobile
-            && inputState.IsUIClicked(new Rectangle((int)yesButtonPosition.X, (int)yesButtonPosition.Y, (int)yesTextSize.X, (int)yesTextSize.Y))))
+            || (ShowsButtons && IsClicked(inputState, yesButtonRect)))
         {
             // Raise the accepted event, then exit the message box.
             Accepted?.Invoke(this, new PlayerIndexEventArgs(playerIndex));
@@ -114,14 +111,30 @@ class MessageBoxScreen : GameScreen
             ExitScreen();
         }
         else if (inputState.IsMenuCancel(ControllingPlayer, out playerIndex)
-            || (AgeOfEvolutionsGame.IsMobile
-            && inputState.IsUIClicked(new Rectangle((int)noButtonPosition.X, (int)noButtonPosition.Y, (int)noTextSize.X, (int)noTextSize.Y))))
+            || (ShowsButtons && IsClicked(inputState, noButtonRect)))
         {
             // Raise the cancelled event, then exit the message box.
             Cancelled?.Invoke(this, new PlayerIndexEventArgs(playerIndex));
 
             ExitScreen();
         }
+    }
+
+    /// <summary>
+    /// Klick oder Berührung in <paramref name="rect"/>, beides in Fensterpixeln
+    /// (InputState.IsUIClicked rechnet ins 800×480-Raster zurück).
+    /// </summary>
+    private static bool IsClicked(InputState inputState, Rectangle rect)
+    {
+        if (inputState.IsLeftMouseButtonClicked() && rect.Contains(inputState.CurrentMouseState.Position))
+            return true;
+
+        foreach (var touch in inputState.CurrentTouchState)
+        {
+            if (touch.State == TouchLocationState.Pressed && rect.Contains(touch.Position.ToPoint()))
+                return true;
+        }
+        return false;
     }
 
     /// <summary>
@@ -148,31 +161,39 @@ class MessageBoxScreen : GameScreen
             }
         }
 
-        // Center the message text in the BaseScreenSize.
-        // The GlobalTransformation will scale everything for us.
-        Vector2 textSize = ScreenManager.Font.MeasureString(message);
-        messageTextPosition = (ScreenManager.BaseScreenSize - textSize) / 2;
+        // Kasten mittig im Fenster, in Fensterpixeln. Jedes Bild neu, weil
+        // sich Fenstergröße und Sprache ändern können.
+        var parameters = ScreenManager.GraphicsDevice.PresentationParameters;
+        int width = parameters.BackBufferWidth;
+        int height = parameters.BackBufferHeight;
+        ui = MenuStyle.UiScale(height);
 
-        // Done here because language setting could change dynamically. Possibly overkill?
-        yesTextSize = ScreenManager.Font.MeasureString(Resources.YesButtonText);
-        noTextSize = ScreenManager.Font.MeasureString(Resources.NoButtonText);
-        if (AgeOfEvolutionsGame.IsMobile
-            && !toastMessage)
+        float lineHeight = TEXT_HEIGHT * ui;
+        SpriteFont font = ScreenManager.MenuFontFor(lineHeight);
+        Vector2 textSize = font.MeasureString(message) * (lineHeight / font.LineSpacing);
+
+        float yesWidth = MenuStyle.TextWidth(ScreenManager, Resources.YesButtonText, lineHeight);
+        float noWidth = MenuStyle.TextWidth(ScreenManager, Resources.NoButtonText, lineHeight);
+        float contentWidth = textSize.X;
+        float contentHeight = textSize.Y;
+        if (ShowsButtons)
         {
-            textSize += yesTextSize;
-            textSize.Y += vPad * 2;
+            contentWidth = Math.Max(contentWidth, yesWidth + BUTTON_GAP * ui + noWidth);
+            contentHeight += V_PAD * ui + lineHeight;
         }
 
-        backgroundRectangle = new Rectangle((int)messageTextPosition.X - hPad,
-                                            (int)messageTextPosition.Y - vPad,
-                                            (int)textSize.X + hPad * 2,
-                                            (int)textSize.Y + vPad * 2);
+        int boxWidth = (int)(contentWidth + 2 * H_PAD * ui);
+        int boxHeight = (int)(contentHeight + 2 * V_PAD * ui);
+        backgroundRectangle = new Rectangle((width - boxWidth) / 2, (height - boxHeight) / 2, boxWidth, boxHeight);
+        messageCenter = new Vector2(width / 2f, backgroundRectangle.Y + V_PAD * ui + textSize.Y / 2f);
 
-        if (AgeOfEvolutionsGame.IsMobile
-            && !toastMessage)
+        if (ShowsButtons)
         {
-            yesButtonPosition = new Vector2(backgroundRectangle.X + backgroundRectangle.Width - (yesTextSize.X + hPad + noTextSize.X + hPad), backgroundRectangle.Y + backgroundRectangle.Height - yesTextSize.Y - vPad);
-            noButtonPosition = new Vector2(backgroundRectangle.X + backgroundRectangle.Width - (noTextSize.X + hPad), backgroundRectangle.Y + backgroundRectangle.Height - noTextSize.Y - vPad);
+            int buttonsTop = (int)(backgroundRectangle.Bottom - V_PAD * ui - lineHeight);
+            noButtonRect = new Rectangle((int)(backgroundRectangle.Right - H_PAD * ui - noWidth), buttonsTop,
+                                         (int)noWidth, (int)lineHeight);
+            yesButtonRect = new Rectangle((int)(noButtonRect.X - BUTTON_GAP * ui - yesWidth), buttonsTop,
+                                          (int)yesWidth, (int)lineHeight);
         }
     }
 
@@ -183,30 +204,29 @@ class MessageBoxScreen : GameScreen
     public override void Draw(GameTime gameTime)
     {
         SpriteBatch spriteBatch = ScreenManager.SpriteBatch;
-        SpriteFont font = ScreenManager.Font;
 
         // Darken down any other screens that were drawn beneath the popup.
         ScreenManager.FadeBackBufferToBlack(TransitionAlpha * 2 / 3);
 
         // Fade the popup alpha during transitions.
-        Color color = Color.White * TransitionAlpha;
+        float alpha = TransitionAlpha;
+        int shadow = Math.Max(1, (int)(2 * ui));
+        float lineHeight = TEXT_HEIGHT * ui;
 
-        spriteBatch.Begin(SpriteSortMode.Deferred, null, null, null, null, null, ScreenManager.GlobalTransformation);
+        // Ohne GlobalTransformation: Fensterpixel, die Schrift wird nicht gestreckt
+        spriteBatch.Begin();
 
-        // Draw the background rectangle.
-        spriteBatch.Draw(gradientTexture, backgroundRectangle, color);
+        MenuStyle.DrawPanel(ScreenManager, backgroundRectangle, MenuStyle.PanelFill, MenuStyle.PanelBorder,
+                            Math.Max(2, (int)(3 * ui)), alpha);
 
-        // Draw the message box text.
-        spriteBatch.DrawString(font, message, messageTextPosition, color);
+        MenuStyle.DrawText(ScreenManager, message, messageCenter, lineHeight, Color.White, alpha, shadow);
 
-        if (AgeOfEvolutionsGame.IsMobile
-            && !toastMessage)
+        if (ShowsButtons)
         {
-            color = Color.LimeGreen;
-            spriteBatch.DrawString(font, Resources.YesButtonText, yesButtonPosition, color);
-
-            color = Color.OrangeRed;
-            spriteBatch.DrawString(font, Resources.NoButtonText, noButtonPosition, color);
+            MenuStyle.DrawText(ScreenManager, Resources.YesButtonText, yesButtonRect.Center.ToVector2(), lineHeight,
+                               Color.LimeGreen, alpha, shadow);
+            MenuStyle.DrawText(ScreenManager, Resources.NoButtonText, noButtonRect.Center.ToVector2(), lineHeight,
+                               Color.OrangeRed, alpha, shadow);
         }
 
         spriteBatch.End();

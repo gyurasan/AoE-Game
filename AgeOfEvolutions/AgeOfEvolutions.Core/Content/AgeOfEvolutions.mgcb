@@ -147,6 +147,13 @@
 /processorParam:TextureFormat=Color
 /build:Fonts/Menu.spritefont
 
+#begin Fonts/MenuLarge.spritefont
+/importer:FontDescriptionImporter
+/processor:FontDescriptionProcessor
+/processorParam:PremultiplyAlpha=True
+/processorParam:TextureFormat=Color
+/build:Fonts/MenuLarge.spritefont
+
 #begin Icons/dorfbewohner.png
 /importer:TextureImporter
 /processor:TextureProcessor

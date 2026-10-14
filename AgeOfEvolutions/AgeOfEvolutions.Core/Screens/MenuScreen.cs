@@ -13,12 +13,30 @@ namespace AgeOfEvolutions.Screens;
 /// Base class for screens that contain a menu of options. The user can
 /// move up and down to select an entry, or cancel to back out of the screen.
 /// </summary>
+/// <remarks>
+/// Titel und Einträge stehen auf einer Tafel in der Bildmitte, im Stil des
+/// Hauptmenüs (<see cref="MenuStyle"/>), gezeichnet in echten Fensterpixeln.
+/// Vorher lief das Menü im 800×480-Raster mit der 14-pt-HUD-Schrift, die die
+/// GlobalTransformation auf Fenstergröße streckte - auf großen Fenstern
+/// verschwommen, und der gewählte Eintrag pulsierte dauernd.
+/// </remarks>
 abstract class MenuScreen : GameScreen
 {
+    // Entwurfsmaße für 1080 px Fensterhöhe; MenuStyle.UiScale rechnet sie um
+    private const float TITLE_HEIGHT = 56f, TITLE_GAP = 28f, PANEL_PAD = 36f;
+    private const float ENTRY_TEXT_HEIGHT = 34f, ENTRY_HEIGHT = 48f, ENTRY_STEP = 56f;
+    private const float MIN_ENTRY_WIDTH = 520f, ENTRY_TEXT_PAD = 24f;
+
     private List<MenuEntry> menuEntries = new List<MenuEntry>();
     private int selectedEntry = 0;
     private string menuTitle;
-    private Color menuTitleColor = new Color(0, 0, 0); // Default color is black. Use new Color(192, 192, 192) for off-white.
+
+    // Lage von Tafel, Titel und Einträgen im Fenster - dieselbe zum Zeichnen
+    // und Klicken, in UpdateLayout aus Fenstergröße und Texten berechnet
+    private readonly List<Rectangle> entryRects = new List<Rectangle>();
+    private Rectangle panelRect;
+    private Vector2 titleCenter;
+    private float ui = 1f;
 
     /// <summary>
     /// Gets or sets the title of the menu screen.
@@ -42,8 +60,8 @@ abstract class MenuScreen : GameScreen
     {
         this.menuTitle = menuTitle;
 
-        TransitionOnTime = TimeSpan.FromSeconds(0.5);
-        TransitionOffTime = TimeSpan.FromSeconds(0.5);
+        TransitionOnTime = TimeSpan.FromSeconds(0.25);
+        TransitionOffTime = TimeSpan.FromSeconds(0.25);
     }
 
     /// <summary>
@@ -65,6 +83,8 @@ abstract class MenuScreen : GameScreen
     {
         base.HandleInput(gameTime, inputState);
 
+        UpdateLayout();
+
         // Handle touch input for mobile platforms.
         if (AgeOfEvolutionsGame.IsMobile)
         {
@@ -75,7 +95,7 @@ abstract class MenuScreen : GameScreen
                 {
                     if (touch.State == TouchLocationState.Pressed)
                     {
-                        TextSelectedCheck(inputState.CurrentCursorLocation);
+                        ActivateEntryAt(touch.Position.ToPoint());
                     }
                 }
             }
@@ -83,9 +103,18 @@ abstract class MenuScreen : GameScreen
         // Handle mouse input for desktop platforms.
         else if (AgeOfEvolutionsGame.IsDesktop)
         {
+            // Wie im Hauptmenü: Zeigen wählt, Loslassen über einem Eintrag
+            // startet ihn; eine ruhende Maus überstimmt die Tastatur nicht.
+            // Fensterpixel, nicht CurrentCursorLocation - die ist ins
+            // 800×480-Raster zurückgerechnet.
+            MouseState mouse = inputState.CurrentMouseState;
+            int hovered = EntryAt(mouse.Position);
+            if (hovered >= 0 && mouse.Position != inputState.LastMouseState.Position)
+                selectedEntry = hovered;
+
             if (inputState.IsLeftMouseButtonClicked())
             {
-                TextSelectedCheck(inputState.CurrentCursorLocation);
+                ActivateEntryAt(mouse.Position);
             }
             else if (inputState.IsMiddleMouseButtonClicked())
             {
@@ -134,29 +163,29 @@ abstract class MenuScreen : GameScreen
         }
     }
 
-    /// <summary>
-    /// Checks if a touch or mouse click has selected a menu entry.
-    /// </summary>
-    /// <param name="touchLocation">The location of the touch or mouse click.</param>
-    private void TextSelectedCheck(Vector2 touchLocation)
+    /// <summary>Der wählbare Eintrag unter dem Fensterpunkt, oder -1.</summary>
+    private int EntryAt(Point point)
     {
-        for (int i = 0; i < menuEntries.Count; i++)
+        for (int i = 0; i < entryRects.Count; i++)
         {
-            // MenuEntry.Draw setzt die Zeile mit ihrer Mitte auf Position.Y
-            // (Ursprung LineSpacing / 2) - die Klickfläche beginnt deshalb eine
-            // halbe Zeile darüber, sonst traf nur die untere Hälfte des Texts
-            var textSize = ScreenManager.Font.MeasureString(menuEntries[i].Text);
-            var entryBounds = new Rectangle((int)menuEntries[i].Position.X,
-                                            (int)(menuEntries[i].Position.Y - ScreenManager.Font.LineSpacing / 2f),
-                                            (int)textSize.X, (int)textSize.Y);
-
-            if (entryBounds.Contains(touchLocation))
-            {
-                selectedEntry = i;
-                OnSelectEntry(selectedEntry, ControllingPlayer ?? PlayerIndex.One);
-                break;
-            }
+            if (menuEntries[i].Enabled && entryRects[i].Contains(point))
+                return i;
         }
+        return -1;
+    }
+
+    /// <summary>
+    /// Startet den Eintrag unter einem Klick oder einer Berührung, falls dort einer ist.
+    /// </summary>
+    /// <param name="point">Der Klickpunkt in Fensterpixeln.</param>
+    private void ActivateEntryAt(Point point)
+    {
+        int hit = EntryAt(point);
+        if (hit < 0)
+            return;
+
+        selectedEntry = hit;
+        OnSelectEntry(selectedEntry, ControllingPlayer ?? PlayerIndex.One);
     }
 
     /// <summary>
@@ -203,37 +232,39 @@ abstract class MenuScreen : GameScreen
     }
 
     /// <summary>
-    /// Updates the positions of the menu entries. By default, all menu entries
-    /// are lined up in a vertical list, centered on the screen.
+    /// Ordnet Tafel, Titel und Einträge im Fenster an: alle Einträge gleich
+    /// breit (so breit wie der längste Text, mindestens MIN_ENTRY_WIDTH),
+    /// untereinander, die ganze Tafel mittig im Fenster.
     /// </summary>
-    protected virtual void UpdateMenuEntryLocations()
+    private void UpdateLayout()
     {
-        // Make the menu slide into place during transitions, using a
-        // power curve to make things look more interesting (this makes
-        // the movement slow down as it nears the end).
-        float transitionOffset = (float)Math.Pow(TransitionPosition, 2);
+        var parameters = ScreenManager.GraphicsDevice.PresentationParameters;
+        int width = parameters.BackBufferWidth;
+        int height = parameters.BackBufferHeight;
+        ui = MenuStyle.UiScale(height);
 
-        // Start at Y = 175; each X value is generated per entry.
-        Vector2 position = new Vector2(0f, 175f);
+        float entryWidth = MIN_ENTRY_WIDTH * ui;
+        foreach (MenuEntry entry in menuEntries)
+            entryWidth = Math.Max(entryWidth,
+                MenuStyle.TextWidth(ScreenManager, entry.Text, ENTRY_TEXT_HEIGHT * ui) + 2 * ENTRY_TEXT_PAD * ui);
+        if (!string.IsNullOrEmpty(menuTitle))
+            entryWidth = Math.Max(entryWidth, MenuStyle.TextWidth(ScreenManager, menuTitle, TITLE_HEIGHT * ui));
 
-        // Update each menu entry's location in turn.
+        float contentHeight = TITLE_HEIGHT + TITLE_GAP
+                            + Math.Max(0, menuEntries.Count - 1) * ENTRY_STEP + ENTRY_HEIGHT;
+        int panelWidth = (int)(entryWidth + 2 * PANEL_PAD * ui);
+        int panelHeight = (int)((contentHeight + 2 * PANEL_PAD) * ui);
+        panelRect = new Rectangle((width - panelWidth) / 2, (height - panelHeight) / 2, panelWidth, panelHeight);
+
+        titleCenter = new Vector2(width / 2f, panelRect.Y + (PANEL_PAD + TITLE_HEIGHT / 2f) * ui);
+
+        float entriesTop = panelRect.Y + (PANEL_PAD + TITLE_HEIGHT + TITLE_GAP) * ui;
+        int entryLeft = (int)((width - entryWidth) / 2);
+        entryRects.Clear();
         for (int i = 0; i < menuEntries.Count; i++)
         {
-            MenuEntry menuEntry = menuEntries[i];
-
-            // Each entry is to be centered horizontally.
-            position.X = ScreenManager.BaseScreenSize.X / 2 - menuEntry.GetWidth(this) / 2;
-
-            if (ScreenState == ScreenState.TransitionOn)
-                position.X -= transitionOffset * 256;
-            else
-                position.X += transitionOffset * 512;
-
-            // Set the entry's position.
-            menuEntry.Position = position;
-
-            // Move down for the next entry by the size of this entry.
-            position.Y += menuEntry.GetHeight(this);
+            entryRects.Add(new Rectangle(entryLeft, (int)(entriesTop + i * ENTRY_STEP * ui),
+                                         (int)entryWidth, (int)(ENTRY_HEIGHT * ui)));
         }
     }
 
@@ -248,14 +279,6 @@ abstract class MenuScreen : GameScreen
         base.Update(gameTime, otherScreenHasFocus, coveredByOtherScreen);
 
         SetNextEnabledMenu();
-
-        // Update each nested MenuEntry object.
-        for (int i = 0; i < menuEntries.Count; i++)
-        {
-            bool isSelected = IsActive && (i == selectedEntry);
-
-            menuEntries[i].Update(this, isSelected, gameTime);
-        }
     }
 
     /// <summary>
@@ -264,40 +287,39 @@ abstract class MenuScreen : GameScreen
     /// <param name="gameTime">Provides a snapshot of timing values.</param>
     public override void Draw(GameTime gameTime)
     {
-        // Make sure our entries are in the right place before we draw them.
-        UpdateMenuEntryLocations();
+        // Texte können sich seit dem letzten Bild geändert haben (Einstellungen)
+        UpdateLayout();
 
-        GraphicsDevice graphics = ScreenManager.GraphicsDevice;
         SpriteBatch spriteBatch = ScreenManager.SpriteBatch;
-        SpriteFont font = ScreenManager.Font;
+        float alpha = TransitionAlpha;
+        int shadow = Math.Max(1, (int)(2 * ui));
 
-        spriteBatch.Begin(SpriteSortMode.Deferred, null, null, null, null, null, ScreenManager.GlobalTransformation);
+        // Ohne GlobalTransformation: Fensterpixel, die Schrift wird nicht gestreckt
+        spriteBatch.Begin();
 
-        // Draw each menu entry in turn.
+        MenuStyle.DrawPanel(ScreenManager, panelRect, MenuStyle.PanelFill, MenuStyle.PanelBorder,
+                            Math.Max(2, (int)(3 * ui)), alpha);
+
+        if (!string.IsNullOrEmpty(menuTitle))
+            MenuStyle.DrawText(ScreenManager, menuTitle, titleCenter, TITLE_HEIGHT * ui, MenuStyle.Gold, alpha,
+                               Math.Max(2, (int)(3 * ui)));
+
         for (int i = 0; i < menuEntries.Count; i++)
         {
-            MenuEntry menuEntry = menuEntries[i];
+            MenuEntry entry = menuEntries[i];
+            Rectangle plate = entryRects[i];
+            bool isSelected = IsActive && i == selectedEntry;
 
-            bool isSelected = IsActive && (i == selectedEntry);
+            MenuStyle.DrawPanel(ScreenManager, plate,
+                                isSelected ? MenuStyle.PlateSelected : MenuStyle.Plate,
+                                MenuStyle.Gold, isSelected ? Math.Max(2, (int)(2 * ui)) : 0, alpha);
 
-            menuEntry.Draw(this, isSelected, gameTime);
+            Color color = !entry.Enabled ? MenuStyle.TextDisabled
+                        : isSelected ? MenuStyle.Gold
+                                     : MenuStyle.Text;
+            MenuStyle.DrawText(ScreenManager, entry.Text, plate.Center.ToVector2(), ENTRY_TEXT_HEIGHT * ui,
+                               color, alpha, shadow);
         }
-
-        // Make the menu slide into place during transitions, using a
-        // power curve to make things look more interesting (this makes
-        // the movement slow down as it nears the end).
-        float transitionOffset = (float)Math.Pow(TransitionPosition, 2);
-
-        // Draw the menu title centered on the screen.
-        Vector2 titlePosition = new Vector2(ScreenManager.BaseScreenSize.X / 2, 80);
-        Vector2 titleOrigin = font.MeasureString(menuTitle) / 2;
-        Color titleColor = menuTitleColor * TransitionAlpha;
-        float titleScale = 1.25f;
-
-        titlePosition.Y -= transitionOffset * 100;
-
-        spriteBatch.DrawString(font, menuTitle, titlePosition, titleColor, 0,
-                               titleOrigin, titleScale, SpriteEffects.None, 0);
 
         spriteBatch.End();
     }
