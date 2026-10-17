@@ -84,6 +84,41 @@ public static class BuildingRules
     /// ein Viertel. 0 bei <paramref name="builders"/> kleiner oder gleich 0.
     /// </summary>
     public static float SpeedFactor(int builders) => builders <= 0 ? 0f : (builders + 2) / 3f;
+
+    /// <summary>
+    /// Fehlender Anteil der Standfestigkeit zwischen 0 (unverletzt) und 1
+    /// (ganz weg): (maxHp - currentHp) / maxHp. 0, wenn maxHp 0 oder weniger
+    /// ist (kein gültiges Gesundheitsmaximum).
+    /// </summary>
+    public static float MissingFraction(int currentHp, int maxHp)
+        => maxHp <= 0 ? 0f : (float)(maxHp - Math.Clamp(currentHp, 0, maxHp)) / maxHp;
+
+    /// <summary>
+    /// Reparaturkosten: die Baupreise je Rohstoff, gekürzt um den
+    /// fehlenden Anteil der Standfestigkeit — ein Gebäude zu 50 % angeschlagen
+    /// zu reparieren, kostet rund die Hälfte. Jeder Rohstoff, der im
+    /// Originalpreis vorkommt, kommt mit mindestens 1 davon zurück; ein
+    /// unverletztes Gebäude (currentHp mindestens maxHp) kostet nichts.
+    /// </summary>
+    public static Dictionary<Resource, int> RepairCostOf(BuildingType type, int currentHp, int maxHp)
+    {
+        float fraction = MissingFraction(currentHp, maxHp);
+        if (fraction <= 0f)
+            return new Dictionary<Resource, int>();
+        var cost = new Dictionary<Resource, int>();
+        foreach (var (resource, amount) in CostOf(type))
+            cost[resource] = Math.Max(1, (int)Math.Ceiling(amount * fraction));
+        return cost;
+    }
+
+    /// <summary>
+    /// Reparaturdauer mit einem einzigen Reparateur in Sekunden: die
+    /// Bauzeit, gekürzt um den fehlenden Anteil der Standfestigkeit (ein
+    /// Gebäude zu 50 % angeschlagen dauert die Hälfte); bei einem
+    /// unverletzten Gebäude 0.
+    /// </summary>
+    public static float RepairSecondsOf(BuildingType type, int currentHp, int maxHp)
+        => BuildSecondsOf(type) * MissingFraction(currentHp, maxHp);
 }
 
 /// <summary>

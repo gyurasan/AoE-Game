@@ -110,6 +110,12 @@ public sealed class TileSave
     public int FarmCol { get; set; }
     public int FarmRow { get; set; }
     public int FarmSize { get; set; }
+
+    /// <summary>
+    /// Wegqualität der Kachel (C12): 0 = keine Wege, sonst Stufe 1–3 —
+    /// Trampelpfade rücken bei jedem Zeitaufstieg auf, see Tile.RoadLevel.
+    /// </summary>
+    public int RoadLevel { get; set; }
 }
 
 /// <summary>Ein Tier (<see cref="WildAnimal"/>) mit Takt, Blick und Schritt.</summary>
@@ -142,6 +148,9 @@ public sealed class BuildingSave
 
     /// <summary>Die Baustelle; null bei fertigen Gebäuden.</summary>
     public ConstructionState Construction { get; set; }
+
+    /// <summary>Die Reparatur; null, wenn das Gebäude nicht repariert wird.</summary>
+    public RepairState Repair { get; set; }
 
     public TrainingQueueState<UnitType> Training { get; set; }
     public ResearchSlotState Research { get; set; }

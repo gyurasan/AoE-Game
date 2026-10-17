@@ -28,7 +28,8 @@ public static class SaveGameMapper
     ///   Explored = map.ExploredMask(player.Id).
     /// - Tiles: Width · Height Einträge, Index y · Width + x, je Kachel map.GetTile(x, y) mit
     ///   Type, Walkable, Buildable, ResourceType, ResourceAmount, Food, Wear, Farm, FarmRegrow,
-    ///   FarmFood, FarmCol, FarmRow, FarmSize und Animal: null, wenn tile.Animal null ist,
+    ///   FarmFood, FarmCol, FarmRow, FarmSize, RoadLevel und
+    ///   Animal: null, wenn tile.Animal null ist,
     ///   sonst ein AnimalSave mit allen sieben Werten des Tiers.
     /// - Buildings: je Gebäude aus map.Buildings in dieser Reihenfolge: X, Y, Type,
     ///   Size = Width, OwnerId, Health, Construction = building.Construction?.ToState(),
@@ -119,6 +120,7 @@ public static class SaveGameMapper
                     FarmCol = tile.FarmCol,
                     FarmRow = tile.FarmRow,
                     FarmSize = tile.FarmSize,
+                    RoadLevel = tile.RoadLevel,
                 });
             }
         }
@@ -135,6 +137,7 @@ public static class SaveGameMapper
                 OwnerId = building.OwnerId,
                 Health = building.Health,
                 Construction = building.Construction?.ToState(),
+                Repair = building.Repair?.ToState(),
                 Training = building.Training.ToState(),
                 Research = building.Research.ToState(),
             });
@@ -181,7 +184,9 @@ public static class SaveGameMapper
     /// 4. Spieler: je PlayerSave new Player(Id, Name, Civilization); danach steht jeder der vier
     ///    Rohstoffe GENAU auf dem gespeicherten Wert (player.Resources.Add(r, gespeichert -
     ///    player.Resources[r]) - der Konstruktor hat schon Startkapital und Volksbonus gebucht);
-    ///    Ages.Restore(Ages) und Techs.Restore(Techs), soweit nicht null.
+    ///    Ages.Restore(Ages) und Techs.Restore(Techs), soweit nicht null. Danach (C16)
+    ///    map.CurrentRoadLevel = das größere von TileMap.LevelOfAge(Ages.Current) der beiden
+    ///    Spieler - sonst entstünden nach dem Laden in der Feudalzeit keine neuen Wege.
     /// 5. Gebäude in Listenreihenfolge: map.AddBuilding(X, Y, Type, OwnerId, Size); dann
     ///    TechEffects.ApplyAll(Besitzer.Techs, building.Core) (Besitzer = Spieler mit dieser Id);
     ///    erst danach Health; Construction = Construction.FromState(...) oder null;
@@ -244,6 +249,7 @@ public static class SaveGameMapper
                 tile.FarmCol = ts.FarmCol;
                 tile.FarmRow = ts.FarmRow;
                 tile.FarmSize = ts.FarmSize;
+                tile.RoadLevel = ts.RoadLevel;
             }
         }
 
@@ -264,6 +270,8 @@ public static class SaveGameMapper
             if (ps.Techs is not null)
                 player.Techs.Restore(ps.Techs);
         }
+        // Die erreichte Weg-Stufe (C16): das größere der beiden Zeitalter.
+        map.CurrentRoadLevel = Math.Max(TileMap.LevelOfAge(player1.Ages.Current), TileMap.LevelOfAge(player2.Ages.Current));
 
         // 5. Gebäude in Listenreihenfolge.
         foreach (BuildingSave bs in save.Buildings)
@@ -274,6 +282,7 @@ public static class SaveGameMapper
             TechEffects.ApplyAll(owner.Techs, building.Core);
             building.Health = bs.Health;
             building.Construction = bs.Construction is null ? null : Construction.FromState(bs.Construction);
+            building.Repair = bs.Repair is null ? null : Repair.FromState(bs.Repair);
             if (bs.Training is not null)
                 building.Training.Restore(bs.Training);
             if (bs.Research is not null)

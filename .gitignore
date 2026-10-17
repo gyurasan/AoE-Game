@@ -23,3 +23,6 @@ TestResults/
 coverage.*.xml
 *.coverage
 errors
+
+# Fehler-Log (GameLog)
+logs/

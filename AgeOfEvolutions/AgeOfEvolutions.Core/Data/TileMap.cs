@@ -4,6 +4,7 @@ using System.Linq;
 using Microsoft.Xna.Framework;
 using Resource = AoE.Core.Entities.Resource;
 using MapGrid = AoE.Core.Map.MapGrid;
+using Age = AoE.Core.Economy.Age;
 using CorePosition = AoE.Core.Entities.Position;
 using CorePathfinding = AoE.Core.Pathfinding.Pathfinding;
 using CoreVisibility = AoE.Core.Map.VisibilitySystem;
@@ -1025,7 +1026,10 @@ public class TileMap
     /// <summary>
     /// Eine Figur betritt die Kachel (x, y) und tritt den Boden dort um
     /// <see cref="WEAR_PER_STEP"/> weiter aus, höchstens bis 1. Wasser und
-    /// Kacheln außerhalb der Karte bleiben unberührt.
+    /// Kacheln außerhalb der Karte bleiben unberührt. Ab der Feudalzeit
+    /// (CurrentRoadLevel &gt; 0) wird die Kachel Weg auf der erreichten Stufe,
+    /// sobald sie mindestens ROAD_WEAR_MIN ausgetreten ist (C16) - nicht schon
+    /// beim ersten Schritt.
     /// </summary>
     public void Trample(int x, int y)
     {
@@ -1033,6 +1037,11 @@ public class TileMap
         if (tile == null || tile.Type == TileType.Water)
             return;
         tile.Wear = Math.Min(1f, tile.Wear + WEAR_PER_STEP);
+        // Ab der Feudalzeit wird die Kachel Weg auf der erreichten Stufe,
+        // sobald sie mindestens ROAD_WEAR_MIN ausgetreten ist — ein einzelner
+        // Schritt macht keine Straße (C16).
+        if (tile.Wear >= ROAD_WEAR_MIN - 0.001f)
+            tile.RoadLevel = Math.Max(tile.RoadLevel, CurrentRoadLevel);
     }
 
     /// <summary>
@@ -1078,6 +1087,229 @@ public class TileMap
                 }
             }
         }
+    }
+
+    // -----------------------------------------------------------------
+    // Wege (C12): Trampelpfade rücken bei jedem Zeitaufstieg auf
+    // -----------------------------------------------------------------
+    // Ein Trampelpfad entsteht durch Tritte (Wear). Bei einem Aufstieg wird
+    // jeder vorhandene Pfad (Wear > 0) oder jede frühere Stufe zum neuen
+    // Niveau hochgezogen; neu ausgetretene Pfade entstehen direkt auf der
+    // Stufe, die bis dahin erreicht war. Die Stufen: Feudal 1 (Pflasterstraße
+    // aus Stein und Zement), Ritter 2 (Erde, Schlamm und Kies), Imperial 3
+    // (verdichteter Schotter). Auf Stufe ≥ 1 laufen Einheiten 20 % schneller
+    // als auf der Wiese (Spielbildschirm).
+
+    /// <summary>
+    /// Weg-Stufe, die mit einem Zeitalter einhergeht: Dunkel 0, Feudal 1,
+    /// Ritter 2, Imperial 3.
+    /// </summary>
+    public static int LevelOfAge(Age age) => age switch
+    {
+        Age.Feudal => 1,
+        Age.Castle => 2,
+        Age.Imperial => 3,
+        _ => 0
+    };
+
+    /// <summary>
+    /// Die bislang erreichte Weg-Stufe (Dunkelzeit 0). Der Bildschirm setzt
+    /// sie bei jedem Zeitaufstieg auf das neue Niveau.
+    /// </summary>
+    public int CurrentRoadLevel { get; set; }
+
+    /// <summary>
+    /// So ausgetreten muss eine Kachel sein, damit aus dem Trampelpfad ein Weg wird (C16): sechs
+    /// Tritte (WEAR_PER_STEP 0,05). Ein einzelner Schritt quer über die Wiese macht keine Straße -
+    /// vorher wurde jede einmal betretene Kachel Weg, und um das Dorf entstanden Flächen statt Wege.
+    /// Vergleiche mit ROAD_WEAR_MIN - 0.001f: sechs Schritte zu 0,05f ergeben in float nicht genau 0,3.
+    /// </summary>
+    public const float ROAD_WEAR_MIN = 0.3f;
+
+    /// <summary>
+    /// Zeitaufstieg: alle vorhandenen Trampelpfade (Wear mindestens ROAD_WEAR_MIN, C16)
+    /// und alle früheren Wege steigen auf <paramref name="level"/> auf,
+    /// falls sie darunter liegen — es fällt nichts ab. VERTRAG: außerhalb der
+    /// Karte nichts; <paramref name="level"/> 0..3.
+    /// </summary>
+    public void UpgradeRoads(int level)
+    {
+        if (level <= 0)
+            return;
+        CurrentRoadLevel = Math.Max(CurrentRoadLevel, level);
+        foreach (var tile in tiles)
+        {
+            if ((tile.Wear >= ROAD_WEAR_MIN - 0.001f || tile.RoadLevel > 0) && tile.RoadLevel < level)
+                tile.RoadLevel = level;
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // Wege von Gebäuden (C16): ab der Feudalzeit führt von jedem fertigen
+    // Gebäude ein Weg zum Wegenetz
+    // -----------------------------------------------------------------
+
+    /// <summary>
+    /// So lang wird ein Weg von einem Gebäude höchstens (in Kacheln, Start und
+    /// Ziel mitgezählt). Liegt kein Weg und kein Stadtzentrum näher, bleibt das
+    /// Gebäude ohne Weg - etwa ein Lager weit draußen am Wald.
+    /// </summary>
+    public const int ROAD_CONNECT_MAX_TILES = 30;
+
+    /// <summary>
+    /// Ob auf der Kachel (x, y) ein Weg angelegt werden darf (C16): Wiese oder Sand,
+    /// begehbar, ohne Gebäude, ohne Rohstoff und kein Feld.
+    /// VERTRAG: true genau dann, wenn GetTile(x, y) nicht null ist, ihr Type
+    /// TileType.Grassland oder TileType.Sand ist, IsWalkable(x, y) gilt, ihr
+    /// ResourceType null ist und Farm false - sonst false (auch außerhalb der Karte).
+    /// </summary>
+    public bool CanCarryRoad(int x, int y)
+    {
+        var tile = GetTile(x, y);
+        if (tile == null)
+            return false;
+        if (tile.Type != TileType.Grassland && tile.Type != TileType.Sand)
+            return false;
+        if (!IsWalkable(x, y))
+            return false;
+        if (tile.ResourceType != null)
+            return false;
+        if (tile.Farm)
+            return false;
+        return true;
+    }
+
+    /// <summary>
+    /// Legt einen Weg von der Vorderseite des Gebäudes <paramref name="building"/> zum
+    /// nächsten vorhandenen Weg oder zum Stadtzentrum seines Besitzers (C16) und gibt
+    /// zurück, wie viele Kacheln dabei Weg geworden oder aufgestiegen sind.
+    /// VERTRAG:
+    /// - level &lt;= 0 (Dunkle Zeit): nichts ändern, Rückgabe 0.
+    /// - Ring eines Gebäudes g: alle Kacheln mit x von g.X - 1 bis g.X + g.Width und y von
+    ///   g.Y - 1 bis g.Y + g.Height, ohne die Grundfläche (x von g.X bis g.X + g.Width - 1 und
+    ///   zugleich y von g.Y bis g.Y + g.Height - 1).
+    /// - Startkacheln: die Reihe direkt unter der Grundfläche (y = building.Y + building.Height,
+    ///   x von building.X bis building.X + building.Width - 1), soweit CanCarryRoad. Ist dort
+    ///   keine frei, alle Kacheln aus dem Ring von building, soweit CanCarryRoad. Gibt es auch
+    ///   dort keine: nichts ändern, Rückgabe 0.
+    /// - Zielkacheln: jede Kachel mit RoadLevel &gt;= 1 und jede Kachel aus dem Ring eines
+    ///   ANDEREN Gebäudes aus Buildings mit demselben OwnerId wie building und
+    ///   Core.BuildingType == AoE.Core.Entities.BuildingType.TownCenter.
+    /// - Breitensuche von allen Startkacheln zugleich (jede Startkachel hat die Länge 1, in
+    ///   aufsteigender x-Reihenfolge eingereiht), Nachbarn in der Reihenfolge rechts (x + 1),
+    ///   links (x - 1), unten (y + 1), oben (y - 1); nur Kacheln mit CanCarryRoad, jede Kachel
+    ///   höchstens einmal. Die erste aus der Warteschlange genommene Zielkachel gewinnt - auch
+    ///   eine Startkachel kann schon Ziel sein, dann ist der Weg nur sie. Kacheln mit der Länge
+    ///   ROAD_CONNECT_MAX_TILES werden nicht weiter ausgedehnt; wird kein Ziel erreicht: nichts
+    ///   ändern, Rückgabe 0.
+    /// - Der Weg ist die Kette von der Zielkachel über die Vorgänger zurück bis zur
+    ///   Startkachel; jede seiner Kacheln bekommt RoadLevel = Math.Max(RoadLevel, level).
+    ///   Rückgabe: die Zahl der Kacheln, deren RoadLevel sich dabei geändert hat.
+    /// </summary>
+    public int ConnectBuilding(Building building, int level)
+    {
+        // (a) Dunkle Zeit: keine Wege anlegen
+        if (level <= 0)
+            return 0;
+
+        // (b) Ring eines Gebäudes: eine Kachel Rand um die Grundfläche
+        bool InRing(Building g, int x, int y)
+        {
+            bool inOuter = x >= g.X - 1 && x <= g.X + g.Width
+                          && y >= g.Y - 1 && y <= g.Y + g.Height;
+            bool inInner = x >= g.X && x < g.X + g.Width
+                         && y >= g.Y && y < g.Y + g.Height;
+            return inOuter && !inInner;
+        }
+
+        // (c) Startkacheln: erst die Reihe unter der Grundfläche, sonst der Ring
+        var starts = new List<(int X, int Y)>();
+        for (int sx = building.X; sx < building.X + building.Width; sx++)
+        {
+            int sy = building.Y + building.Height;
+            if (CanCarryRoad(sx, sy))
+                starts.Add((sx, sy));
+        }
+        if (starts.Count == 0)
+        {
+            for (int rx = building.X - 1; rx <= building.X + building.Width; rx++)
+            {
+                for (int ry = building.Y - 1; ry <= building.Y + building.Height; ry++)
+                {
+                    if (rx >= building.X && rx < building.X + building.Width
+                        && ry >= building.Y && ry < building.Y + building.Height)
+                        continue;
+                    if (CanCarryRoad(rx, ry))
+                        starts.Add((rx, ry));
+                }
+            }
+        }
+        if (starts.Count == 0)
+            return 0;
+
+        // (d) Stadtzentren des Besitzers, außer dem Gebäude selbst
+        var townCenters = Buildings
+            .Where(g => g != building
+                && g.OwnerId == building.OwnerId
+                && g.Core.BuildingType == AoE.Core.Entities.BuildingType.TownCenter)
+            .ToList();
+
+        // (e) Breitensuche von allen Startkacheln zugleich
+        var queue = new Queue<(int X, int Y)>();
+        var parent = new Dictionary<(int, int), (int, int)>();
+        var length = new Dictionary<(int, int), int>();
+        foreach (var s in starts)
+        {
+            queue.Enqueue(s);
+            length[s] = 1;
+        }
+        (int X, int Y)? ziel = null;
+        while (queue.Count > 0)
+        {
+            var (cx, cy) = queue.Dequeue();
+            // Zielprüfung: vorhandener Weg oder Ring eines Stadtzentrums
+            if (GetTile(cx, cy)?.RoadLevel >= 1
+                || townCenters.Any(tc => InRing(tc, cx, cy)))
+            {
+                ziel = (cx, cy);
+                break;
+            }
+            // Kacheln mit der maximalen Länge werden nicht weiter ausgedehnt
+            if (length[(cx, cy)] >= ROAD_CONNECT_MAX_TILES)
+                continue;
+            foreach (var (nx, ny) in new[] { (cx + 1, cy), (cx - 1, cy), (cx, cy + 1), (cx, cy - 1) })
+            {
+                if (length.ContainsKey((nx, ny)))
+                    continue;
+                if (!CanCarryRoad(nx, ny))
+                    continue;
+                queue.Enqueue((nx, ny));
+                parent[(nx, ny)] = (cx, cy);
+                length[(nx, ny)] = length[(cx, cy)] + 1;
+            }
+        }
+
+        // (f) kein Ziel erreicht: nichts ändern
+        if (ziel is not { } z)
+            return 0;
+
+        // Weg von der Zielkachel über die Vorgänger bis zur Startkachel
+        int changed = 0;
+        var current = z;
+        while (true)
+        {
+            var tile = GetTile(current.X, current.Y);
+            int neu = Math.Max(tile.RoadLevel, level);
+            if (neu != tile.RoadLevel)
+            {
+                tile.RoadLevel = neu;
+                changed++;
+            }
+            if (length[current] == 1)
+                break;
+            current = parent[current];
+        }
+        return changed;
     }
 
     // -----------------------------------------------------------------
@@ -1590,6 +1822,14 @@ public class Building
     /// als Wohnraum noch als Abgabestelle.
     /// </summary>
     public AoE.Core.Economy.Construction Construction { get; set; }
+
+    /// <summary>
+    /// Der Reparatur-Auftrag, solange ein beschädigtes Gebäude wieder
+    /// hergestellt wird; null bei unverletzten Gebäuden und während der
+    /// Reparatur fertig ist. Kostet und dauert anteilig zum fehlenden
+    /// Schadensvolumen (AOE-Kern-Repair).
+    /// </summary>
+    public AoE.Core.Economy.Repair Repair { get; set; }
 
     /// <summary>Fertig gebaut: keine Baustelle mehr oder die Baustelle ist abgeschlossen.</summary>
     public bool IsComplete => Construction == null || Construction.IsComplete;

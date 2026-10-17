@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Threading.Tasks;
 using AgeOfEvolutions.Core.AI;
+using AgeOfEvolutions.Core.Diagnostics;
 using AgeOfEvolutions.Core.Effects;
 using AgeOfEvolutions.Core.Localization;
 using AgeOfEvolutions.Core.Screens;
@@ -73,6 +75,14 @@ namespace AgeOfEvolutions.Core
         /// </summary>
         public AgeOfEvolutionsGame()
         {
+            // Fehler-Log: Fangnetze zuerst spannen, damit jede unbehaltete
+            // Ausnahme (Haupt- wie Hintergrund-Thread) in logs/ neben der
+            // Exe landet - auch wenn sie schon mitten in diesem
+            // Konstruktor wirft.
+            AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
+            TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+            Exiting += (_, _) => GameLog.Info("Spiel beendet");
+
             Window.Title = "Age of Evolutions";
             graphicsDeviceManager = new GraphicsDeviceManager(this);
 
@@ -144,6 +154,10 @@ namespace AgeOfEvolutions.Core
             // Initialize the screen manager.
             screenManager = new ScreenManager(this);
             Components.Add(screenManager);
+
+            // Sitzungsstart in die Logdatei: so lässt sich prüfen, dass das
+            // Log überhaupt schreibt (logs/ neben der Exe).
+            GameLog.Info("Spiel gestartet");
         }
 
         /// <summary>
@@ -229,6 +243,7 @@ namespace AgeOfEvolutions.Core
             catch (Exception ex)
             {
                 Console.WriteLine("[Laden] Spielstand nicht lesbar: " + ex.Message);
+                GameLog.Error(ex, "Spielstand laden (--laden)");
                 return null;
             }
         }
@@ -314,6 +329,7 @@ namespace AgeOfEvolutions.Core
                         catch (Exception ex)
                         {
                             System.Diagnostics.Debug.WriteLine($"[AI-API] Start fehlgeschlagen: {ex.Message}");
+                            GameLog.Error(ex, "AI-API-Start");
                             _aiApi.Dispose();
                             _aiApi = null;
                         }
@@ -339,6 +355,35 @@ namespace AgeOfEvolutions.Core
 
             // Share the particle manager as a service.
             Services.AddService(typeof(ParticleManager), particleManager);
+        }
+
+        /// <summary>
+        /// Unbehandelte Ausnahme eines Threads: mit Stacktrace in die
+        /// Logdatei; danach beendet sich das Spiel wie üblich.
+        /// </summary>
+        private void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
+        {
+            if (e.ExceptionObject is Exception ex)
+            {
+                GameLog.Error(ex, e.IsTerminating
+                    ? "Unbehandelte Ausnahme (Prozess beendet sich)"
+                    : "Unbehandelte Ausnahme");
+            }
+            else
+            {
+                GameLog.Error(e.ExceptionObject?.ToString()
+                    ?? "(Fehlerobjekt ohne Typ Exception)");
+            }
+        }
+
+        /// <summary>
+        /// Unbeachtete Task-Ausnahme: loggen und als beobachtet markieren,
+        /// damit der Prozess nicht ungewollt am Finalizer-Thread stirbt.
+        /// </summary>
+        private void OnUnobservedTaskException(object sender, UnobservedTaskExceptionEventArgs e)
+        {
+            e.SetObserved();
+            GameLog.Error(e.Exception, "Unbeachtete Task-Ausnahme");
         }
     }
 }

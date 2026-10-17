@@ -1,4 +1,6 @@
-﻿using AgeOfEvolutions.Core;
+﻿using System;
+using AgeOfEvolutions.Core;
+using AgeOfEvolutions.Core.Diagnostics;
 
 internal class Program
 {
@@ -10,6 +12,17 @@ internal class Program
     private static void Main(string[] args)
     {
         using var game = new AgeOfEvolutionsGame();
-        game.Run();
+        try
+        {
+            game.Run();
+        }
+        catch (Exception ex)
+        {
+            // Ein Fehler im Spiel-Loop läuft bis hier heraus. Ohne diese Stelle
+            // wäre er im Fenster verloren - jetzt steht er mit Stacktrace in
+            // logs/spiel-<Datum>.log neben der Exe.
+            GameLog.Error(ex, "Spiel-Loop");
+            Environment.ExitCode = 1;
+        }
     }
 }

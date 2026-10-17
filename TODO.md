@@ -1,10 +1,58 @@
 # AoE-Clone — TODO / Meilensteine
 
-**Stand:** 2026-10-14 · verifiziert durch Build + Testlauf, nicht aus Doku übernommen.
+**Stand:** 2026-10-17 · verifiziert durch Build + Testlauf, nicht aus Doku übernommen.
 
 ## Wiederaufnahme — hier weitermachen
 
-**Spielstand speichern und laden (SV1–SV4)** (2026-10-14) — Feedback: „danach würde ich noch gerne das speicher des spieles implementieren“ und „neben Resume und quit was in deutsch angezeigt werden sollte wenn man esc drückt, sollte da auch speichern zu auswahl stehen. Im Hauptmenü braucht es dann noch das Spiel laden“.
+**Fehler-Log (Logger)** (2026-10-17) — Wunsch: „einen logger einbauen, damit Fehler in eine Datei geschrieben werden“, Log im Ordner `logs`, dieser in `.gitignore`.
+
+Neu `AgeOfEvolutions.Core/Diagnostics/GameLog.cs`: `GameLog.Info/Warn/Error` (+ `Error(Exception, Kontext)` mit Stacktrace), thread-sicher, schreibt je Kalendertag in `logs/spiel-jjjj-mm-tt.log` neben der Exe; das Loggen selbst kann nie crashen (Schreibfehler werden geschluckt), Fehler zusätzlich auf `Console.Error`. Fangnetze in `AgeOfEvolutionsGame` (Konstruktor): `AppDomain.UnhandledException`, `TaskScheduler.UnobservedTaskException` (mit `SetObserved`), `Exiting` → „Spiel beendet“, dazu Start- und Endzeile. Beide Programme (DesktopGL, WindowsDX): `game.Run()` in try/catch → `GameLog.Error` + ExitCode 1. Angezapft: `LoadOptional` (fehlendes Bild → Warn mit Asset-Namen, statt unsichtbar zu verschwinden), `--laden`-Fehler, AI-API-Start. `.gitignore` trägt jetzt `logs/`.
+Abnahme: `dotnet build` (0 Fehler, keine neuen Warnungen) · `dotnet test` **397/397** (neu `GameLogTests`, 3 Tests) · `tools/spielablauf bewegen` auf 3 Karten grün · E2E: Testinstanz mit `--laden <fehlender Spielstand>` → `ERROR`-Zeile mit Stacktrace + `WARN: Asset fehlt`-Zeilen in `logs/spiel-…log` neben der Exe → Instanz beendet. **Beifang:** Das Log zeigt 70 fehlende Assets (Gebäude/Soldaten je Zeitalter: `Gebaeude/{dunkel,feudal,ritter,imperial}/*`, `Einheiten/dunkel/dorfbewohner_*`, `_schlag1`-Rahmen, `Gebaeude/{kaserne,markt,palisade,…}_blau|rot`) – nirgends auf Disk (noch nicht via uebernehmen.ps1 übernommen), dafür aber im Code gesucht — Kandidaten für die Bild-Produktion. Windows-Pitfall gelöst: offenes .NET-Handle blockierte hier paralleles .NET-Lesen (bash-Reader ging) – GameLog gibt daher pro Zeile öffnen-schreiben-schließen statt dauerhaft offenem StreamWriter.
+
+**Wege sehen wie Wege aus (C16b)** (2026-10-16) — Feedback: „in der Feudalzeit sehen die "Feldstrassen" nicht wirklich wie strassen aus. Hier muss noch sehr nachbessert werden und auch die anderen epochen prüfen bitte“ und „es muss schon zum rest des games passen und nach "strasse" oder Pfad aussehen“.
+
+Ursache: Der Bodenshader malte die Wegkacheln weich als Fläche, und jede einmal betretene Kachel wurde beim Aufstieg Weg - um das Dorf entstanden Pflaster-, Erd- und Schotterflecken statt Wege. Neu:
+- Eigener Durchgang `Effects/Wege.fx` über dem Boden: Linien fester Breite zwischen den Kantenmitten benachbarter Wegkacheln (geradeaus durch, Kurven schräg abgeschnitten, Sackgassen bis zur Mitte, volle 2×2-Blöcke gefüllt) - Treppen aus Kacheln werden Diagonalen, Ecken Kurven, nach oben führt der Weg an die Tür. Ausgewertet werden je Bildpunkt nur die vier Kacheln um die nächste Ecke (passt in ps_3_0).
+- Je Zeitalter ein Aussehen (`DrawRoads`): Feudalzeit Pflasterweg mit Randsteinen (Halbbreite 0,24), Ritterzeit ausgefranster Erdweg mit zwei Fahrspuren und Grasnarbe (0,27), Imperialzeit gewölbter Schotterweg (0,30); Farbtöne gedämpft, damit sie zur gemalten Wiese passen; daneben ein halbdurchsichtiger Saum.
+- Wegkarte mit Nebel-Gedächtnis (`_roadMapData` in `UpdateGroundMemory`, `RoadDrawnAt`: Wiese/Sand ohne Gebäude, Feld und festen Rohstoff - ein Schaf unterbricht den Weg nicht); `RoadDrawData` füllt schräge Lücken auf, damit der Shader nur gerade Nachbarn braucht; unter Wegen zeigt der Bodenshader nur niedergetretenes Gras (rot ≤ 0,35).
+- Weg erst ab sechs Tritten (`TileMap.ROAD_WEAR_MIN` 0,3): beim Aufstieg und für neue Tritte ab der Feudalzeit. Weil das Gras zwischen den Gängen nachwächst, braucht ein Pfad im Test rund acht Gänge.
+- Die eigentliche Ursache des schwarzen GL-Bilds (W1d) gefunden: dasselbe Bild an zwei Texture Units, auch über Durchgänge hinweg (das Rauschbild nutzen Boden- und Wege-Shader). `ReleaseTextureUnits` gibt nach jedem eigenen Shader-Durchgang alle Units frei.
+Abnahme: `dotnet build` GL und DX (0 Fehler) · `dotnet test` **394/394** (Feldwege-Tests auf sechs Tritte umgestellt, neu `EinzelneSchritteMachenKeinenWeg`) · `tools/spielablauf`: 24 Gruppen auf je 3 Karten grün, neu `wegkarte`, `strassen` geht jetzt bis zur Schwelle, `nebelboden` prüft auch die Wegkarte · `checks/c16b_wege.py karte|daten|zeichnen|shader` · Startprobe GL/DX · Fotos aller vier Zeitalter in GL mit Nebel; das Ergebnis des Modells weicht vom Prototyp im Mittel um 0,005 Farbstufen ab. Umgesetzt vom lokalen Modell nach Verträgen aus einem am Foto abgestimmten Prototyp: W3a, W3b, W3c im ersten Lauf, W3d im zweiten (`n00`/`n10` als float statt float2, X3018).
+
+**Boden im Nebel (G14)** (2026-10-16) — Feedback: „Sichtbares gelende verändert den gras typ obwohl man niemanden dort sieht. Das sollte nicht sein. Auch wenn tiere durchlaufen die man nicht sieht sollte sich das Gras nicht ändern.“
+
+Ursache: `RefreshGroundLive` übertrug alle 0,25 s jede Kachel ins Lebendbild des Bodenshaders, auch im Nebel - Trampelpfade und Wege unsichtbarer Gegner erschienen. Und `TallGrassAt` meldet auf Kacheln mit Tier 0: Die Büschel des hohen Grases wichen jedem unsichtbaren Schaf und Reh aus, ein wanderndes Loch im Gras.
+Jetzt merkt sich der Boden, was Spieler 0 zuletzt gesehen hat: `UpdateGroundMemory(all)` zieht nur sichtbare Kacheln nach (Spielbeginn und Laden: alle), `RefreshGroundLive(all)` lädt hoch, die Büschel lesen `SeenTallGrassAt`. Sieht wieder jemand hin, gilt nach spätestens 0,25 s der Ist-Zustand.
+Abnahme: Gruppe `nebelboden` in `tools/spielablauf` (3 Karten: Pfad, Tier und Weg im Nebel unsichtbar, Pfad in Sicht sofort, beim Hinsehen nachgezogen, Komplettabgleich nimmt den Nebel mit) · `checks/g14_nebelboden.py` · Startprobe GL und DX. Umgesetzt vom lokalen Modell (145 s). Der Lauf wurde erst abgelehnt, aber nicht wegen G14: `gebaeudewege` hatte auf einer Zufallskarte einen Bauplatz ohne möglichen Weg gewählt. Die Prüfung nimmt jetzt nur anschließbare Plätze (36 Karten in Folge grün), danach lief die Fassung des Modells durch die ganze verify-Liste.
+
+**Wege von Gebäuden und Wegbilder je Zeitalter (C16)** (2026-10-16) — Feedback: „Hier geht es um in der Dunkelzeit wären es wohl Trampelpfad danach Pflasterstraße (Mehrschichtig: Stein, Zement), danach Mittelalter (Erde, Schlamm, Kies) am ende Verdichteter Schotter … Zudem sollten dann auch automatisch von den erstellten Häusern pfade und Strassen erstellt werden (allerdings noch nicht in der ersten epoche).“ und „benutze bitte auch die lokale AI dafür“.
+
+Wegbilder (Qwen-Image, Gruppe `wege` in `tools/bilder/bilder.json`): Feudalzeit Pflasterstraße aus kleinen Steinen in hellem Zement (Seed 5801, auf 664 px verkleinert, Naht per Image Quilting), Ritterzeit Erde mit Schlamm und Kies (5781), Imperialzeit verdichteter Schotter (5761); in der Dunklen Zeit bleibt der Trampelpfad. Die Reihenfolge ist die des Nutzers (historisch Römerstraße → Erdweg des Mittelalters → Makadam), auch wenn der Weg der Ritterzeit schlichter aussieht als das Pflaster davor - ein Tausch wäre nur die Zuordnung der drei `ziel`-Einträge. Gezeichnet im Bodenshader statt als Kachelquadrate: Wegkacheln stehen im Lebendbild rot = 1, `RoadSurface`/`SoilCover` legen das Bild der erreichten Stufe (`RoadTexture`, `RoadOn`, `RoadScale`, `ROAD_TEXELS` 4) mit schärferem Rand als einen Trampelpfad hin, helle Bilder gedämpft.
+Wege von Gebäuden: `TileMap.CanCarryRoad`/`ConnectBuilding` - Breitensuche von der Vorderseite (Reihe unter dem Gebäude, sonst der Ring) zum nächsten Weg oder an ein eigenes Stadtzentrum, höchstens 30 Kacheln, um Wasser, Wald, Rohstoffe, Felder und Gebäude herum. Der Bildschirm schließt ab der Feudalzeit des Besitzers jedes fertige Gebäude an (`ConnectToRoads`, Mauern nicht) und beim Aufstieg alle vorhandenen, die dem Stadtzentrum nächsten zuerst (`ConnectAllToRoads`). Nebenbei behoben (Lücke aus C12): nach dem Laden stand `CurrentRoadLevel` auf 0, neue Tritte wurden keine Wege - `SaveGameMapper.Restore` setzt es jetzt aus den Zeitaltern.
+Werkzeug: `tools/bilder/naht.py` und `"kachelbar": "naht"` in `uebernehmen.ps1` - Fugenmuster nahtlos ohne die Geistersteine des Überblendens.
+Abnahme: `dotnet build` GL und DX (0 Fehler) · `dotnet test` **393/393** (13 neue `FeldwegeTests`) · `tools/spielablauf`: 22 Gruppen auf je 3 Karten grün, darunter neu `gebaeudewege` (Dunkle Zeit kein Weg, Aufstieg verbindet, neues Haus bekommt seinen Weg, Mauer nicht, Gegner erst nach dem eigenen Aufstieg) · `checks/c16_wegbild.py shader|screen|bilder` · Startprobe GL/DX · Fotos aller vier Zeitalter (Scratchpad-Kopie mit Foto-Schaltern, nicht im Arbeitsbaum). Umgesetzt vom lokalen Modell nach Verträgen: W2a, W2a2 (die Rückverfolgung brach an der Kartenecke (0, 0) ab - Test `WegDurchDieKartenecke` nachgelegt), W2b, W1a, W1b, W1c, alle im ersten Lauf angenommen (18-128 s).
+Nachtrag W1d (Nutzer: „die GL Variante zeigt kein Bild mehr an wenn das spiel gestartet wird ist die ganze spielfläche schwarz. DX scheint noch zu gehen“): `DrawGroundShaded` gab in der Dunklen Zeit das Sandbild als `RoadTexture` - unter OpenGL hing damit dieselbe Textur an zwei Samplern des Bodenshaders, und der Nebel-Durchgang danach deckte die ganze Spielfläche schwarz. Jetzt immer ein echtes Wegbild (`RoadTextureFor(Math.Max(1, …))`), sichtbar macht es allein `RoadOn`. Durchgerutscht, weil die Startprobe nur die Laufzeit prüft und alle Fotos mit abgeschaltetem Nebel entstanden; eingegrenzt per GL-Fotos (Nebel aus: Bild da; Shader aus HEAD: Bild da; Sandbild durch Wegbild ersetzt: Bild da). `c16_wegbild.py screen` verbietet das Sandbild als Ersatz.
+
+Davor: **Reparatur: beschädigte Gebäude wiederherstellen (C15)** (2026-10-16) — Feedback: „Angegriffene Gebäude sollten repariert werden können. Wenn sie zBs zu 50% angeschlagen sind müssen auch nur 50% der Rohstoffe verwendet werden um sie wieder herzustellen.“
+
+Regel: Kosten und Dauer fallen anteilig zum fehlenden Schadensvolumen (Baupreis × fehlender Anteil, je Rohstoff mindestens 1; unverletzt = 0 Kosten). Dorfbewohner reparieren wie sie bauen: anklicken (eigenes beschädigtes Gebäude mit ausgewählten Dorfbewohnern) schickt sie an den Rand; der Auftrag kostet VOR dem Start einmalig, dazukommende Arbeiter nichts Mehr. Ohne Arbeiter steht er still. Geschwindigkeit wie am Bau: (n+2)/3. Fertig ist bei voller Standfestigkeit, Arbeiter gehen zur nächsten Baustelle oder werden untätig. Sicht & Meldung: Lebensbalken zeigt den Zustand, die Leiste „Reparatur p %“, Meldungen für Auftrag/Kosten/Fehlbeträge.
+
+Umsetzung: `AoE.Core.Economy.Repair` (Auftrag: Sekunden, fehlende LP, Fortschritt; `ToState`/`FromState`), `BuildingRules.MissingFraction/RepairCostOf/RepairSecondsOf`, `Building.Repair` (TileMap-Data), `BuildingSave.Repair` + `SaveGameMapper` beide Wege. Screen: `RepairBuildingFor` (Order + Kosten + Zusenden), `UpdateRepair` (Tick, neben UpdateConstruction), `ReleaseRepairers`; Zustandsmaschine: Ankunfts- und Building-Zweig auch für `IsComplete`-Gebäude mit laufender Reparatur; HUD-Statuszeile.
+Abnahme: `dotnet build AgeOfEvolutions.slnx` (0 Fehler, keine neuen Warnungen) · `dotnet test` **380/380** (11 neue `ReparaturTests`) · `tools/spielablauf -- reparatur` — 3 Zufallskarten grün: 50 % Schaden → 13 Holz (Hälfte von 25) und 12,5 s mit 1 Reparateur (halbe Bauzeit), 9,6 s mit 2 (AoE-II-Formel), unverletztes Gebäude weder repariert noch bezahlt.
+
+**Straßen neu gedacht: Wege wachsen mit der Zeit (C12)** (2026-10-16) — erst war die „Straße“ kachelweise gebaut (Taste D, 10 Holz, A*-Kosten-Bevorzugung); der Nutzer hat das verworfen: „ok, das war nicht die idee mit den Strassen. Die Trampelpfade zu Gebäuden aus der Dunklen Zeit werden automatisch zu Feldwegen wenn man in die nächste Zeit wechselt. Mit jedem Aufstieg in eine neue Zeit werden dann die Wege besser und besser. Laufen die leute auf diesen wegen sind sie auch 20% scheller als auf der Wiese.“
+
+Alles Manuelle ist rückbaukig entfernt (`BuildingType.Road`, Taste D, `Unit.RoadCell`, `TileMap.StartRoad/TickRoad/ActiveRoads/IsActiveRoad`, `MovementCost` in `Pathfinding`/`VisibilitySystem`, Straßen-Zweige im Screen und in `neubauten`). Neu: `Tile.RoadLevel` 0–3 ersetzt `IsRoad`/`RoadProgress` (auch im Spielstand: `TileSave.RoadLevel`, Mapper beide Wege). `TileMap.LevelOfAge` mappt Dunkel 0, Feudal 1, Ritter 2, Imperial 3; `TileMap.UpgradeRoads(level)` hebt alle vorhandenen Tritte (`Wear > 0`) und bisherigen Stufen an, es fällt nichts ab; `Trample` gibt neue Tritte ab der Feudalzeit direkt auf der erreichten Stufe, dunkle Zeit bleibt Stufe 0. Der Bildschirm ruft `UpgradeRoads` in `UpdateAges` bei jedem Aufstieg auf (beide Spieler). Laufbonus: `StepAlongPath` gibt 20 % auf, wenn die Kachel unter den Füßen `RoadLevel >= 1` — gemessen, nicht nur behauptet. Sicht: drei prozedurale 32×32-Wege (`Feldweg` mit Kiesel, `befestigt` mit festem Rand, `gepflastert` als Koppelpflaster auf Mörtel), optional `Boden/wege_feld`, `Boden/wege_befestigt`, `Boden/wege_pflaster`; Bodendurchlauf wählt nach `RoadLevel`, hohes Gras wächst auf Wegen nicht mehr.
+Abnahme: `dotnet build AgeOfEvolutions.slnx` (0 Fehler; Warnungen nur die vorbestehenden in EconomyAi-/Test-Dateien) · `dotnet test` **369/369** (6 neue `FeldwegeTests`, 5 alte `RoadsTests` entfernt) · `tools/spielablauf -- strassen` — 3 Zufallskarten grün: Dunkle Zeit 10,1/10,0 s gleich schnell, Feudalzeit-Pfad 8,4 s (~20 % schneller: 10,1/1,2), neue Tritte ab Feudal sofort Stufe 1, Stufen 1 → 2 → 3 · `neubauten` grün (D→Straße wieder raus, Stadtzentrum-Sprung bleibt).
+
+Davor: **Forschungswirkungen beweisbar (F2)** (2026-10-16) — Feedback: „sicherstellen das zBs das erstellen des Webstuhles auch auswirkungen hat. Oder wenn man das schmieden weiterentwicklt muss sich das ja auch irgendwie merkabar auswirken“.
+Audit der Wirkkette (8/8 Forschungen sind verdrahtet, keine Logik-Lücke): Webstuhl, Schmiedekunst, Befiederte Pfeile, Schuppenpanzer und Maurerkunst ändern `Stats.BaseAttack/HitPoints/Range/BaseArmor` — genau die Werte, die `DamageCalculator` (Kampf Einheit) und `BuildingCombat` (Kampf Gebäude) live lesen; `Unit.AttackPower/Armor/AttackRange` sind Live-Properties auf `Core.Stats`, nichts wird gecacht. Die fertige Forschung wirkt einmal auf alles Bestehende (`UpdateResearch`: `TechEffects.Apply` je Einheit/Gebäude desselben Besitzers, der Gegner ist nicht betroffen) und auf alles Neue über `ApplyAll` (Ausbildung, neue Baustelle, Spielstand laden). Doppelaxt und Goldbergbau laufen als `TechEffects.GatherFactor` (×1,2 / ×1,15) in `GatherJob.Update`, das Pferdekummet als `TechEffects.FarmFood` bei `PlantCrop`.
+Zwei echte Abnahme-Lücken gefüllt (Gruppe `forschung` in `tools/spielablauf`):
+- **Goldbergbau war nie gemessen** — jetzt wie die Doppelaxt: ein Goldgräber schürft 0,39·1,15 ≈ 0,448 Gold/s; ohne die Forschung wären es 0,390, außerhalb der Toleranz → messbar wirksam.
+- **Wirkungen im Kampf mit echten Schadenswerten:** Miliz → fremde Miliz +1 Schaden nach Schmiedekunst, fremde Miliz → eigener Dorfbewohner −1 nach Webstuhl, Miliz → eigenes Haus −1 nach Maurerkunst; jeweils vor und nach der fertigen Forschung gemessen, genau ±1 erwartet (`DamageAgainst`, `BuildingCombat.DamagePerHit`).
+Abnahme: `dotnet build AgeOfEvolutions.slnx` (0 Fehler, 0 Warnung(en) zu neuen Stellen) · `dotnet test` **363/363** · `tools/spielablauf -- forschung` — 3 Karten grün: „Webstuhl 25 s, gleichzeitig bis 50 s, Holz 0.468/s, **Gold 0.437/s**, Maurerkunst 50 s; Wirkung nur beim eigenen Spieler, Abbruch erstattet“ (Holz 0,39·1,2, Gold 0,39·1,15).
+
+Davor: **Spielstand speichern und laden (SV1–SV4)** (2026-10-14) — Feedback: „danach würde ich noch gerne das speicher des spieles implementieren“ und „neben Resume und quit was in deutsch angezeigt werden sollte wenn man esc drückt, sollte da auch speichern zu auswahl stehen. Im Hauptmenü braucht es dann noch das Spiel laden“.
 Bedienung: Esc-Menü jetzt deutsch — **Fortsetzen / Spiel speichern / Beenden** (Beenden-Abfrage ebenfalls deutsch, mit Hinweis auf ungespeicherten Fortschritt); Speichern zeigt 1,5 s „Spiel gespeichert“ (oder „Speichern fehlgeschlagen: …“), das Menü bleibt offen. Hauptmenü: **„Spiel laden“** ist frei, sobald `%APPDATA%\AgeOfEvolutions\spielstand.json` existiert (ein Platz, neben `settings.json`; ein neuer Stand ersetzt den alten), sonst grau; ein unlesbarer Stand sperrt den Eintrag und meldet es. Startschalter `--laden [pfad]` beginnt direkt mit einem Spielstand (wie `--rts`).
 Inhalt (JSON, Aufzählungen als Namen, Standardwerte weggelassen — Standardkarte ~200 KB): jede Kachel (Gelände, Rohstoff, Tier samt Wandertakt, Trampelpfad, Feld samt Nachwachsen), beide Spieler (Rohstoffe, Zeitalter samt laufendem Aufstieg, Forschungen, Erkundung als Maske), Gebäude (Baustelle, Lebenspunkte, Ausbildungsschlange samt Fortschritt und Kosten, laufende Forschung), Einheiten (Lage, Weg, Tempo, Zustand, Lebenspunkte, Sammelauftrag samt Traglast und Bruchteil, Baustelle/Angriffsziel als Index), Spielzeit, Animationstakt, Kamera (Weltpunkt in der Mitte + Zoom relativ zum Fenster — stimmt auch bei anderer Fenstergröße), KI-Stufe. Forschungswirkungen (Webstuhl, Maurerkunst …) werden beim Laden neu angewendet, danach die gespeicherten Lebenspunkte gesetzt.
 Bewusst nicht gespeichert: Auswahl, Laufanimation (`_unitMotion`), Angriffswarnung, KI-Gedächtnis (`EconomyAi` startet frisch und plant aus der Welt), alle übrigen Spiel-Optionen (Tempos, Abstände, Lautstärke — gelten aus den aktuellen Einstellungen; nur die KI-Stufe kommt aus dem Stand). Die Tierlisten werden aus den Kacheln neu aufgebaut: der Kartengenerator trägt manche Tiere doppelt ein, nach dem Laden zählt jedes genau einmal.
@@ -570,7 +618,7 @@ benennt jemand eine Methode um, meldet es das, statt still falsch zu prüfen.
 | Projekt | Framework | Build | Bemerkung |
 |---|---|---|---|
 | `src/AoE.Core` | net10.0 | OK, 0 Fehler | Reine Logik, keine MonoGame-Abhängigkeit |
-| `tests/AoE.Tests` | net10.0 | **267/267 grün** | Einheiten und Ressourcen (15), Sammelauftrag (21), Ausbildung und Bevölkerung (22), Bauen (74), Zeitalter (46), Forschungen (43), Konter-Dreieck (5), Gebäudekampf (9), Wegfindung (3), Nebel (8), Wirtschafts-KI (20), Fehlersuche (1) |
+| `tests/AoE.Tests` | net10.0 | **394/394 grün** (2026-10-16) | Einheiten und Ressourcen (15), Sammelauftrag (21), Ausbildung und Bevölkerung (22), Bauen (74), Zeitalter (46), Forschungen (43), Konter-Dreieck (5), Gebäudekampf (9), Wegfindung (3), Nebel (8), Wirtschafts-KI (20), Fehlersuche (1) - so weit Stand 267; seither u. a. Einstellungen, Spielstand, Reparatur (11) und Wege (20) |
 | `demo/DemoApp` | net10.0 | OK | referenziert AoE.Core |
 | `AgeOfEvolutions.Core` | net10.0 | OK, 0 Fehler | Dateiname seit H2 kanonisch |
 | `AgeOfEvolutions.DesktopGL` | net10.0 | OK, 0 Fehler / 0 Warnungen | startbar |
@@ -976,9 +1024,6 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
       Leiste; solange der Aufstieg läuft, bildet das Stadtzentrum nicht aus *(Agent C4b)*
 - [x] Kosten 500N · 800N+200G · 1000N+800G, Dauer 130 / 160 / 190 s — `AgeRules` und
       `AgeProgress` in AoE.Core (`Economy/Ages.cs`, 46 Tests) *(Agent C4a)*
-- [ ] **Gold für die Imperialzeit auf 300 senken** (Wunsch 2026-10-04): Kosten werden
-      1000N + **300G** statt 1000N + 800G — `Economy/Ages.cs`, die dazu gehörigen Tests und
-      die `zeitalter`-Gruppe in `tools/spielablauf` umstellen
 - [ ] Jedes Zeitalter schaltet Gebäude und Einheiten frei — die Regel steht
       (`AgeRules.RequiredAgeOf`, Baumenü und Tasten richten sich danach). Erstes
       Gebäude der Feudalzeit: **Wachturm** (Taste T, 50 Holz + 125 Stein, 80 s, sieht
@@ -1058,20 +1103,20 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
 
 ### C6 · HUD dreiteilig [R]
 
-- [ ] Ressourcenleiste oben: `[Holz] [Nahrung] [Gold] [Stein] [Bev. 37/45] « Feudalzeit »`
+- [x] Ressourcenleiste oben: `[Holz] [Nahrung] [Gold] [Stein] [Bev. 37/45] « Feudalzeit »` *(erledigt, bestätigt 2026-10-16)*
 - [x] Bevölkerung rot bei erreichtem Limit *(Agent C2b)*
-- [ ] Kommandoleiste unten: Aktionssymbole – Einheiteninfo – Minimap
+- [x] Kommandoleiste unten: Aktionssymbole – Einheiteninfo – Minimap *(erledigt, bestätigt 2026-10-16)*
 - [x] Befehlstasten mit Symbolen (Qwen-Image, `tools/bilder`); Name, Kürzel und Kosten
       nennt die Leiste, solange die Maus auf einer Taste steht *(Agent C6i)*
 - [x] Leisten im Stoff des Zeitalters: rohe Holzbohlen, Eichenbohlen, Quadermauer, grüner
       Marmor mit Goldkante (`PanelAssets`, `DrawPanel`); dunkles Feld hinter dem Hilfetext
       *(Agent H1)*
 - [x] Rohstoffsymbole oben als Bilder, doppelt so groß (`ResourceIcons`) *(Agent R1)*
-- [ ] Minimap: kleine Karte rechts unten in der Kommandoleiste, in derselben Ansicht wie
-      die Spielkarte (zurzeit Draufsicht, Norden oben; Entscheidung 2026-10-03, statt
-      der Raute aus dem AoE-II-HUD) — Farben nach dem Referenzbild `docs/overview.jpg`:
-      Grün Land, Braun Wald, Blau Wasser, weiße Punkte eigene Einheiten, dunkler Rahmen.
-      Feinde rot, Kameraausschnitt als Rechteck *(Agent C6m, C6d)*
+- [x] Minimap: kleine Karte rechts unten in der Kommandoleiste, in derselben Ansicht wie
+  die Spielkarte (zurzeit Draufsicht, Norden oben; Entscheidung 2026-10-03, statt
+  der Raute aus dem AoE-II-HUD) — Farben nach dem Referenzbild `docs/overview.jpg`:
+  Grün Land, Braun Wald, Blau Wasser, weiße Punkte eigene Einheiten, dunkler Rahmen.
+  Feinde rot, Kameraausschnitt als Rechteck *(Agent C6m, C6d; bestätigt 2026-10-16)*
 
 ### C7 · Terrain-Rendering vervollständigen [R]
 
@@ -1178,6 +1223,9 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
       denen Figuren bis zur Hüfte stecken (`DrawGrassTuft`, `DrawGrassAroundFeet`) *(Agent G12, G13)*
 - [x] Beerenbüsche als Sprites in drei Arten statt der gezeichneten Kachel (`DrawBerryBush`)
       *(Agent G13)*
+- [x] Boden im Nebel: Lebendbild und Grasbüschel zeigen den zuletzt gesehenen Stand - ein
+      unsichtbarer Gegner, sein Weg oder ein Tier ändert dort nichts, bis wieder jemand
+      hinsieht (`UpdateGroundMemory`, `SeenTallGrassAt`; Gruppe `nebelboden`) *(Agent G14)*
 
 ### C10 · Kamera [R]
 
@@ -1197,15 +1245,11 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
       Bild und wird jetzt zentriert — links und rechts bleibt Rand. Entweder
       größere Karte, oder MIN_ZOOM dynamisch so setzen, dass die Karte das
       Fenster immer füllt (schließt dann aber die Gesamtübersicht aus)
-- [ ] **C11r Rechteckige Karte** (Hinweis des Nutzers, 2026-10-07): die Karte soll
-      rechteckig sein, ungefähr im Seitenverhältnis des Bildschirms, statt quadratisch.
-      Heute baut `RTSGameplayScreen.LoadContent` sie mit `new TileMap(side, side, …)` aus
-      `MapSizes.Side`. Künftig Breite und Höhe je Kartengröße (etwa 16:9 bzw. 16:10 bei
-      gleicher Fläche wie bisher, sodass `MapSettings.ForSize` die Ausstattung weiter nach
-      der Fläche richtet). Prüfen, was quadratisch denkt: Startplätze, Kartengenerator,
-      Minimap (rechteckig statt quadratisch), `ClampCamera`, Nebel. Löst wohl auch die
-      Entwurfsfrage oben. Abnahme: `tools/kartenpruefung -- groessen`, `tools/spielablauf --
-      karten`
+- [x] **C11r Rechteckige Karte** (Hinweis des Nutzers, 2026-10-07) — erledigt, bestätigt 2026-10-16:
+  die Karte hat Breite und Höhe je Kartengröße im Seitenverhältnis des Bildschirms bei
+  gleicher Fläche wie die quadratische Referenz (`MapSizes.Dimensions`); Startplätze,
+  Kartengenerator, Minimap und Kamera funktionieren damit. Abnahme: `tools/kartenpruefung -- groessen`,
+  `tools/spielablauf -- kartengrößen`
 - [x] Kantenscrollen mit der Maus, 8 Pixel Randstreifen *(Agent C10)*
 - [x] Karte mit gedrückter linker Maustaste ziehen, ab 6 Pixeln Weg *(Agent C8a)*
 
@@ -1229,19 +1273,34 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
 
 - [ ] Einheit sucht nächste Ressourcenquelle und sammelt
 
-### C12 · Straßen ab Ritterzeit [R]
+### C12 · Wege: Trampelpfade werden beim Zeitaufstieg besser [R]
 
-- [ ] Baustufe „Straße“ (Taste frei zu vergeben) ab der **Ritterzeit** freigeschaltet —
-  `AgeRules.RequiredAgeOf`, Baumenü und Befehlstasten wie beim Wachturm
-- [ ] Dorfbewohner bauen Straßen kachelweise (Bauzeit je Kachel, nicht je Gebäude) —
-  Platz ist jede bebaubare Kachel, auch neben anderen Straßen
-- [ ] Wegsuche bevorzugt vorhandene Straßen: A* bekommt einen Bonus für Straßenkacheln,
-  sodass Dorfbewohner auf ihrem Weg immer eine Straße nehmen, wenn eine dazwischenliegt;
-  ohne Straße bleibt der bisherige Lauf
-- [ ] Straße sichtbar zeichnen (kachelbares Bild, wie Gras/Weizen), auch unter Nebel
-- [ ] Abnahme: neue Gruppe `strassen` in `tools/spielablauf` — Dorf auf Ritterzeit,
-  Straße bauen, beobachten dass sich ein laufender Dorfbewohner auf der Route die Straße
-  nimmt und nicht mehr im Gras
+Konzept (Korrektur des Nutzers): keine manuellen Straßen. Die Trampelpfade der
+Dunklen Zeit werden beim Aufstieg automatisch zu Wegen, mit jeder Zeit besser,
+und Einheiten laufen darauf 20 % schneller.
+
+- [x] `Tile.RoadLevel` (0–3) statt `IsRoad`/`RoadProgress`; `TileMap.LevelOfAge`
+  (Dunkel 0, Feudal 1, Ritter 2, Imperial 3) und `TileMap.UpgradeRoads(level)`:
+  alle vorhandenen Tritte (`Wear > 0`) und früheren Stufen steigen auf, nichts fällt ab
+- [x] Neue Tritte (je Kachel-Betritt in `StepAlongPath`, `TileMap.Trample`)
+  entstehen ab der Feudalzeit direkt auf der erreichten Stufe
+- [x] 20 % Laufbonus auf Kacheln mit `RoadLevel >= 1` (`StepAlongPath`), in der
+  Dunklen Zeit (Stufe 0) gleich schnell wie die Wiese
+- [x] Bildschirm: `UpdateAges` ruft beim Aufstieg `UpgradeRoads` auf (beide Spieler)
+- [x] Drei prozedurale 32×32-Wegetexturen je Stufe (Feldweg mit Kiesel, befestigt mit
+  festem Rand, Koppelpflaster auf Mörtel), optional `Boden/wege_feld`,
+  `Boden/wege_befestigt`, `Boden/wege_pflaster`; Bodendurchlauf wählt nach `RoadLevel`
+- [x] Weg-Stufe in Spielstand (`TileSave.RoadLevel`, Mapper beide Wege)
+- [x] Abnahme: Gruppe `strassen` in `tools/spielablauf` — Läufer auf drei parallelen
+  11er-Reihen: Dunkle Zeit gleich schnell (10,1/10,0 s), nach Aufstieg auf die
+  Feudalzeit der Pfad ~20 % schneller (8,4 s), neue Tritte ab Feudal sofort Stufe 1,
+  Stufen steigen 1 → 2 → 3; dazu 6 neue Tests in `tests/AoE.Tests/FeldwegeTests.cs`
+- [x] Aufräumen: `BuildingType.Road`, Taste D, `Unit.RoadCell`,
+  `TileMap.StartRoad/TickRoad/ActiveRoads/IsActiveRoad`, `MovementCost`-A*-Kosten und
+  das kachelweise Straßenbauen sind wieder entfernt
+- [x] Seit C16: die Wege kommen aus dem Bodenshader mit Qwen-Image-Bildern je Zeitalter
+  (`Boden/weg_feudal`, `weg_ritter`, `weg_imperial`); die prozeduralen 32×32-Bilder sind nur
+  noch Ersatz, und Gebäude bekommen ab der Feudalzeit ihren Weg selbst (siehe C16)
 
 ### C13 · Dorfkern, Kaserne, Mauern und Krieger (Feudalzeit) [X]
 
@@ -1304,6 +1363,55 @@ Gebäude, erste Soldaten, Forschungen; angreifen nur eigene Einheiten per Befehl
       AoE.Core (`Economy/Research.cs`), Tasten nach `Researches` *(Agent P2a, P2b)*
 - [ ] Die KI greift noch keine Gebäude an
 
+### C15 · Reparatur: beschädigte Gebäude wiederherstellen [R]
+
+Wunsch des Nutzers (2026-10-16): „Angegriffene gebäude sollten repariert werden können.
+Wenn sie zBs zu 50% angeschlagen sind müssen auch nur 50% der Rohstoffe verwendet werden
+um sie wieder herzustellen.“
+
+- [x] Kosten anteilig zum fehlenden Schadensvolumen: `BuildingRules.RepairCostOf`
+  (Baupreis × fehlender Anteil, je Rohstoff mindestens 1; unverletzt = 0)
+- [x] Dauer anteilig: `BuildingRules.RepairSecondsOf` (Bauzeit × fehlender Anteil)
+- [x] `AoE.Core.Economy.Repair` — Auftrag mit Sekunden, fehlenden LP und Fortschritt,
+  SpeedFactor(n) wie am Bau; `ToState`/`FromState` für den Spielstand
+- [x] `Building.Repair` (Data), `BuildingSave.Repair`, `SaveGameMapper` beide Wege
+- [x] Befehl: Linksklick auf ein eigenes, beschädigtes, fertiges Gebäude mit
+  ausgewählten Dorfbewohnern schickt sie zur Reparatur; Kosten einmalig vor dem Start,
+  Dazukommende frei; ohne Arbeiter steht der Auftrag still
+- [x] `UpdateRepair` im Tick; fertig bei voller Standfestigkeit, Arbeiter weiter oder untätig
+- [x] Zustandsmaschine: Ankunft und `Building`-Zweig auch für `IsComplete`-Gebäude
+  mit laufender Reparatur (vorher: Arbeiter wurden sofort wieder abgewiesen)
+- [x] Leiste zeigt „Reparatur p %"; Meldungen für Auftrag, Kosten und Fehlbeträge
+- [ ] Abnahme: `reparatur` in `tools/spielablauf` — 3 Zufallskarten grün: 50 %
+  → 13 Holz und 12,5 s (1 Arbeiter), 9,6 s (2 Arbeiter), unverletzt nichts
+
+### C16 · Wege von Gebäuden und Wegbilder je Zeitalter [R]
+
+Wunsch des Nutzers (2026-10-16): Trampelpfad in der Dunklen Zeit, danach Pflasterstraße
+(Stein, Zement), dann Erde, Schlamm und Kies, am Ende verdichteter Schotter - als Bilder
+in hoher Qualität; ab der zweiten Epoche führen von den Häusern automatisch Wege weg.
+
+- [x] Wegbilder aus Qwen-Image (Gruppe `wege`): `Boden/weg_feudal` (Seed 5801, 664 px,
+  `"kachelbar": "naht"`), `Boden/weg_ritter` (5781), `Boden/weg_imperial` (5761)
+- [x] `tools/bilder/naht.py`: nahtlos kachelbar per Image Quilting, Schnitt in den Fugen
+- [x] Bodenshader: `RoadSurface`, `SoilCover`, `RoadTexture`/`RoadOn`/`RoadScale`; Wege
+  ausgefranst statt als Kachelquadrate, schärferer Rand als ein Trampelpfad *(Agent W1a, W1b)*
+- [x] Neue Bildnamen, Ersatzbilder in der Reihenfolge der Zeitalter ohne Gitterrand *(Agent W1c)*
+- [x] GL-Fassung zeigte eine schwarze Spielfläche (Sandbild an zwei Samplern, danach Nebel) -
+  immer ein echtes Wegbild binden *(Agent W1d)*; eigentliche Ursache und allgemeine Abhilfe
+  in C16b: `ReleaseTextureUnits` nach jedem eigenen Shader-Durchgang *(Agent W3c)*
+- [x] C16b: Wege als Linien in eigenem Shader `Effects/Wege.fx` statt Flecken im Bodenshader,
+  je Zeitalter Pflaster mit Randsteinen, Erdweg mit Fahrspuren, gewölbter Schotter *(Agent W3c, W3d)*
+- [x] C16b: Wegkarte mit Nebel-Gedächtnis, schräge Lücken aufgefüllt (`RoadDrawnAt`,
+  `RoadDrawData`) *(Agent W3b)*; Weg erst ab sechs Tritten (`ROAD_WEAR_MIN`) *(Agent W3a)*
+- [x] `TileMap.CanCarryRoad`, `TileMap.ConnectBuilding` (höchstens `ROAD_CONNECT_MAX_TILES`
+  = 30 Kacheln) *(Agent W2a, W2a2)*
+- [x] Anschluss beim Fertigbau ab der Feudalzeit des Besitzers und beim Aufstieg für alle
+  vorhandenen Gebäude; Mauern ohne Weg *(Agent W2b)*
+- [x] `CurrentRoadLevel` nach dem Laden aus den Zeitaltern (vorher 0 - Lücke aus C12) *(Agent W2a)*
+- [x] Abnahme: 13 neue `FeldwegeTests`, Gruppe `gebaeudewege`, `checks/c16_wegbild.py`, Fotos
+- [ ] Sichtprüfung durch den Nutzer im echten Spiel (Maßstab der Steine, Helligkeit, Wegbreite)
+
 ---
 
 # Block D — Doku
@@ -1349,7 +1457,7 @@ Enthält reines Azure-Boilerplate ohne jeden Bezug zum Projekt.
 - [x] .NET-10-Migration: AoE.Core, Tests, Demo, Spiel-Core, DesktopGL, WindowsDX
 - [x] Build läuft fehlerfrei durch (AoE.Core + DesktopGL, 0 Warnungen)
 - [x] AoE.Core als Projektverweis eingebunden *(seit Block B im Spiel genutzt)*
-- [x] 267 Unit-Tests grün
+- [x] 394 Unit-Tests grün (2026-10-16)
 - [x] Kartengenerierung `TileMap.cs`: Seen mit Falloff, Beeren, Schafe, Wildschweine,
       Stein/Gold, PvP-Startpositionen
 - [x] Wasser-Animation

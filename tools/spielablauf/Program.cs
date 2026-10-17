@@ -5,6 +5,10 @@
 // Dazu neubauten (Gebäude der zweiten Tastenreihe), tuer (Abliefern vor der Tür) und
 // auswahl (Gebäude auswählen), angriff (Gebäude angreifen), soldaten
 // (Ausbildung in Kaserne, Schießstand und Stall), forschung (Forschungen und ihre Wirkung),
+// strassen (Wege: Trampelpfade werden beim Zeitaufstieg zu Feldwegen und besser, laufen 20 % schneller),
+// gebaeudewege (ab der Feudalzeit führt von jedem fertigen Gebäude ein Weg zum Wegenetz),
+// nebelboden (Gras und Pfade im Nebel bleiben, wie man sie zuletzt gesehen hat),
+// wegkarte (was der Wege-Shader als Weg zeichnet, schräge Lücken aufgefüllt),
 // zielen (Gegner an der ganzen Figur anklicken), verteidigung (Soldaten verteidigen das
 // Stadtzentrum) und kampfbild (Schlagbilder und Blick gegen Einheiten). Die Geräusche
 // (tools/klang) prüfen klangbrett (Drossel des SoundBoard), arbeitsklang (Werkzeugschläge im
@@ -27,6 +31,7 @@ using AgeOfEvolutions.Core.Screens;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
 using BuildingType = AoE.Core.Entities.BuildingType;
+using BuildingRules = AoE.Core.Economy.BuildingRules;
 using CoreVillager = AoE.Core.Entities.Villager;
 using Resource = AoE.Core.Entities.Resource;
 using UnitState = AoE.Core.Entities.UnitState;
@@ -99,6 +104,20 @@ for (int karte = 1; karte <= KARTEN; karte++)
     // Der Aufstieg dauert über acht Spielminuten - eine Karte genügt
     if (gruppen.Contains("zeitalter") && karte == 1)
         Pruefe("Zeitalter", () => Zeitalter(verstoesse));
+    // Wege (C12): Trampelpfade werden beim Zeitaufstieg zu Wegen, laufen 20 % schneller
+    if (gruppen.Contains("strassen"))
+        Pruefe($"Karte {karte}, Straße", () => Strassen(karte, verstoesse));
+    // Boden im Nebel (G14): der Boden zeigt den zuletzt gesehenen Stand, nicht was unsichtbar geschieht
+    if (gruppen.Contains("nebelboden"))
+        Pruefe($"Karte {karte}, Boden im Nebel", () => NebelBoden(karte, verstoesse));
+    // Wegkarte (C16): was der Wege-Shader als Weg zeichnet, schräge Lücken aufgefüllt
+    if (gruppen.Contains("wegkarte"))
+        Pruefe($"Karte {karte}, Wegkarte", () => Wegkarte(karte, verstoesse));
+    // Wege von Gebäuden (C16): ab der Feudalzeit führt von jedem fertigen Gebäude ein Weg zum Wegenetz
+    if (gruppen.Contains("gebaeudewege"))
+        Pruefe($"Karte {karte}, Gebäudewege", () => GebaeudeWege(karte, verstoesse));
+    if (gruppen.Contains("reparatur"))
+        Pruefe($"Karte {karte}, Reparatur", () => Reparatur(karte, verstoesse));
     if (gruppen.Contains("turm"))
         Pruefe($"Karte {karte}, Wachturm", () => Turm(karte, verstoesse));
     if (gruppen.Contains("neubauten"))
@@ -2120,6 +2139,732 @@ static void Turm(int karte, List<string> verstoesse)
                           + $"{(probe == null ? "-" : Vector2.Distance(probe.Value, mitte).ToString("0.0"))} Kacheln weit");
 }
 
+// Wege (C12): Trampelpfade, die in der Dunklen Zeit betreten wurden,
+// rücken mit jedem Aufstieg eine Stufe hinauf — Feudal 1, Ritter 2, Imperial 3.
+// Auf der neuen Stufe (1 und höher) läuft der Läufer rund 20 % schneller als
+// auf der Wiese, und neue Tritte werden ab der Feudalzeit sofort auf der
+// erreichten Stufe geboren.
+static void Strassen(int karte, List<string> verstoesse)
+{
+    var wer = $"Karte {karte}, Wege";
+    var w = new Welt();
+    int vorher = verstoesse.Count;
+    w.Set("cameraZoom", 1f);
+    w.Set("cameraPosition", Vector2.Zero);
+
+    var arbeiter = w.Dorfbewohner().ToList();
+    if (arbeiter.Count < 1)
+    {
+        verstoesse.Add($"{wer}: kein Dorfbewohner auf der Karte");
+        return;
+    }
+    var laeufer = arbeiter[0];
+
+    // Drei parallele 11er-Reihen mit freier Startkachel davor und freiem
+    // Zielkachel am Ende: die Pfad-Reihe (wird betreten), eine Kontrollreihe
+    // (bleibt in der Prüfung unbeteiligt) und eine Neue Reihe (wird erst ab
+    // der Feudalzeit betreten).
+    int sx = -1, sy = -1;
+    string dbg = null;
+    for (int y = 0; sy < 0 && y + 5 < w.Map.Height; y++)
+        for (int x = 2; x + 10 < w.Map.Width; x++)
+        {
+            bool d = ReiheFrei(w.Map, x, y, 11) && ReiheFrei(w.Map, x, y + 2, 11) && ReiheFrei(w.Map, x, y + 4, 11);
+            if (d)
+            {
+                for (int ry = 0; d && ry < 3; ry++)
+                {
+                    int yy = ry * 2;
+                    var t = w.Map.GetTile(x - 2, y + yy);
+                    d = t != null
+                        && w.Map.IsWalkable(x - 2, y + yy)
+                        && string.IsNullOrEmpty(t.Building)
+                        && t.ResourceType == null
+                        && t.Food == FoodSource.None
+                        && t.Wear <= 0f;
+                    if (!d && dbg == null)
+                        dbg = $"({x},{y}) Start({x - 2},{y + yy}): t={(t == null ? "null" : t.Type + " Walk=" + t.Walkable + " B='" + t.Building + "' Res=" + t.ResourceType + " Food=" + t.Food + " Wear=" + t.Wear + " IsW=" + w.Map.IsWalkable(x - 2, y + yy))}";
+                }
+            }
+            if (d)
+            {
+                sx = x; sy = y;
+                break;
+            }
+        }
+    if (sx < 0)
+    {
+        verstoesse.Add($"{wer}: keine drei parallelen freien 11er-Reihen mit freier Startkachel auf der Karte | {dbg}");
+        return;
+    }
+    int pfadY = sy, refY = sy + 2, neuY = sy + 4;
+
+    // Nebel: die Teststrecken werden für den Spieler bekannt.
+    var maske = new char[w.Map.Width * w.Map.Height];
+    for (int fx = Math.Max(0, sx - 2); fx < sx + 11 && fx < w.Map.Width; fx++)
+        foreach (int ry in new[] { pfadY, refY, neuY })
+            maske[ry * w.Map.Width + fx] = '1';
+    w.Map.RestoreExplored(0, new string(maske));
+
+    void startRang(int y)
+    {
+        w.Waehle(new List<Unit> { laeufer });
+        if (laeufer.Path == null)
+            laeufer.Path = new List<Vector2>();
+        else
+            laeufer.Path.Clear();
+        laeufer.Position = w.Map.GridToWorld(new Vector2(sx - 2, y));
+        laeufer.State = UnitState.Idle;
+        w.LaufeBis(() => false, 0.2f);   // Zustand setzen lassen
+    }
+
+    // Der Läufer läuft von der Startkachel aus die ganze Reihe entlang
+    // (Start zwei Kacheln davor, Ziel eine Kachel jenseits des Reihe-Endes,
+    // damit jede Kachel der Reihe betreten wird) und liefert die dafür
+    // benötigte Zeit in Sekunden.
+    float lauf(int y)
+    {
+        startRang(y);
+        var ziel = w.Map.GridToWorld(new Vector2(sx + 10, y));
+        w.Linksklick(ziel);
+        return w.LaufeBis(() => Vector2.Distance(laeufer.Position, ziel) <= 0.75f * w.Map.TileSize, 60f);
+    }
+
+    bool ankam(int y)
+        => Vector2.Distance(laeufer.Position, w.Map.GridToWorld(new Vector2(sx + 10, y))) <= 0.75f * w.Map.TileSize;
+
+    // 1) Dunkle Zeit: betretene Reihe und Wiese sind gleich schnell —
+    //    ohne Weg-Stufe gibt es keinen Bonus.
+    float tWiese = lauf(refY);
+    if (!ankam(refY))
+    {
+        verstoesse.Add($"{wer}: der Läufer kam auf der Kontrollreihe gar nicht an");
+        return;
+    }
+    float tPfadDunkel = lauf(pfadY);
+    if (!ankam(pfadY))
+    {
+        verstoesse.Add($"{wer}: der Läufer kam auf der Pfadreihe gar nicht an");
+        return;
+    }
+    if (Math.Abs(tPfadDunkel - tWiese) > 0.10f * tWiese)
+        verstoesse.Add($"{wer}: Dunkle Zeit — betretene Reihe {tPfadDunkel:0.00} s gegen {tWiese:0.00} s Wiese, erwartet gleich schnell");
+    // Ein echter Trampelpfad entsteht erst durch viele Gänge (C16: ROAD_WEAR_MIN, sechs Tritte;
+    // dazwischen wächst das Gras nach, also ein paar mehr) - die Pfadreihe so oft gehen, bis sie
+    // die Schwelle erreicht, höchstens zwölfmal; die Kontrollreihe bleibt bei einem Gang
+    var pfadkachel = w.Map.GetTile(sx + 5, pfadY);
+    float schwelle = AgeOfEvolutions.Core.Data.TileMap.ROAD_WEAR_MIN - 0.001f;
+    int gaenge = 1;
+    while (gaenge < 12 && Enumerable.Range(sx, 10).Any(x => w.Map.GetTile(x, pfadY).Wear < schwelle))
+    {
+        lauf(pfadY);
+        gaenge++;
+    }
+    if (pfadkachel.Wear < schwelle)
+        verstoesse.Add($"{wer}: nach {gaenge} Gängen ist die Reihe kein Trampelpfad (Wear {pfadkachel.Wear:0.00})");
+    if (pfadkachel.RoadLevel != 0)
+        verstoesse.Add($"{wer}: Dunkle Zeit — der Pfad hat Stufe {pfadkachel.RoadLevel}, erwartet 0");
+
+    // 2) Aufstieg auf die Feudalzeit: die Trampelpfade werden zu Feldwegen.
+    //    Der Aufstieg läuft über den Bildschirm (UpdateAges meldet das neue
+    //    Zeitalter und hebt die Pfade auf die neue Stufe).
+    foreach (var r in new[] { Resource.Wood, Resource.Stone, Resource.Gold, Resource.Food })
+        w.P1.Resources.Add(r, 20000);
+    var ages = w.P1.Ages;
+    ages.TryStart(w.P1.Resources);
+    w.Call("UpdateAges", 2000f);
+    if (ages.Current != Age.Feudal)
+    {
+        verstoesse.Add($"{wer}: Aufstieg auf die Feudalzeit im Test gescheitert (jetzt {ages.Current})");
+        return;
+    }
+    for (int x = sx; x < sx + 10; x++)
+        if (w.Map.GetTile(x, pfadY).RoadLevel != 1)
+        {
+            verstoesse.Add($"{wer}: nach dem Aufstieg ist Kachel ({x},{pfadY}) Stufe {w.Map.GetTile(x, pfadY).RoadLevel}, erwartet 1");
+            return;
+        }
+    // Ein einzelner Gang macht keinen Weg (C16): die Kontrollreihe bleibt Wiese
+    if (w.Map.GetTile(sx + 5, refY).RoadLevel != 0)
+        verstoesse.Add($"{wer}: die nur einmal begangene Kontrollreihe wurde beim Aufstieg Weg (Stufe {w.Map.GetTile(sx + 5, refY).RoadLevel})");
+    // Die unbetretene Reihe bleibt Wiese - nur ein Weg vom Stadtzentrum zum Wegenetz (C16)
+    // darf sie beim Aufstieg kreuzen, also höchstens ein, zwei Kacheln
+    int neuWege = Enumerable.Range(sx, 11).Count(x => w.Map.GetTile(x, neuY).RoadLevel != 0);
+    if (neuWege > 2)
+        verstoesse.Add($"{wer}: unbetretene Reihe hat nach dem Aufstieg {neuWege} Wegkacheln, erwartet höchstens 2");
+
+    // 3) Auf dem Feldweg läuft der Läufer rund 20 % schneller als auf der Wiese.
+    float tFeldweg = lauf(pfadY);
+    if (tFeldweg >= 0.92f * tWiese)
+        verstoesse.Add($"{wer}: Feudalzeit — Feldweg {tFeldweg:0.00} s gegen {tWiese:0.00} s Wiese, erwartet rund 20 % schneller");
+    if (tFeldweg <= 0.70f * tWiese)
+        verstoesse.Add($"{wer}: Feudalzeit — Feldweg {tFeldweg:0.00} s ist unverhältnismäßig schnell (Wiese {tWiese:0.00} s)");
+
+    // 4) Neue Tritte in der Feudalzeit: ein Gang macht noch keinen Weg und keinen Bonus; nach
+    //    sechs Gängen ist die Reihe Weg (Stufe 1), und der siebte Gang ist rund 20 % schneller.
+    float tNeuErst = lauf(neuY);
+    var neuekachel = w.Map.GetTile(sx + 5, neuY);
+    if (neuekachel.RoadLevel != 0)
+        verstoesse.Add($"{wer}: nach einem Gang in der Feudalzeit ist die neue Reihe schon Weg (Stufe {neuekachel.RoadLevel})");
+    if (Math.Abs(tNeuErst - tWiese) > 0.10f * tWiese)
+        verstoesse.Add($"{wer}: erster Gang über die neue Reihe {tNeuErst:0.00} s gegen {tWiese:0.00} s Wiese, erwartet gleich schnell");
+    int neuGaenge = 1;
+    while (neuGaenge < 12 && Enumerable.Range(sx, 10).Any(x => w.Map.GetTile(x, neuY).RoadLevel < 1))
+    {
+        lauf(neuY);
+        neuGaenge++;
+    }
+    if (neuekachel.RoadLevel != 1)
+        verstoesse.Add($"{wer}: nach {neuGaenge} Gängen in der Feudalzeit ist die neue Reihe Stufe {neuekachel.RoadLevel}, erwartet 1");
+    float tNeu = lauf(neuY);
+    if (tNeu >= 0.92f * tWiese)
+        verstoesse.Add($"{wer}: neuer Weg {tNeu:0.00} s — nicht rund 20 % schneller als die Wiese ({tWiese:0.00} s)");
+    if (tNeu <= 0.70f * tWiese)
+        verstoesse.Add($"{wer}: neuer Weg {tNeu:0.00} s — unverhältnismäßig schnell (Wiese {tWiese:0.00} s)");
+
+    // 5) Jede weitere Zeit hebt die Stufen an: Ritterzeit 2, Imperialzeit 3.
+    foreach (var stufe in new (Age Zeitalter, int Stufe)[]
+    {
+        (Age.Castle, 2), (Age.Imperial, 3),
+    })
+    {
+        foreach (var r in new[] { Resource.Wood, Resource.Stone, Resource.Gold, Resource.Food })
+            w.P1.Resources.Add(r, 20000);
+        ages.TryStart(w.P1.Resources);
+        w.Call("UpdateAges", 2000f);
+        if (ages.Current != stufe.Zeitalter)
+        {
+            verstoesse.Add($"{wer}: Aufstieg auf {stufe.Zeitalter} im Test gescheitert (jetzt {ages.Current})");
+            return;
+        }
+        for (int x = sx; x < sx + 10; x++)
+            if (w.Map.GetTile(x, pfadY).RoadLevel != stufe.Stufe)
+            {
+                verstoesse.Add($"{wer}: {stufe.Zeitalter} — Kachel ({x},{pfadY}) ist Stufe {w.Map.GetTile(x, pfadY).RoadLevel}, erwartet {stufe.Stufe}");
+                return;
+            }
+        if (w.Map.GetTile(sx + 5, neuY).RoadLevel != stufe.Stufe)
+            verstoesse.Add($"{wer}: {stufe.Zeitalter} — neue Reihe ist Stufe {w.Map.GetTile(sx + 5, neuY).RoadLevel}, erwartet {stufe.Stufe}");
+    }
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: Dunkle Zeit {tWiese:0.0} / {tPfadDunkel:0.0} s gleich schnell, "
+                          + $"Pfad nach {gaenge} Gängen, Feldweg {tFeldweg:0.0} s (~20 % schneller), ein Gang kein Weg "
+                          + $"({tNeuErst:0.0} s), nach {neuGaenge} Gängen Weg ({tNeu:0.0} s), Stufen 1 → 2 → 3 gestiegen");
+}
+
+// Boden im Nebel (G14). Der Nutzer (2026-10-16): „Sichtbares gelende verändert den gras typ
+// obwohl man niemanden dort sieht. Das sollte nicht sein. Auch wenn tiere durchlaufen die man
+// nicht sieht sollte sich das Gras nicht ändern.“ Das Lebendbild des Bodenshaders (und die
+// Büschel des hohen Grases) zeigt im Nebel den zuletzt gesehenen Stand: ein Trampelpfad, ein
+// Weg oder ein Tier dort ändert nichts, bis wieder jemand hinsieht - dann sofort.
+static void NebelBoden(int karte, List<string> verstoesse)
+{
+    var wer = $"Karte {karte}, Boden im Nebel";
+    int vorher = verstoesse.Count;
+    var w = new Welt();
+    w.Map.UpdateFogOfWarForPlayer(0, w.Map.Units);
+    w.Call("UpdateGroundMemory", true);
+    var daten = (Color[])w.Get("_groundLiveData");
+    if (daten == null || daten.Length != w.Map.Width * w.Map.Height)
+    {
+        verstoesse.Add($"{wer}: UpdateGroundMemory legt kein Lebendbild in Kartengröße an");
+        return;
+    }
+    float hoch(int x, int y) => (float)w.Call("TallGrassAt", x, y);
+    float gesehen(int x, int y) => (float)w.Call("SeenTallGrassAt", x, y);
+
+    // Zwei Wiesenkacheln mit hohem Gras im Nebel (A, B) und eine in Sicht (C)
+    (int X, int Y)? suche(bool sichtbar, (int X, int Y)? ausser = null)
+    {
+        for (int x = 2; x < w.Map.Width - 2; x++)
+            for (int y = 2; y < w.Map.Height - 2; y++)
+            {
+                var t = w.Map.GetTile(x, y);
+                if (t.Type == TileType.Grassland && string.IsNullOrEmpty(t.Building) && t.Food == FoodSource.None
+                    && t.ResourceType == null && t.Wear <= 0f && t.RoadLevel == 0 && hoch(x, y) > 0.3f
+                    && w.Map.IsTileVisible(x, y, 0) == sichtbar && (x, y) != ausser
+                    && !w.Map.Units.Any(u => w.Map.WorldToGrid(u.Position) == new Vector2(x, y)))
+                    return (x, y);
+            }
+        return null;
+    }
+    if (suche(false) is not { } a || suche(false, a) is not { } b || suche(true) is not { } c)
+    {
+        Console.WriteLine($"      {wer}: keine passenden Kacheln mit hohem Gras - übersprungen");
+        return;
+    }
+    int idx((int X, int Y) k) => k.Y * w.Map.Width + k.X;
+    var aVorher = daten[idx(a)];
+    float aHochVorher = gesehen(a.X, a.Y);
+    if (Math.Abs(aHochVorher - aVorher.A / 255f) > 0.001f || aHochVorher <= 0.3f)
+        verstoesse.Add($"{wer}: SeenTallGrassAt {aHochVorher:0.00} passt nicht zum Lebendbild ({aVorher.A / 255f:0.00})");
+
+    // Im Nebel geschieht etwas: ein unsichtbarer Gegner tritt einen Pfad aus, ein Tier zieht
+    // durch, ein Weg entsteht - und in Sicht wird ebenfalls getreten
+    for (int i = 0; i < 25; i++)
+    {
+        w.Map.Trample(a.X, a.Y);
+        w.Map.Trample(b.X, b.Y);
+        w.Map.Trample(c.X, c.Y);
+    }
+    w.Map.GetTile(a.X, a.Y).Food = FoodSource.Sheep;
+    w.Map.GetTile(b.X, b.Y).RoadLevel = 1;
+    w.Call("UpdateGroundMemory", false);
+    daten = (Color[])w.Get("_groundLiveData");
+    if (daten[idx(a)] != aVorher)
+        verstoesse.Add($"{wer}: im Nebel änderte sich der Boden bei {a} (Pfad und Tier): {aVorher} -> {daten[idx(a)]}");
+    if (Math.Abs(gesehen(a.X, a.Y) - aHochVorher) > 0.001f)
+        verstoesse.Add($"{wer}: im Nebel wichen die Grasbüschel bei {a} dem unsichtbaren Tier ({aHochVorher:0.00} -> {gesehen(a.X, a.Y):0.00})");
+    if (daten[idx(b)].R > 10)
+        verstoesse.Add($"{wer}: im Nebel erschien bei {b} ein Trampelpfad (rot {daten[idx(b)].R})");
+    // Die Wegkarte (C16) merkt sich ebenfalls nur das Gesehene
+    var wegkarte = (Color[])w.Get("_roadMapData");
+    if (wegkarte == null || wegkarte[idx(b)].R > 10)
+        verstoesse.Add($"{wer}: im Nebel erschien bei {b} ein Weg in der Wegkarte");
+    if (daten[idx(c)].R < 200)
+        verstoesse.Add($"{wer}: in Sicht wurde der Trampelpfad bei {c} nicht nachgezogen (rot {daten[idx(c)].R})");
+
+    // Jemand sieht hin: dann gilt sofort der Ist-Zustand
+    var spaeher = w.Dorfbewohner().First();
+    spaeher.Position = w.Map.GridToWorld(new Vector2(a.X + 1, a.Y));
+    w.Map.UpdateFogOfWarForPlayer(0, w.Map.Units);
+    if (!w.Map.IsTileVisible(a.X, a.Y, 0))
+    {
+        verstoesse.Add($"{wer}: der Dorfbewohner neben {a} sieht die Kachel nicht - Prüfung unmöglich");
+        return;
+    }
+    w.Call("UpdateGroundMemory", false);
+    daten = (Color[])w.Get("_groundLiveData");
+    if (daten[idx(a)].R < 200 || daten[idx(a)].A > 5 || gesehen(a.X, a.Y) > 0.02f)
+        verstoesse.Add($"{wer}: in Sicht zeigt {a} den Pfad und das Tier nicht (rot {daten[idx(a)].R}, Gras {daten[idx(a)].A})");
+
+    // Ein Komplettabgleich (Spielbeginn, Spielstand laden) nimmt auch den Nebel mit
+    if (!w.Map.IsTileVisible(b.X, b.Y, 0))
+    {
+        w.Call("UpdateGroundMemory", true);
+        daten = (Color[])w.Get("_groundLiveData");
+        wegkarte = (Color[])w.Get("_roadMapData");
+        if (wegkarte[idx(b)].R < 250)
+            verstoesse.Add($"{wer}: UpdateGroundMemory(true) übernimmt den Weg im Nebel bei {b} nicht in die Wegkarte");
+        // Unter einem Weg nur niedergetretenes Gras (rot höchstens 0,35), keine nackte Erde (C16)
+        if (daten[idx(b)].R > 92 || daten[idx(b)].R < 80)
+            verstoesse.Add($"{wer}: unter dem Weg bei {b} steht rot {daten[idx(b)].R} im Lebendbild, erwartet 0,35 (~89)");
+    }
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: Pfad, Tier und Weg im Nebel unsichtbar ({a}, {b}), in Sicht sofort ({c}), "
+                          + "beim Hinsehen nachgezogen, Komplettabgleich nimmt den Nebel mit");
+}
+
+// Wegkarte (C16): welche Kacheln der Wege-Shader als Weg zeichnet (RoadDrawnAt) und wie
+// RoadDrawData schräge Lücken auffüllt - der Shader verbindet nur gerade Nachbarn.
+static void Wegkarte(int karte, List<string> verstoesse)
+{
+    var wer = $"Karte {karte}, Wegkarte";
+    int vorher = verstoesse.Count;
+    var w = new Welt();
+    // Ein freier 5x5-Fleck Wiese
+    (int X, int Y)? fleck = null;
+    for (int y = 2; fleck == null && y < w.Map.Height - 7; y++)
+        for (int x = 2; fleck == null && x < w.Map.Width - 7; x++)
+        {
+            bool frei = true;
+            for (int dx = 0; frei && dx < 5; dx++)
+                for (int dy = 0; frei && dy < 5; dy++)
+                {
+                    var t = w.Map.GetTile(x + dx, y + dy);
+                    frei = t.Type == TileType.Grassland && string.IsNullOrEmpty(t.Building) && !t.Farm
+                           && t.ResourceType == null && t.Food == FoodSource.None && t.RoadLevel == 0;
+                }
+            if (frei)
+                fleck = (x, y);
+        }
+    if (fleck is not { } f)
+    {
+        Console.WriteLine($"      {wer}: kein freier Fleck - übersprungen");
+        return;
+    }
+    bool gezeichnet(int dx, int dy) => (bool)w.Call("RoadDrawnAt", f.X + dx, f.Y + dy);
+    AgeOfEvolutions.Core.Data.Tile kachel(int dx, int dy) => w.Map.GetTile(f.X + dx, f.Y + dy);
+
+    // RoadDrawnAt: Weg auf Wiese ja; ein Schaf darauf stört nicht; Gold, Feld und Gebäude nicht
+    kachel(0, 0).RoadLevel = 1;
+    if (!gezeichnet(0, 0))
+        verstoesse.Add($"{wer}: ein Weg auf der Wiese wird nicht gezeichnet");
+    if (gezeichnet(1, 0))
+        verstoesse.Add($"{wer}: Wiese ohne Weg-Stufe wird als Weg gezeichnet");
+    kachel(0, 0).Food = FoodSource.Sheep;
+    kachel(0, 0).ResourceType = Resource.Food;
+    if (!gezeichnet(0, 0))
+        verstoesse.Add($"{wer}: ein Schaf auf dem Weg unterbricht ihn");
+    kachel(0, 0).Food = FoodSource.None;
+    kachel(0, 0).ResourceType = null;
+    kachel(4, 4).RoadLevel = 1;
+    kachel(4, 4).ResourceType = Resource.Gold;
+    if (gezeichnet(4, 4))
+        verstoesse.Add($"{wer}: auf einer Goldkachel wird ein Weg gezeichnet");
+    kachel(4, 4).ResourceType = null;
+    kachel(4, 4).Farm = true;
+    if (gezeichnet(4, 4))
+        verstoesse.Add($"{wer}: auf einem Feld wird ein Weg gezeichnet");
+    kachel(4, 4).Farm = false;
+    kachel(4, 4).RoadLevel = 0;
+
+    // RoadDrawData: (0, 0) und (1, 1) nur schräg benachbart - (1, 0) wird aufgefüllt;
+    // (2, 3) und (3, 2) schräg nach rechts oben, (3, 3) ist ein Gebäude - dann (2, 2)
+    kachel(1, 1).RoadLevel = 1;
+    kachel(2, 3).RoadLevel = 1;
+    kachel(3, 2).RoadLevel = 1;
+    w.Map.AddBuilding(f.X + 3, f.Y + 3, "Palisadenmauer", 0, 1);
+    w.Map.UpdateFogOfWarForPlayer(0, w.Map.Units);
+    w.Call("UpdateGroundMemory", true);
+    var gesehen = (Color[])w.Get("_roadMapData");
+    var zeichnen = (Color[])w.Call("RoadDrawData");
+    int i(int dx, int dy) => (f.Y + dy) * w.Map.Width + f.X + dx;
+    if (gesehen[i(1, 0)].R > 10 || gesehen[i(3, 3)].G < 250)
+        verstoesse.Add($"{wer}: _roadMapData stimmt nicht (Lücke {gesehen[i(1, 0)].R}, Gebäude {gesehen[i(3, 3)].G})");
+    if (zeichnen[i(1, 0)].R < 250 || zeichnen[i(0, 1)].R > 10)
+        verstoesse.Add($"{wer}: die schräge Lücke (0,0)-(1,1) ist nicht über (1,0) gefüllt");
+    if (zeichnen[i(2, 2)].R < 250 || zeichnen[i(3, 3)].R > 10)
+        verstoesse.Add($"{wer}: die Lücke (2,3)-(3,2) ist nicht über (2,2) gefüllt (dort, wo kein Gebäude steht)");
+    if (gesehen[i(2, 2)].R > 10)
+        verstoesse.Add($"{wer}: RoadDrawData hat das Gesehene (_roadMapData) verändert");
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: Wiese ja, Schaf stört nicht, Gold und Feld nicht, schräge Lücken über die freie Kachel gefüllt");
+}
+
+// Wege von Gebäuden (C16): ab der Feudalzeit führt von jedem fertigen Gebäude ein
+// Weg zum Wegenetz oder zum Stadtzentrum. In der Dunklen Zeit nicht; beim Aufstieg
+// bekommen die schon stehenden Gebäude ihren Weg, danach jedes neu fertige. Mauern
+// bleiben ohne Weg, und wer selbst noch in der Dunklen Zeit ist, bekommt keinen -
+// auch wenn der andere Spieler weiter ist. Gebaut wird ohne Laufweg (der Erbauer
+// steht schon an der Baustelle), damit kein Trampelpfad das Ergebnis verfälscht.
+static void GebaeudeWege(int karte, List<string> verstoesse)
+{
+    var wer = $"Karte {karte}, Gebäudewege";
+    int vorher = verstoesse.Count;
+    var w = new Welt();
+    var tc1 = w.Map.Buildings.First(b => b.OwnerId == 0 && b.Core.BuildingType == BuildingType.TownCenter);
+    var tc2 = w.Map.Buildings.First(b => b.OwnerId == 1 && b.Core.BuildingType == BuildingType.TownCenter);
+
+    int wege()
+    {
+        int n = 0;
+        for (int x = 0; x < w.Map.Width; x++)
+            for (int y = 0; y < w.Map.Height; y++)
+                if (w.Map.GetTile(x, y).RoadLevel >= 1)
+                    n++;
+        return n;
+    }
+
+    bool imRing(Building g, int x, int y)
+        => x >= g.X - 1 && x <= g.X + g.Width && y >= g.Y - 1 && y <= g.Y + g.Height
+           && !(x >= g.X && x < g.X + g.Width && y >= g.Y && y < g.Y + g.Height);
+
+    // Ob Wegkacheln (vier Nachbarn) vom Ring um von bis zum Ring um bis reichen
+    bool kette(Building von, Building bis)
+    {
+        var offen = new Queue<(int X, int Y)>();
+        var gesehen = new HashSet<(int, int)>();
+        for (int x = von.X - 1; x <= von.X + von.Width; x++)
+            for (int y = von.Y - 1; y <= von.Y + von.Height; y++)
+                if (imRing(von, x, y) && w.Map.GetTile(x, y) is { RoadLevel: >= 1 } && gesehen.Add((x, y)))
+                    offen.Enqueue((x, y));
+        while (offen.Count > 0)
+        {
+            var (x, y) = offen.Dequeue();
+            if (imRing(bis, x, y))
+                return true;
+            foreach (var n in new[] { (x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1) })
+                if (w.Map.GetTile(n.Item1, n.Item2) is { RoadLevel: >= 1 } && gesehen.Add(n))
+                    offen.Enqueue(n);
+        }
+        return false;
+    }
+
+    bool ringOhneWeg(Building g)
+    {
+        for (int x = g.X - 1; x <= g.X + g.Width; x++)
+            for (int y = g.Y - 1; y <= g.Y + g.Height; y++)
+                if (imRing(g, x, y) && w.Map.GetTile(x, y) is { RoadLevel: >= 1 })
+                    return false;
+        return true;
+    }
+
+    // Ob ein Gebäude auf (x, y) überhaupt einen Weg bekommen kann: von der Reihe unter der
+    // Grundfläche über Kacheln, die einen Weg tragen dürfen, höchstens ROAD_CONNECT_MAX_TILES
+    // lang bis zu einem Weg oder an das Stadtzentrum tc - wie TileMap.ConnectBuilding. Ohne
+    // das wählte die Prüfung auf mancher Karte einen Platz hinter Wald oder Gold, an dem es
+    // zu Recht keinen Weg gibt.
+    bool anschliessbar(Building tc, int x, int y, int groesse)
+    {
+        bool fuss(int fx, int fy) => fx >= x && fx < x + groesse && fy >= y && fy < y + groesse;
+        var laenge = new Dictionary<(int, int), int>();
+        var offen = new Queue<(int X, int Y)>();
+        for (int fx = x; fx < x + groesse; fx++)
+            if (w.Map.CanCarryRoad(fx, y + groesse))
+            {
+                laenge[(fx, y + groesse)] = 1;
+                offen.Enqueue((fx, y + groesse));
+            }
+        while (offen.Count > 0)
+        {
+            var (cx, cy) = offen.Dequeue();
+            if (w.Map.GetTile(cx, cy).RoadLevel >= 1 || imRing(tc, cx, cy))
+                return true;
+            if (laenge[(cx, cy)] >= AgeOfEvolutions.Core.Data.TileMap.ROAD_CONNECT_MAX_TILES)
+                continue;
+            foreach (var n in new[] { (cx + 1, cy), (cx - 1, cy), (cx, cy + 1), (cx, cy - 1) })
+                if (!laenge.ContainsKey(n) && !fuss(n.Item1, n.Item2) && w.Map.CanCarryRoad(n.Item1, n.Item2))
+                {
+                    laenge[n] = laenge[(cx, cy)] + 1;
+                    offen.Enqueue(n);
+                }
+        }
+        return false;
+    }
+
+    // Ein Bauplatz etwa abstand Kacheln von der Mitte des Stadtzentrums, auf und um
+    // den noch kein Weg liegt, mit freier Kachel unter der Vorderseite und möglichem Anschluss
+    Vector2? platz(Building tc, int groesse, float abstand)
+    {
+        var mitte = new Vector2(tc.X + tc.Width / 2f, tc.Y + tc.Height / 2f);
+        Vector2? bester = null;
+        float besterFehler = float.MaxValue;
+        for (int x = 1; x + groesse < w.Map.Width - 1; x++)
+            for (int y = 1; y + groesse < w.Map.Height - 1; y++)
+            {
+                if (!w.Map.CanPlaceBuilding(x, y, groesse))
+                    continue;
+                bool frei = w.Map.CanCarryRoad(x, y + groesse);
+                for (int bx = x - 1; frei && bx <= x + groesse; bx++)
+                    for (int by = y - 1; frei && by <= y + groesse; by++)
+                        frei = w.Map.GetTile(bx, by) is { RoadLevel: 0 }
+                               && !w.Map.Units.Any(u => w.Map.WorldToGrid(u.Position) == new Vector2(bx, by));
+                if (!frei)
+                    continue;
+                float fehler = Math.Abs(Vector2.Distance(new Vector2(x + groesse / 2f, y + groesse / 2f), mitte) - abstand);
+                if (fehler < besterFehler && anschliessbar(tc, x, y, groesse))
+                {
+                    besterFehler = fehler;
+                    bester = new Vector2(x, y);
+                }
+            }
+        return bester;
+    }
+
+    Building fertig(BuildingType typ, string name, int owner, Vector2 p, int groesse)
+    {
+        var b = w.Map.AddBuilding((int)p.X, (int)p.Y, name, owner, groesse);
+        b.Construction = new AoE.Core.Economy.Construction(BuildingRules.BuildSecondsOf(typ));
+        var bauer = w.Map.Units.First(u => u.OwnerId == owner && u.Core is CoreVillager && u.BuildSite == null);
+        bauer.BuildSite = b;
+        bauer.State = UnitState.Building;
+        bauer.Path?.Clear();
+        w.Call("UpdateConstruction", 10000f);
+        if (!b.IsComplete)
+            verstoesse.Add($"{wer}: {name} von Spieler {owner + 1} wurde im Test nicht fertig");
+        return b;
+    }
+
+    void aufstieg(Player p, Age ziel)
+    {
+        foreach (var r in new[] { Resource.Wood, Resource.Stone, Resource.Gold, Resource.Food })
+            p.Resources.Add(r, 20000);
+        p.Ages.TryStart(p.Resources);
+        w.Call("UpdateAges", 2000f);
+        if (p.Ages.Current != ziel)
+            verstoesse.Add($"{wer}: Aufstieg auf {ziel} im Test gescheitert (jetzt {p.Ages.Current})");
+    }
+
+    // 1) Dunkle Zeit: ein fertiges Haus bekommt keinen Weg
+    if (platz(tc1, 2, 7) is not { } pA)
+    {
+        verstoesse.Add($"{wer}: kein Bauplatz für das erste Haus");
+        return;
+    }
+    var hausA = fertig(BuildingType.House, "Haus", 0, pA, 2);
+    if (wege() != 0)
+        verstoesse.Add($"{wer}: Dunkle Zeit - nach dem Haus liegen {wege()} Wegkacheln, erwartet keine");
+
+    // 2) Aufstieg auf die Feudalzeit: das Haus aus der Dunklen Zeit bekommt seinen Weg
+    aufstieg(w.P1, Age.Feudal);
+    if (verstoesse.Count > vorher)
+        return;
+    int nachAufstieg = wege();
+    if (!kette(hausA, tc1))
+        verstoesse.Add($"{wer}: nach dem Aufstieg führt vom Haus ({hausA.X},{hausA.Y}) kein Weg zum Stadtzentrum ({nachAufstieg} Wegkacheln)");
+    if (nachAufstieg > AgeOfEvolutions.Core.Data.TileMap.ROAD_CONNECT_MAX_TILES)
+        verstoesse.Add($"{wer}: nach dem Aufstieg {nachAufstieg} Wegkacheln - mehr als ein Weg vom Haus");
+
+    // 3) Feudalzeit: ein neues Haus bekommt beim Fertigwerden seinen Weg
+    if (platz(tc1, 2, 11) is not { } pB)
+    {
+        verstoesse.Add($"{wer}: kein Bauplatz für das zweite Haus");
+        return;
+    }
+    var hausB = fertig(BuildingType.House, "Haus", 0, pB, 2);
+    int nachB = wege();
+    if (nachB <= nachAufstieg)
+        verstoesse.Add($"{wer}: Feudalzeit - das neue Haus ({hausB.X},{hausB.Y}) hat keinen Weg bekommen");
+    else if (!kette(hausB, tc1))
+        verstoesse.Add($"{wer}: Feudalzeit - vom neuen Haus ({hausB.X},{hausB.Y}) führt kein Weg zum Stadtzentrum");
+
+    // 4) Eine Mauer bekommt keinen Weg
+    if (platz(tc1, 1, 9) is { } pM)
+    {
+        fertig(BuildingType.PalisadeWall, "Palisadenmauer", 0, pM, 1);
+        if (wege() != nachB)
+            verstoesse.Add($"{wer}: die Palisadenmauer hat {wege() - nachB} Wegkacheln bekommen, erwartet keine");
+    }
+
+    // 5) Der Gegner ist noch in der Dunklen Zeit: sein Haus bleibt ohne Weg ...
+    if (platz(tc2, 2, 7) is not { } pC)
+    {
+        verstoesse.Add($"{wer}: kein Bauplatz für das Haus des Gegners");
+        return;
+    }
+    int vorC = wege();
+    var hausC = fertig(BuildingType.House, "Haus", 1, pC, 2);
+    if (wege() != vorC || !ringOhneWeg(hausC))
+        verstoesse.Add($"{wer}: Gegner in der Dunklen Zeit - sein Haus hat einen Weg bekommen ({wege() - vorC} Kacheln)");
+
+    // ... bis er selbst in die Feudalzeit aufsteigt
+    aufstieg(w.P2, Age.Feudal);
+    if (verstoesse.Count == vorher && !kette(hausC, tc2))
+        verstoesse.Add($"{wer}: nach dem Aufstieg des Gegners führt von seinem Haus kein Weg zu seinem Stadtzentrum");
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: Dunkle Zeit kein Weg, Aufstieg {nachAufstieg} Kacheln, neues Haus +{nachB - nachAufstieg}, "
+                          + "Mauer ohne Weg, Gegner erst nach seinem Aufstieg");
+}
+
+// Prüft, dass eine Reihe frei ist: Gras oder Sand, keine Ressource, kein
+// Gebäude, kein Feld, kein Weg — begehbar.
+static bool ReiheFrei(TileMap map, int x, int y, int laenge)
+{
+    if (y < 0 || y >= map.Height || x < 0 || x + laenge > map.Width)
+        return false;
+    for (int i = 0; i < laenge; i++)
+    {
+        var t = map.GetTile(x + i, y);
+        if (t == null || t.RoadLevel >= 1
+            || !string.IsNullOrEmpty(t.Building) || t.Farm
+            || t.ResourceType != null || t.Food != FoodSource.None
+            || t.Type is not (TileType.Grassland or TileType.Sand))
+            return false;
+    }
+    return true;
+}
+
+// Reparatur (C15): beschädigte Gebäude lassen sich wieder herstellen —
+// Kosten und Dauer fallen anteilig zum fehlenden Schadensvolumen: zu 50 %
+// angeschlagen kostet und dauert die Reparatur rund die Hälfte. Mehr
+// Arbeiter beschleunigen (AoE-II-Formel), ein unverletztes Gebäude wird
+// weder repariert noch bezahlt.
+static void Reparatur(int karte, List<string> verstoesse)
+{
+    string wer = $"Karte {karte}, Reparatur";
+    var w = new Welt();
+    int vorher = verstoesse.Count;
+    var arbeiter = w.Dorfbewohner().ToList();
+    if (arbeiter.Count < 3)
+    {
+        verstoesse.Add($"{wer}: weniger als 3 Dorfbewohner auf der Karte");
+        return;
+    }
+
+    // Haus in der Nähe des Dorfs (1 Erbauer), danach zu 50 % beschädigt.
+    w.Waehle(new List<Unit> { arbeiter[0] });
+    var platz = w.Bauplatz(BuildingType.House, arbeiter[0], 3);
+    w.Call("PlaceBuilding", BuildingType.House, platz);
+    var haus = w.Map.Buildings.Last();
+    w.LaufeBis(() => haus.IsComplete, 60f);
+    if (!haus.IsComplete)
+    {
+        verstoesse.Add($"{wer}: das Haus ist nach 60 s nicht fertig");
+        return;
+    }
+    int max = haus.MaxHealth;
+    haus.Health = max / 2;
+    var erwartet = BuildingRules.RepairCostOf(BuildingType.House, haus.Health, max);
+
+    // 1) Ein Reparateur: anteilige Kosten vor dem Auftrag, anteilige
+    //    Dauer bis zum vollen Zustand.
+    int holzVorher = w.P1.Resources[Resource.Wood];
+    w.Waehle(new List<Unit> { arbeiter[1] });
+    w.Linksklick(w.Map.GridToWorld(new Vector2(haus.X + 1, haus.Y + 1)));
+    w.LaufeBis(() => false, 0.4f);
+    int bezahlt = holzVorher - w.P1.Resources[Resource.Wood];
+    if (bezahlt != erwartet[Resource.Wood])
+        verstoesse.Add($"{wer}: 50 % Schaden kostet {bezahlt} Holz, erwartet {erwartet[Resource.Wood]} (die Hälfte von {25})");
+    if (haus.Repair == null)
+    {
+        verstoesse.Add($"{wer}: nach dem Klick auf das beschädigte Haus fehlt der Reparatur-Auftrag");
+        return;
+    }
+    if (arbeiter[1].BuildSite != haus)
+        verstoesse.Add($"{wer}: der Dorfbewohner wurde nicht zur Reparatur geschickt");
+    w.LaufeBis(() => arbeiter[1].BuildSite == haus && arbeiter[1].State == UnitState.Building, 30f);
+    float tEins = w.LaufeBis(() => haus.Health >= max, 90f);
+    float soll = BuildingRules.RepairSecondsOf(BuildingType.House, max / 2, max);
+    if (haus.Health < max)
+        verstoesse.Add($"{wer}: nach 90 s Reparatur stehen immer noch {haus.Health}/{max} LP");
+    if (Math.Abs(tEins - soll) > 0.2f * soll)
+        verstoesse.Add($"{wer}: 1 Reparateur braucht {tEins:0.0} s, erwartet rund {soll:0.0} s (die halbe Bauzeit)");
+    w.LaufeBis(() => false, 0.5f);
+    if (haus.Repair != null)
+        verstoesse.Add($"{wer}: nach der Fertigstellung fehlt der Auftrag");
+    if (arbeiter[1].BuildSite == haus)
+        verstoesse.Add($"{wer}: nach der Fertigstellung fehlt der Arbeiter");
+
+    // 2) Mehr Reparateure sind schneller (2 + n-2)/3 = (n + 2) / 3 schnell).
+    w.Waehle(new List<Unit> { arbeiter[0] });
+    var platzB = w.Bauplatz(BuildingType.House, arbeiter[0], 3, nahAn: platz, hoechstens: 8);
+    w.Call("PlaceBuilding", BuildingType.House, platzB);
+    var hausB = w.Map.Buildings.Last();
+    w.LaufeBis(() => hausB.IsComplete, 60f);
+    if (!hausB.IsComplete)
+    {
+        verstoesse.Add($"{wer}: das zweite Haus ist nach 60 s nicht fertig");
+        return;
+    }
+    hausB.Health = max / 2;
+    w.Waehle(new List<Unit> { arbeiter[1], arbeiter[2] });
+    w.Linksklick(w.Map.GridToWorld(new Vector2(hausB.X + 1, hausB.Y + 1)));
+    w.LaufeBis(() => false, 0.1f);   // den Befehl ankommen lassen
+    if (hausB.Repair == null)
+    {
+        verstoesse.Add($"{wer}: beim zweiten Haus fehlt der Reparatur-Auftrag");
+        return;
+    }
+    int reparateure = Math.Max(1, arbeiter.Count(u => u.BuildSite == hausB));
+    w.LaufeBis(() => arbeiter.Any(u => u.BuildSite == hausB && u.State == UnitState.Building), 30f);
+    float tViele = w.LaufeBis(() => hausB.Health >= max, 90f);
+    if (hausB.Health < max)
+        verstoesse.Add($"{wer}: das zweite Haus ist nach 90 s nicht repariert");
+    float vieleSoll = soll / ((reparateure + 2f) / 3f);
+    if (Math.Abs(tViele - vieleSoll) > 0.2f * vieleSoll)
+        verstoesse.Add($"{wer}: {reparateure} Reparateure brauchen {tViele:0.0} s, erwartet rund {vieleSoll:0.0} s");
+    if (reparateure >= 2 && tViele >= tEins)
+        verstoesse.Add($"{wer}: {reparateure} Reparateure ({tViele:0.0} s) sind nicht schneller als einer ({tEins:0.0} s)");
+
+    // 3) Ein unverletztes Gebäude wird weder repariert noch bezahlt.
+    int holzVor3 = w.P1.Resources[Resource.Wood];
+    w.Waehle(new List<Unit> { arbeiter[2] });
+    w.Linksklick(w.Map.GridToWorld(new Vector2(haus.X + 1, haus.Y + 1)));
+    w.LaufeBis(() => false, 0.4f);
+    if (w.P1.Resources[Resource.Wood] != holzVor3)
+        verstoesse.Add($"{wer}: das unverletzte Haus wurde bezahlt ({holzVor3} → {w.P1.Resources[Resource.Wood]})");
+    if (haus.Repair != null)
+        verstoesse.Add($"{wer}: dem unverletzten Haus fehlt ein Reparatur-Auftrag");
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: 50 % Schaden → {bezahlt} Holz (Hälfte) und {tEins:0.0} s mit 1, {tViele:0.0} s mit {reparateure}; unverletzt wird nichts bezahlt");
+}
+
 // Neue Gebäude (L2): unter der ersten Tastenreihe liegt eine zweite mit den Gebäuden,
 // die das Zeitalter freischaltet - Dunkle Zeit Kaserne und Palisadenmauer, ab der
 // Feudalzeit Schießstand, Stall, Schmiede, Markt und Steinmauer, ab der Ritterzeit
@@ -2241,6 +2986,10 @@ static void Neubauten(int karte, List<string> verstoesse)
     {
     foreach (var e in neu)
     {
+        // Stadtzentrum: es gibt genau EINES (Spielregel, DefeatRule) — ein
+        // zweites lässt sich nicht setzen.
+        if (e.Typ == BuildingType.TownCenter)
+            continue;
         w.Waehle(arbeiter);
         w.Call("TogglePlacing", e.Typ);
         var kosten = AoE.Core.Economy.BuildingRules.CostOf(e.Typ);
@@ -2946,9 +3695,13 @@ static void Soldaten(int karte, List<string> verstoesse)
 // Start und braucht so lange, wie TechRules sagt; ein Gebäude forscht eine zur Zeit,
 // verschiedene Gebäude gleichzeitig, und solange es forscht, bildet es nicht aus. Danach
 // wirkt die Forschung auf alles, was der Spieler hat und noch bekommt, nicht auf den Gegner:
-// Webstuhl auf Dorfbewohner, Pferdekummet auf neue Felder, Doppelaxt aufs Holzhacken, die
-// Schmiede auf Miliz, Späher und Bogenschützen, Maurerkunst auf Gebäude. Wird ein
-// forschendes Gebäude zerstört, ist die Forschung wieder offen und die Kosten kommen zurück.
+// Webstuhl auf Dorfbewohner, Pferdekummet auf neue Felder, Doppelaxt aufs Holzhacken,
+// Goldbergbau aufs Goldschürfen, die Schmiede auf Miliz, Späher und Bogenschützen,
+// Maurerkunst auf Gebäude. Und jede Wirkung ist im Kampf beweisbar: die Miliz schlägt
+// mit Schmiedekunst einen Punkt härter zu, der Webstuhl macht einem eigenen Dorfbewohner
+// einen Punkt weniger Schaden an, und Maurerkunst nimmt einem Gebäude einen Punkt ab.
+// Wird ein forschendes Gebäude zerstört, ist die Forschung wieder offen und die Kosten
+// kommen zurück.
 static void Forschung(int karte, List<string> verstoesse)
 {
     const int bw = 2406, bh = 1353;
@@ -3043,6 +3796,10 @@ static void Forschung(int karte, List<string> verstoesse)
         Taste(Keys.Q);                              // ein Dorfbewohner wartet auf den Webstuhl
         int dorfVor = w.Dorfbewohner().Count();
         Starte(tc, Keys.W, Tech.Loom);
+        // Wirkungsbeleg im Kampf: eine fremde Miliz versetzt einen eigenen Dorfbewohner
+        // genau einen Punkt weniger Schaden (Rüstung +1) als vor dem Webstuhl.
+        var angreiferFeind = Neu(UnitType.Militia, 1);
+        int schlagAufDorfVor = angreiferFeind.DamageAgainst(dorf[0]);
         int gold = w.P1.Resources[Resource.Gold];
         Taste(Keys.W);                              // läuft schon: nichts
         if (w.P1.Resources[Resource.Gold] != gold)
@@ -3071,6 +3828,9 @@ static void Forschung(int karte, List<string> verstoesse)
         var feindDorf = w.Map.Units.FirstOrDefault(u => u.OwnerId == 1 && u.Core is CoreVillager);
         if (feindDorf != null && feindDorf.MaxHealth != 25)
             verstoesse.Add($"{wer}: Webstuhl stärkt auch den Gegner ({feindDorf.MaxHealth} LP)");
+        int schlagAufDorfNach = angreiferFeind.DamageAgainst(dorf[0]);
+        if (schlagAufDorfNach != schlagAufDorfVor - 1)
+            verstoesse.Add($"{wer}: Webstuhl - fremde Miliz versetzt dem eigenen Dorfbewohner {schlagAufDorfNach} Schaden, erwartet {schlagAufDorfVor} (vorher) - 1");
         if (HatTaste("W", "Webstuhl"))
             verstoesse.Add($"{wer}: Webstuhl ist erforscht, hat aber noch eine Taste");
         w.LaufeBis(() => w.Dorfbewohner().Count() > dorfVor, 30f);
@@ -3095,6 +3855,10 @@ static void Forschung(int karte, List<string> verstoesse)
         var bogen = Neu(UnitType.Archer, 0);
         var milizFeind = Neu(UnitType.Militia, 1);
         var bogenFeind = Neu(UnitType.Archer, 1);
+
+        // Wirkungsbeleg im Kampf: die eigene Miliz versetzt eine fremde Miliz genau
+        // einen Punkt mehr Schaden (Angriff +1) als vor der Schmiedekunst.
+        int schlagMilizVor = miliz.DamageAgainst(milizFeind);
 
         Starte(muehle, Keys.Q, Tech.HorseCollar);
         Starte(lager, Keys.Q, Tech.DoubleBitAxe);
@@ -3134,6 +3898,9 @@ static void Forschung(int karte, List<string> verstoesse)
             verstoesse.Add($"{wer}: Schmiedekunst - Miliz Angriff {miliz.Core.Stats.BaseAttack}, Späher {spaeher.Core.Stats.BaseAttack}; erwartet 5 und 4");
         if (bogen.Core.Stats.BaseAttack != 4 || milizFeind.Core.Stats.BaseAttack != 4)
             verstoesse.Add($"{wer}: Schmiedekunst wirkt auf Bogenschütze ({bogen.Core.Stats.BaseAttack}) oder gegnerische Miliz ({milizFeind.Core.Stats.BaseAttack})");
+        int schlagMilizNach = miliz.DamageAgainst(milizFeind);
+        if (schlagMilizNach != schlagMilizVor + 1)
+            verstoesse.Add($"{wer}: Schmiedekunst - Miliz versetzt {schlagMilizNach} Schaden, erwartet {schlagMilizVor} (vorher) + 1");
 
         // Doppelaxt: ein Dorfbewohner hackt 20 % schneller, 0,39 * 1,2 Holz je Sekunde
         w.Set("cameraZoom", 1f);
@@ -3168,6 +3935,40 @@ static void Forschung(int karte, List<string> verstoesse)
                     verstoesse.Add($"{wer}: Doppelaxt - {rate:0.000} Holz je Sekunde, erwartet {0.39f * 1.2f:0.000} (ohne 0,390)");
                 else
                     notiz.Add($"Holz {rate:0.000}/s");
+            }
+        }
+
+        // Goldbergbau: Gold wird 15 % schneller gesammelt, 0,39 * 1,15 Gold je Sekunde
+        var goldarbeiter = Neu(UnitType.Villager, 0);
+        Vector2? ader = null;
+        var startAder = w.Map.WorldToGrid(goldarbeiter.Position);
+        for (int x = 0; x < w.Map.Width && ader == null; x++)
+            for (int y = 0; y < w.Map.Height && ader == null; y++)
+                if (w.Map.GetTile(x, y)?.ResourceType == Resource.Gold && w.Map.GetTile(x, y).ResourceAmount >= 20
+                    && Vector2.Distance(startAder, new Vector2(x, y)) < 15)
+                    ader = new Vector2(x, y);
+        if (ader == null)
+            verstoesse.Add($"{wer}: keine Goldader in 15 Kacheln für den Goldbergbau");
+        else
+        {
+            w.Waehle(new List<Unit> { goldarbeiter });
+            w.Linksklick(w.Map.GridToWorld(ader.Value));
+            w.LaufeBis(() => goldarbeiter.Job?.Phase == AoE.Core.Economy.GatherPhase.Gathering, 60f);
+            if (goldarbeiter.Job?.Phase != AoE.Core.Economy.GatherPhase.Gathering)
+                verstoesse.Add($"{wer}: der Goldgräber kommt nicht zu der Ader ({goldarbeiter.Job?.Phase.ToString() ?? "kein Auftrag"})");
+            else
+            {
+                var jobG = goldarbeiter.Job;
+                int anfangG = jobG.Carrying;
+                float tG = w.LaufeBis(() => goldarbeiter.Job != jobG || jobG.Phase != AoE.Core.Economy.GatherPhase.Gathering, 40f);
+                int mengeG = jobG.Carrying - anfangG;
+                float rateG = mengeG / tG;
+                if (mengeG < 5)
+                    verstoesse.Add($"{wer}: Goldbergbau - nur {mengeG} Gold in {tG:0.0} s");
+                else if (Math.Abs(rateG - 0.39f * 1.15f) > 0.02f)
+                    verstoesse.Add($"{wer}: Goldbergbau - {rateG:0.000} Gold je Sekunde, erwartet {0.39f * 1.15f:0.000} (ohne 0,390)");
+                else
+                    notiz.Add($"Gold {rateG:0.000}/s");
             }
         }
 
@@ -3217,6 +4018,9 @@ static void Forschung(int karte, List<string> verstoesse)
         var uni = Setze(BuildingType.University, "Universität", 12);
         int tcLp = tc.MaxHealth, tcRuestung = tc.Core.Stats.BaseArmor, hausLp = haus.MaxHealth, feindLp = tcFeind.MaxHealth;
         uhr = 0;
+        // Wirkungsbeleg im Kampf: dieselbe Miliz versetzt dem eigenen Haus genau einen
+        // Punkt weniger Schaden (Gebäuderüstung +1) als vor der Maurerkunst.
+        int hausSchlagVor = AoE.Core.Combat.BuildingCombat.DamagePerHit(miliz.Core, haus.Core);
         Starte(uni, Keys.Q, Tech.Masonry);
         Warte(Tech.Masonry, ref uhr);
         if (tc.MaxHealth != tcLp + tcLp / 10 || tc.Health != tc.MaxHealth || tc.Core.Stats.BaseArmor != tcRuestung + 1)
@@ -3225,6 +4029,9 @@ static void Forschung(int karte, List<string> verstoesse)
             verstoesse.Add($"{wer}: Maurerkunst - Haus {haus.MaxHealth} LP, erwartet {hausLp + hausLp / 10}");
         if (tcFeind.MaxHealth != feindLp)
             verstoesse.Add($"{wer}: Maurerkunst stärkt das gegnerische Stadtzentrum ({feindLp} -> {tcFeind.MaxHealth})");
+        int hausSchlagNach = AoE.Core.Combat.BuildingCombat.DamagePerHit(miliz.Core, haus.Core);
+        if (hausSchlagNach != hausSchlagVor - 1)
+            verstoesse.Add($"{wer}: Maurerkunst - Miliz versetzt dem Haus {hausSchlagNach} Schaden, erwartet {hausSchlagVor} (vorher) - 1");
         var hp = w.Bauplatz(BuildingType.House, dorf[0], 8);
         w.Call("PlaceBuildingFor", 0, BuildingType.House, hp, new List<Unit>());
         var neuesHaus = w.Map.Buildings.LastOrDefault(b => b.OwnerId == 0 && b.Core.BuildingType == BuildingType.House);
@@ -4167,15 +4974,9 @@ static void Zielwechsel(int karte, List<string> verstoesse)
     var dorf = w.Dorfbewohner().ToList();
     int T = w.Map.TileSize;
 
-    bool Frei(int x, int y) => w.Map.GetTile(x, y) is { } t && w.Map.IsWalkable(x, y)
-        && string.IsNullOrEmpty(t.Building) && !w.Map.Units.Any(u => w.Map.WorldToGrid(u.Position) == new Vector2(x, y));
     IEnumerable<Vector2> Kacheln() => Enumerable.Range(0, w.Map.Width)
         .SelectMany(x => Enumerable.Range(0, w.Map.Height).Select(y => new Vector2(x, y)));
     var start = w.Map.WorldToGrid(dorf[0].Position);
-    Vector2 Platz(float abstand) => Kacheln()
-        .Where(c => c.Y >= 1 && c.Y < w.Map.Height - 1 && c.X >= 1 && c.X < w.Map.Width - 1
-                    && Frei((int)c.X, (int)c.Y) && Frei((int)c.X + 1, (int)c.Y))
-        .OrderBy(c => Math.Abs(Vector2.Distance(c, start) - abstand)).First();
     Unit Neu(UnitType typ, int besitzer, Vector2 kachel)
     {
         var u = w.Map.AddUnit(typ, (int)kachel.X, (int)kachel.Y, besitzer);
@@ -4902,6 +5703,7 @@ class Welt
             UpdateResearch?.Invoke(_screen, new object[] { dt });
             UpdateAges?.Invoke(_screen, new object[] { dt });
             Call("UpdateConstruction", dt);
+            Call("UpdateRepair", dt);
             Call("UpdateSheepClaims");
             Map.RegrowCrop(dt);
             Map.RegrowGrass(dt);

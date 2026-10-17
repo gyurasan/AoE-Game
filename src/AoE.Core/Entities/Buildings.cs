@@ -97,7 +97,7 @@ public enum BuildingType
     /// Steinmauer
     /// </summary>
     StoneWall,
-    
+
     /// <summary>
     /// Wunder
     /// </summary>

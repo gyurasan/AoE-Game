@@ -2908,6 +2908,12 @@
 /processorParam:DebugMode=Auto
 /build:Effects/Boden.fx
 
+#begin Effects/Wege.fx
+/importer:EffectImporter
+/processor:EffectProcessor
+/processorParam:DebugMode=Auto
+/build:Effects/Wege.fx
+
 #begin Effects/Weizen.fx
 /importer:EffectImporter
 /processor:EffectProcessor
@@ -3057,6 +3063,42 @@
 /processorParam:MakeSquare=False
 /processorParam:TextureFormat=Color
 /build:Boden/erde_trocken.png
+
+#begin Boden/weg_feudal.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=False
+/processorParam:GenerateMipmaps=True
+/processorParam:PremultiplyAlpha=True
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/build:Boden/weg_feudal.png
+
+#begin Boden/weg_ritter.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=False
+/processorParam:GenerateMipmaps=True
+/processorParam:PremultiplyAlpha=True
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/build:Boden/weg_ritter.png
+
+#begin Boden/weg_imperial.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=False
+/processorParam:GenerateMipmaps=True
+/processorParam:PremultiplyAlpha=True
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/build:Boden/weg_imperial.png
 
 #begin Felder/acker.png
 /importer:TextureImporter

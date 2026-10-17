@@ -98,6 +98,18 @@ public class Tile
     /// <summary>Seitenlänge des Felds in Kacheln; 0, solange die Kachel kein Feld ist.</summary>
     public int FarmSize { get; set; }
 
+    /// <summary>
+    /// Wegqualität dieser Kachel (C12 neu): 0 = keine Wege (nur Trampelpfad,
+    /// falls <see cref="Wear"/> &gt; 0), 1 = Pflasterstraße aus Stein und Zement
+    /// (Feudalzeit), 2 = Weg aus Erde, Schlamm und Kies (Ritterzeit), 3 = verdichteter
+    /// Schotter (Imperialzeit). Bei jedem Zeitaufstieg rücken die vorhandenen
+    /// Trampelpfade auf (TileMap.UpgradeRoads); neu ausgetretene Pfade entstehen direkt
+    /// auf der aktuellen Stufe, und ab der Feudalzeit bekommt jedes fertige Gebäude
+    /// einen Weg zum Wegenetz (TileMap.ConnectBuilding, C16).
+    /// Auf Stufen 1 und höher laufen Einheiten 20 % schneller als auf der Wiese.
+    /// </summary>
+    public int RoadLevel { get; set; }
+
     // Building on this tile
     public string Building { get; set; }
     

@@ -14,6 +14,11 @@
 #   kachelbar     true    nahtlos kachelbar machen: um eine halbe Breite verschieben
 #                         (die Außenkanten passen dann), die Naht in der Mitte mit
 #                         einem weichen Kreuz aus dem unverschobenen Bild überdecken
+#                 "naht"  dasselbe ohne Überblenden für Fugenmuster (Pflaster): naht.py
+#                         ersetzt die Nahtstreifen durch passende Streifen aus dem Bild
+#                         und schneidet möglichst in den Fugen (Image Quilting) - beim
+#                         Überblenden entstünden Geistersteine. Braucht numpy und Pillow
+#                         aus ComfyUIs python_embeded
 #   spielerfarben true    zwei Dateien: <ziel>_blau.png wie erzeugt, <ziel>_rot.png
 #                         mit kräftigem Blau (Fahnen, Banner) in Rot umgefärbt
 #   blau_saettigung  s    ab welcher Sättigung (0 bis 1, sonst 0,3) Blau als Spielerfarbe
@@ -424,6 +429,20 @@ $hier = $PSScriptRoot
 $content = Join-Path $hier "..\..\AgeOfEvolutions\AgeOfEvolutions.Core\Content" | Resolve-Path
 $katalog = Get-Content (Join-Path $hier "bilder.json") -Raw -Encoding utf8 | ConvertFrom-Json
 
+# "kachelbar": "naht" - Image Quilting in naht.py, mit dem Python aus ComfyUI (numpy, Pillow)
+$nahtPython = "D:\Apps\ComfyUI\ComfyUI_windows_portable\python_embeded\python.exe"
+function Naht([System.Drawing.Bitmap]$bild) {
+    $ein = Join-Path ([System.IO.Path]::GetTempPath()) "aoe_naht_ein.png"
+    $aus = Join-Path ([System.IO.Path]::GetTempPath()) "aoe_naht_aus.png"
+    $bild.Save($ein, [System.Drawing.Imaging.ImageFormat]::Png)
+    & $nahtPython -I (Join-Path $hier "naht.py") $ein $aus | Write-Host
+    if ($LASTEXITCODE -ne 0) { throw "naht.py ist fehlgeschlagen" }
+    $geladen = [System.Drawing.Bitmap]::new($aus)
+    try { $kopie = [System.Drawing.Bitmap]::new($geladen) } finally { $geladen.Dispose() }
+    Remove-Item $ein, $aus -ErrorAction SilentlyContinue
+    return $kopie
+}
+
 function Wert($eintrag, $gruppe, [string]$feld) {
     if ($null -ne $eintrag.$feld) { return $eintrag.$feld }
     return $gruppe.$feld
@@ -489,7 +508,10 @@ foreach ($g in $katalog.PSObject.Properties) {
             if ($ausgleich) {
                 $neu = [Nachbearbeitung]::Ausgleichen($bild, [int]($bild.Width * [double]$ausgleich)); $bild.Dispose(); $bild = $neu
             }
-            if (Wert $e $g.Value "kachelbar") {
+            $kachel = Wert $e $g.Value "kachelbar"
+            if ($kachel -is [string] -and $kachel -eq "naht") {
+                $neu = Naht $bild; $bild.Dispose(); $bild = $neu
+            } elseif ($kachel) {
                 $neu = [Nachbearbeitung]::Kachelbar($bild, [int]($bild.Width / 8)); $bild.Dispose(); $bild = $neu
             }
             if (Wert $e $g.Value "loecher") {

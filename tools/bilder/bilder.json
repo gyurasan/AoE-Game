@@ -4778,5 +4778,45 @@
     "prompt": "A stone resource icon: a small pile of grey cut stone blocks and rough rocks."
    }
   ]
+ },
+ "wege": {
+  "groesse": [
+   1328,
+   1328
+  ],
+  "schritte": 50,
+  "cfg": 3.0,
+  "stil": "Seamless ground texture for a top-down 2D strategy game, seen straight from above, finely detailed hand-painted pixel art, natural muted colors, soft even lighting, the same surface fills the whole image evenly edge to edge with no direction, no objects, no shadows, no horizon, no text.",
+  "negativ": "text, letters, logo, watermark, frame, border, edge, perspective, horizon, sky, grass, plants, road, street, path, track, curb, lane markings, ruts, furrows, stripes, tire tracks, footprints, vehicles, people, objects, vignette, blurry, 3d render, close-up, macro, photo, thick black outlines",
+  "kachelbar": true,
+  "ausgleichen": 0.06,
+  "bilder": [
+   {
+    "name": "weg_feudal",
+    "seed": 5801,
+    "prompt": "Seen from high above: a wide area of fine stone paving made of hundreds of small irregular flat grey and beige stones of different sizes fitted tightly together in no rows, thin joints of pale grey cement mortar between them, worn smooth tops.",
+    "negativ": "bricks, rows, rectangular blocks, wall, large slabs, big stones, close-up",
+    "ziel": "Boden/weg_feudal.png",
+    "kachelbar": "naht",
+    "zielgroesse": [
+     664,
+     664
+    ]
+   },
+   {
+    "name": "weg_ritter",
+    "seed": 5781,
+    "prompt": "Muddy earth ground seen from above: packed brown soil with darker damp mud mixed in irregularly, many small gravel stones and pebbles pressed into it, scattered evenly, flat.",
+    "negativ": "cobblestones, paving stones, slabs, rocks, puddles, water, holes, craters, hollows, pits, pattern, grid, honeycomb, repeating shapes",
+    "ziel": "Boden/weg_ritter.png"
+   },
+   {
+    "name": "weg_imperial",
+    "seed": 5761,
+    "prompt": "Compacted crushed stone surface: densely packed small angular grey, beige and light brown gravel stones rolled into a firm flat layer, fine stone dust between them, evenly spread.",
+    "negativ": "cobblestones, paving stones, slabs, large stones, boulders",
+    "ziel": "Boden/weg_imperial.png"
+   }
+  ]
  }
 }

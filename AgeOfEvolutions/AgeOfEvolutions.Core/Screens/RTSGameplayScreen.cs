@@ -587,6 +587,9 @@ public class RTSGameplayScreen : GameScreen
     private const int WALK_CYCLES_PER_STEP = 2;   // Doppelschritte der Beine je Kachelschritt
     private Texture2D _grassTex;
     private Texture2D _sandTex;
+    private Texture2D _road1Tex;   // Pflasterstraße aus Stein und Zement (Feudalzeit; ohne Bild prozedural)
+    private Texture2D _road2Tex;   // Erde, Schlamm und Kies (Ritterzeit)
+    private Texture2D _road3Tex;   // verdichteter Schotter (Imperialzeit)
     // Die drei weiteren Grassorten für die Wiese im Bodenshader
     private Texture2D _dryGrassTex, _lushGrassTex, _flowerGrassTex;
     // Hohes Gras und ausgedörrte Erde (G12)
@@ -645,12 +648,21 @@ public class RTSGameplayScreen : GameScreen
     // Bildpixel der Grasbilder je Welteinheit: mehr als bei Sand und Wasser - die Halme
     // sollen neben Bäumen und Figuren klein bleiben, das Bild wiederholt sich dafür öfter
     private const int GRASS_TEXELS = 7;
+    // Bildpixel der Wegbilder je Welteinheit (C16): eine Kachel zeigt TileSize · ROAD_TEXELS
+    // Bildpixel, ein 1328 px breites Wegbild reicht für gut zehn Kacheln
+    private const int ROAD_TEXELS = 4;
 
     // Boden aus einem Guss (Effects/Boden): Gras, Sand und Wasser gehen weich
     // ineinander über, das Wasser hat Tiefe, Wellen und Schaum, viel begangene
     // Kacheln zeigen Trampelpfade. Fehlt der Effekt oder ein Bodenbild, zeichnet
     // DrawGround den Boden wie bisher Kachel für Kachel.
     private Effect _groundEffect;
+    // Wege (C16): eigener Durchgang über dem Boden (Effects/Wege) mit einer Wegkarte, ein Texel je
+    // Kachel - _roadMapData ist das von Spieler 0 Gesehene, _roadDrawData das Hochgeladene
+    private Effect _roadEffect;
+    private Texture2D _roadMap;
+    private Color[] _roadMapData;
+    private Color[] _roadDrawData;
     private Texture2D _groundControl;     // Steuerbild: Sand, Wasser, Tiefe (BuildGroundControl)
     private Texture2D _groundLive;        // je Kachel: ausgetreten, Wald - ändert sich im Spiel
     private Color[] _groundLiveData;
@@ -902,6 +914,9 @@ public class RTSGameplayScreen : GameScreen
 
         _grassTex = LoadOptional("Boden/gras");
         _sandTex = LoadOptional("Boden/sand");
+        _road1Tex = LoadOptional("Boden/weg_feudal");
+        _road2Tex = LoadOptional("Boden/weg_ritter");
+        _road3Tex = LoadOptional("Boden/weg_imperial");
         _dryGrassTex = LoadOptional("Boden/gras_trocken");
         _lushGrassTex = LoadOptional("Boden/gras_dunkel");
         _flowerGrassTex = LoadOptional("Boden/gras_blumen");
@@ -924,13 +939,22 @@ public class RTSGameplayScreen : GameScreen
         catch (Microsoft.Xna.Framework.Content.ContentLoadException)
         {
         }
+        try
+        {
+            _roadEffect = ScreenManager.Game.Content.Load<Effect>("Effects/Wege");
+        }
+        catch (Microsoft.Xna.Framework.Content.ContentLoadException)
+        {
+        }
         if (_groundEffect != null && _grassTex != null && _sandTex != null)
         {
             _groundNoise = BuildNoiseTexture(graphicsDevice);
             _groundControl = BuildGroundControl(graphicsDevice);
             _groundLive = new Texture2D(graphicsDevice, tileMap.Width, tileMap.Height);
-            _groundLiveData = new Color[tileMap.Width * tileMap.Height];
-            RefreshGroundLive();
+            _roadMap = new Texture2D(graphicsDevice, tileMap.Width, tileMap.Height);
+            // Zu Spielbeginn und nach dem Laden ist der ganze Boden bekannt, auch im Nebel -
+            // das Lebendbild legt UpdateGroundMemory an
+            RefreshGroundLive(true);
         }
         // Je Eintrag ein Tupel (Bild, Höhe, Nadelbaum); fehlt ein Bild, fällt nur diese Baumart weg.
         _treeSprites = TreeAssets
@@ -1107,6 +1131,7 @@ public class RTSGameplayScreen : GameScreen
         UpdateResearch((float)gameTime.ElapsedGameTime.TotalSeconds);
         UpdateAges((float)gameTime.ElapsedGameTime.TotalSeconds);
         UpdateConstruction((float)gameTime.ElapsedGameTime.TotalSeconds);
+        UpdateRepair((float)gameTime.ElapsedGameTime.TotalSeconds);
         tileMap.RegrowCrop((float)gameTime.ElapsedGameTime.TotalSeconds);
         tileMap.RegrowGrass((float)gameTime.ElapsedGameTime.TotalSeconds);
         UpdateSheepClaims();    // Reservierung = der einzige Dorfbewohner, der gerade erntet
@@ -1238,6 +1263,10 @@ public class RTSGameplayScreen : GameScreen
         }
         catch (Microsoft.Xna.Framework.Content.ContentLoadException)
         {
+            // Das Spiel läuft ohne das Bild weiter - aber der Grund kommt ins
+            // Log, sonst verschwindet das Asset unauffindbar (bekanntes
+            // Pitfall, siehe docs/Bilder-einbinden.md).
+            Diagnostics.GameLog.Warn("Asset fehlt: " + asset);
             return null;
         }
     }
@@ -1390,6 +1419,97 @@ public class RTSGameplayScreen : GameScreen
             int x = _texRng.Next(32), y = _texRng.Next(32);
             b.Set(x, y, new Color(60, 110, 40));
             b.Set(x + 1, y, new Color(65, 118, 44));
+        }
+        return b.Build(gd);
+    }
+
+    /// <summary>
+    /// Das Wegbild zur Weg-Stufe level (C12/C16): 1 Pflasterstraße aus Stein und Zement
+    /// (Feudalzeit), 2 Erde, Schlamm und Kies (Ritterzeit), 3 verdichteter Schotter
+    /// (Imperialzeit). DrawRoads legt es auf alle Wege.
+    /// VERTRAG: level &lt; 1: null. Sonst zuerst EnsureRoadTextures() (fehlende Bilder
+    /// zeichnet das Spiel prozedural), dann level 2 → _road2Tex, level 3 und höher →
+    /// _road3Tex, sonst _road1Tex.
+    /// </summary>
+    private Texture2D RoadTextureFor(int level)
+    {
+        // In der Dunklen Zeit (Stufe 0) gibt es noch keine Wege
+        if (level < 1)
+            return null;
+        // Fehlende Bilder zeichnet das Spiel prozedural
+        EnsureRoadTextures();
+        return level switch
+        {
+            2 => _road2Tex,
+            _ => level >= 3 ? _road3Tex : _road1Tex,
+        };
+    }
+
+    /// <summary>
+    /// Weg-Stufenbilder (C12): Feldweg, befestigter Weg, gepflasterter Weg —
+    /// kachelbare Bilder. Fehlt ein Bild, zeichnet das Spiel es prozedural
+    /// (wie Gras).
+    /// </summary>
+    private void EnsureRoadTextures()
+    {
+        var gd = ScreenManager.Game.GraphicsDevice;
+        if (_road1Tex == null)
+            _road1Tex = BuildRoadTexture(gd, 1);
+        if (_road2Tex == null)
+            _road2Tex = BuildRoadTexture(gd, 2);
+        if (_road3Tex == null)
+            _road3Tex = BuildRoadTexture(gd, 3);
+    }
+
+    /// <summary>
+    /// Ersatzbild der Weg-Stufe stufe (C16), wenn ihr Wegbild fehlt - 32×32, kachelbar,
+    /// in der Reihenfolge der Zeitalter: 1 Pflasterstraße (Feudalzeit), 2 Erde mit Schlamm
+    /// und Kies (Ritterzeit), 3 verdichteter Schotter (Imperialzeit). Der Bodenshader legt es
+    /// einmal je Kachel; ein Rand um das Bild zeichnete dort ein Gitter.
+    /// VERTRAG: b = new TextureBuilder(32, 32), am Ende return b.Build(gd).
+    /// - stufe == 1: Zement new Color(176, 174, 166) als Fläche (FillRect 0, 0, 32, 32), darauf
+    ///   4 × 4 Steine wie bisher beim Pflaster (Reihe ry, Spalte rx, jede zweite Reihe um 4 versetzt,
+    ///   7 × 7 Pixel, hell new Color(188, 186, 180) oder dunkler new Color(152, 152, 148) mit
+    ///   derselben Regel wie bisher), danach b.Noise(new Color(150, 150, 148), 8, _texRng, 0.3f).
+    /// - sonst Grund, hell und dunkel: stufe 2 new Color(128, 106, 70), new Color(150, 126, 88),
+    ///   new Color(92, 74, 50); stufe 3 new Color(150, 146, 136), new Color(184, 180, 170),
+    ///   new Color(112, 108, 100). FillRect mit dem Grund, b.Noise(grund, 10, _texRng, 0.5f), dann
+    ///   Steinchen wie bisher (Zufallslage, zu 55 % hell, zu 50 % ein zweites Pixel rechts davon,
+    ///   (x + 1) % 32) - stufe 2: 20, stufe 3: 60 Stück.
+    /// - KEIN Rahmen (die bisherige kante-Schleife entfällt).
+    /// </summary>
+    private Texture2D BuildRoadTexture(GraphicsDevice gd, int stufe)
+    {
+        var b = new TextureBuilder(32, 32);
+        if (stufe == 1)
+        {
+            // Pflasterstraße: Zement als Fläche, darauf 4 × 4 Steine
+            b.FillRect(0, 0, 32, 32, new Color(176, 174, 166));
+            for (int ry = 0; ry < 4; ry++)
+                for (int rx = 0; rx < 4; rx++)
+                {
+                    int ox = (ry % 2) * 4;
+                    int px = (rx * 8 + ox) % 32, py = ry * 8;
+                    bool koppelHell = (rx + ry) % 2 == 0 || _texRng.NextDouble() < 0.35;
+                    b.FillRect(px, py, 7, 7, koppelHell ? new Color(188, 186, 180) : new Color(152, 152, 148));
+                }
+            b.Noise(new Color(150, 150, 148), 8, _texRng, 0.3f);
+            return b.Build(gd);
+        }
+        // Erde mit Schlamm und Kies (Ritterzeit) bzw. verdichteter Schotter (Imperialzeit)
+        var grund = stufe == 2 ? new Color(128, 106, 70) : new Color(150, 146, 136);
+        var hell = stufe == 2 ? new Color(150, 126, 88) : new Color(184, 180, 170);
+        var dunk = stufe == 2 ? new Color(92, 74, 50) : new Color(112, 108, 100);
+        b.FillRect(0, 0, 32, 32, grund);
+        b.Noise(grund, 10, _texRng, 0.5f);
+        int anzahl = stufe == 2 ? 20 : 60;
+        for (int i = 0; i < anzahl; i++)
+        {
+            int x = _texRng.Next(32), y = _texRng.Next(32);
+            bool h = _texRng.NextDouble() < 0.55;
+            b.Set(x, y, h ? hell : dunk);
+            if (_texRng.NextDouble() < 0.5)
+                b.Set((x + 1) % 32, y, h ? hell : dunk);
         }
         return b.Build(gd);
     }
@@ -2229,6 +2349,8 @@ public class RTSGameplayScreen : GameScreen
     /// - Dann "{b.Health}/{b.MaxHealth} LP".
     /// - Eine Baustelle (nicht IsComplete): dann noch "Bau {p} %" mit p =
     ///   (int)(b.Construction.Progress * 100), sonst nichts.
+    /// - Eine Reparatur (b.Repair nicht null): dann noch "Reparatur {p} %" mit
+    ///   p = (int)(b.Repair.Progress * 100), sonst nichts.
     /// - Fertig, und es ist ein Stadtzentrum, dessen Besitzer gerade aufsteigt (Ages.Target
     ///   nicht null): "Aufstieg in die {AgeRules.NameOf(Target)} {p} %" mit Ages.Progress.
     /// - Sonst, wenn das Gebäude forscht (b.Research.Current nicht null, P2):
@@ -2251,6 +2373,10 @@ public class RTSGameplayScreen : GameScreen
             text += $"   Bau {(int)(b.Construction.Progress * 100)} %";
             return text;
         }
+
+        // Reparatur: Fortschritt der Wiederherstellung
+        if (b.Repair is { } repair)
+            text += $"   Reparatur {(int)(repair.Progress * 100)} %";
 
         // Fertiges Stadtzentrum, dessen Besitzer gerade aufsteigt
         var ages = (b.OwnerId == 0 ? player1 : player2).Ages;
@@ -3028,6 +3154,22 @@ public class RTSGameplayScreen : GameScreen
         var site = BuildingAt(gridPos);
         if (site != null && (site.OwnerId != ownerId || site.IsComplete))
             site = null;
+
+        // Klick auf ein eigenes, fertiges Gebäude mit Schaden: die Dorfbewohner
+        // reparieren es — Kosten und Dauer anteilig zum fehlenden
+        // Schadensvolumen (50 % angeschlagen kostet rund die Hälfte), einmalig
+        // pro Auftrag. Ohne Dorfbewohner in der Auswahl bleibt es ein Laufbefehl.
+        var repairTarget = BuildingAt(gridPos);
+        if (repairTarget is { IsComplete: true }
+            && repairTarget.OwnerId == ownerId
+            && repairTarget.Health < repairTarget.MaxHealth
+            && selectedUnits.Any(u => u.OwnerId == ownerId && u.Core is CoreVillager))
+        {
+            if (RepairBuildingFor(ownerId, repairTarget, selectedUnits))
+                return;
+            // Nicht bezahlbar: die Meldung steht in der Leiste (Spieler 0);
+            // der Befehl ist ein Laufbefehl wie zuvor.
+        }
 
         // Laufbefehl: eine einzige Einheit läuft auf den exakten
         // angeklickten Punkt; mehrere verteilen sich im Umkreis (je ein
@@ -3836,14 +3978,25 @@ public class RTSGameplayScreen : GameScreen
 
     /// <summary>
     /// Aufstieg beider Spieler fortschreiben. Ist er fertig, gilt das neue
-    /// Zeitalter, und die obere Leiste meldet es für Spieler 0.
+    /// Zeitalter, und die obere Leiste meldet es für Spieler 0. Bei jedem
+    /// Aufstieg rücken die vorhandenen Trampelpfade zur neuen Weg-Stufe auf
+    /// (C12): besser und besser mit jeder Zeit; danach bekommen alle Gebäude
+    /// des Spielers ihren Weg zum Wegenetz (ConnectAllToRoads, C16).
     /// </summary>
     private void UpdateAges(float dt)
     {
         float dts = dt * _productionSpeed;
         if (player1.Ages.Update(dts))
+        {
             ShowHudMessage($"{AgeRules.NameOf(player1.Ages.Current)} erreicht");
-        player2.Ages.Update(dts);
+            tileMap.UpgradeRoads(TileMap.LevelOfAge(player1.Ages.Current));
+            ConnectAllToRoads(0);
+        }
+        if (player2.Ages.Update(dts))
+        {
+            tileMap.UpgradeRoads(TileMap.LevelOfAge(player2.Ages.Current));
+            ConnectAllToRoads(1);
+        }
     }
 
     private void ShowHudMessage(string text)
@@ -4189,8 +4342,9 @@ public class RTSGameplayScreen : GameScreen
     /// <summary>
     /// Baut an allen Baustellen. Es zählen nur Dorfbewohner, die dort schon
     /// arbeiten (Zustand Building) - wer noch hinläuft, baut noch nicht. Ist
-    /// ein Gebäude fertig, verliert es seine Baustelle, und
-    /// FinishConstruction schickt die Erbauer weiter.
+    /// ein Gebäude fertig, verliert es seine Baustelle, FinishConstruction
+    /// schickt die Erbauer weiter, und ab der Feudalzeit legt ConnectToRoads
+    /// seinen Weg zum Wegenetz (C16).
     /// </summary>
     private void UpdateConstruction(float dt)
     {
@@ -4201,6 +4355,8 @@ public class RTSGameplayScreen : GameScreen
             {
                 site.Construction = null;
                 FinishConstruction(site);
+                // Ab der Feudalzeit bekommt das fertige Gebäude seinen Weg (C16)
+                ConnectToRoads(site);
             }
         }
     }
@@ -4252,10 +4408,159 @@ public class RTSGameplayScreen : GameScreen
     }
 
     /// <summary>
+    /// Wege von Gebäuden (C16): ab der Feudalzeit seines Besitzers bekommt ein fertiges
+    /// Gebäude einen Weg zum Wegenetz oder zum Stadtzentrum (TileMap.ConnectBuilding) -
+    /// in der Dunklen Zeit noch nicht. Mauern bleiben ohne Weg.
+    /// VERTRAG: nichts, wenn !b.IsComplete, wenn TileMap.LevelOfAge(AgeOf(b.OwnerId)) &lt; 1
+    /// oder wenn b.Core.BuildingType PalisadeWall oder StoneWall ist; sonst
+    /// tileMap.ConnectBuilding(b, Math.Max(tileMap.CurrentRoadLevel, TileMap.LevelOfAge(AgeOf(b.OwnerId)))).
+    /// </summary>
+    private void ConnectToRoads(Building b)
+    {
+        // In der Dunklen Zeit (Stufe 0) gibt es noch keine Wege, und Mauern
+        // bleiben ohne Weg
+        if (!b.IsComplete || TileMap.LevelOfAge(AgeOf(b.OwnerId)) < 1
+            || b.Core.BuildingType == BuildingType.PalisadeWall
+            || b.Core.BuildingType == BuildingType.StoneWall)
+            return;
+        tileMap.ConnectBuilding(b, Math.Max(tileMap.CurrentRoadLevel, TileMap.LevelOfAge(AgeOf(b.OwnerId))));
+    }
+
+    /// <summary>
+    /// Beim Zeitaufstieg (C16): alle Gebäude des Spielers bekommen ihren Weg, die dem
+    /// Stadtzentrum nächsten zuerst - so docken die weiter entfernten an die Wege der
+    /// näheren an, statt jedes für sich zum Stadtzentrum zu laufen.
+    /// VERTRAG: tc = TownCenterOf(ownerId); alle Gebäude aus tileMap.Buildings mit OwnerId ==
+    /// ownerId als eigene Liste (ToList), sortiert aufsteigend nach dem Quadrat des Abstands
+    /// ihrer Mitte (X + Width / 2f, Y + Height / 2f) zur Mitte von tc (ohne Stadtzentrum: in der
+    /// Reihenfolge von tileMap.Buildings); für jedes ConnectToRoads(b) - das prüft Zeitalter,
+    /// Fertigstellung und Mauern selbst.
+    /// </summary>
+    private void ConnectAllToRoads(int ownerId)
+    {
+        // Die dem Stadtzentrum nächsten Gebäude zuerst: die weiter entfernten
+        // docken an die Wege der näheren an, statt jedes für sich zum
+        // Stadtzentrum zu laufen
+        var tc = TownCenterOf(ownerId);
+        var buildings = tileMap.Buildings.Where(b => b.OwnerId == ownerId).ToList();
+        if (tc != null)
+        {
+            var tcCenter = new Vector2(tc.X + tc.Width / 2f, tc.Y + tc.Height / 2f);
+            buildings = buildings.OrderBy(b =>
+            {
+                var center = new Vector2(b.X + b.Width / 2f, b.Y + b.Height / 2f);
+                return Vector2.DistanceSquared(center, tcCenter);
+            }).ToList();
+        }
+        foreach (var b in buildings)
+            ConnectToRoads(b);
+    }
+
+    /// <summary>
     /// So weit (in Kacheln, Mitte zu Mitte) suchen Erbauer nach der nächsten
     /// unfertigen Baustelle - derselbe Umkreis wie beim Sammeln.
     /// </summary>
     private const int SITE_SEARCH_RADIUS = GatherJob.SEARCH_RADIUS;
+
+    /// <summary>
+    /// Repariert alle Gebäude mit einem Reparatur-Auftrag. Es zählen nur
+    /// Dorfbewohner, die dort schon arbeiten (Zustand Building) - wer noch
+    /// hinläuft, repariert noch nicht. Steht kein Arbeiter, steht der Auftrag
+    /// still (SpeedFactor 0), bis wieder jemand kommt. Ist die Reparatur
+    /// fertig, ist das Gebäude wieder vollstandig (HpAt(1) = MaxHealth), und
+    /// ReleaseRepairers schickt die Arbeiter weiter.
+    /// </summary>
+    private void UpdateRepair(float dt)
+    {
+        foreach (var b in tileMap.Buildings.Where(b => b.Repair != null).ToList())
+        {
+            var repair = b.Repair;
+            int repairers = units.Count(u => u.BuildSite == b && u.State == UnitState.Building);
+            if (repair.Update(dt * _productionSpeed, repairers))
+            {
+                b.Health = Math.Min(b.MaxHealth, repair.HpAt(repair.Progress, b.MaxHealth));
+                b.Repair = null;
+                ReleaseRepairers(b);
+            }
+            else if (repairers > 0)
+            {
+                // Teilfortschritt: die Standfestigkeit steigt mit dem Fortschritt,
+                // nie über die der Baseline (Startpunkt + Auftrag) hinaus.
+                int targetHp = repair.HpAt(repair.Progress, b.MaxHealth);
+                if (targetHp > b.Health)
+                    b.Health = Math.Min(b.MaxHealth, targetHp);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Eine Reparatur ist fertig: die Arbeiter hören auf und gehen zur nächsten
+    /// unfertigen eigenen Baustelle, wenn es eine gibt; sonst werden sie untätig.
+    /// </summary>
+    private void ReleaseRepairers(Building b)
+    {
+        var nextSite = NearestUnfinishedSite(b);
+        foreach (var unit in units.Where(u => u.BuildSite == b).ToList())
+        {
+            unit.BuildSite = null;
+            unit.Path.Clear();
+            if (nextSite != null)
+                AssignBuilder(unit, nextSite);
+            else
+                unit.State = UnitState.Idle;
+        }
+    }
+
+    /// <summary>
+    /// Owner-generic Reparaturbefehl: das Gebäude muss fertig gebaut sein und
+    /// Schaden haben (Health unter MaxHealth). Die Kosten — anteilig zum
+    /// fehlenden Schadensvolumen (Baupreis × fehlender Anteil, je Rohstoff
+    /// mindestens 1) — werden dem Besitzer VOR dem Auftrag einmalig abgezogen,
+    /// wie beim Bauen; kommen sie nicht zusammen, gibt es false und es wird
+    /// nicht repariert. Ist der Auftrag bereits angelegt (Worker dazukommen),
+    /// kostet es nichts Mehr. <paramref name="workers"/> liefert die
+    /// Dorfbewohner, die geschickt werden (nur CoreVillager desselben
+    /// Eigentümers, wie AssignBuilder). Rückgabe true, wenn der Auftrag
+    /// angelegt (oder beigetreten) wurde.
+    /// </summary>
+    internal bool RepairBuildingFor(int ownerId, Building target, List<Unit> workers)
+    {
+        if (target == null || target.OwnerId != ownerId)
+            return false;
+        if (!target.IsComplete)
+            return false;   // Baustellen werden an der Baustelle fertig, nicht repariert
+        if (target.Health >= target.MaxHealth)
+            return false;   // kein Schaden — nichts zu reparieren (und nichts zu zahlen)
+
+        if (target.Repair == null)
+        {
+            var owner = ownerId == 0 ? player1 : player2;
+            var cost = BuildingRules.RepairCostOf(target.Core.BuildingType, target.Health, target.MaxHealth);
+            if (!owner.Resources.PayCost(cost))
+            {
+                if (ownerId == 0)
+                {
+                    var fehlt = new List<string>();
+                    foreach (var (res, amt) in cost)
+                        if (owner.Resources[res] < amt)
+                            fehlt.Add($"{amt} {ResourceName(res)}");
+                    ShowHudMessage($"Zur Reparatur fehlen: {string.Join(" + ", fehlt)}");
+                }
+                return false;
+            }
+            target.Repair = new AoE.Core.Economy.Repair(
+                BuildingRules.RepairSecondsOf(target.Core.BuildingType, target.Health, target.MaxHealth),
+                target.MaxHealth - target.Health);
+            if (ownerId == 0)
+                ShowHudMessage($"{target.Type} wird repariert ({CostText(cost)})");
+        }
+
+        var villagers = (workers ?? new List<Unit>())
+            .Where(u => u.OwnerId == ownerId && u.Core is CoreVillager).ToList();
+        foreach (var u in villagers)
+            AssignBuilder(u, target);
+        return true;
+    }
 
     /// <summary>
     /// Die unfertige Baustelle desselben Spielers, deren Mitte der Mitte von
@@ -4399,8 +4704,8 @@ public class RTSGameplayScreen : GameScreen
                         else if (unit.UnitTarget is { } ut0 && ut0.State != UnitState.Dead
                                  && unit.AttackPower > 0)
                             unit.State = UnitState.Attacking;   // am Einheiten-Ziel angekommen
-                        else if (unit.BuildSite != null && !unit.BuildSite.IsComplete)
-                            unit.State = UnitState.Building;   // am Bauplatz angekommen
+                        else if (unit.BuildSite != null && (!unit.BuildSite.IsComplete || unit.BuildSite.Repair != null))
+                            unit.State = UnitState.Building;   // am Bauplatz angekommen (oder zur Reparatur)
                         else
                         {
                             unit.BuildSite = null;
@@ -4445,8 +4750,9 @@ public class RTSGameplayScreen : GameScreen
                     break;
 
                 case UnitState.Building:
-                    // Gebaut wird je Baustelle in UpdateConstruction; hier nur aufräumen
-                    if (unit.BuildSite == null || unit.BuildSite.IsComplete)
+                    // Gebaut wird je Baustelle in UpdateConstruction, repariert in
+                    // UpdateRepair; hier nur aufräumen, wenn die Arbeit weg ist
+                    if (unit.BuildSite == null || (unit.BuildSite.IsComplete && unit.BuildSite.Repair == null))
                     {
                         unit.BuildSite = null;
                         unit.State = UnitState.Idle;
@@ -4862,7 +5168,11 @@ public class RTSGameplayScreen : GameScreen
             remaining += Vector2.Distance(unit.Path[i - 1], unit.Path[i]);
         unit.Pace = Gait.Approach(unit.Pace, Gait.ArrivalSpeed(remaining), dt);
         var before = tileMap.WorldToGrid(unit.Position);
-        var next = unit.Position + direction * unit.MovementSpeed * 40 * unit.Pace * dt * _unitSpeed;
+        // Auf Wegen (Stufe 1 und höher, C12) laufen Einheiten 20 % schneller
+        // als auf der Wiese — der Status der Kachel unter den Füßen zählt.
+        float wegBonus = tileMap.GetTile((int)before.X, (int)before.Y) is { RoadLevel: >= 1 }
+            ? 1.2f : 1f;
+        var next = unit.Position + direction * unit.MovementSpeed * 40 * unit.Pace * dt * _unitSpeed * wegBonus;
         var nextCell = tileMap.WorldToGrid(next);
         // dort ist etwas, das die Einheit erst jetzt sieht: nicht betreten, neuen Weg suchen
         if (nextCell != before && !tileMap.IsWalkable((int)nextCell.X, (int)nextCell.Y))
@@ -4900,7 +5210,11 @@ public class RTSGameplayScreen : GameScreen
         // einem eigenen Durchgang mit wiederholender Abtastung die Felder - siehe
         // DrawGround. Ohne Shader zeichnet DrawGround alles Kachel für Kachel
         if (GroundShaded)
+        {
             DrawGroundShaded(spriteBatch);
+            // Die Wege als eigener Durchgang über dem Boden (C16)
+            DrawRoads(spriteBatch);
+        }
         spriteBatch.Begin(samplerState: SamplerState.LinearWrap);
         DrawGround(spriteBatch);
         spriteBatch.End();
@@ -4968,7 +5282,7 @@ public class RTSGameplayScreen : GameScreen
             {
                 var tile = tileMap.GetTile(x, y);
                 if (tile == null) continue;
-                // Gras, Sand und Wasser hat DrawGroundShaded schon gezeichnet
+                // Gras, Sand, Wasser und Wege (C16) hat DrawGroundShaded schon gezeichnet
                 if (GroundShaded && !tile.Farm) continue;
 
                 var rect = TileScreenRect(x, y);
@@ -4980,6 +5294,14 @@ public class RTSGameplayScreen : GameScreen
                     DrawWater(spriteBatch, x, y, rect);
                 else if (tile.Farm && _soilTex != null && _wheatTex != null)
                     DrawField(spriteBatch, tile, rect);
+                else if (tile.RoadLevel >= 1)
+                {
+                    // Wege (C12): Feldweg, befestigt oder gepflastert je Stufe
+                    EnsureRoadTextures();
+                    var weg = tile.RoadLevel switch { 2 => _road2Tex, 3 => _road3Tex, _ => _road1Tex };
+                    if (weg != null)
+                        DrawGroundImage(spriteBatch, weg, x, y, rect);
+                }
                 else if (tile.Type == TileType.Sand && _sandTex != null)
                     DrawGroundImage(spriteBatch, _sandTex, x, y, rect);
                 else if (grassUnder && _grassTex != null)
@@ -4990,6 +5312,145 @@ public class RTSGameplayScreen : GameScreen
                     DrawShore(spriteBatch, x, y, rect);
             }
         }
+    }
+
+    /// <summary>
+    /// Ob auf Kachel (x, y) ein Weg gezeichnet wird (C16).
+    /// VERTRAG: true genau dann, wenn tileMap.GetTile(x, y) nicht null ist, RoadLevel &gt;= 1, Type
+    /// TileType.Grassland oder TileType.Sand, kein Gebäude (string.IsNullOrEmpty(Building)), kein
+    /// Feld (Farm false) und kein fester Rohstoff: ResourceType null oder Food.IsWild() - ein
+    /// wanderndes Tier unterbricht den Weg nicht.
+    /// </summary>
+    internal bool RoadDrawnAt(int x, int y)
+    {
+        // Kachel außerhalb der Karte: kein Weg
+        var tile = tileMap.GetTile(x, y);
+        if (tile == null)
+            return false;
+        // Wegkachel: Stufe 1 oder höher, Gras oder Sand, ohne Gebäude, Feld und
+        // festen Rohstoff - ein wanderndes Tier unterbricht den Weg nicht
+        return tile.RoadLevel >= 1
+               && (tile.Type == TileType.Grassland || tile.Type == TileType.Sand)
+               && string.IsNullOrEmpty(tile.Building)
+               && !tile.Farm
+               && (tile.ResourceType == null || tile.Food.IsWild());
+    }
+
+    /// <summary>
+    /// Die Wegkarte zum Hochladen (C16): das Gesehene (_roadMapData), dazu für zwei nur schräg
+    /// benachbarte Wegkacheln eine Kachel dazwischen - der Wege-Shader verbindet nur gerade
+    /// Nachbarn, sonst bekäme ein schräg ausgetretener Pfad Lücken.
+    /// VERTRAG: _roadDrawData neu anlegen, falls null oder nicht so lang wie _roadMapData; dann
+    /// Array.Copy(_roadMapData, _roadDrawData, Länge). Weg(x, y): innerhalb der Karte und
+    /// _roadMapData[y * Width + x].R &gt; 127; frei(x, y): _roadMapData[...].G &lt; 128 (kein Gebäude).
+    /// Für jede Wegkachel (x, y), y außen und x innen aufsteigend, und zuerst dy = 1, dann dy = -1:
+    /// ist (x + 1, y + dy) Weg, aber weder (x + 1, y) noch (x, y + dy), dann in _roadDrawData R = 255
+    /// bei (x + 1, y), falls frei, sonst bei (x, y + dy), falls frei, sonst nichts. Geprüft wird nur
+    /// gegen _roadMapData (nie gegen schon Aufgefülltes). Keine Arrays oder Listen je Kachel anlegen
+    /// (läuft alle 0,25 s über die ganze Karte). Rückgabe _roadDrawData.
+    /// </summary>
+    internal Color[] RoadDrawData()
+    {
+        // Die Wegkarte zum Hochladen: das Gesehene, dazu die schrägen Lücken
+        if (_roadDrawData == null || _roadDrawData.Length != _roadMapData.Length)
+            _roadDrawData = new Color[_roadMapData.Length];
+        Array.Copy(_roadMapData, _roadDrawData, _roadMapData.Length);
+
+        int w = tileMap.Width, h = tileMap.Height;
+        // Wegkachel: rot im Gesehenen
+        bool Weg(int x, int y)
+            => x >= 0 && y >= 0 && x < w && y < h && _roadMapData[y * w + x].R > 127;
+        // Freie Kachel: kein Gebäude (grün im Gesehenen)
+        bool frei(int x, int y)
+            => x >= 0 && y >= 0 && x < w && y < h && _roadMapData[y * w + x].G < 128;
+
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                if (!Weg(x, y))
+                    continue;
+                // Schräg benachbarte Wegkachel: eine der beiden Kantenkacheln
+                // auffüllen, damit der Shader die Diagonale verbindet
+                for (int s = 0; s < 2; s++)
+                {
+                    int dy = s == 0 ? 1 : -1;
+                    if (!Weg(x + 1, y + dy))
+                        continue;
+                    if (Weg(x + 1, y) || Weg(x, y + dy))
+                        continue;
+                    if (frei(x + 1, y))
+                        _roadDrawData[(y) * w + (x + 1)].R = 255;
+                    else if (frei(x, y + dy))
+                        _roadDrawData[(y + dy) * w + (x)].R = 255;
+                }
+            }
+        }
+        return _roadDrawData;
+    }
+
+    /// <summary>
+    /// Die Wege als eigener Durchgang über dem Boden (C16), Aussehen je Weg-Stufe.
+    /// VERTRAG: stufe = tileMap.CurrentRoadLevel; nichts, wenn _roadEffect oder _roadMap null ist oder
+    /// stufe &lt; 1. road = RoadTextureFor(stufe); p = _roadEffect.Parameters, alles per ?.SetValue:
+    /// MapTiles = new Vector2(tileMap.Width, tileMap.Height); RoadTexture = road; NoiseTexture =
+    /// _groundNoise; RoadScale = road.Width &lt;= 64 ? 1f : tileMap.TileSize * ROAD_TEXELS / (float)road.Width;
+    /// je Stufe HalfWidth, Curb, Ruts, Crown, Fray und Tint (Vector3):
+    /// - 1 (Pflasterstraße mit Randsteinen): 0.24f, 1f, 0f, 0f, 0.4f, (0.80f, 0.79f, 0.74f);
+    /// - 2 (Erdweg mit Fahrspuren, ausgefranst): 0.27f, 0f, 1f, 0f, 1f, (1f, 1f, 1f);
+    /// - 3 und höher (gewölbter Schotter): 0.30f, 0.35f, 0f, 1f, 0.2f, (0.88f, 0.87f, 0.83f);
+    /// VergeColor = new Vector3(0.42f, 0.36f, 0.26f). Dann spriteBatch.Begin(SpriteSortMode.Immediate,
+    /// BlendState.AlphaBlend, SamplerState.PointClamp, null, null, _roadEffect); spriteBatch.Draw(_roadMap,
+    /// TileScreenRect(0, 0, tileMap.Width, tileMap.Height), Color.White); spriteBatch.End();
+    /// ReleaseTextureUnits().
+    /// </summary>
+    private void DrawRoads(SpriteBatch spriteBatch)
+    {
+        // Die erreichte Weg-Stufe; in der Dunklen Zeit (Stufe 0) gibt es keine Wege
+        int stufe = tileMap.CurrentRoadLevel;
+        if (_roadEffect == null || _roadMap == null || stufe < 1)
+            return;
+
+        var road = RoadTextureFor(stufe);
+        var p = _roadEffect.Parameters;
+        p["MapTiles"]?.SetValue(new Vector2(tileMap.Width, tileMap.Height));
+        p["RoadTexture"]?.SetValue(road);
+        p["NoiseTexture"]?.SetValue(_groundNoise);
+        p["RoadScale"]?.SetValue(road.Width <= 64 ? 1f : tileMap.TileSize * ROAD_TEXELS / (float)road.Width);
+
+        // Aussehen je Stufe: Breite, Randsteine, Fahrspuren, Krone, Ausfransung, Ton
+        var (halfWidth, curb, ruts, crown, fray, tint) = stufe switch
+        {
+            1 => (0.24f, 1f, 0f, 0f, 0.4f, new Vector3(0.80f, 0.79f, 0.74f)),
+            2 => (0.27f, 0f, 1f, 0f, 1f, new Vector3(1f, 1f, 1f)),
+            _ => (0.30f, 0.35f, 0f, 1f, 0.2f, new Vector3(0.88f, 0.87f, 0.83f)),
+        };
+        p["HalfWidth"]?.SetValue(halfWidth);
+        p["Curb"]?.SetValue(curb);
+        p["Ruts"]?.SetValue(ruts);
+        p["Crown"]?.SetValue(crown);
+        p["Fray"]?.SetValue(fray);
+        p["Tint"]?.SetValue(tint);
+        p["VergeColor"]?.SetValue(new Vector3(0.42f, 0.36f, 0.26f));
+
+        spriteBatch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, SamplerState.PointClamp, null, null, _roadEffect);
+        spriteBatch.Draw(_roadMap, TileScreenRect(0, 0, tileMap.Width, tileMap.Height), Color.White);
+        spriteBatch.End();
+        ReleaseTextureUnits();
+    }
+
+    /// <summary>
+    /// Gibt nach einem eigenen Shader-Durchgang alle Texture Units frei (C16). Unter OpenGL darf
+    /// dasselbe Bild nie an zwei Units zugleich hängen - auch nicht über Durchgänge hinweg (das
+    /// Rauschbild nutzen Boden- und Wege-Shader) -, sonst zeichnet der Nebel danach die ganze
+    /// Spielfläche schwarz.
+    /// VERTRAG: graphicsDevice.Textures[i] = null für i von 0 bis 15.
+    /// </summary>
+    private void ReleaseTextureUnits()
+    {
+        // Alle Texture Units leeren, damit kein Bild an zwei Units zugleich hängt
+        for (int i = 0; i < 16; i++)
+            graphicsDevice.Textures[i] = null;
     }
 
     /// <summary>Ob der Boden aus dem Bodenshader kommt (Effects/Boden geladen).</summary>
@@ -5019,10 +5480,13 @@ public class RTSGameplayScreen : GameScreen
         p["TallGrassTexture"]?.SetValue(_tallGrassTex ?? _grassTex);
         p["BareEarthTexture"]?.SetValue(_bareEarthTex ?? _dryGrassTex ?? _grassTex);
         p["NoiseTexture"]?.SetValue(_groundNoise);
+
         spriteBatch.Begin(SpriteSortMode.Immediate, BlendState.Opaque, SamplerState.LinearClamp,
                           null, null, _groundEffect);
         spriteBatch.Draw(_groundControl, TileScreenRect(0, 0, tileMap.Width, tileMap.Height), Color.White);
         spriteBatch.End();
+        // Texture Units freigeben, siehe ReleaseTextureUnits
+        ReleaseTextureUnits();
     }
 
     /// <summary>
@@ -5201,26 +5665,82 @@ public class RTSGameplayScreen : GameScreen
     }
 
     /// <summary>
-    /// Überträgt, was sich am Boden im Spiel ändert, ins Lebendbild des
-    /// Bodenshaders: rot wie ausgetreten die Kachel ist (Tile.Wear), grün Wald -
-    /// gefällter Wald wird wieder Wiese -, blau ein Fischschwarm, solange er
-    /// Nahrung trägt.
+    /// Der Boden, wie Spieler 0 ihn zuletzt gesehen hat (G14): überträgt den Zustand der Karte
+    /// ins Lebendbild (_groundLiveData), aber nur für Kacheln, die er gerade sieht. Im Nebel
+    /// bleibt der zuletzt gesehene Stand - ein Trampelpfad, den dort ein unsichtbarer Gegner
+    /// austritt, ein Weg, den er anlegt, oder ein Tier, das durchs hohe Gras zieht, zeigt sich
+    /// erst, wenn wieder jemand hinsieht.
+    /// VERTRAG: _groundLiveData = new Color[tileMap.Width * tileMap.Height], falls null oder
+    /// kürzer. Dann für jede Kachel (x, y), falls all oder tileMap.IsTileVisible(x, y, 0): der
+    /// Eintrag y * tileMap.Width + x = new Color(rot, grün, blau, alpha) mit rot = Wear, auf
+    /// einer Wegkachel (RoadDrawnAt) höchstens 0.35f - dort nur niedergetretenes Gras, keine
+    /// nackte Erde, die Kante zeichnet der Weg selbst (C16); grün = 1 bei TileType.Forest, sonst 0;
+    /// blau = 1 bei einem Fischschwarm mit Nahrung (Food == FoodSource.Fish und ResourceAmount
+    /// &gt; 0), sonst 0; alpha = TallGrassAt(x, y). Ebenso die Wegkarte (C16): _roadMapData wird
+    /// angelegt wie _groundLiveData, Eintrag = new Color(RoadDrawnAt(x, y) ? 1f : 0f, Gebäude auf
+    /// der Kachel ? 1f : 0f, 0f, 1f). Alle anderen Einträge bleiben unverändert.
     /// </summary>
-    private void RefreshGroundLive()
+    internal void UpdateGroundMemory(bool all)
     {
+        // Das Lebendbild anlegen, falls es fehlt (ohne Grafik, etwa in tools/spielablauf) oder zu klein ist
+        if (_groundLiveData == null || _groundLiveData.Length < tileMap.Width * tileMap.Height)
+            _groundLiveData = new Color[tileMap.Width * tileMap.Height];
+        // Die Wegkarte wie das Lebendbild anlegen (C16)
+        if (_roadMapData == null || _roadMapData.Length < tileMap.Width * tileMap.Height)
+            _roadMapData = new Color[tileMap.Width * tileMap.Height];
         int w = tileMap.Width;
         for (int y = 0; y < tileMap.Height; y++)
         {
             for (int x = 0; x < w; x++)
             {
+                // Im Nebel bleibt der zuletzt gesehene Stand, außer all (Spielbeginn)
+                if (!all && !tileMap.IsTileVisible(x, y, 0))
+                    continue;
                 var tile = tileMap.GetTile(x, y);
                 bool fish = tile.Food == FoodSource.Fish && tile.ResourceAmount > 0;
-                // Alpha: wie hoch das Gras wächst (TallGrassAt) - der Bodenshader malt dort hohes Gras.
-                _groundLiveData[y * w + x] = new Color(tile.Wear, tile.Type == TileType.Forest ? 1f : 0f,
+                bool road = RoadDrawnAt(x, y);
+                // Rot: ausgetreten (Wear), unter einem Weg höchstens 0.35 - dort nur
+                // niedergetretenes Gras, die Kante zeichnet der Weg selbst (C16);
+                // Grün: Wald, Blau: Fischschwarm mit Nahrung, Alpha: das hohe Gras
+                _groundLiveData[y * w + x] = new Color(road ? Math.Min(tile.Wear, 0.35f) : tile.Wear, tile.Type == TileType.Forest ? 1f : 0f,
                                                        fish ? 1f : 0f, TallGrassAt(x, y));
+                // Wegkarte (C16): rot Weg, grün Gebäude
+                _roadMapData[y * w + x] = new Color(road ? 1f : 0f, string.IsNullOrEmpty(tile.Building) ? 0f : 1f, 0f, 1f);
             }
         }
+    }
+
+    /// <summary>
+    /// Wie hoch Spieler 0 das Gras auf Kachel (x, y) zuletzt gesehen hat (G14), 0 bis 1 - so
+    /// ändern sich die Büschel im Nebel nicht, wenn dort ein unsichtbares Tier steht oder
+    /// jemand einen Pfad austritt.
+    /// VERTRAG: außerhalb der Karte 0; ohne Lebendbild (_groundLiveData null - kein
+    /// Bodenshader) TallGrassAt(x, y); sonst der Alphawert des Eintrags
+    /// y * tileMap.Width + x geteilt durch 255f.
+    /// </summary>
+    internal float SeenTallGrassAt(int x, int y)
+    {
+        // Außerhalb der Karte: kein Gras
+        if (x < 0 || y < 0 || x >= tileMap.Width || y >= tileMap.Height)
+            return 0f;
+        // Ohne Lebendbild (kein Bodenshader) wie bisher
+        if (_groundLiveData == null)
+            return TallGrassAt(x, y);
+        // Der Alphawert des zuletzt gesehenen Stands
+        return _groundLiveData[y * tileMap.Width + x].A / 255f;
+    }
+
+    /// <summary>
+    /// Lädt den Boden, wie Spieler 0 ihn zuletzt gesehen hat (UpdateGroundMemory, G14), ins
+    /// Lebendbild des Bodenshaders: rot wie ausgetreten die Kachel ist (Tile.Wear, auf Wegen 1),
+    /// grün Wald, blau ein Fischschwarm, alpha das hohe Gras. all: auch die Kacheln im Nebel
+    /// (Spielbeginn).
+    /// </summary>
+    private void RefreshGroundLive(bool all = false)
+    {
+        UpdateGroundMemory(all);
         _groundLive.SetData(_groundLiveData);
+        _roadMap?.SetData(RoadDrawData());
     }
 
     /// <summary>
@@ -5256,7 +5776,7 @@ public class RTSGameplayScreen : GameScreen
     {
         var tile = tileMap.GetTile(x, y);
         if (tile == null || tile.Type != TileType.Grassland
-            || !string.IsNullOrEmpty(tile.Building) || tile.Farm
+            || !string.IsNullOrEmpty(tile.Building) || tile.Farm || tile.RoadLevel >= 1
             || tile.Food != FoodSource.None)
             return 0f;
         float v = ValueNoise(x / 6f, y / 5f, 0) * 0.65f + ValueNoise(x / 2.3f, y / 2.1f, 1) * 0.35f;
@@ -6453,7 +6973,9 @@ public class RTSGameplayScreen : GameScreen
                 if (tile == null) continue;
                 if (buschel)
                 {
-                    float hoch = TallGrassAt(x, y);
+                    // Im Nebel die Büschel, wie man sie zuletzt gesehen hat - ein unsichtbares
+                    // Tier drückt sie nicht weg (G14)
+                    float hoch = SeenTallGrassAt(x, y);
                     if (hoch > 0f)
                     {
                         for (int k = 0; k < TUFTS_PER_TILE; k++)
