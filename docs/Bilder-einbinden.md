@@ -110,7 +110,8 @@ debuggen oder die `.xnb` in `bin/…/Content/` nachschauen.
 
 ## Die offizielle Bild-Pipeline (KI-generiert)
 
-Der „echte" Weg, um (neue) Bilder zu produzieren, lebt unter `tools/bilder/`:
+Der „echte" Weg, um (neue) Bilder zu produzieren, lebt unter `tools/bilder/`
+(Schritt-für-Schritt-Anleitung am Beispiel Gras: [Bilder-erzeugen.md](Bilder-erzeugen.md)):
 
 - `bilder.json` – Manifest mit 35 Gruppen (`boden`, `baeume`, `einheiten`,
   `gebaeude_dunkel/…`, `soldaten`, `leiste`, `wege`, …). Jede Gruppe hat
