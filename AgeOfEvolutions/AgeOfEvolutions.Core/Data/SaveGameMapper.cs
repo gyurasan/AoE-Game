@@ -27,8 +27,8 @@ public static class SaveGameMapper
     ///   Ages = player.Ages.ToState(); Techs = player.Techs.ToState();
     ///   Explored = map.ExploredMask(player.Id).
     /// - Tiles: Width · Height Einträge, Index y · Width + x, je Kachel map.GetTile(x, y) mit
-    ///   Type, Walkable, Buildable, ResourceType, ResourceAmount, Food, Wear, Farm, FarmRegrow,
-    ///   FarmFood, FarmCol, FarmRow, FarmSize, RoadLevel und
+    ///   Type, GroundType (G15), Walkable, Buildable, ResourceType, ResourceAmount, Food, Wear,
+    ///   Farm, FarmRegrow, FarmFood, FarmCol, FarmRow, FarmSize, RoadLevel und
     ///   Animal: null, wenn tile.Animal null ist,
     ///   sonst ein AnimalSave mit allen sieben Werten des Tiers.
     /// - Buildings: je Gebäude aus map.Buildings in dieser Reihenfolge: X, Y, Type,
@@ -98,6 +98,7 @@ public static class SaveGameMapper
                 save.Tiles.Add(new TileSave
                 {
                     Type = tile.Type,
+                    GroundType = tile.GroundType,
                     Walkable = tile.Walkable,
                     Buildable = tile.Buildable,
                     ResourceType = tile.ResourceType,
@@ -180,7 +181,8 @@ public static class SaveGameMapper
     /// 2. map = TileMap.CreateBlank(Width, Height, TileSize, MapSettings.ForSize(save.MapSize)).
     /// 3. Kacheln: jede Kachel map.GetTile(x, y) bekommt alle Werte ihres TileSave (Index
     ///    y · Width + x); Animal null bleibt null, sonst ein neues WildAnimal mit den sieben
-    ///    Werten. Building bleibt null - das setzt Schritt 5.
+    ///    Werten. GroundType = ts.GroundType ?? ts.Type (ältere Spielstände ohne den Boden
+    ///    der Kartenerzeugung, G15). Building bleibt null - das setzt Schritt 5.
     /// 4. Spieler: je PlayerSave new Player(Id, Name, Civilization); danach steht jeder der vier
     ///    Rohstoffe GENAU auf dem gespeicherten Wert (player.Resources.Add(r, gespeichert -
     ///    player.Resources[r]) - der Konstruktor hat schon Startkapital und Volksbonus gebucht);
@@ -227,6 +229,8 @@ public static class SaveGameMapper
                 TileSave ts = save.Tiles[y * save.Width + x];
                 Tile tile = map.GetTile(x, y);
                 tile.Type = ts.Type;
+                // Ältere Spielstände ohne den Boden der Erzeugung: der Typ (G15).
+                tile.GroundType = ts.GroundType ?? ts.Type;
                 tile.Walkable = ts.Walkable;
                 tile.Buildable = ts.Buildable;
                 tile.ResourceType = ts.ResourceType;

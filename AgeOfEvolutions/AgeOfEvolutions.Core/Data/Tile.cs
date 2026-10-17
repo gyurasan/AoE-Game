@@ -42,6 +42,15 @@ public class Tile
     public int Y { get; set; }
     
     public TileType Type { get; set; }
+
+    /// <summary>
+    /// Der Boden der Kachel, wie die Kartenerzeugung ihn angelegt hat (G15). Er bleibt, wenn
+    /// Bäume gefällt oder Stein und Gold abgebaut sind - die Wiese ändert sich dadurch nicht:
+    /// wo Wald stand, bleibt Waldboden, und hohes Gras wächst nur, wo von Anfang an Wiese war.
+    /// Der Konstruktor setzt ihn auf den Typ, TileMap nach der Erzeugung auf den fertigen Typ.
+    /// </summary>
+    public TileType GroundType { get; set; }
+
     public bool Walkable { get; set; }
     public bool Buildable { get; set; }
     
@@ -58,12 +67,20 @@ public class Tile
     public WildAnimal Animal { get; set; }
 
     /// <summary>
-    /// Wie ausgetreten der Boden ist, von 0 (unberührt) bis 1 (nackte Erde). Jede
-    /// Figur, die die Kachel betritt, tritt sie weiter aus (TileMap.Trample); ohne
-    /// Verkehr wächst das Gras langsam nach (TileMap.RegrowGrass). Der
-    /// Spielbildschirm zeichnet daraus Trampelpfade.
+    /// Wie ausgetreten der Boden ist, von 0 (unberührt) bis 1. Jede Figur, die die
+    /// Kachel betritt, tritt sie weiter aus (TileMap.Trample). Ab TileMap.ROAD_WEAR_MIN
+    /// ist ein Trampelpfad entstanden (<see cref="IsPath"/>), der für immer bleibt;
+    /// Tritte darunter sieht man nicht, und ohne Verkehr vergehen sie wieder
+    /// (TileMap.RegrowGrass, G15).
     /// </summary>
     public float Wear { get; set; }
+
+    /// <summary>
+    /// Ob hier ein Trampelpfad entstanden ist (G15): ab TileMap.ROAD_WEAR_MIN, also sechs
+    /// Tritten. Ein Pfad bleibt für immer und sieht immer gleich aus - mehr Tritte ändern
+    /// ihn nicht, und er wächst nicht wieder zu.
+    /// </summary>
+    public bool IsPath => Wear >= TileMap.ROAD_WEAR_MIN - 0.001f;
     
     /// <summary>
     /// Ob die Kachel Teil eines angelegten Feldes ist (Farm). Jede Kachel eines
@@ -105,7 +122,7 @@ public class Tile
     /// Schotter (Imperialzeit). Bei jedem Zeitaufstieg rücken die vorhandenen
     /// Trampelpfade auf (TileMap.UpgradeRoads); neu ausgetretene Pfade entstehen direkt
     /// auf der aktuellen Stufe, und ab der Feudalzeit bekommt jedes fertige Gebäude
-    /// einen Weg zum Wegenetz (TileMap.ConnectBuilding, C16).
+    /// einen Weg bis ans Stadtzentrum (TileMap.ConnectBuilding, C16, C16c).
     /// Auf Stufen 1 und höher laufen Einheiten 20 % schneller als auf der Wiese.
     /// </summary>
     public int RoadLevel { get; set; }
@@ -129,6 +146,7 @@ public class Tile
         X = x;
         Y = y;
         Type = type;
+        GroundType = type;
         SetupTileProperties();
     }
     

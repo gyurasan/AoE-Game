@@ -8,6 +8,8 @@
 // strassen (Wege: Trampelpfade werden beim Zeitaufstieg zu Feldwegen und besser, laufen 20 % schneller),
 // gebaeudewege (ab der Feudalzeit führt von jedem fertigen Gebäude ein Weg bis ans Stadtzentrum),
 // nebelboden (Gras und Pfade im Nebel bleiben, wie man sie zuletzt gesehen hat),
+// festerboden (Gras ändert sich nie, nur Pfade, Wege und Gebäude legen sich darüber; ein Pfad bleibt),
+// bauphasen, einsturz und pfeile (Animationen A1-A3: Bauphasen, Einsturz-Liste, Pfeile landen beim Treffer),
 // wegkarte (was der Wege-Shader als Weg zeichnet, schräge Lücken aufgefüllt),
 // zielen (Gegner an der ganzen Figur anklicken), verteidigung (Soldaten verteidigen das
 // Stadtzentrum) und kampfbild (Schlagbilder und Blick gegen Einheiten). Die Geräusche
@@ -108,6 +110,14 @@ for (int karte = 1; karte <= KARTEN; karte++)
     if (gruppen.Contains("strassen"))
         Pruefe($"Karte {karte}, Straße", () => Strassen(karte, verstoesse));
     // Boden im Nebel (G14): der Boden zeigt den zuletzt gesehenen Stand, nicht was unsichtbar geschieht
+    if (gruppen.Contains("bauphasen"))
+        Pruefe($"Karte {karte}, Bauphasen", () => Bauphasen(karte, verstoesse));
+    if (gruppen.Contains("einsturz"))
+        Pruefe($"Karte {karte}, Einsturz", () => Einsturz(karte, verstoesse));
+    if (gruppen.Contains("pfeile"))
+        Pruefe($"Karte {karte}, Pfeile", () => Pfeile(karte, verstoesse));
+    if (gruppen.Contains("festerboden"))
+        Pruefe($"Karte {karte}, Fester Boden", () => FesterBoden(karte, verstoesse));
     if (gruppen.Contains("nebelboden"))
         Pruefe($"Karte {karte}, Boden im Nebel", () => NebelBoden(karte, verstoesse));
     // Wegkarte (C16): was der Wege-Shader als Weg zeichnet, schräge Lücken aufgefüllt
@@ -1736,8 +1746,8 @@ static object Screen_of(Welt w)
 // Dorfbewohner läuft zwölfmal zwischen zwei Kacheln hin und her; der Ablauf zählt
 // selbst, wie oft er welche Kachel betritt. Jede Kachel ist danach so ausgetreten,
 // wie es ihren Schritten entspricht, abzüglich dessen, was in der Zeit nachwuchs -
-// und keine, die er nicht betreten hat. Ohne Verkehr wächst das Gras gleichmäßig
-// nach, in WEAR_REGROW_SECONDS ganz.
+// und keine, die er nicht betreten hat. Ohne Verkehr vergehen Tritte, aus denen
+// noch kein Pfad wurde, gleichmäßig, in WEAR_REGROW_SECONDS ganz; ein Pfad bleibt (G15).
 static void Pfad(int karte, List<string> verstoesse)
 {
     var w = new Welt();
@@ -1790,21 +1800,29 @@ static void Pfad(int karte, List<string> verstoesse)
     int pfad = abgenutzt.Count(t => t.Wear >= 0.4f);
 
     var stand = abgenutzt.ToDictionary(t => t, t => t.Wear);
+    var pfade = abgenutzt.Where(t => t.IsPath).ToList();
     w.Map.RegrowGrass(TileMap.WEAR_REGROW_SECONDS / 2f);
     foreach (var (t, wear) in stand)
     {
-        if (MathF.Abs(t.Wear - MathF.Max(0f, wear - 0.5f)) > 0.001f)
+        float erwartet = pfade.Contains(t) ? wear : MathF.Max(0f, wear - 0.5f);
+        if (MathF.Abs(t.Wear - erwartet) > 0.001f)
         {
-            verstoesse.Add($"{wer}: nach halber Nachwachszeit {t.Wear:0.000} statt {MathF.Max(0f, wear - 0.5f):0.000} auf ({t.X},{t.Y})");
+            verstoesse.Add($"{wer}: nach halber Nachwachszeit {t.Wear:0.000} statt {erwartet:0.000} auf ({t.X},{t.Y})"
+                           + (pfade.Contains(t) ? " - ein Pfad bleibt (G15)" : ""));
             break;
         }
     }
     w.Map.RegrowGrass(TileMap.WEAR_REGROW_SECONDS);
-    if (abgenutzt.Any(t => t.Wear > 0f))
-        verstoesse.Add($"{wer}: nach voller Nachwachszeit noch Abnutzung übrig");
+    if (abgenutzt.Any(t => !pfade.Contains(t) && t.Wear > 0f))
+        verstoesse.Add($"{wer}: nach voller Nachwachszeit noch Tritte ohne Pfad übrig");
+    if (pfade.Count == 0)
+        verstoesse.Add($"{wer}: kein Pfad entstanden, obwohl {oft} Kacheln zehnmal betreten wurden");
+    else if (pfade.Any(t => t.Wear != stand[t] || !t.IsPath))
+        verstoesse.Add($"{wer}: ein Pfad wuchs wieder zu");
 
     if (verstoesse.Count == vorher)
-        Console.WriteLine($"  ok  {wer}: {abgenutzt.Count} Kacheln ausgetreten, {pfad} davon als Pfad, nur auf dem Weg; wächst wieder zu");
+        Console.WriteLine($"  ok  {wer}: {abgenutzt.Count} Kacheln ausgetreten, {pfad} davon als Pfad, nur auf dem Weg; "
+                          + $"Tritte ohne Pfad wachsen zu, {pfade.Count} Pfadkacheln bleiben");
 }
 
 // Minimap rechts in der unteren Leiste, in derselben Ansicht wie die Spielkarte
@@ -2455,6 +2473,358 @@ static void NebelBoden(int karte, List<string> verstoesse)
     if (verstoesse.Count == vorher)
         Console.WriteLine($"  ok  {wer}: Pfad, Tier und Weg im Nebel unsichtbar ({a}, {b}), in Sicht sofort ({c}), "
                           + "beim Hinsehen nachgezogen, Komplettabgleich nimmt den Nebel mit");
+}
+
+// Animationen (A1-A3). Der Nutzer (2026-10-17): „ich würde noch gerne mehr Animationen im Game
+// haben. Zum Beispiel wenn ein Gebäude zerstört wird soll das animiert werden. Wenn ein Geäude
+// erstellt wird sollten ebenfalls 3-4 Darstellung sich im Bau befindliches Gebäude Dargestellt
+// werden. Zudem soll man die Pfeile der Bogenschützen sehen.“ Ohne Grafik prüfbar ist die Logik:
+// die Bauphasen, die Einsturz-Liste und wann ein Pfeil fliegt; wie es aussieht, zeigen Fotos.
+static object Feldwert(object obj, string name)
+    => obj.GetType().GetField(name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance).GetValue(obj);
+
+// Bauphasen (A1): vier Phasen zu je einem Viertel des Baufortschritts
+static void Bauphasen(int karte, List<string> verstoesse)
+{
+    var wer = $"Karte {karte}, Bauphasen";
+    int vorher = verstoesse.Count;
+    var phase = typeof(RTSGameplayScreen).GetMethod("ConstructionStage", BindingFlags.NonPublic | BindingFlags.Static);
+    foreach (var (p, soll) in new[] { (0f, 0), (0.1f, 0), (0.249f, 0), (0.25f, 1), (0.49f, 1), (0.5f, 2), (0.74f, 2), (0.75f, 3), (0.99f, 3), (1f, 3) })
+    {
+        int ist = (int)phase.Invoke(null, new object[] { p });
+        if (ist != soll)
+            verstoesse.Add($"{wer}: Fortschritt {p:0.000} ergibt Phase {ist}, erwartet {soll}");
+    }
+    // Ohne geladene Bilder (kein Grafikgerät) gibt es kein Gebäudebild - dann der gezeichnete Bauplatz
+    var w = new Welt();
+    var tc = w.Map.Buildings.First(b => b.OwnerId == 0 && b.Core.BuildingType == BuildingType.TownCenter);
+    if (w.Call("BuildingSpriteOf", tc) != null)
+        verstoesse.Add($"{wer}: BuildingSpriteOf liefert ohne geladene Bilder ein Bild");
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: 0 bis 24 % abgesteckt, ab 25 % Fundament, ab 50 % Rohbau, ab 75 % fast fertig");
+}
+
+// Einsturz (A2): ein zerstörtes Gebäude verschwindet aus der Spiellogik sofort, die Animation
+// merkt sich Lage und Größe und altert mit der Spielschleife, bis die Trümmer vergangen sind
+static void Einsturz(int karte, List<string> verstoesse)
+{
+    var wer = $"Karte {karte}, Einsturz";
+    int vorher = verstoesse.Count;
+    var w = new Welt();
+    var liste = (System.Collections.IList)w.Get("_collapses");
+    var platz = w.FreieKachel(w.Dorfbewohner().First(), 6);
+    var haus = w.Map.AddBuilding((int)platz.X, (int)platz.Y, "Haus", 1, 2);
+    w.Call("DestroyBuilding", haus);
+    if (w.Map.Buildings.Contains(haus))
+        verstoesse.Add($"{wer}: das zerstörte Haus steht noch auf der Karte");
+    if (liste.Count != 1)
+    {
+        verstoesse.Add($"{wer}: nach DestroyBuilding {liste.Count} Einstürze, erwartet einer");
+        return;
+    }
+    var c = liste[0];
+    var lage = ((int)Feldwert(c, "X"), (int)Feldwert(c, "Y"), (int)Feldwert(c, "Width"), (int)Feldwert(c, "Height"));
+    if (lage != (haus.X, haus.Y, haus.Width, haus.Height) || (float)Feldwert(c, "Age") != 0f)
+        verstoesse.Add($"{wer}: Einsturz bei {lage}, Alter {Feldwert(c, "Age")}, erwartet ({haus.X}, {haus.Y}, {haus.Width}, {haus.Height}) und 0");
+    // Die Spielschleife lässt ihn altern
+    w.LaufeBis(() => false, 2f);
+    float alter = (float)Feldwert(c, "Age");
+    if (Math.Abs(alter - 2f) > 0.05f)
+        verstoesse.Add($"{wer}: nach 2 s Spielschleife ist der Einsturz {alter:0.00} s alt");
+    // Trümmer bleiben RUBBLE_SECONDS, dann ist er fort
+    float trummer = (float)typeof(RTSGameplayScreen).GetField("RUBBLE_SECONDS", BindingFlags.NonPublic | BindingFlags.Static).GetValue(null);
+    w.Call("UpdateEffects", trummer - 2f - 0.5f);
+    if (liste.Count != 1)
+        verstoesse.Add($"{wer}: die Trümmer verschwanden vor {trummer} s");
+    w.Call("UpdateEffects", 1f);
+    if (liste.Count != 0)
+        verstoesse.Add($"{wer}: nach {trummer} s liegen die Trümmer noch");
+    // Eine Mauer stürzt genauso ein, zwei Gebäude zugleich je für sich
+    var a = w.Map.AddBuilding((int)platz.X, (int)platz.Y, "Haus", 1, 2);
+    var b2 = w.Map.AddBuilding((int)platz.X + 3, (int)platz.Y, "Palisadenmauer", 1, 1);
+    w.Call("DestroyBuilding", a);
+    w.Call("UpdateEffects", 1f);
+    w.Call("DestroyBuilding", b2);
+    if (liste.Count != 2 || (float)Feldwert(liste[0], "Age") != 1f || (float)Feldwert(liste[1], "Age") != 0f)
+        verstoesse.Add($"{wer}: zwei Einstürze nacheinander: {liste.Count} in der Liste, Alter falsch");
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: Haus sofort fort, Einsturz an seiner Stelle, altert mit der Spielschleife, Trümmer {trummer} s");
+}
+
+// Pfeile (A3): ein Bogenschütze lässt jeden Pfeil so los, dass er genau beim Treffer ankommt;
+// Nahkämpfer schießen keine Pfeile
+static void Pfeile(int karte, List<string> verstoesse)
+{
+    var wer = $"Karte {karte}, Pfeile";
+    int vorher = verstoesse.Count;
+    var typ = typeof(RTSGameplayScreen);
+    var flug = typ.GetMethod("ArrowFlight", BindingFlags.NonPublic | BindingFlags.Static);
+    foreach (var (d, soll) in new[] { (0f, 0.15f), (26f, 0.15f), (130f, 0.5f), (156f, 0.6f), (2000f, 0.6f) })
+    {
+        float ist = (float)flug.Invoke(null, new object[] { d });
+        if (Math.Abs(ist - soll) > 0.001f)
+            verstoesse.Add($"{wer}: Flugzeit über {d} px {ist:0.000} s, erwartet {soll:0.000}");
+    }
+    // Die Flugbahn: von From nach To im Bogen, auf halber Strecke ARROW_ARC · Strecke über der Linie
+    var pfeilTyp = typ.GetNestedType("Arrow", BindingFlags.NonPublic);
+    var probe = Activator.CreateInstance(pfeilTyp, true);
+    pfeilTyp.GetField("From").SetValue(probe, new Vector2(100f, 200f));
+    pfeilTyp.GetField("To").SetValue(probe, new Vector2(200f, 200f));
+    pfeilTyp.GetField("Flight").SetValue(probe, 0.4f);
+    var bahn = typ.GetMethod("ArrowAt", BindingFlags.NonPublic | BindingFlags.Static);
+    (Vector2 P, float Winkel) wo(float t)
+    {
+        var args = new object[] { probe, t, 0f };
+        var p = (Vector2)bahn.Invoke(null, args);
+        return (p, (float)args[2]);
+    }
+    var (start, w0) = wo(0f);
+    var (mitte, wm) = wo(0.2f);
+    var (ende, we) = wo(0.4f);
+    var (danach, _) = wo(1f);
+    if (Vector2.Distance(start, new Vector2(100f, 200f)) > 0.01f || Vector2.Distance(ende, new Vector2(200f, 200f)) > 0.01f
+        || Vector2.Distance(danach, ende) > 0.01f)
+        verstoesse.Add($"{wer}: Flugbahn beginnt bei {start}, endet bei {ende} (danach {danach}), erwartet (100, 200) und (200, 200)");
+    if (Vector2.Distance(mitte, new Vector2(150f, 200f - 22f)) > 0.01f)
+        verstoesse.Add($"{wer}: auf halber Strecke bei {mitte}, erwartet (150, 178) - 22 px über der Linie");
+    if (!(w0 < -0.5f && Math.Abs(wm) < 0.01f && we > 0.5f))
+        verstoesse.Add($"{wer}: der Pfeil zeigt erst {w0:0.00}, oben {wm:0.00}, am Ende {we:0.00} - erwartet steigend, waagrecht, fallend");
+
+    // Zweikampf: Bogenschütze gegen Miliz auf drei Kacheln
+    var w = new Welt();
+    var pfeile = (System.Collections.IList)w.Get("_arrows");
+    var platz = w.FreieKachel(w.Dorfbewohner().First(), 4);
+    var schuetze = NeueEinheit(w, UnitType.Archer, 0, platz);
+    var gegner = NeueEinheit(w, UnitType.Militia, 1, platz);
+    gegner.Position = schuetze.Position - new Vector2(3f * 32f, 0f);
+    w.Call("AttackUnit", new List<Unit> { schuetze }, gegner);
+    var unterwegs = new Dictionary<object, int>();
+    var landungen = new List<int>();
+    var treffer = new List<int>();
+    int bild = 0, lp = gegner.Health, abseits = 0, losgelassen = 0;
+    w.LaufeBis(() =>
+    {
+        bild++;
+        foreach (var a in pfeile.Cast<object>().Where(a => !unterwegs.ContainsKey(a)).ToList())
+        {
+            unterwegs[a] = bild;
+            losgelassen++;
+            var von = (Vector2)Feldwert(a, "From");
+            var nach = (Vector2)Feldwert(a, "To");
+            if (Vector2.Distance(von, schuetze.Position) > 16f || Vector2.Distance(nach, gegner.Position) > 16f)
+                abseits++;
+        }
+        foreach (var a in unterwegs.Keys.Where(a => !pfeile.Contains(a)).ToList())
+        {
+            landungen.Add(bild);
+            unterwegs.Remove(a);
+        }
+        if (gegner.Health < lp)
+            treffer.Add(bild);
+        lp = gegner.Health;
+        return gegner.State == UnitState.Dead || !w.Map.Units.Contains(gegner) || treffer.Count >= 4;
+    }, 40f);
+    if (treffer.Count < 2)
+        verstoesse.Add($"{wer}: Testaufbau - nur {treffer.Count} Treffer in 40 s");
+    if (losgelassen < treffer.Count)
+        verstoesse.Add($"{wer}: {treffer.Count} Treffer, aber nur {losgelassen} Pfeile");
+    foreach (var t in treffer)
+        if (!landungen.Any(l => Math.Abs(l - t) <= 1))
+        {
+            verstoesse.Add($"{wer}: Treffer in Bild {t} ohne Pfeil, der dort landet (Landungen {string.Join(", ", landungen)})");
+            break;
+        }
+    if (abseits > 0)
+        verstoesse.Add($"{wer}: {abseits} Pfeile nicht vom Schützen zum Gegner");
+
+    // Ein Nahkämpfer schießt nicht
+    var w2 = new Welt();
+    var pfeile2 = (System.Collections.IList)w2.Get("_arrows");
+    var platz2 = w2.FreieKachel(w2.Dorfbewohner().First(), 4);
+    var miliz = NeueEinheit(w2, UnitType.Militia, 0, platz2);
+    var opfer = NeueEinheit(w2, UnitType.Villager, 1, platz2);
+    opfer.Position = miliz.Position - new Vector2(32f, 0f);
+    w2.Call("AttackUnit", new List<Unit> { miliz }, opfer);
+    int nahPfeile = 0;
+    w2.LaufeBis(() => { nahPfeile = Math.Max(nahPfeile, pfeile2.Count); return opfer.Health < opfer.MaxHealth / 2; }, 20f);
+    if (nahPfeile > 0)
+        verstoesse.Add($"{wer}: eine Miliz hat {nahPfeile} Pfeile geschossen");
+
+    // Auf ein Gebäude: der Pfeil fliegt in seine Mitte und landet beim Treffer
+    var w3 = new Welt();
+    var pfeile3 = (System.Collections.IList)w3.Get("_arrows");
+    var platz3 = w3.FreieKachel(w3.Dorfbewohner().First(), 6);
+    var haus = w3.Map.AddBuilding((int)platz3.X, (int)platz3.Y, "Haus", 1, 2);
+    var schuetze3 = NeueEinheit(w3, UnitType.Archer, 0, new Vector2(platz3.X - 3, platz3.Y + 1));
+    w3.Call("AttackBuilding", new List<Unit> { schuetze3 }, haus);
+    var mitteHaus = new Vector2((haus.X + 1f) * 32f, (haus.Y + 1f) * 32f - 32f * 0.4f);
+    int gebaeudePfeile = 0, falschesZiel = 0, lpHaus = haus.Health;
+    var gesehen = new HashSet<object>();
+    w3.LaufeBis(() =>
+    {
+        foreach (var a in pfeile3.Cast<object>().Where(gesehen.Add))
+        {
+            gebaeudePfeile++;
+            if (Vector2.Distance((Vector2)Feldwert(a, "To"), mitteHaus) > 1f)
+                falschesZiel++;
+        }
+        return gebaeudePfeile >= 2 && haus.Health < lpHaus;
+    }, 30f);
+    if (gebaeudePfeile == 0)
+        verstoesse.Add($"{wer}: auf das Haus flog kein Pfeil ({schuetze3.State})");
+    if (falschesZiel > 0)
+        verstoesse.Add($"{wer}: {falschesZiel} Pfeile nicht auf die Mitte des Hauses");
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: Flugzeit und Bahn, {losgelassen} Pfeile im Zweikampf landen mit den {treffer.Count} Treffern, "
+                          + $"Miliz ohne Pfeile, {gebaeudePfeile} Pfeile aufs Haus");
+}
+
+// Fester Boden (G15). Der Nutzer (2026-10-17): „gras und pfäde dürfen sich nicht mehr ändern
+// wenn sie mal erstelt sind. Über gras kann nur noch der Pfad oder Strassen gelegt werden. Aber
+// Gras in ein anderes Gras nicht“. Das hohe Gras (TallGrassAt) und das Lebendbild des
+// Bodenshaders (UpdateGroundMemory) bleiben, während Tiere wandern, Tritte vergehen, Bäume
+// fallen und Minen leer werden; nur ein Pfad, ein Weg, ein Gebäude oder ein Feld legt sich darüber.
+static void FesterBoden(int karte, List<string> verstoesse)
+{
+    var wer = $"Karte {karte}, Fester Boden";
+    int vorher = verstoesse.Count;
+    var w = new Welt();
+    int breite = w.Map.Width, hoehe = w.Map.Height;
+    float hoch(int x, int y) => (float)w.Call("TallGrassAt", x, y);
+    Color[] bild()
+    {
+        w.Call("UpdateGroundMemory", true);
+        return (Color[])((Color[])w.Get("_groundLiveData")).Clone();
+    }
+    int idx(int x, int y) => y * breite + x;
+    bool bedeckt(Tile t) => t.IsPath || t.RoadLevel >= 1 || !string.IsNullOrEmpty(t.Building) || t.Farm;
+
+    // 1) Zwei Minuten Spiel: die Tiere wandern, auch durchs hohe Gras - der Boden bleibt
+    var anfang = bild();
+    var tiereVorher = new HashSet<(int, int)>();
+    for (int x = 0; x < breite; x++)
+        for (int y = 0; y < hoehe; y++)
+            if (w.Map.GetTile(x, y).Food.IsWild())
+                tiereVorher.Add((x, y));
+    w.LaufeBis(() => false, 120f);
+    var danach = bild();
+    int gewandert = 0, geaendert = 0;
+    (int, int)? erstes = null;
+    for (int x = 0; x < breite; x++)
+        for (int y = 0; y < hoehe; y++)
+        {
+            var t = w.Map.GetTile(x, y);
+            if (t.Food.IsWild() != tiereVorher.Contains((x, y)))
+                gewandert++;
+            if (bedeckt(t))
+                continue;
+            var a = anfang[idx(x, y)];
+            var b = danach[idx(x, y)];
+            if (a.R != b.R || a.G != b.G || a.A != b.A)
+            {
+                geaendert++;
+                erstes ??= (x, y);
+            }
+        }
+    if (gewandert == 0)
+        verstoesse.Add($"{wer}: in zwei Minuten ist kein Tier gewandert - Prüfung ohne Wirkung");
+    if (geaendert > 0)
+        verstoesse.Add($"{wer}: in zwei Minuten änderte sich der Boden auf {geaendert} Kacheln ohne Pfad, Weg, Gebäude oder Feld, "
+                       + $"etwa bei {erstes} (Tiere wanderten auf {gewandert} Kacheln)");
+
+    // Wiesenkacheln mit hohem Gras, frei von allem, was darüberliegt
+    var frei = new List<(int X, int Y)>();
+    for (int x = 2; x < breite - 2; x++)
+        for (int y = 2; y < hoehe - 2; y++)
+        {
+            var t = w.Map.GetTile(x, y);
+            if (t.Type == TileType.Grassland && t.GroundType == TileType.Grassland && !bedeckt(t) && t.Wear <= 0f
+                && t.Food == FoodSource.None && t.ResourceType == null && hoch(x, y) > 0.3f)
+                frei.Add((x, y));
+        }
+    if (frei.Count < 4)
+    {
+        Console.WriteLine($"      {wer}: zu wenig hohes Gras auf der Karte - Teil 2 bis 4 übersprungen");
+    }
+    else
+    {
+        // 2) Fünf Tritte ändern nichts, der sechste legt einen Pfad darüber, und der bleibt
+        var (px, py) = frei[0];
+        float grasVorher = hoch(px, py);
+        var farbeVorher = bild()[idx(px, py)];
+        for (int i = 0; i < 5; i++)
+            w.Map.Trample(px, py);
+        var fuenf = bild()[idx(px, py)];
+        if (Math.Abs(hoch(px, py) - grasVorher) > 0.001f || fuenf != farbeVorher)
+            verstoesse.Add($"{wer}: fünf Tritte bei ({px},{py}) änderten das Gras ({grasVorher:0.00} -> {hoch(px, py):0.00}, {farbeVorher} -> {fuenf})");
+        w.Map.Trample(px, py);
+        var pfad = bild()[idx(px, py)];
+        if (hoch(px, py) > 0.001f || pfad.R < 250)
+            verstoesse.Add($"{wer}: nach sechs Tritten bei ({px},{py}) kein Pfad (Gras {hoch(px, py):0.00}, rot {pfad.R})");
+        w.Map.RegrowGrass(TileMap.WEAR_REGROW_SECONDS * 10f);
+        var spaeter = bild()[idx(px, py)];
+        if (spaeter != pfad)
+            verstoesse.Add($"{wer}: der Pfad bei ({px},{py}) wuchs wieder zu ({pfad} -> {spaeter})");
+
+        // 3) Ein Tier im hohen Gras drückt es nicht weg
+        var (tx, ty) = frei[1];
+        float grasTier = hoch(tx, ty);
+        var farbeTier = bild()[idx(tx, ty)];
+        w.Map.GetTile(tx, ty).Food = FoodSource.Sheep;
+        if (Math.Abs(hoch(tx, ty) - grasTier) > 0.001f || bild()[idx(tx, ty)] != farbeTier)
+            verstoesse.Add($"{wer}: ein Schaf bei ({tx},{ty}) drückte das hohe Gras weg ({grasTier:0.00} -> {hoch(tx, ty):0.00})");
+        w.Map.GetTile(tx, ty).Food = FoodSource.None;
+
+        // 4) Ein Weg legt sich über das Gras, auch über einen Pfad - darunter nur niedergetretenes
+        //    Gras (rot 0,35), die Kante zeichnet der Weg selbst (C16)
+        var (sx, sy) = frei[2];
+        w.Map.GetTile(sx, sy).RoadLevel = 1;
+        if (hoch(sx, sy) > 0.001f || bild()[idx(sx, sy)].R != 0)
+            verstoesse.Add($"{wer}: unter dem Weg bei ({sx},{sy}) wächst noch hohes Gras ({hoch(sx, sy):0.00}) oder steht ein Pfad");
+        for (int i = 0; i < 6; i++)
+            w.Map.Trample(sx, sy);
+        byte unterWeg = bild()[idx(sx, sy)].R;
+        if (unterWeg < 80 || unterWeg > 92)
+            verstoesse.Add($"{wer}: unter dem Weg mit Pfad bei ({sx},{sy}) rot {unterWeg}, erwartet 0,35 (~89)");
+
+        // 5) Ein Beerenbusch verdeckt das hohe Gras
+        var (bx, by) = frei[3];
+        w.Map.GetTile(bx, by).Food = FoodSource.Berries;
+        if (hoch(bx, by) > 0.001f)
+            verstoesse.Add($"{wer}: unter dem Beerenbusch bei ({bx},{by}) wächst hohes Gras ({hoch(bx, by):0.00})");
+        w.Map.GetTile(bx, by).Food = FoodSource.None;
+    }
+
+    // 6) Ein gefällter Baum und eine leere Mine lassen den Boden, wie er war
+    var vorFall = bild();
+    Tile wald = null, mine = null;
+    for (int x = 0; x < breite && (wald == null || mine == null); x++)
+        for (int y = 0; y < hoehe; y++)
+        {
+            var t = w.Map.GetTile(x, y);
+            if (wald == null && t.Type == TileType.Forest)
+                wald = t;
+            else if (mine == null && t.Type is TileType.Mountain or TileType.GoldMine)
+                mine = t;
+        }
+    foreach (var quelle in new[] { wald, mine })
+    {
+        if (quelle == null)
+            continue;
+        var art = quelle.Type;
+        w.Map.ClearResource(quelle);
+        var nach = bild()[idx(quelle.X, quelle.Y)];
+        if (quelle.Type != TileType.Grassland)
+            verstoesse.Add($"{wer}: {art} bei ({quelle.X},{quelle.Y}) wurde nach dem Abbau nicht Wiese - Prüfung ohne Wirkung");
+        else if (nach != vorFall[idx(quelle.X, quelle.Y)] || hoch(quelle.X, quelle.Y) > 0.001f)
+            verstoesse.Add($"{wer}: nach dem Abbau von {art} bei ({quelle.X},{quelle.Y}) änderte sich der Boden "
+                           + $"({vorFall[idx(quelle.X, quelle.Y)]} -> {nach}, hohes Gras {hoch(quelle.X, quelle.Y):0.00})");
+    }
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: zwei Minuten mit Tieren ({gewandert} Kacheln gewandert) ohne Änderung, fünf Tritte "
+                          + "unsichtbar, der sechste ein Pfad, der bleibt, Schaf und Abbau ändern nichts, Weg und Beerenbusch verdecken das Gras");
 }
 
 // Wegkarte (C16): welche Kacheln der Wege-Shader als Weg zeichnet (RoadDrawnAt) und wie

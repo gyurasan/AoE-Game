@@ -30,7 +30,7 @@ namespace AgeOfEvolutions.Core.Screens;
 /// <summary>
 /// Main RTS gameplay screen with tilemap, units, and resource management
 /// </summary>
-public class RTSGameplayScreen : GameScreen
+public partial class RTSGameplayScreen : GameScreen
 {
     private GraphicsDevice graphicsDevice;
     private SpriteBatch spriteBatch;
@@ -2712,6 +2712,8 @@ public class RTSGameplayScreen : GameScreen
         // dem Besitzer zurück
         var owner = b.OwnerId == 0 ? player1 : player2;
         b.Research.Cancel(owner.Techs, owner.Resources);
+        // Es stürzt sichtbar ein: Staub, dann Trümmer (A2)
+        StartCollapse(b);
         tileMap.RemoveBuilding(b);
 
         // Alle Einheiten, die es angriffen oder an ihm bauten, lassen davon ab
@@ -4686,6 +4688,9 @@ public class RTSGameplayScreen : GameScreen
         // Untätige Soldaten verteidigen ihr Stadtzentrum (K6)
         DefendTownCenters(dt);
 
+        // Pfeile fliegen, Einstürze und Trümmer altern (A2, A3)
+        UpdateEffects(dt);
+
         // Beide Spieler: die owner-generic Kernlogik (Sammeln, Bauen,
         // Zurückkehren) unterscheidet sich nicht — nur die UI gehört dem
         // Menschen. Der KI-Gegner (Owner 1) würde sonst stehen bleiben.
@@ -4718,7 +4723,10 @@ public class RTSGameplayScreen : GameScreen
                     // Gebäude-Angriff?
                     if (unit.AttackTarget is { } building && tileMap.Buildings.Contains(building))
                     {
+                        float before = unit.AttackTimer;
                         unit.AttackTimer += dt;
+                        // Ein Schütze lässt den Pfeil so los, dass er beim Treffer ankommt (A3)
+                        MaybeLaunchArrow(unit, before);
                         if (unit.AttackTimer >= AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS)
                         {
                             unit.AttackTimer -= AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS;
@@ -4828,7 +4836,10 @@ public class RTSGameplayScreen : GameScreen
             return;
         }
 
+        float before = unit.AttackTimer;
         unit.AttackTimer += dt;
+        // Ein Schütze lässt den Pfeil so los, dass er beim Treffer ankommt (A3)
+        MaybeLaunchArrow(unit, before);
         if (unit.AttackTimer >= AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS)
         {
             unit.AttackTimer -= AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS;
@@ -5231,6 +5242,9 @@ public class RTSGameplayScreen : GameScreen
         // sortierten Zug - wessen Sohle weiter unten im Bild steht, überdeckt,
         // was weiter oben steht (Haufen und Fleisch liegen flach in DrawTileMap)
         DrawUnits(spriteBatch);
+
+        // Pfeile im Flug über allem, was steht (A3)
+        DrawArrows(spriteBatch);
 
         // Nebel über Karte und Einheiten, unter Auswahlrahmen und Leisten.
         // Eigener linear-gesampelter Batch (fließende/gerundete Nebelkante) —
@@ -5672,9 +5686,12 @@ public class RTSGameplayScreen : GameScreen
     /// erst, wenn wieder jemand hinsieht.
     /// VERTRAG: _groundLiveData = new Color[tileMap.Width * tileMap.Height], falls null oder
     /// kürzer. Dann für jede Kachel (x, y), falls all oder tileMap.IsTileVisible(x, y, 0): der
-    /// Eintrag y * tileMap.Width + x = new Color(rot, grün, blau, alpha) mit rot = Wear, auf
-    /// einer Wegkachel (RoadDrawnAt) höchstens 0.35f - dort nur niedergetretenes Gras, keine
-    /// nackte Erde, die Kante zeichnet der Weg selbst (C16); grün = 1 bei TileType.Forest, sonst 0;
+    /// Eintrag y * tileMap.Width + x = new Color(rot, grün, blau, alpha) mit rot = 0 ohne
+    /// Trampelpfad (!tile.IsPath) - einzelne Tritte sieht man nicht -, mit Pfad 1 (immer
+    /// gleich, G15), auf einer Wegkachel (RoadDrawnAt) mit Pfad 0.35f - dort nur
+    /// niedergetretenes Gras, keine nackte Erde, die Kante zeichnet der Weg selbst (C16);
+    /// grün = 1, wenn Type oder GroundType TileType.Forest ist - der Waldboden bleibt, wenn die
+    /// Bäume gefällt sind (G15) -, sonst 0;
     /// blau = 1 bei einem Fischschwarm mit Nahrung (Food == FoodSource.Fish und ResourceAmount
     /// &gt; 0), sonst 0; alpha = TallGrassAt(x, y). Ebenso die Wegkarte (C16): _roadMapData wird
     /// angelegt wie _groundLiveData, Eintrag = new Color(RoadDrawnAt(x, y) ? 1f : 0f, Gebäude auf
@@ -5699,11 +5716,13 @@ public class RTSGameplayScreen : GameScreen
                 var tile = tileMap.GetTile(x, y);
                 bool fish = tile.Food == FoodSource.Fish && tile.ResourceAmount > 0;
                 bool road = RoadDrawnAt(x, y);
-                // Rot: ausgetreten (Wear), unter einem Weg höchstens 0.35 - dort nur
-                // niedergetretenes Gras, die Kante zeichnet der Weg selbst (C16);
-                // Grün: Wald, Blau: Fischschwarm mit Nahrung, Alpha: das hohe Gras
-                _groundLiveData[y * w + x] = new Color(road ? Math.Min(tile.Wear, 0.35f) : tile.Wear, tile.Type == TileType.Forest ? 1f : 0f,
-                                                       fish ? 1f : 0f, TallGrassAt(x, y));
+                // Rot: ein Trampelpfad (IsPath), immer gleich - einzelne Tritte
+                // sieht man nicht -, unter einem Weg 0.35 (niedergetretenes Gras);
+                // Grün: Waldboden, auch wenn die Bäume gefällt sind (G15);
+                // Blau: Fischschwarm mit Nahrung, Alpha: das hohe Gras
+                float path = tile.IsPath ? (road ? 0.35f : 1f) : 0f;
+                bool forest = tile.Type == TileType.Forest || tile.GroundType == TileType.Forest;
+                _groundLiveData[y * w + x] = new Color(path, forest ? 1f : 0f, fish ? 1f : 0f, TallGrassAt(x, y));
                 // Wegkarte (C16): rot Weg, grün Gebäude
                 _roadMapData[y * w + x] = new Color(road ? 1f : 0f, string.IsNullOrEmpty(tile.Building) ? 0f : 1f, 0f, 1f);
             }
@@ -5732,9 +5751,8 @@ public class RTSGameplayScreen : GameScreen
 
     /// <summary>
     /// Lädt den Boden, wie Spieler 0 ihn zuletzt gesehen hat (UpdateGroundMemory, G14), ins
-    /// Lebendbild des Bodenshaders: rot wie ausgetreten die Kachel ist (Tile.Wear, auf Wegen 1),
-    /// grün Wald, blau ein Fischschwarm, alpha das hohe Gras. all: auch die Kacheln im Nebel
-    /// (Spielbeginn).
+    /// Lebendbild des Bodenshaders: rot ein Trampelpfad (Tile.IsPath), grün Waldboden, blau ein
+    /// Fischschwarm, alpha das hohe Gras. all: auch die Kacheln im Nebel (Spielbeginn).
     /// </summary>
     private void RefreshGroundLive(bool all = false)
     {
@@ -5769,19 +5787,35 @@ public class RTSGameplayScreen : GameScreen
     }
 
     /// <summary>
-    /// Wie hoch das Gras auf Kachel (x, y) wächst, 0 (kurz) bis 1 (hüfthoch).
-    /// Flecken von etwa 6 x 5 Kacheln, auf Trampelpfaden niedergetreten.
+    /// Wie hoch das Gras auf Kachel (x, y) wächst, 0 (kurz) bis 1 (hüfthoch): Flecken von
+    /// etwa 6 x 5 Kacheln, mit der Karte festgelegt (G15). Gras wird nicht zu anderem Gras -
+    /// kein Tier und kein einzelner Tritt ändert es. Nur was darübergelegt wird, verdeckt es:
+    /// ein Trampelpfad, ein Weg, ein Gebäude, ein Feld, ein Beerenbusch. Wo bei der Erzeugung
+    /// Wald, Stein oder Gold war, wächst auch nach dem Fällen und Abbauen kein hohes Gras.
+    /// VERTRAG: 0, wenn tileMap.GetTile(x, y) null ist, ihr Type oder ihr GroundType nicht
+    /// TileType.Grassland ist, ein Gebäude auf ihr steht (Building nicht null oder leer), Farm
+    /// gilt, RoadLevel &gt;= 1 ist, IsPath gilt oder Food == FoodSource.Berries ist. Sonst
+    /// v = ValueNoise(x / 6f, y / 5f, 0) * 0.65f + ValueNoise(x / 2.3f, y / 2.1f, 1) * 0.35f,
+    /// t = MathHelper.Clamp((v - 0.47f) / 0.16f, 0f, 1f), Rückgabe t * t * (3f - 2f * t) - ohne
+    /// Abzug für Tritte (Wear) und unabhängig von Tieren auf der Kachel.
     /// </summary>
     private float TallGrassAt(int x, int y)
     {
         var tile = tileMap.GetTile(x, y);
-        if (tile == null || tile.Type != TileType.Grassland
-            || !string.IsNullOrEmpty(tile.Building) || tile.Farm || tile.RoadLevel >= 1
-            || tile.Food != FoodSource.None)
+        // Kein hohes Gras: außerhalb der Karte, kein Grasland (auch nicht mehr,
+        // wenn der Wald gefällt ist), Gebäude, Feld, Weg, Pfad oder Beerenbusch
+        if (tile == null
+            || tile.Type != TileType.Grassland
+            || tile.GroundType != TileType.Grassland
+            || !string.IsNullOrEmpty(tile.Building)
+            || tile.Farm
+            || tile.RoadLevel >= 1
+            || tile.IsPath
+            || tile.Food == FoodSource.Berries)
             return 0f;
         float v = ValueNoise(x / 6f, y / 5f, 0) * 0.65f + ValueNoise(x / 2.3f, y / 2.1f, 1) * 0.35f;
         float t = MathHelper.Clamp((v - 0.47f) / 0.16f, 0f, 1f);
-        return t * t * (3f - 2f * t) * (1f - MathHelper.Clamp(tile.Wear * 2f, 0f, 1f));
+        return t * t * (3f - 2f * t);
     }
 
     /// <summary>
@@ -6525,7 +6559,8 @@ public class RTSGameplayScreen : GameScreen
         // was hier fehlt, sieht aus wie das Stadtzentrum
         if (!b.IsComplete)
         {
-            DrawConstructionSite(spriteBatch, rect, b.Construction.Progress);
+            // Bauphasen mit dem Bild des fertigen Gebäudes (A1)
+            DrawConstructionStages(spriteBatch, b, rect, b.Construction.Progress);
             return;
         }
 
@@ -6872,6 +6907,7 @@ public class RTSGameplayScreen : GameScreen
         public Data.Building Building;
         public Unit Unit;
         public Data.Tile Tile;
+        public Collapse Collapse;   // Einsturz (A2)
     }
     private readonly List<DepthEntry> _depth = new();
 
@@ -7015,6 +7051,13 @@ public class RTSGameplayScreen : GameScreen
             });
         }
 
+        // — Einstürzende Gebäude und Trümmer (A2): Sohle wie beim Gebäude —
+        foreach (var c in _collapses)
+        {
+            var rect = TileScreenRect(c.X, c.Y, c.Width, c.Height);
+            list.Add(new DepthEntry { Depth = rect.Bottom, Kind = 7, Collapse = c });
+        }
+
         // — Figuren —
         foreach (var unit in units)
         {
@@ -7084,6 +7127,11 @@ public class RTSGameplayScreen : GameScreen
                 case 2: // Tier
                 {
                     DrawAnimal(spriteBatch, obj.Tile, obj.X, obj.Y, AnimalSprites(obj.Tile.Food));
+                    break;
+                }
+                case 7: // Einsturz und Trümmer (A2)
+                {
+                    DrawCollapse(spriteBatch, obj.Collapse);
                     break;
                 }
                 case 3: // Gebäude

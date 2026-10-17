@@ -57,6 +57,8 @@ public class TileMap
         if (generate)
         {
             InitializeRandomMap();
+            // Den erzeugten Boden festhalten - die Wiese ändert sich danach nicht mehr (G15).
+            RememberGround();
         }
         else
         {
@@ -82,6 +84,19 @@ public class TileMap
     /// </summary>
     public static TileMap CreateBlank(int width, int height, int tileSize, MapSettings settings)
         => new TileMap(width, height, tileSize, settings, generate: false);
+
+    /// <summary>
+    /// Merkt sich nach der Kartenerzeugung den Boden jeder Kachel (Tile.GroundType, G15):
+    /// fällt später ein Baum oder ist ein Steinbruch leer, ändert sich die Wiese darunter
+    /// nicht. Der Konstruktor ruft es mit generate true direkt nach InitializeRandomMap auf.
+    /// VERTRAG: für jede Kachel tile.GroundType = tile.Type.
+    /// </summary>
+    private void RememberGround()
+    {
+        // Den Boden der Kartenerzeugung festhalten (G15): die Wiese ändert sich danach nicht mehr.
+        foreach (var tile in tiles)
+            tile.GroundType = tile.Type;
+    }
 
     /// <summary>
     /// Baut die Wander-Bestände der Tiere aus den Kacheln neu auf (nach dem Laden eines Spielstands).
@@ -1012,14 +1027,15 @@ public class TileMap
     }
 
     /// <summary>
-    /// Wie weit ein Schritt auf eine Kachel sie austritt: nach rund zwanzig
-    /// Durchgängen ist dort nackte Erde.
+    /// Wie weit ein Schritt auf eine Kachel sie austritt: nach sechs Tritten
+    /// (ROAD_WEAR_MIN) ist dort ein Trampelpfad.
     /// </summary>
     public const float WEAR_PER_STEP = 0.05f;
 
     /// <summary>
-    /// In so vielen Sekunden wächst ein ganz ausgetretener Pfad ohne Verkehr
-    /// wieder zu.
+    /// So schnell vergehen Tritte, aus denen noch kein Pfad wurde: 1 in so vielen
+    /// Sekunden, also die 0,3 bis zum Pfad in 270 s. Nur oft begangene Strecken
+    /// werden so zum Pfad (G15) - ein Pfad selbst wächst nicht wieder zu.
     /// </summary>
     public const float WEAR_REGROW_SECONDS = 900f;
 
@@ -1045,16 +1061,21 @@ public class TileMap
     }
 
     /// <summary>
-    /// Ohne Verkehr wächst das Gras nach: jede ausgetretene Kachel erholt sich
-    /// gleichmäßig, eine ganz ausgetretene in <see cref="WEAR_REGROW_SECONDS"/>.
-    /// Wer oft denselben Weg geht, hält den Pfad offen.
+    /// Ohne Verkehr vergehen Tritte, aus denen noch kein Pfad wurde (G15): man sieht
+    /// sie nicht, und nur wer oft denselben Weg geht, tritt einen Pfad aus. Ein
+    /// Trampelpfad (Tile.IsPath) bleibt dagegen für immer - Gras und Pfade ändern
+    /// sich nicht mehr, wenn sie einmal da sind.
+    /// VERTRAG: step = dt / WEAR_REGROW_SECONDS; jede Kachel mit Wear &gt; 0 und
+    /// !tile.IsPath bekommt Wear = Math.Max(0f, Wear - step); Kacheln mit IsPath
+    /// bleiben unverändert.
     /// </summary>
     public void RegrowGrass(float dt)
     {
         float step = dt / WEAR_REGROW_SECONDS;
+        // Tritte, aus denen noch kein Pfad wurde, vergehen wieder; ein Pfad bleibt für immer (G15).
         foreach (var tile in tiles)
         {
-            if (tile.Wear > 0f)
+            if (tile.Wear > 0f && !tile.IsPath)
                 tile.Wear = Math.Max(0f, tile.Wear - step);
         }
     }

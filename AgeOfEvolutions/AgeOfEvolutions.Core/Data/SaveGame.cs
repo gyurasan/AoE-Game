@@ -94,6 +94,13 @@ public sealed class PlayerSave
 public sealed class TileSave
 {
     public TileType Type { get; set; }
+
+    /// <summary>
+    /// Der Boden der Kachel bei der Kartenerzeugung (Tile.GroundType, G15); null in
+    /// Spielständen von vorher - dann gilt beim Laden <see cref="Type"/>.
+    /// </summary>
+    public TileType? GroundType { get; set; }
+
     public bool Walkable { get; set; }
     public bool Buildable { get; set; }
     public Resource? ResourceType { get; set; }
