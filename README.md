@@ -129,6 +129,24 @@ man die Taste noch einmal drückt; ein Rechtsklick bricht das Setzen ab.
 - **WindowsDX**: Zusätzliche reine Windows-Variante
 - Android und iOS werden nicht unterstützt (die entsprechenden Projekte der MonoGame-Vorlage wurden am 2026-09-23 entfernt)
 
+## Herunterladen und Starten
+
+Fertige Pakete für macOS (Apple Silicon `osx-arm64`, Intel `osx-x64`), Windows und Linux liegen unter
+[Releases](https://github.com/gyurasan/AoE-Game/releases); .NET muss dafür nicht installiert sein.
+
+Auf einem anderen Mac blockiert macOS das heruntergeladene Spiel zunächst, weil es nicht signiert
+ist, und meldet, es sei beschädigt oder könne nicht geöffnet werden. Nach dem Entpacken deshalb
+einmal im Terminal die Quarantäne-Markierung vom ganzen Ordner entfernen, dann starten:
+
+```bash
+xattr -cr ~/Downloads/osx-arm64
+cd ~/Downloads/osx-arm64 && ./AgeOfEvolutions
+```
+
+Liegt der Ordner woanders, den Pfad anpassen - oder den Ordner ins Terminal ziehen. Wer im Terminal
+mit `unzip` statt im Finder entpackt, muss das Programm zusätzlich ausführbar machen:
+`chmod +x osx-arm64/AgeOfEvolutions`.
+
 ## Bauen und Starten
 
 ```bash
