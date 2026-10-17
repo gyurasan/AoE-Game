@@ -4,6 +4,11 @@
 
 ## Wiederaufnahme — hier weitermachen
 
+**Wege von allen Gebäuden zum Dorfzentrum (C16c)** (2026-10-17) — Wunsch: „Weiter wäre gut die Logik anzupassen wie die Strassen erstellt werden. Hier wäre Strassen von allen Geäuden zum Dorfzentrum gut“.
+
+Bisher suchte `TileMap.ConnectBuilding` per Breitensuche den nächsten beliebigen Weg, höchstens 30 Kacheln weit. Ein Gebäude dockte so auch an ein loses Stück Trampelpfad an, das nirgends hinführte. Weiter draußen bekam es gar keinen Weg, und das Stadtzentrum legte sich selbst einen Weg zum nächsten Pfad. In einer Simulation auf generierten Karten blieben 2 von 13 Gebäuden ohne Verbindung zum Stadtzentrum. Neu: Der Weg führt immer bis an den Ring eines eigenen Stadtzentrums (des nächsten, falls es mehrere gibt), ohne Höchstlänge (`ROAD_CONNECT_MAX_TILES` entfällt). Gewählt wird der nach Kosten kürzeste Weg (Dijkstra): Eine vorhandene Wegkachel kostet 1, eine neue `ROAD_NEW_TILE_COST` = 3. So werden vorhandene Wege und Trampelpfade mitbenutzt, wo der Umweg kurz ist, und die Wege bündeln sich zu Straßen. Unter gleich teuren Wegen gewinnt der, dessen Kacheln dem Stadtzentrum am nächsten liegen. Neue Wege laufen deshalb als Treppe (im Wege-Shader schräg) auf das Zentrum zu statt im rechten Winkel. Ein Stadtzentrum bekommt selbst keinen Weg. Der Bildschirm ruft `ConnectToRoads`/`ConnectAllToRoads` unverändert auf, nur die Kommentare sind angepasst.
+Abnahme: Build DesktopGL + WindowsDX · `dotnet test` **402/402** (`FeldwegeTests`: 17 statt 12 Tests zu Gebäudewegen, u. a. schräger Verlauf, loser Weg ist kein Ende, langer Umweg wird nicht genommen, weit draußen, nächstes von zwei Zentren) · Mutantenlauf 10/10 gefunden · `tools/spielablauf gebaeudewege` (neu: genau der kürzeste Weg nach dem Aufstieg, Haus weit draußen) auf 30 Karten grün, dazu `strassen bauen neubauten speichern` · 60 Anschlüsse auf der 128er-Karte ≈ 0,1 s. Umsetzung vom lokalen Modell (Agent W4, 326 s). Der erste Lauf scheiterte am Build (`OrderBy(Near)` mit einem Tupel, CS0411); die zwei Aufrufe habe ich von Hand korrigiert, weil ComfyUI die Grafikkarte brauchte. Danach legt die Fassung des Modells dieselben Wege wie die Referenz. Offen: Sichtprüfung im Spiel.
+
 **Fehler-Log (Logger)** (2026-10-17) — Wunsch: „einen logger einbauen, damit Fehler in eine Datei geschrieben werden“, Log im Ordner `logs`, dieser in `.gitignore`.
 
 Neu `AgeOfEvolutions.Core/Diagnostics/GameLog.cs`: `GameLog.Info/Warn/Error` (+ `Error(Exception, Kontext)` mit Stacktrace), thread-sicher, schreibt je Kalendertag in `logs/spiel-jjjj-mm-tt.log` neben der Exe; das Loggen selbst kann nie crashen (Schreibfehler werden geschluckt), Fehler zusätzlich auf `Console.Error`. Fangnetze in `AgeOfEvolutionsGame` (Konstruktor): `AppDomain.UnhandledException`, `TaskScheduler.UnobservedTaskException` (mit `SetObserved`), `Exiting` → „Spiel beendet“, dazu Start- und Endzeile. Beide Programme (DesktopGL, WindowsDX): `game.Run()` in try/catch → `GameLog.Error` + ExitCode 1. Angezapft: `LoadOptional` (fehlendes Bild → Warn mit Asset-Namen, statt unsichtbar zu verschwinden), `--laden`-Fehler, AI-API-Start. `.gitignore` trägt jetzt `logs/`.
@@ -1405,10 +1410,12 @@ in hoher Qualität; ab der zweiten Epoche führen von den Häusern automatisch W
 - [x] C16b: Wegkarte mit Nebel-Gedächtnis, schräge Lücken aufgefüllt (`RoadDrawnAt`,
   `RoadDrawData`) *(Agent W3b)*; Weg erst ab sechs Tritten (`ROAD_WEAR_MIN`) *(Agent W3a)*
 - [x] `TileMap.CanCarryRoad`, `TileMap.ConnectBuilding` (höchstens `ROAD_CONNECT_MAX_TILES`
-  = 30 Kacheln) *(Agent W2a, W2a2)*
+  = 30 Kacheln, seit C16c ohne Höchstlänge) *(Agent W2a, W2a2)*
 - [x] Anschluss beim Fertigbau ab der Feudalzeit des Besitzers und beim Aufstieg für alle
   vorhandenen Gebäude; Mauern ohne Weg *(Agent W2b)*
 - [x] `CurrentRoadLevel` nach dem Laden aus den Zeitaltern (vorher 0 - Lücke aus C12) *(Agent W2a)*
+- [x] C16c: Wege von allen Gebäuden bis ans Stadtzentrum, ohne Höchstlänge; vorhandene Wege
+  mitbenutzt (`ROAD_NEW_TILE_COST`), schräg auf das Zentrum zu; Stadtzentrum ohne Weg *(Agent W4)*
 - [x] Abnahme: 13 neue `FeldwegeTests`, Gruppe `gebaeudewege`, `checks/c16_wegbild.py`, Fotos
 - [ ] Sichtprüfung durch den Nutzer im echten Spiel (Maßstab der Steine, Helligkeit, Wegbreite)
 

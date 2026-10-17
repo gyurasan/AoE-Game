@@ -6,7 +6,7 @@
 // auswahl (Gebäude auswählen), angriff (Gebäude angreifen), soldaten
 // (Ausbildung in Kaserne, Schießstand und Stall), forschung (Forschungen und ihre Wirkung),
 // strassen (Wege: Trampelpfade werden beim Zeitaufstieg zu Feldwegen und besser, laufen 20 % schneller),
-// gebaeudewege (ab der Feudalzeit führt von jedem fertigen Gebäude ein Weg zum Wegenetz),
+// gebaeudewege (ab der Feudalzeit führt von jedem fertigen Gebäude ein Weg bis ans Stadtzentrum),
 // nebelboden (Gras und Pfade im Nebel bleiben, wie man sie zuletzt gesehen hat),
 // wegkarte (was der Wege-Shader als Weg zeichnet, schräge Lücken aufgefüllt),
 // zielen (Gegner an der ganzen Figur anklicken), verteidigung (Soldaten verteidigen das
@@ -2593,12 +2593,12 @@ static void GebaeudeWege(int karte, List<string> verstoesse)
         return true;
     }
 
-    // Ob ein Gebäude auf (x, y) überhaupt einen Weg bekommen kann: von der Reihe unter der
-    // Grundfläche über Kacheln, die einen Weg tragen dürfen, höchstens ROAD_CONNECT_MAX_TILES
-    // lang bis zu einem Weg oder an das Stadtzentrum tc - wie TileMap.ConnectBuilding. Ohne
-    // das wählte die Prüfung auf mancher Karte einen Platz hinter Wald oder Gold, an dem es
+    // Wie viele Kacheln der kürzeste mögliche Weg eines Gebäudes auf (x, y) hat: von der Reihe
+    // unter der Grundfläche über Kacheln, die einen Weg tragen dürfen, bis an das Stadtzentrum
+    // tc - wie TileMap.ConnectBuilding (seit C16c ohne Höchstlänge); null, wenn es keinen gibt.
+    // Ohne das wählte die Prüfung auf mancher Karte einen Platz hinter Wald oder Gold, an dem es
     // zu Recht keinen Weg gibt.
-    bool anschliessbar(Building tc, int x, int y, int groesse)
+    int? weglaenge(Building tc, int x, int y, int groesse)
     {
         bool fuss(int fx, int fy) => fx >= x && fx < x + groesse && fy >= y && fy < y + groesse;
         var laenge = new Dictionary<(int, int), int>();
@@ -2612,10 +2612,8 @@ static void GebaeudeWege(int karte, List<string> verstoesse)
         while (offen.Count > 0)
         {
             var (cx, cy) = offen.Dequeue();
-            if (w.Map.GetTile(cx, cy).RoadLevel >= 1 || imRing(tc, cx, cy))
-                return true;
-            if (laenge[(cx, cy)] >= AgeOfEvolutions.Core.Data.TileMap.ROAD_CONNECT_MAX_TILES)
-                continue;
+            if (imRing(tc, cx, cy))
+                return laenge[(cx, cy)];
             foreach (var n in new[] { (cx + 1, cy), (cx - 1, cy), (cx, cy + 1), (cx, cy - 1) })
                 if (!laenge.ContainsKey(n) && !fuss(n.Item1, n.Item2) && w.Map.CanCarryRoad(n.Item1, n.Item2))
                 {
@@ -2623,8 +2621,10 @@ static void GebaeudeWege(int karte, List<string> verstoesse)
                     offen.Enqueue(n);
                 }
         }
-        return false;
+        return null;
     }
+
+    bool anschliessbar(Building tc, int x, int y, int groesse) => weglaenge(tc, x, y, groesse) != null;
 
     // Ein Bauplatz etwa abstand Kacheln von der Mitte des Stadtzentrums, auf und um
     // den noch kein Weg liegt, mit freier Kachel unter der Vorderseite und möglichem Anschluss
@@ -2696,8 +2696,9 @@ static void GebaeudeWege(int karte, List<string> verstoesse)
     int nachAufstieg = wege();
     if (!kette(hausA, tc1))
         verstoesse.Add($"{wer}: nach dem Aufstieg führt vom Haus ({hausA.X},{hausA.Y}) kein Weg zum Stadtzentrum ({nachAufstieg} Wegkacheln)");
-    if (nachAufstieg > AgeOfEvolutions.Core.Data.TileMap.ROAD_CONNECT_MAX_TILES)
-        verstoesse.Add($"{wer}: nach dem Aufstieg {nachAufstieg} Wegkacheln - mehr als ein Weg vom Haus");
+    // Noch lag kein Weg: genau der kürzeste Weg vom Haus, und das Stadtzentrum bekommt keinen
+    if (weglaenge(tc1, hausA.X, hausA.Y, 2) is { } kuerzester && nachAufstieg != kuerzester)
+        verstoesse.Add($"{wer}: nach dem Aufstieg {nachAufstieg} Wegkacheln, erwartet {kuerzester} (der kürzeste Weg vom Haus)");
 
     // 3) Feudalzeit: ein neues Haus bekommt beim Fertigwerden seinen Weg
     if (platz(tc1, 2, 11) is not { } pB)
@@ -2712,12 +2713,24 @@ static void GebaeudeWege(int karte, List<string> verstoesse)
     else if (!kette(hausB, tc1))
         verstoesse.Add($"{wer}: Feudalzeit - vom neuen Haus ({hausB.X},{hausB.Y}) führt kein Weg zum Stadtzentrum");
 
+    // 3b) Auch ein Haus weit draußen bekommt seinen Weg bis ans Stadtzentrum (C16c - bis dahin
+    //     endete die Suche nach 30 Kacheln)
+    int weit = 0;
+    if (platz(tc1, 2, 26) is { } pD)
+    {
+        var hausD = fertig(BuildingType.House, "Haus", 0, pD, 2);
+        weit = wege() - nachB;
+        if (!kette(hausD, tc1))
+            verstoesse.Add($"{wer}: vom Haus weit draußen ({hausD.X},{hausD.Y}) führt kein Weg zum Stadtzentrum ({weit} neue Wegkacheln)");
+    }
+    int nachD = wege();
+
     // 4) Eine Mauer bekommt keinen Weg
     if (platz(tc1, 1, 9) is { } pM)
     {
         fertig(BuildingType.PalisadeWall, "Palisadenmauer", 0, pM, 1);
-        if (wege() != nachB)
-            verstoesse.Add($"{wer}: die Palisadenmauer hat {wege() - nachB} Wegkacheln bekommen, erwartet keine");
+        if (wege() != nachD)
+            verstoesse.Add($"{wer}: die Palisadenmauer hat {wege() - nachD} Wegkacheln bekommen, erwartet keine");
     }
 
     // 5) Der Gegner ist noch in der Dunklen Zeit: sein Haus bleibt ohne Weg ...
@@ -2738,7 +2751,7 @@ static void GebaeudeWege(int karte, List<string> verstoesse)
 
     if (verstoesse.Count == vorher)
         Console.WriteLine($"  ok  {wer}: Dunkle Zeit kein Weg, Aufstieg {nachAufstieg} Kacheln, neues Haus +{nachB - nachAufstieg}, "
-                          + "Mauer ohne Weg, Gegner erst nach seinem Aufstieg");
+                          + $"weit draußen +{weit}, Mauer ohne Weg, Gegner erst nach seinem Aufstieg");
 }
 
 // Prüft, dass eine Reihe frei ist: Gras oder Sand, keine Ressource, kein

@@ -3786,7 +3786,7 @@
   ],
   "schritte": 50,
   "cfg": 3.0,
-  "stil": "Seamless ground texture for a top-down 2D strategy game, seen from above, finely detailed hand-painted pixel art, natural colors, soft even lighting, uniform density edge to edge, no objects, no paths, no shadows on the ground, no horizon, no text.",
+  "stil": "Seamless ground texture for a top-down 2D strategy game, seen from above, finely detailed hand-painted pixel art realistic, natural colors, soft even lighting, uniform density edge to edge, no objects, no paths, no shadows on the ground, no horizon, no text.",
   "negativ": "text, letters, logo, watermark, frame, border, perspective, horizon, sky, trees, rocks, path, objects, vignette, blurry, 3d render, neon green, large flowers, mowed lawn, golf course, close-up, macro, bare soil",
   "kachelbar": true,
   "bilder": [
@@ -3826,7 +3826,7 @@
     "name": "erde_trocken",
     "seed": 5652,
     "ziel": "Boden/erde_trocken.png",
-    "prompt": "Sun-baked dried-out bare earth seen from above: cracked pale brown and ochre soil with fine cracks, a few sparse withered grass tufts and small pebbles, dusty.",
+    "prompt": "Sun-baked dried-out bare earth seen from above: cracked pale brown and ochre soil with very fine cracks, a few sparse withered grass tufts and small pebbles, dusty.",
     "negativ": "green grass, lush, puddles, mud, rocks, stones"
    }
   ],

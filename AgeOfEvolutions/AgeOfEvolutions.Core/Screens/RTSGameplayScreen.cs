@@ -644,13 +644,13 @@ public class RTSGameplayScreen : GameScreen
     private Texture2D _deerMeat;
     private Texture2D _rabbitMeat;
     private Texture2D _boarMeat;
-    private const int GROUND_TEXELS = 4;   // Bildpixel der Bodenbilder je Welteinheit
+    private const int GROUND_TEXELS = 10;   // Bildpixel der Bodenbilder je Welteinheit
     // Bildpixel der Grasbilder je Welteinheit: mehr als bei Sand und Wasser - die Halme
     // sollen neben Bäumen und Figuren klein bleiben, das Bild wiederholt sich dafür öfter
-    private const int GRASS_TEXELS = 7;
+    private const int GRASS_TEXELS = 20;
     // Bildpixel der Wegbilder je Welteinheit (C16): eine Kachel zeigt TileSize · ROAD_TEXELS
     // Bildpixel, ein 1328 px breites Wegbild reicht für gut zehn Kacheln
-    private const int ROAD_TEXELS = 4;
+    private const int ROAD_TEXELS = 15;
 
     // Boden aus einem Guss (Effects/Boden): Gras, Sand und Wasser gehen weich
     // ineinander über, das Wasser hat Tiefe, Wellen und Schaum, viel begangene
@@ -669,7 +669,7 @@ public class RTSGameplayScreen : GameScreen
     private float _groundLiveTimer;
     private Texture2D _groundNoise;
     private const int GROUND_CONTROL_TEXELS = 4;       // Texel des Steuerbilds je Kachel und Richtung
-    private const float GROUND_SMOOTHING = 0.45f;      // Glättung der Kachelgrenzen, in Kacheln
+    private const float GROUND_SMOOTHING = 0.85f;      // Glättung der Kachelgrenzen, in Kacheln
     private const float GROUND_LIVE_INTERVAL = 0.25f;  // so oft übernimmt das Lebendbild die Karte
 
     // Bewegung je Einheit, aus der Lage zwischen zwei Updates abgeleitet - die
@@ -3981,7 +3981,7 @@ public class RTSGameplayScreen : GameScreen
     /// Zeitalter, und die obere Leiste meldet es für Spieler 0. Bei jedem
     /// Aufstieg rücken die vorhandenen Trampelpfade zur neuen Weg-Stufe auf
     /// (C12): besser und besser mit jeder Zeit; danach bekommen alle Gebäude
-    /// des Spielers ihren Weg zum Wegenetz (ConnectAllToRoads, C16).
+    /// des Spielers ihren Weg bis ans Stadtzentrum (ConnectAllToRoads, C16, C16c).
     /// </summary>
     private void UpdateAges(float dt)
     {
@@ -4344,7 +4344,7 @@ public class RTSGameplayScreen : GameScreen
     /// arbeiten (Zustand Building) - wer noch hinläuft, baut noch nicht. Ist
     /// ein Gebäude fertig, verliert es seine Baustelle, FinishConstruction
     /// schickt die Erbauer weiter, und ab der Feudalzeit legt ConnectToRoads
-    /// seinen Weg zum Wegenetz (C16).
+    /// seinen Weg bis ans Stadtzentrum (C16, C16c).
     /// </summary>
     private void UpdateConstruction(float dt)
     {
@@ -4408,9 +4408,9 @@ public class RTSGameplayScreen : GameScreen
     }
 
     /// <summary>
-    /// Wege von Gebäuden (C16): ab der Feudalzeit seines Besitzers bekommt ein fertiges
-    /// Gebäude einen Weg zum Wegenetz oder zum Stadtzentrum (TileMap.ConnectBuilding) -
-    /// in der Dunklen Zeit noch nicht. Mauern bleiben ohne Weg.
+    /// Wege von Gebäuden (C16, C16c): ab der Feudalzeit seines Besitzers bekommt ein fertiges
+    /// Gebäude einen Weg bis ans Stadtzentrum (TileMap.ConnectBuilding) - in der Dunklen
+    /// Zeit noch nicht. Mauern bleiben ohne Weg.
     /// VERTRAG: nichts, wenn !b.IsComplete, wenn TileMap.LevelOfAge(AgeOf(b.OwnerId)) &lt; 1
     /// oder wenn b.Core.BuildingType PalisadeWall oder StoneWall ist; sonst
     /// tileMap.ConnectBuilding(b, Math.Max(tileMap.CurrentRoadLevel, TileMap.LevelOfAge(AgeOf(b.OwnerId)))).

@@ -1145,16 +1145,17 @@ public class TileMap
     }
 
     // -----------------------------------------------------------------
-    // Wege von Gebäuden (C16): ab der Feudalzeit führt von jedem fertigen
-    // Gebäude ein Weg zum Wegenetz
+    // Wege von Gebäuden (C16, C16c): ab der Feudalzeit führt von jedem fertigen
+    // Gebäude ein Weg bis an das Stadtzentrum seines Besitzers
     // -----------------------------------------------------------------
 
     /// <summary>
-    /// So lang wird ein Weg von einem Gebäude höchstens (in Kacheln, Start und
-    /// Ziel mitgezählt). Liegt kein Weg und kein Stadtzentrum näher, bleibt das
-    /// Gebäude ohne Weg - etwa ein Lager weit draußen am Wald.
+    /// Kosten einer Kachel, die für den Weg eines Gebäudes neu Weg werden müsste (C16c); eine
+    /// Kachel, die schon Weg ist, kostet 1. Ein vorhandener Weg wird deshalb mitbenutzt, solange
+    /// er höchstens dreimal so lang ist wie die neuen Kacheln, die er erspart - so bündeln sich
+    /// die Wege zu Straßen ins Dorfzentrum, statt dicht nebeneinander zu laufen.
     /// </summary>
-    public const int ROAD_CONNECT_MAX_TILES = 30;
+    public const int ROAD_NEW_TILE_COST = 3;
 
     /// <summary>
     /// Ob auf der Kachel (x, y) ein Weg angelegt werden darf (C16): Wiese oder Sand,
@@ -1180,134 +1181,193 @@ public class TileMap
     }
 
     /// <summary>
-    /// Legt einen Weg von der Vorderseite des Gebäudes <paramref name="building"/> zum
-    /// nächsten vorhandenen Weg oder zum Stadtzentrum seines Besitzers (C16) und gibt
-    /// zurück, wie viele Kacheln dabei Weg geworden oder aufgestiegen sind.
+    /// Legt einen Weg von der Vorderseite des Gebäudes <paramref name="building"/> bis an ein
+    /// Stadtzentrum seines Besitzers (C16c) und gibt zurück, wie viele Kacheln dabei Weg geworden
+    /// oder aufgestiegen sind. Eine Höchstlänge gibt es nicht: auch ein Lager weit draußen bekommt
+    /// seinen Weg, solange einer möglich ist. Vorhandene Wege und Trampelpfade werden mitbenutzt,
+    /// wo sie sich lohnen (ROAD_NEW_TILE_COST); ein Weg, der nicht zum Stadtzentrum führt, ist
+    /// aber kein Ende mehr. Neue Kacheln laufen schräg auf das Stadtzentrum zu statt im Winkel.
     /// VERTRAG:
-    /// - level &lt;= 0 (Dunkle Zeit): nichts ändern, Rückgabe 0.
+    /// - level &lt;= 0 (Dunkle Zeit) oder building.Core.BuildingType ==
+    ///   AoE.Core.Entities.BuildingType.TownCenter: nichts ändern, Rückgabe 0.
+    /// - Zentren: alle ANDEREN Gebäude aus Buildings mit demselben OwnerId wie building und
+    ///   Core.BuildingType == AoE.Core.Entities.BuildingType.TownCenter. Keins: nichts ändern,
+    ///   Rückgabe 0.
     /// - Ring eines Gebäudes g: alle Kacheln mit x von g.X - 1 bis g.X + g.Width und y von
     ///   g.Y - 1 bis g.Y + g.Height, ohne die Grundfläche (x von g.X bis g.X + g.Width - 1 und
     ///   zugleich y von g.Y bis g.Y + g.Height - 1).
     /// - Startkacheln: die Reihe direkt unter der Grundfläche (y = building.Y + building.Height,
-    ///   x von building.X bis building.X + building.Width - 1), soweit CanCarryRoad. Ist dort
-    ///   keine frei, alle Kacheln aus dem Ring von building, soweit CanCarryRoad. Gibt es auch
-    ///   dort keine: nichts ändern, Rückgabe 0.
-    /// - Zielkacheln: jede Kachel mit RoadLevel &gt;= 1 und jede Kachel aus dem Ring eines
-    ///   ANDEREN Gebäudes aus Buildings mit demselben OwnerId wie building und
-    ///   Core.BuildingType == AoE.Core.Entities.BuildingType.TownCenter.
-    /// - Breitensuche von allen Startkacheln zugleich (jede Startkachel hat die Länge 1, in
-    ///   aufsteigender x-Reihenfolge eingereiht), Nachbarn in der Reihenfolge rechts (x + 1),
-    ///   links (x - 1), unten (y + 1), oben (y - 1); nur Kacheln mit CanCarryRoad, jede Kachel
-    ///   höchstens einmal. Die erste aus der Warteschlange genommene Zielkachel gewinnt - auch
-    ///   eine Startkachel kann schon Ziel sein, dann ist der Weg nur sie. Kacheln mit der Länge
-    ///   ROAD_CONNECT_MAX_TILES werden nicht weiter ausgedehnt; wird kein Ziel erreicht: nichts
-    ///   ändern, Rückgabe 0.
-    /// - Der Weg ist die Kette von der Zielkachel über die Vorgänger zurück bis zur
-    ///   Startkachel; jede seiner Kacheln bekommt RoadLevel = Math.Max(RoadLevel, level).
-    ///   Rückgabe: die Zahl der Kacheln, deren RoadLevel sich dabei geändert hat.
+    ///   x von building.X bis building.X + building.Width - 1, aufsteigend), soweit CanCarryRoad.
+    ///   Ist dort keine frei, alle Kacheln aus dem Ring von building (x außen aufsteigend, darin
+    ///   y aufsteigend), soweit CanCarryRoad. Gibt es auch dort keine: nichts ändern, Rückgabe 0.
+    /// - Kosten(x, y): 1, wenn die Kachel RoadLevel &gt;= 1 hat, sonst ROAD_NEW_TILE_COST.
+    /// - Abstand dist(x, y), kürzeste Kosten zum Ring eines Zentrums (Dijkstra mit
+    ///   PriorityQueue, dist als int[Width, Height], unerreicht int.MaxValue): jede Kachel aus dem
+    ///   Ring eines Zentrums mit CanCarryRoad hat dist = Kosten(x, y); jede andere Kachel mit
+    ///   CanCarryRoad hat dist = das kleinste dist ihrer vier Nachbarn + Kosten(x, y); Kacheln ohne
+    ///   CanCarryRoad bleiben unerreicht. Die Suche darf enden, sobald eine Kachel aus der
+    ///   Warteschlange kommt, deren dist größer ist als das einer schon herausgenommenen
+    ///   Startkachel. Ist keine Startkachel erreicht: nichts ändern, Rückgabe 0.
+    /// - Nähe(x, y): Quadrat des Abstands von (x + 0.5f, y + 0.5f) zur Mitte
+    ///   (X + Width / 2f, Y + Height / 2f) des Zentrums, dessen Mitte der Mitte von building am
+    ///   nächsten liegt (bei Gleichstand das erste in Buildings).
+    /// - Erste Kachel des Wegs: unter den Startkacheln mit dem kleinsten dist die mit der kleinsten
+    ///   Nähe, bei Gleichstand die erste in der Reihenfolge der Startkacheln.
+    /// - Weg: von der ersten Kachel aus, solange dist(aktuell) &gt; Kosten(aktuell), weiter zu dem
+    ///   Nachbarn (rechts x + 1, links x - 1, unten y + 1, oben y - 1) mit CanCarryRoad und
+    ///   dist == dist(aktuell) - Kosten(aktuell); gibt es mehrere, der mit der kleinsten Nähe, bei
+    ///   Gleichstand der erste in dieser Reihenfolge. Die Kachel mit dist == Kosten liegt am Ring
+    ///   eines Zentrums und ist die letzte. Erst den ganzen Weg bestimmen, dann ändern: Kosten und
+    ///   dist gelten für den Stand vor der ersten Änderung.
+    /// - Jede Kachel des Wegs bekommt RoadLevel = Math.Max(RoadLevel, level). Rückgabe: die Zahl
+    ///   der Kacheln, deren RoadLevel sich dabei geändert hat.
     /// </summary>
     public int ConnectBuilding(Building building, int level)
     {
-        // (a) Dunkle Zeit: keine Wege anlegen
-        if (level <= 0)
+        // (a) Dunkle Zeit oder das Gebäude selbst ein Stadtzentrum: nichts tun.
+        if (level <= 0 || building.Core.BuildingType == AoE.Core.Entities.BuildingType.TownCenter)
             return 0;
 
-        // (b) Ring eines Gebäudes: eine Kachel Rand um die Grundfläche
+        // Zentren des Besitzers (ohne das Gebäude selbst).
+        var centers = Buildings
+            .Where(g => g != building && g.OwnerId == building.OwnerId
+                && g.Core.BuildingType == AoE.Core.Entities.BuildingType.TownCenter)
+            .ToList();
+        if (centers.Count == 0)
+            return 0;
+
+        // (b) Ring eines Gebäudes: der Rahmen um die Grundfläche.
         bool InRing(Building g, int x, int y)
         {
-            bool inOuter = x >= g.X - 1 && x <= g.X + g.Width
-                          && y >= g.Y - 1 && y <= g.Y + g.Height;
-            bool inInner = x >= g.X && x < g.X + g.Width
-                         && y >= g.Y && y < g.Y + g.Height;
-            return inOuter && !inInner;
+            bool inX = x >= g.X - 1 && x <= g.X + g.Width;
+            bool inY = y >= g.Y - 1 && y <= g.Y + g.Height;
+            bool inFootprint = x >= g.X && x <= g.X + g.Width - 1
+                && y >= g.Y && y <= g.Y + g.Height - 1;
+            return inX && inY && !inFootprint;
         }
 
-        // (c) Startkacheln: erst die Reihe unter der Grundfläche, sonst der Ring
+        // (c) Startkacheln: erst die Reihe unter der Grundfläche, sonst der Ring.
         var starts = new List<(int X, int Y)>();
-        for (int sx = building.X; sx < building.X + building.Width; sx++)
+        for (int x = building.X; x < building.X + building.Width; x++)
         {
-            int sy = building.Y + building.Height;
-            if (CanCarryRoad(sx, sy))
-                starts.Add((sx, sy));
+            int y = building.Y + building.Height;
+            if (CanCarryRoad(x, y))
+                starts.Add((x, y));
         }
         if (starts.Count == 0)
         {
-            for (int rx = building.X - 1; rx <= building.X + building.Width; rx++)
+            for (int x = building.X - 1; x <= building.X + building.Width; x++)
             {
-                for (int ry = building.Y - 1; ry <= building.Y + building.Height; ry++)
+                for (int y = building.Y - 1; y <= building.Y + building.Height; y++)
                 {
-                    if (rx >= building.X && rx < building.X + building.Width
-                        && ry >= building.Y && ry < building.Y + building.Height)
-                        continue;
-                    if (CanCarryRoad(rx, ry))
-                        starts.Add((rx, ry));
+                    if (!InRing(building, x, y)) continue;
+                    if (CanCarryRoad(x, y))
+                        starts.Add((x, y));
                 }
             }
         }
         if (starts.Count == 0)
             return 0;
 
-        // (d) Stadtzentren des Besitzers, außer dem Gebäude selbst
-        var townCenters = Buildings
-            .Where(g => g != building
-                && g.OwnerId == building.OwnerId
-                && g.Core.BuildingType == AoE.Core.Entities.BuildingType.TownCenter)
-            .ToList();
-
-        // (e) Breitensuche von allen Startkacheln zugleich
-        var queue = new Queue<(int X, int Y)>();
-        var parent = new Dictionary<(int, int), (int, int)>();
-        var length = new Dictionary<(int, int), int>();
-        foreach (var s in starts)
+        // (d) Kosten einer Kachel: vorhandener Weg ist billig, neue Kachel teuer.
+        int Cost(int x, int y)
         {
-            queue.Enqueue(s);
-            length[s] = 1;
+            var tile = GetTile(x, y);
+            return tile != null && tile.RoadLevel >= 1 ? 1 : ROAD_NEW_TILE_COST;
         }
-        (int X, int Y)? ziel = null;
-        while (queue.Count > 0)
+
+        // (e) Dijkstra: kürzeste Kosten vom Ring eines Zentrums aus.
+        var dist = new int[Width, Height];
+        for (int x = 0; x < Width; x++)
+            for (int y = 0; y < Height; y++)
+                dist[x, y] = int.MaxValue;
+
+        var queue = new PriorityQueue<(int X, int Y), int>();
+        foreach (var center in centers)
         {
-            var (cx, cy) = queue.Dequeue();
-            // Zielprüfung: vorhandener Weg oder Ring eines Stadtzentrums
-            if (GetTile(cx, cy)?.RoadLevel >= 1
-                || townCenters.Any(tc => InRing(tc, cx, cy)))
+            for (int x = center.X - 1; x <= center.X + center.Width; x++)
             {
-                ziel = (cx, cy);
-                break;
+                for (int y = center.Y - 1; y <= center.Y + center.Height; y++)
+                {
+                    if (!InRing(center, x, y)) continue;
+                    if (!CanCarryRoad(x, y)) continue;
+                    if (dist[x, y] != int.MaxValue) continue;
+                    dist[x, y] = Cost(x, y);
+                    queue.Enqueue((x, y), dist[x, y]);
+                }
             }
-            // Kacheln mit der maximalen Länge werden nicht weiter ausgedehnt
-            if (length[(cx, cy)] >= ROAD_CONNECT_MAX_TILES)
+        }
+
+        var startSet = new HashSet<(int X, int Y)>(starts);
+        int best = int.MaxValue;
+        while (queue.TryDequeue(out var p, out int d))
+        {
+            // Veralteter Eintrag: überspringen.
+            if (d != dist[p.X, p.Y])
                 continue;
-            foreach (var (nx, ny) in new[] { (cx + 1, cy), (cx - 1, cy), (cx, cy + 1), (cx, cy - 1) })
+            // Besser als jede erreichte Startkachel: abbrechen.
+            if (d > best)
+                break;
+            if (startSet.Contains(p))
+                best = d;
+            // Vier Nachbarn.
+            foreach (var (nx, ny) in new[] { (p.X + 1, p.Y), (p.X - 1, p.Y), (p.X, p.Y + 1), (p.X, p.Y - 1) })
             {
-                if (length.ContainsKey((nx, ny)))
-                    continue;
-                if (!CanCarryRoad(nx, ny))
-                    continue;
-                queue.Enqueue((nx, ny));
-                parent[(nx, ny)] = (cx, cy);
-                length[(nx, ny)] = length[(cx, cy)] + 1;
+                if (!CanCarryRoad(nx, ny)) continue;
+                int nd = d + Cost(nx, ny);
+                if (nd < dist[nx, ny])
+                {
+                    dist[nx, ny] = nd;
+                    queue.Enqueue((nx, ny), nd);
+                }
             }
         }
 
-        // (f) kein Ziel erreicht: nichts ändern
-        if (ziel is not { } z)
+        // (f) Keine Startkachel erreicht: nichts ändern.
+        if (best == int.MaxValue)
             return 0;
 
-        // Weg von der Zielkachel über die Vorgänger bis zur Startkachel
-        int changed = 0;
-        var current = z;
-        while (true)
+        // (g) Das Zentrum, dessen Mitte der Mitte von building am nächsten liegt.
+        var target = centers
+            .OrderBy(c => (c.X + c.Width / 2f - (building.X + building.Width / 2f)) * (c.X + c.Width / 2f - (building.X + building.Width / 2f))
+                        + (c.Y + c.Height / 2f - (building.Y + building.Height / 2f)) * (c.Y + c.Height / 2f - (building.Y + building.Height / 2f)))
+            .First();
+
+        // Nähe einer Kachel zur Mitte des Zentrums (quadratischer Abstand).
+        float Near(int x, int y)
         {
-            var tile = GetTile(current.X, current.Y);
+            float dx = x + 0.5f - (target.X + target.Width / 2f);
+            float dy = y + 0.5f - (target.Y + target.Height / 2f);
+            return dx * dx + dy * dy;
+        }
+
+        // (h) Den Weg bestimmen: von der besten Startkachel aus dem dist-Gradienten folgen.
+        var path = new List<(int X, int Y)>();
+        var current = starts.Where(s => dist[s.X, s.Y] == best).OrderBy(s => Near(s.X, s.Y)).First();
+        path.Add(current);
+        while (dist[current.X, current.Y] > Cost(current.X, current.Y))
+        {
+            int rest = dist[current.X, current.Y] - Cost(current.X, current.Y);
+            var next = new[] { (current.X + 1, current.Y), (current.X - 1, current.Y), (current.X, current.Y + 1), (current.X, current.Y - 1) }
+                .Where(n => CanCarryRoad(n.Item1, n.Item2) && dist[n.Item1, n.Item2] == rest)
+                .OrderBy(n => Near(n.Item1, n.Item2))
+                .First();
+            current = next;
+            path.Add(current);
+        }
+
+        // (i) Erst jetzt ändern: jede Kachel des Wegs auf mindestens level heben.
+        int changed = 0;
+        foreach (var (x, y) in path)
+        {
+            var tile = GetTile(x, y);
+            if (tile == null) continue;
             int neu = Math.Max(tile.RoadLevel, level);
             if (neu != tile.RoadLevel)
             {
                 tile.RoadLevel = neu;
                 changed++;
             }
-            if (length[current] == 1)
-                break;
-            current = parent[current];
         }
         return changed;
     }

@@ -115,9 +115,10 @@ public class FeldwegeTests
         Assert.Equal(0.3f, AgeOfEvolutions.Core.Data.TileMap.ROAD_WEAR_MIN, 3);
     }
 
-    // --- Wege von Gebäuden (C16) --------------------------------------------
+    // --- Wege von Gebäuden (C16, C16c) --------------------------------------
     // Ab der Feudalzeit führt von der Vorderseite jedes fertigen Gebäudes ein Weg
-    // zum nächsten vorhandenen Weg oder zum Stadtzentrum seines Besitzers.
+    // bis an ein Stadtzentrum seines Besitzers; vorhandene Wege werden mitbenutzt,
+    // wo sie sich lohnen (neue Kachel 3, vorhandene 1).
 
     /// <summary>Ein Dorf auf leerer Wiese: Stadtzentrum (10, 10) 4×4, Haus (2, 2) 2×2.</summary>
     private static (DataMap Karte, DataBuilding Haus, DataBuilding Zentrum) Dorf(int breite = 20, int hoehe = 20)
@@ -127,6 +128,10 @@ public class FeldwegeTests
         var haus = karte.AddBuilding(2, 2, "Haus", 0, 2);
         return (karte, haus, zentrum);
     }
+
+    /// <summary>Ein Weg im Dorf: von (3, 7) hinunter nach (3, 9) und weiter bis an den Ring bei (9, 9).</summary>
+    private static (int X, int Y)[] ZentrumsWeg()
+        => new[] { (3, 7), (3, 8), (3, 9), (4, 9), (5, 9), (6, 9), (7, 9), (8, 9), (9, 9) };
 
     private static IEnumerable<(int X, int Y)> Wegkacheln(DataMap karte)
     {
@@ -215,32 +220,82 @@ public class FeldwegeTests
     }
 
     [Fact]
-    public void WegEndetAmNaechstenVorhandenenWeg()
+    public void WegLaeuftSchraegAufDasStadtzentrumZu()
+    {
+        // Unter gleich kurzen Wegen der, dessen Kacheln der Mitte (12, 12) des Stadtzentrums am
+        // nächsten liegen: eine Treppe, die der Wege-Shader als Schräge zeichnet - kein Winkel
+        var (karte, haus, _) = Dorf();
+        karte.ConnectBuilding(haus, 1);
+        var erwartet = new[] { (3, 4), (4, 4), (5, 4), (5, 5), (6, 5), (6, 6), (7, 6), (7, 7), (8, 7), (8, 8), (9, 8), (9, 9) };
+        Assert.Equal(erwartet.OrderBy(k => k).ToArray(), Wegkacheln(karte).Select(k => (k.X, k.Y)).OrderBy(k => k).ToArray());
+    }
+
+    [Fact]
+    public void VorhandenerWegZumStadtzentrumWirdMitbenutzt()
     {
         var (karte, haus, zentrum) = Dorf();
-        karte.GetTile(3, 7).RoadLevel = 1;
-        // (3, 4), (3, 5), (3, 6) werden Weg, (3, 7) war schon einer
+        // Ein Weg von (3, 7) hinunter nach (3, 9) und weiter bis an den Ring bei (9, 9)
+        foreach (var (x, y) in ZentrumsWeg())
+            karte.GetTile(x, y).RoadLevel = 1;
+        // (3, 4), (3, 5), (3, 6) werden Weg, der Rest war schon einer: Kosten 3 · 3 + 9 = 18
+        // statt 12 · 3 = 36 für einen ganz neuen Weg
         Assert.Equal(3, karte.ConnectBuilding(haus, 1));
-        Assert.Equal(4, Wegkacheln(karte).Count());
+        Assert.Equal(12, Wegkacheln(karte).Count());
+        Assert.Equal(1, karte.GetTile(3, 4).RoadLevel);
         Assert.Equal(1, karte.GetTile(3, 5).RoadLevel);
         Assert.Equal(1, karte.GetTile(3, 6).RoadLevel);
-        Assert.False(Kette(karte, haus, zentrum));
+        Assert.True(Kette(karte, haus, zentrum));
+    }
+
+    [Fact]
+    public void EinWegOhneAnschlussIstKeinEnde()
+    {
+        // Früher endete der Weg am nächsten Weg, auch an einem losen Stück Trampelpfad - nun
+        // führt er durch ihn hindurch bis ans Stadtzentrum
+        var (karte, haus, zentrum) = Dorf();
+        karte.GetTile(3, 7).RoadLevel = 1;
+        Assert.Equal(11, karte.ConnectBuilding(haus, 1));
+        Assert.Equal(12, Wegkacheln(karte).Count());
+        Assert.Equal(1, karte.GetTile(3, 5).RoadLevel);
+        Assert.Equal(1, karte.GetTile(3, 6).RoadLevel);
+        Assert.True(Kette(karte, haus, zentrum));
+    }
+
+    [Fact]
+    public void LangerUmwegWirdNichtGenommen()
+    {
+        // Ein Weg direkt neben dem Haus, der erst ganz außen herum ans Stadtzentrum führt
+        // (bei (14, 14)): ein Umweg über ihn kostet mindestens 37, der neue Weg 36
+        var (karte, haus, zentrum) = Dorf();
+        var umweg = new List<(int X, int Y)> { (1, 4) };
+        for (int y = 4; y <= 19; y++) umweg.Add((0, y));
+        for (int x = 1; x <= 14; x++) umweg.Add((x, 19));
+        for (int y = 14; y <= 18; y++) umweg.Add((14, y));
+        foreach (var (x, y) in umweg)
+            karte.GetTile(x, y).RoadLevel = 1;
+        Assert.Equal(12, karte.ConnectBuilding(haus, 1));
+        Assert.Equal(1, karte.GetTile(9, 9).RoadLevel);
+        Assert.Equal(umweg.Count + 12, Wegkacheln(karte).Count());
     }
 
     [Fact]
     public void DerAnschlussHebtDieStufeAnAberNieAb()
     {
         var (karte, haus, _) = Dorf();
-        karte.GetTile(3, 7).RoadLevel = 3;
+        foreach (var (x, y) in ZentrumsWeg())
+            karte.GetTile(x, y).RoadLevel = 3;
         Assert.Equal(3, karte.ConnectBuilding(haus, 1));
         Assert.Equal(3, karte.GetTile(3, 7).RoadLevel);
+        Assert.Equal(3, karte.GetTile(9, 9).RoadLevel);
         Assert.Equal(1, karte.GetTile(3, 6).RoadLevel);
 
         var (karte2, haus2, _) = Dorf();
-        karte2.GetTile(3, 7).RoadLevel = 1;
-        // Alle vier Kacheln steigen auf Stufe 2, auch die schon vorhandene
-        Assert.Equal(4, karte2.ConnectBuilding(haus2, 2));
+        foreach (var (x, y) in ZentrumsWeg())
+            karte2.GetTile(x, y).RoadLevel = 1;
+        // Alle zwölf Kacheln steigen auf Stufe 2, auch die schon vorhandenen
+        Assert.Equal(12, karte2.ConnectBuilding(haus2, 2));
         Assert.Equal(2, karte2.GetTile(3, 7).RoadLevel);
+        Assert.Equal(2, karte2.GetTile(9, 9).RoadLevel);
         Assert.Equal(2, karte2.GetTile(3, 4).RoadLevel);
     }
 
@@ -268,7 +323,6 @@ public class FeldwegeTests
             Assert.False(t.Farm);
             Assert.True(string.IsNullOrEmpty(t.Building));
         });
-        Assert.True(Wegkacheln(karte).Count() <= DataMap.ROAD_CONNECT_MAX_TILES);
     }
 
     [Fact]
@@ -288,33 +342,64 @@ public class FeldwegeTests
     }
 
     [Fact]
-    public void ZuWeitWegBleibtOhneWeg()
+    public void AuchWeitDraussenFuehrtEinWegZumStadtzentrum()
     {
+        // Früher endete die Suche nach 30 Kacheln - nun bekommt jedes Gebäude seinen Weg
         var karte = DataMap.CreateBlank(60, 12, 16, new MapSettings());
-        karte.AddBuilding(50, 4, "Stadtzentrum", 0, 4);
+        var zentrum = karte.AddBuilding(50, 4, "Stadtzentrum", 0, 4);
         var haus = karte.AddBuilding(1, 1, "Haus", 0, 2);
-        Assert.Equal(0, karte.ConnectBuilding(haus, 1));
-        Assert.Empty(Wegkacheln(karte));
+        int neu = karte.ConnectBuilding(haus, 1);
+        Assert.True(neu >= 48, $"nur {neu} Wegkacheln");
+        Assert.Equal(neu, Wegkacheln(karte).Count());
+        Assert.True(Kette(karte, haus, zentrum));
     }
 
     [Fact]
     public void NurDasEigeneStadtzentrumIstZiel()
     {
         var karte = DataMap.CreateBlank(60, 12, 16, new MapSettings());
-        karte.AddBuilding(50, 4, "Stadtzentrum", 0, 4);
+        var eigenes = karte.AddBuilding(50, 4, "Stadtzentrum", 0, 4);
         karte.AddBuilding(6, 1, "Stadtzentrum", 1, 4);   // das des Gegners, ganz nah
         var haus = karte.AddBuilding(1, 1, "Haus", 0, 2);
-        Assert.Equal(0, karte.ConnectBuilding(haus, 1));
-        Assert.Empty(Wegkacheln(karte));
+        Assert.True(karte.ConnectBuilding(haus, 1) >= 48);
+        Assert.True(Kette(karte, haus, eigenes));
     }
 
     [Fact]
-    public void EinStadtzentrumIstNichtSeinEigenesZiel()
+    public void OhneEigenesStadtzentrumKeinWeg()
     {
-        var karte = DataMap.CreateBlank(20, 20, 16, new MapSettings());
+        var karte = DataMap.CreateBlank(30, 12, 16, new MapSettings());
+        karte.AddBuilding(6, 1, "Stadtzentrum", 1, 4);   // nur das des Gegners
+        var haus = karte.AddBuilding(1, 1, "Haus", 0, 2);
+        karte.GetTile(1, 4).RoadLevel = 1;               // und ein Weg gleich vor der Tür
+        Assert.Equal(0, karte.ConnectBuilding(haus, 1));
+        Assert.Single(Wegkacheln(karte));
+    }
+
+    [Fact]
+    public void WegFuehrtZumNaechstenEigenenStadtzentrum()
+    {
+        var karte = DataMap.CreateBlank(40, 12, 16, new MapSettings());
+        var fern = karte.AddBuilding(1, 4, "Stadtzentrum", 0, 4);
+        var nah = karte.AddBuilding(32, 4, "Stadtzentrum", 0, 4);
+        var haus = karte.AddBuilding(24, 1, "Haus", 0, 2);
+        Assert.True(karte.ConnectBuilding(haus, 1) > 0);
+        Assert.True(Kette(karte, haus, nah));
+        Assert.False(Kette(karte, haus, fern));
+    }
+
+    [Fact]
+    public void EinStadtzentrumBekommtKeinenWeg()
+    {
+        // Das Stadtzentrum ist das Ziel der Wege, nicht ihr Anfang - auch nicht mit einem zweiten
+        // eigenen Stadtzentrum oder einem Weg gleich daneben
+        var karte = DataMap.CreateBlank(30, 20, 16, new MapSettings());
         var zentrum = karte.AddBuilding(10, 10, "Stadtzentrum", 0, 4);
         Assert.Equal(0, karte.ConnectBuilding(zentrum, 1));
-        Assert.Empty(Wegkacheln(karte));
+        karte.AddBuilding(22, 10, "Stadtzentrum", 0, 4);
+        karte.GetTile(12, 15).RoadLevel = 1;
+        Assert.Equal(0, karte.ConnectBuilding(zentrum, 1));
+        Assert.Single(Wegkacheln(karte));
     }
 
     [Fact]
@@ -331,19 +416,22 @@ public class FeldwegeTests
     public void WegDurchDieKartenecke()
     {
         // Haus (2, 1) 2×2: der Ring ist bis auf (1, 0) Wasser, also führt der Weg von (1, 0)
-        // durch die Ecke (0, 0) und an der linken Kante hinunter zum Weg bei (0, 5)
+        // durch die Ecke (0, 0) und an der linken Kante hinunter zum Ring des Stadtzentrums (0, 7)
+        // bei (0, 6)
         var karte = DataMap.CreateBlank(12, 12, 16, new MapSettings());
         var haus = karte.AddBuilding(2, 1, "Haus", 0, 2);
+        var zentrum = karte.AddBuilding(0, 7, "Stadtzentrum", 0, 4);
         foreach (var (x, y) in new[] { (2, 0), (3, 0), (4, 0), (1, 1), (1, 2), (1, 3), (2, 3), (3, 3), (4, 3), (4, 1), (4, 2) })
         {
             var t = karte.GetTile(x, y);
             t.Type = TileType.Water;
             t.Walkable = false;
         }
-        karte.GetTile(0, 5).RoadLevel = 1;
-        Assert.Equal(6, karte.ConnectBuilding(haus, 1));
-        foreach (var (x, y) in new[] { (1, 0), (0, 0), (0, 1), (0, 2), (0, 3), (0, 4) })
+        Assert.Equal(8, karte.ConnectBuilding(haus, 1));
+        foreach (var (x, y) in new[] { (1, 0), (0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6) })
             Assert.Equal(1, karte.GetTile(x, y).RoadLevel);
+        Assert.Equal(8, Wegkacheln(karte).Count());
+        Assert.True(Kette(karte, haus, zentrum));
     }
 
     [Fact]
