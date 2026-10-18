@@ -177,6 +177,8 @@ for (int karte = 1; karte <= KARTEN; karte++)
     // Das Kampfbild hängt nicht von der Karte ab
     if (gruppen.Contains("kampfbild") && karte == 1)
         Pruefe("Kampfbild", () => Kampfbild(verstoesse));
+    if (gruppen.Contains("autoantwort"))
+        Pruefe($"Karte {karte}, Auto-Antwort", () => AutoAntwort(karte, verstoesse));
     if (gruppen.Contains("zielwechsel"))
         Pruefe($"Karte {karte}, Zielwechsel", () => Zielwechsel(karte, verstoesse));
     // Die Drossel und die reinen Rechnungen hängen nicht von der Karte ab
@@ -5270,6 +5272,88 @@ static void Verteidigung(int karte, List<string> verstoesse)
 
     if (verstoesse.Count == vorher)
         Console.WriteLine($"  ok  {wer}: drei Wachen greifen nach {zeit:0.0} s an, Läufer, ferner Soldat und Dorfbewohner nicht; Angreifer nach {kampf:0.0} s besiegt; der Gegner verteidigt ebenso");
+}
+
+// Auto-Antwort (Nutzer 2026-10-18: "Wenn die Gegner sichtbar sind und sie
+// angreifen, sollten meine Soldaten in der Nähe automatisch angreifen, nicht
+// nur die, die angegriffen werden"): ein Feind, der eine EIGENE EINHEIT angreift
+// (nicht das Stadtzentrum — das wäre K6), wird von den untätigen Soldaten in der
+// Nähe von selbst beantwortet. Nur die NÄHEN (6 Kacheln): ein Soldat 12 Kacheln
+// entfernt bleibt untätig. Er antwortet erst, wenn der Feind wirklich zuschlägt.
+static void AutoAntwort(int karte, List<string> verstoesse)
+{
+    string wer = $"Karte {karte}, Auto-Antwort";
+    int vorher = verstoesse.Count;
+    var w = new Welt();
+    w.Set("cameraZoom", 1f);
+    w.Set("cameraPosition", Vector2.Zero);
+    int T = w.Map.TileSize;
+
+    bool Frei(int x, int y) => w.Map.GetTile(x, y) is { } t && w.Map.IsWalkable(x, y) && t.ResourceType == null
+        && string.IsNullOrEmpty(t.Building) && !w.Map.Units.Any(u => w.Map.WorldToGrid(u.Position) == new Vector2(x, y));
+    Unit Neu(UnitType typ, int besitzer, Vector2 kachel)
+    {
+        var u = w.Map.AddUnit(typ, (int)kachel.X, (int)kachel.Y, besitzer);
+        (besitzer == 0 ? w.P1 : w.P2).AddUnit(u);
+        return u;
+    }
+    // Eine freie Kachel, deren Mitte etwa abstand Kacheln vom Punkt liegt
+    Vector2 Kachel(Vector2 punkt, float abstand) => Enumerable.Range(0, w.Map.Width)
+        .SelectMany(x => Enumerable.Range(0, w.Map.Height).Select(y => new Vector2(x, y)))
+        .Where(c => Frei((int)c.X, (int)c.Y))
+        .OrderBy(c => Math.Abs(Vector2.Distance(w.Map.GridToWorld(c), punkt) / T - abstand))
+        .First();
+
+    // In der Kartenmitte: weit genug draußen (> 15 Kacheln von beiden
+    // Stadtzentren), dass K6s TC-Verteidigung nicht mitmischt — nur die
+    // Auto-Antwort kann hier Soldaten befehlen.
+    var mitte = new Vector2(w.Map.Width * T / 2f, w.Map.Height * T / 2f);
+    var tc0 = w.Map.Buildings.First(b => b.OwnerId == 0 && b.Core.BuildingType == BuildingType.TownCenter);
+    if (Vector2.Distance(mitte, new Vector2((tc0.X + tc0.Width / 2f) * T, (tc0.Y + tc0.Height / 2f) * T)) < 16f * T)
+    {
+        verstoesse.Add($"{wer}: Testaufbau - Karte zu klein für die Mitte ({w.Map.Width})");
+        return;
+    }
+
+    var opfer = Neu(UnitType.Militia, 0, Kachel(mitte, 0));            // eigene Einheit
+    var angreifer = Neu(UnitType.Militia, 1, Kachel(opfer.Position, 3));   // feindlich, 3 Kacheln
+    var neben = Neu(UnitType.Militia, 0, Kachel(angreifer.Position, 3));  // nah: muss antworten
+    var fern = Neu(UnitType.Militia, 0, Kachel(angreifer.Position, 12));  // fern: muss still bleiben
+
+    // Der Feind greift die EIGENE EINHEIT an (kein Stadtzentrum)
+    w.Call("AttackUnit", new List<Unit> { angreifer }, opfer);
+    bool zuFrueh = false;
+    w.LaufeBis(() =>
+    {
+        if (angreifer.State != UnitState.Attacking && neben.UnitTarget == angreifer)
+            zuFrueh = true;      // schon während des Anmarsches?
+        return angreifer.State == UnitState.Attacking;
+    }, 40f);
+    if (angreifer.State != UnitState.Attacking)
+    {
+        verstoesse.Add($"{wer}: Testaufbau - der Angreifer kommt nicht an ({angreifer.State})");
+        return;
+    }
+    if (zuFrueh)
+        verstoesse.Add($"{wer}: der nahe Soldat greift an, während der Feind noch anrückt - erst, wenn er zuschlägt");
+
+    // Nahe Soldat (3 Kacheln): greift den Angreifer von selbst an
+    float zeit = w.LaufeBis(() => neben.UnitTarget == angreifer, 6f);
+    if (neben.UnitTarget != angreifer)
+        verstoesse.Add($"{wer}: {zeit:0.0} s nach dem Angriff des Feindes auf die eigene Einheit hat der nahe, untätige Soldat (3 Kacheln) kein Ziel (Ziel={neben.UnitTarget?.Name}, {neben.State}); erwartet: den Angreifer");
+
+    // Ferner Soldat (12 Kacheln): bleibt ohne Ziel
+    w.LaufeBis(() => neben.State == UnitState.Attacking, 10f);
+    if (fern.UnitTarget != null)
+        verstoesse.Add($"{wer}: der fern Untätige (12 Kacheln) greift den Feind an - nur SOLDATEN IN DER NÄHE (max. 6 Kacheln) dürfen die Auto-Antwort lösen");
+
+    // Wirkung: der Angreifer wird getroffen (LP sinken), nicht nur befohlen
+    w.LaufeBis(() => angreifer.Health < angreifer.MaxHealth, 10f);
+    if (angreifer.Health >= angreifer.MaxHealth)
+        verstoesse.Add($"{wer}: nach Beginn des Kampfes hat der nahe Soldat nicht getroffen (Angreifer {angreifer.Health}/{angreifer.MaxHealth} LP) - die Auto-Antwort zeigt keine Wirkung");
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: naher untätiger Soldat (3 Kacheln) greift den angreifenden Feind im Kampf um die eigene Einheit von selbst an, trifft auch; 12 Kacheln fern bleibt er ohne Ziel; erst nach dem ersten Schlag");
 }
 
 // Kampfbild (K7, Nutzer 2026-10-11: "wieso wippt der Soldat, wenn er einen gegnerischen

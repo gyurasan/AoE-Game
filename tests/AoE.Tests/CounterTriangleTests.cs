@@ -48,6 +48,50 @@ public class CounterTriangleTests
     }
 
     [Fact]
+    public void Ritter_IstStaerkerAlsInfanterie()
+    {
+        // Nutzer 2026-10-18: „die berittenen Soldaten sind nicht stark
+        // genug. Normalerweise sollten sie stärker als die Soldaten zu Fuß
+        // sein". Also muss der Ritter Miliz und Speerkämpfer jeweils in
+        // WENIGER Schlägen besiegen als diese ihn — das Konter-Bonus bleibt
+        // dabei bestehen (Speer trifft härter als Miliz), dreht das Duell
+        // aber nicht.
+        var knight = new Knight(0, Origin);
+        var militia = new Militia(1, Origin);
+        var spearman = new SpearMan(1, Origin);
+
+        int ritterSchlagtMiliz = RundenBisTod(knight, militia);
+        int milizSchlagtRitter = RundenBisTod(militia, knight);
+        int ritterSchlagtSpeer = RundenBisTod(knight, spearman);
+        int speerSchlagtRitter = RundenBisTod(spearman, knight);
+
+        Assert.True(
+            ritterSchlagtMiliz < milizSchlagtRitter,
+            $"Ritter soll Miliz besiegen: {ritterSchlagtMiliz} Schläge gegen Miliz, "
+            + $"{milizSchlagtRitter} für die Miliz gegen den Ritter.");
+        Assert.True(
+            ritterSchlagtSpeer < speerSchlagtRitter,
+            $"Ritter soll Speerkämpfer besiegen: {ritterSchlagtSpeer} Schläge gegen den "
+            + $"Speer, {speerSchlagtRitter} für den Speer gegen den Ritter.");
+
+        // Der Konter bleibt wahr: der Speer trifft die Kavallerie härter
+        // als die Miliz.
+        Assert.True(
+            DamageCalculator.CalculateDamage(new SpearMan(0, Origin), new Knight(1, Origin))
+                > DamageCalculator.CalculateDamage(militia, knight),
+            "Speerkämpfer müssen Kavallerie härter treffen als die Miliz.");
+    }
+
+    /// <summary>
+    /// Schläge, bis ein frischer Gegner stirbt (Schlagtempo ist gleich).
+    /// </summary>
+    private static int RundenBisTod(UnitEntity angreifer, UnitEntity verteidiger)
+    {
+        int schaden = DamageCalculator.CalculateDamage(angreifer, verteidiger);
+        return (verteidiger.Stats.HitPoints + schaden - 1) / schaden;
+    }
+
+    [Fact]
     public void Ram_TrifftGebaeudeHaerterAlsInfanterie()
     {
         var ram = new Ram(0, Origin);

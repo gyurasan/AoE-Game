@@ -36,8 +36,8 @@ public class UnitTests
     {
         var spearman = new SpearMan(0, new Position(0, 0));
         var attack = spearman.Stats.GetTotalAttack(UnitClass.Cavalry);
-        // Basisangriff 3 + Bonus 15 = 18
-        Assert.Equal(18, attack);
+        // Basisangriff 3 + Bonus 10 = 13
+        Assert.Equal(13, attack);
     }
     
     [Fact]
@@ -45,8 +45,8 @@ public class UnitTests
     {
         var knight = new Knight(0, new Position(0, 0));
         var attack = knight.Stats.GetTotalAttack(UnitClass.Archer);
-        // Basisangriff 10 + Bonus 5 = 15
-        Assert.Equal(15, attack);
+        // Basisangriff 12 + Bonus 5 = 17
+        Assert.Equal(17, attack);
     }
     
     [Fact]
@@ -78,9 +78,8 @@ public class DamageCalculatorTests
         
         int damage = DamageCalculator.CalculateDamage(spearman, knight);
         
-        // Speer: 3 Nahkampf + 15 gegen Kavallerie = 18 Gesamt
-        // Ritter: 2 Nahkampf Rüstung
-        // 18 - 2 = 16, mindestens 1
+        // Speer: Schritt 1 Grundangriff 3 + Schritt 2 gegen Kavallerie
+        // (Basis 3 + Bonus 10) = 16 Gesamt
         Assert.True(damage >= 16);
     }
     

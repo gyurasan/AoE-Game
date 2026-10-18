@@ -2832,18 +2832,28 @@ public partial class RTSGameplayScreen : GameScreen
 
     /// <summary>
     /// Steht <paramref name="target"/> in Angriffreichweite von
-    /// <paramref name="unit"/>? Chebyshev, pixelgenau, mit
+    /// <paramref name="unit"/>? Euklidisch, pixelgenau, mit
     /// <see cref="COMBAT_SPACING_TILES"/>-Aufschlag, da der Standpunkt durch
     /// die Verbands-Abweichung bis COMBAT_SPACING_TILES vom idealen Punkt
-    /// weichen darf. Die Einheit hält dort an und ist bis hier angreifbar —
-    /// so pendelt sie nicht zwischen „zu weit" und „zu nah".
+    /// weichen darf. Der Standpunkt liegt höchstens stop + spacing vom Ziel,
+    /// daher muss er hier liegen — die Einheit pendelt nicht zwischen
+    /// „zu weit" und „zu nah". Der 0.25-px-Spielraum ist nur ein
+    /// Gleitkomma-Sicherheitsrand.
+    ///
+    /// Euklidisch statt Chebyshev (Nutzer 2026-10-18: „der Soldat hat den
+    /// Bogenschützen getroffen, obwohl er mehr als eine Kachel entfernt
+    /// stand"): die Diagonale einer Kachel ist 1,41 Kacheln — Chebyshev
+    /// zählte sie trotzdem als in Reichweite, der Nahkämpfer griff dann
+    /// sichtbar über eine Kachel an. Euklidisch erreicht der Nahkampf
+    /// höchstens Anhalt (0,5) + Abstand (0,5) = genau eine Kachel, der
+    /// Bogen seinen Ring (4 + 0,5) — Kreise statt Kachel-Quadrate.
     /// </summary>
     private bool InAttackRange(Unit unit, Unit target)
     {
-        float range = AttackStopDistance(unit) + _combatSpacingTiles * tileMap.TileSize;
-        float dc = Math.Abs(target.Position.X - unit.Position.X);
-        float dr = Math.Abs(target.Position.Y - unit.Position.Y);
-        return Math.Max(dc, dr) <= range;
+        float range = AttackStopDistance(unit) + _combatSpacingTiles * tileMap.TileSize + 0.25f;
+        float dx = target.Position.X - unit.Position.X;
+        float dy = target.Position.Y - unit.Position.Y;
+        return MathF.Sqrt(dx * dx + dy * dy) <= range;
     }
 
     /// <summary>
@@ -4604,6 +4614,12 @@ public partial class RTSGameplayScreen : GameScreen
     private const float TOWN_DEFENSE_INTERVAL = 0.5f;
     private float _townDefenseTimer;
 
+    /// <summary>Höchstens so viele Kacheln (Luftlinie zum Angreifer) steht ein
+    /// untätiger Soldat vom Kampf entfernt, damit er einen sichtbaren, angreifenden
+    /// Feind automatisch beantwortet (Auto-Antwort, 2026-10-18).</summary>
+    private const float AUTO_RESPONSE_RADIUS_TILES = 6f;
+    private float _autoResponseTimer;
+
     /// <summary>
     /// Untätige Soldaten verteidigen ihr Stadtzentrum (K6, Nutzer 2026-10-11: "Zudem sollten
     /// Soldaten jemanden, der das Dorfzentrum angreift, automatisch angreifen"). Für beide
@@ -4681,12 +4697,94 @@ public partial class RTSGameplayScreen : GameScreen
         }
     }
 
+    /// <summary>
+    /// Automatische Antwort (Nutzer 2026-10-18: „Wenn die Gegner sichtbar sind
+    /// und sie angreifen, sollten meine Soldaten in der Nähe automatisch
+    /// angreifen, nicht nur die, die angegriffen werden“): greift ein sichtbarer
+    /// Feind eine eigene Einheit ODER ein eigenes Gebäude an, steigen die
+    /// untätigen eigenen Soldaten in der Nähe von selbst in den Kampf ein.
+    /// Symmetrisch für beide Spieler; UpdateUnits ruft es zu Beginn jedes
+    /// Bilds auf, wie <see cref="DefendTownCenters"/> (K6 bleibt zusätzlich
+    /// bestehen: dort ist das Ziel das Stadtzentrum, hier jedes eigene Ziel).
+    /// VERTRAG:
+    /// - Gesucht wird nur alle TOWN_DEFENSE_INTERVAL Sekunden (gleicher Takt
+    ///   wie K6): _autoResponseTimer um dt verringern, über 0 = nichts,
+    ///   sonst Takt setzen und suchen.
+    /// - Angreifer: Einheit mit State Attacking, deren Ziel (Einheit ODER
+    ///   Gebäude) zum anderen Besitzer gehört und noch lebt/hält.
+    /// - Verteidiger: untätiger Soldat des Besitzers — KEINE Dorfbewohner
+    ///   (K6-Regel), ohne Einheit-, Gebäude-, Sammel- und Bau-Ziel
+    ///   (Befehle des Spielers haben Vorrang, kein Ping-Pong: wer schon ein
+    ///   Ziel hat, wird nicht neu befehligt).
+    /// - Der Feind muss für den Besitzer SICHTBAR sein (IsTileVisible) — nur
+    ///   auf Bekanntem agieren.
+    /// - Jeder Verteidiger greift seinen nächsten sichtbaren Angreifer an
+    ///   (max. AUTO_RESPONSE_RADIUS_TILES Luftlinie) über AttackUnit — der
+    ///   einzige saubere Angriffskanal; UnitTarget wird gesetzt, der
+    ///   Schlagtakt läuft.
+    /// </summary>
+    private void AutoRespond(float dt)
+    {
+        _autoResponseTimer -= dt;
+        if (_autoResponseTimer > 0f)
+            return;
+        _autoResponseTimer = TOWN_DEFENSE_INTERVAL;
+
+        foreach (int owner in new[] { 0, 1 })
+        {
+            // Sichtbare Feinde, die gerade eigene Einheiten oder Gebäude angreifen.
+            var attackers = units
+                .Where(u => u.OwnerId != owner
+                    && u.State == UnitState.Attacking
+                    && (u.UnitTarget is { } ut && ut.State != UnitState.Dead && ut.OwnerId == owner
+                        || u.AttackTarget is { } at && at.OwnerId == owner && tileMap.Buildings.Contains(at)))
+                .ToList();
+            if (attackers.Count == 0)
+                continue;
+
+            // Untätige Soldaten ohne Auftrag — wie bei K6, nur ohne TC-Ring.
+            var defenders = units
+                .Where(u => u.OwnerId == owner
+                    && u.AttackPower > 0
+                    && u.Core is not CoreVillager
+                    && (u.State == UnitState.Idle || u.State == UnitState.Guarding)
+                    && u.UnitTarget == null
+                    && u.AttackTarget == null
+                    && u.Job == null
+                    && u.BuildSite == null)
+                .ToList();
+
+            foreach (var d in defenders)
+            {
+                Unit nearest = null;
+                float best = AUTO_RESPONSE_RADIUS_TILES * tileMap.TileSize;
+                foreach (var a in attackers)
+                {
+                    var g = tileMap.WorldToGrid(a.Position);
+                    if (!tileMap.IsTileVisible((int)g.X, (int)g.Y, owner))
+                        continue;                        // nicht sichtbar: kein Angriff
+                    float dist = Vector2.Distance(d.Position, a.Position);
+                    if (dist <= best)
+                    {
+                        best = dist;
+                        nearest = a;
+                    }
+                }
+                if (nearest != null)
+                    AttackUnit(new List<Unit> { d }, nearest);
+            }
+        }
+    }
+
     private void UpdateUnits(GameTime gameTime)
     {
         var dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
         // Untätige Soldaten verteidigen ihr Stadtzentrum (K6)
         DefendTownCenters(dt);
+
+        // Sichtbare, angreifende Feinde beantworten die nahen Soldaten (2026-10-18)
+        AutoRespond(dt);
 
         // Pfeile fliegen, Einstürze und Trümmer altern (A2, A3)
         UpdateEffects(dt);

@@ -90,8 +90,10 @@ public sealed class Militia : UnitEntity
             Speed = 0.8f,
             VisionRange = 4
         };
-        // Bonus gegen Kavallerie
-        stats.AddAttackBonus(UnitClass.Cavalry, 12);
+        // Bonus gegen Kavallerie (Nutzer 2026-10-18: Reiter sollen die
+        // stärkere Nahkämpfter sein — der Miliz-Bonus bleibt als leichter
+        // Konter, dreht das Duell aber nicht).
+        stats.AddAttackBonus(UnitClass.Cavalry, 6);
         return stats;
     }
 }
@@ -122,9 +124,14 @@ public sealed class SpearMan : UnitEntity
             Speed = 0.75f,
             VisionRange = 4
         };
-        // Spezial: Bonus gegen Kavallerie
-        stats.AddAttackBonus(UnitClass.Cavalry, 15);
-        stats.AddArmorBonus(UnitClass.Cavalry, 1);
+        // Spezial: Bonus gegen Kavallerie (Nutzer 2026-10-18: Reiter sollen
+        // die stärkere Nahkämpfter sein — der Speer-Bonus bleibt als
+        // Klassikonter, dreht den 1-zu-1 aber nicht: Ritter 4 Schläge bis
+        // der Speer stirbt, Ritter fallen erst im 8.).
+        stats.AddAttackBonus(UnitClass.Cavalry, 10);
+        // (Frühere Rüstung gegen Kavallerie: +1 — ohne Wirkung, denn der
+        // Schaden-Berechner liest Rüstung nur pro Verteidiger-Klasse;
+        // entfernt 2026-10-18.)
         return stats;
     }
 }
@@ -199,8 +206,13 @@ public sealed class Knight : UnitEntity
 {
     public override string Type => "Knight";
     
-    private const int BASE_HP = 100;
-    private const int BASE_ATTACK = 10;
+    // Nutzer 2026-10-18: „die berittenen Soldaten nicht stark genug —
+    // normalerweise sollten sie stärker als die Soldaten zu Fuß sein".
+    // Der Ritter ist damit der stärkste Nahkämpfer: gegen Miliz,
+    // Speerkämpfer, Bogenschützen und Kamelreiter in weniger Schlägen
+    // durch (45/12 vs. 120/14, 45/12 vs. 120/16, 30/29 vs. 120/8, 100/24 vs. 120/19).
+    private const int BASE_HP = 120;
+    private const int BASE_ATTACK = 12;
     
     public Knight(int ownerId, Position position) 
         : base(ownerId, position, CreateStats())
