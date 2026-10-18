@@ -689,6 +689,7 @@ public partial class RTSGameplayScreen : GameScreen
     private Age _buttonsLayoutAge;       // und welches Zeitalter galt
     private Data.Building _buttonsLayoutBuilding;   // und welches Gebäude ausgewählt war
     private int _buttonsLayoutTechs = -1;           // und welcher Forschungsstand galt (Techs.Version)
+    private List<UnitType> _buttonsLayoutSelectionTypes = new();   // und welche Einheitenarten in der Auswahl waren
     private Rectangle _minimapRect;      // das gezeichnete Minimap-Feld (Klickfläche)
 
     // Abstand der Minimap zur Unterkante der Leiste; der 2-px-Rahmen liegt darin.
@@ -2333,6 +2334,24 @@ public partial class RTSGameplayScreen : GameScreen
         selectedUnits.Clear();
         selectedBuilding = b;
         placing = null;
+    }
+
+    /// <summary>
+    /// In einer gemischten Auswahl auf eine Einheitenart filtern: alle übrigen
+    /// ausgewählten Einheiten werden abgewählt, die Einheiten dieser Art bleiben
+    /// ausgewählt (SelectOnlyType hinter den Auswahl-Filter-Tasten in der Leiste).
+    /// VERTRAG: selectedUnits enthält danach nur noch Einheiten der Art und
+    /// IsSelected ist für alle synchron (true für die Art, false für den Rest);
+    /// die Gebäudeauswahl ist bei einer Einheitenwahl ohnehin null und bleibt
+    /// es; Einheiten außerhalb der Auswahl — auch derselben Art — bleiben
+    /// unberührt.
+    /// </summary>
+    internal void SelectOnlyType(UnitType type)
+    {
+        foreach (var u in selectedUnits)
+            if (u.Type != type)
+                u.IsSelected = false;
+        selectedUnits.RemoveAll(u => u.Type != type);
     }
 
     /// <summary>Das ausgewählte Gebäude, wenn es ein fertiges eigenes Stadtzentrum ist,
@@ -7956,10 +7975,14 @@ public partial class RTSGameplayScreen : GameScreen
         // gibt es nur, solange ein nächstes Zeitalter folgt.
         bool builders = VillagerSelected();
         var age = player1.Ages.Current;
+        // Die Auswahl-Filter-Tasten (eigene Reihe unten) hängen an den in der
+        // Auswahl vertretenen Einheitenarten — die gehören zum Layout-Zustand
+        var selectedTypes = selectedUnits.Select(u => u.Type).Distinct().ToList();
         if (_buttons.Count > 0 && _buttonsLayoutHeight == screenBounds.Height
             && _buttonsLayoutBuilders == builders && _buttonsLayoutAge == age
             && _buttonsLayoutBuilding == selectedBuilding
-            && _buttonsLayoutTechs == player1.Techs.Version)
+            && _buttonsLayoutTechs == player1.Techs.Version
+            && _buttonsLayoutSelectionTypes.SequenceEqual(selectedTypes))
             return;
         _buttons.Clear();
         _buttonsLayoutHeight = screenBounds.Height;
@@ -7967,6 +7990,7 @@ public partial class RTSGameplayScreen : GameScreen
         _buttonsLayoutAge = age;
         _buttonsLayoutBuilding = selectedBuilding;
         _buttonsLayoutTechs = player1.Techs.Version;
+        _buttonsLayoutSelectionTypes = selectedTypes;
         int size = 60, gap = 6;
         int x = 10, y = screenBounds.Height - HUD_BOTTOM_HEIGHT + 14;
         // Q (Dorfbewohner) und A (Zeitalter) gibt es nur mit ausgewähltem
@@ -8020,6 +8044,24 @@ public partial class RTSGameplayScreen : GameScreen
                 AddButton(ref x2, size, gap, y2, e.Key.ToString().ToUpperInvariant(),
                           e.Name, CostText(BuildingRules.CostOf(e.Type)), e.Type,
                           () => TogglePlacing(e.Type));
+        }
+
+        // Auswahl-Filter-Tasten: die Auswahl mischt zwei oder mehr Einheitenarten,
+        // dann liegt unter den Befehlstasten eine eigene Reihe mit einer Taste je
+        // Art (Dorfbewohner, Miliz, Bogenschütze, ...). Der Klick wählt aus der
+        // aktuellen Auswahl nur diese Art (SelectOnlyType); die übrigen Einheiten
+        // bleiben auf der Karte, nur ihre Auswahl hebt sich auf.
+        if (selectedTypes.Count >= 2)
+        {
+            int x3 = 10;
+            int y3 = screenBounds.Height - 6 - size;   // unterste Reihe, 6 px über dem Fensterboden
+            foreach (var t in selectedTypes.OrderBy(t => (int)t))
+            {
+                string name = CoreUnits.GermanName(t);
+                AddButton(ref x3, size, gap, y3, name, name,
+                          $"wählt in der Auswahl nur: {name}",
+                          () => SelectOnlyType(t));
+            }
         }
     }
 

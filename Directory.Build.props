@@ -6,5 +6,14 @@
          kann Core auf eine neuere MonoGame.Framework.dll zeigen, als die App
          mitbringt, und die Exe stirbt beim Start mit FileLoadException. -->
     <MonoGameVersion>3.8.6</MonoGameVersion>
+
+    <!-- Repository-Version: ohne Angabe fällt MSBuild auf die Default 1.0.0.0
+         zurück und das Hauptmenü zeigt „Version 1.0.0“. Dev-Builds tragen damit
+         die Version des aktuellen Release-Stands (Update-Vergleich, Menü).
+         Release-Zips bleiben davon unberührt: der Publish-Call übergibt
+         -p:Version=<Tag-o-v> als globale Eigenschaft, die diesen Wert überschreibt
+         (verifiziert: v0.4.3-Zips haben FileVersion 0.4.3.0). Beim nächsten Release
+         (z. B. 0.4.4) hier mitschreiben, falls lokal Dev-Builds laufen sollen. -->
+    <Version>0.4.3</Version>
   </PropertyGroup>
 </Project>
