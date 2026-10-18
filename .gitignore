@@ -26,3 +26,6 @@ errors
 
 # Fehler-Log (GameLog)
 logs/
+
+# macOS
+.DS_Store
