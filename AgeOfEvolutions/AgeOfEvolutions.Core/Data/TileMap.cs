@@ -360,12 +360,15 @@ public class TileMap
         // Fische an der Küste – nach den Stränden, damit feststeht, wo Land ist
         PlaceFish();
 
-        // Wälder (Holz): 7–10 Klumpen (vorher 5–7), je größer, mit Lichtung
-        // für Nahrungsklumpen. Die Zahlen kommen aus MapSettings.
+        // Wälder (Holz): Klumpen mit Lichtung für Nahrungsklumpen. Die Zahlen
+        // kommen aus MapSettings. Jeder Wald trägt seinen Radius mit sich,
+        // damit die Beerenbüsche an den Rand gestellt werden können.
         var woodCenters = PlaceClusterCenters(_random.Next(Settings.WoodClustersMin, Settings.WoodClustersMax + 1), 3);
+        var woods = new List<(int x, int y, int radius)>();
         foreach (var (cx, cy) in woodCenters)
         {
             int r = _random.Next(Settings.WoodRadiusMin, Settings.WoodRadiusMax + 1);
+            woods.Add((cx, cy, r));
             StampResource(cx, cy, r, TileType.Forest, Resource.Wood, 100);
             if (_random.NextDouble() < 0.7)
             {
@@ -397,7 +400,7 @@ public class TileMap
         PlaceSmallGame(FoodSource.Boar, _boarCoords, Settings.BoarGroupsMin, Settings.BoarGroupsMax,
                        Settings.BoarsPerGroupMin, Settings.BoarsPerGroupMax, Settings.BoarFood,
                        Settings.BoarWanderSecondsMax);
-        PlaceBerryBushes(woodCenters);
+        PlaceBerryBushes(woods);
     }
 
     /// <summary>
@@ -593,23 +596,35 @@ public class TileMap
         }
     }
     
-    // Beerenbüsche: ein paar einzelne Büsche nah an Waldlichtungen — die
-    // Wahrscheinlichkeit je Lichtung kommt aus MapSettings (0..1).
-    private void PlaceBerryBushes(List<(int x, int y)> woodCenters)
+    // Beerenbüsche: rings um jeden Wald, im Band direkt am Rand (auch auf
+    // gestampften Lichtungen) — die Wahrscheinlichkeit je Wald und die Büsche
+    // je Wald kommen aus MapSettings (0..1). Früher um die Klumpenmitte:
+    // der Klumpen trägt Radius 3–5, die ±2-Kiste lag also fast komplett im
+    // eigenen Wald und wurde dort als „keine Wiese“ verworfen — die Karte
+    // trug im Schnitt nur ~13 Büsche statt der ~130, die eingestellt sind.
+    private void PlaceBerryBushes(List<(int x, int y, int radius)> woods)
     {
-        foreach (var (cx, cy) in woodCenters)
+        foreach (var (cx, cy, r) in woods)
         {
             if (_random.NextDouble() > Settings.BerryChance) continue;
             int count = _random.Next(Settings.BerriesMin, Settings.BerriesMax + 1);
             for (int i = 0; i < count; i++)
             {
-                int bx = cx + _random.Next(-2, 3);
-                int by = cy + _random.Next(-2, 3);
-                var t = GetTile(bx, by);
-                if (t == null || t.Type != TileType.Grassland) continue;
-                t.ResourceType = Resource.Food;
-                t.ResourceAmount = 125;
-                t.Food = FoodSource.Berries;
+                for (int attempt = 0; attempt < 12; attempt++)
+                {
+                    float winkel = (float)_random.NextDouble() * MathF.Tau;
+                    int d = r + 1 + _random.Next(0, 2);   // Band am Rand: sicher außerhalb des Soft-Kreis
+                    int bx = cx + (int)MathF.Round(MathF.Cos(winkel) * d);
+                    int by = cy + (int)MathF.Round(MathF.Sin(winkel) * d);
+                    var t = GetTile(bx, by);
+                    if (t == null || t.Type != TileType.Grassland) continue;
+                    if (!string.IsNullOrEmpty(t.Building)) continue;
+                    if (t.Food != FoodSource.None) continue;   // Schaf/Reh/Wild bleibt stehen
+                    t.ResourceType = Resource.Food;
+                    t.ResourceAmount = 125;
+                    t.Food = FoodSource.Berries;
+                    break;
+                }
             }
         }
     }

@@ -46,11 +46,14 @@ public class MapSettings
     public int LakesMax { get; set; } = 4;
 
     // --- Beeren --------------------------------------------------------
-    /// <summary>Wahrscheinlichkeit (0..1), dass an einer Waldlichtung Büsche wachsen.</summary>
+    /// <summary>Wahrscheinlichkeit (0..1), dass an einem Wald Büsche wachsen —
+    /// der Radius des Waldes zählt mit, damit sie an den Rand gestellt werden (0..1).</summary>
     public float BerryChance { get; set; } = 0.95f;
     /// <summary>
-    /// Büsche je Waldlichtung (Min/Max, inclusive) — seit 2026-10-04 doppelt so
-    /// viele, seit 2026-10-09 noch mal spürbar mehr, damit Beeren gut auffindbar sind.
+    /// Büsche je Wald (Min/Max, inclusive) — seit 2026-10-04 doppelt so
+    /// viele, seit 2026-10-09 noch mal spürbar mehr, damit Beeren gut auffindbar
+    /// sind. Seit 2026-10-19 am Waldrand statt um die Klumpenmitte gesetzt —
+    /// dort wurden fast alle verworfen und die Karte trug nur ~13 Büsche.
     /// </summary>
     public int BerriesMin { get; set; } = 9;
     public int BerriesMax { get; set; } = 16;

@@ -1,6 +1,6 @@
 // Kartenprüfung: erzeugt viele Karten und prüft Regeln des Kartengenerators.
 //
-//   dotnet run --project tools/kartenpruefung -- rohstoffe start wild groessen
+//   dotnet run --project tools/kartenpruefung -- rohstoffe start wild groessen beeren
 //
 // Jede genannte Regelgruppe wird geprüft; ohne Angabe nur die Statistik.
 // Exit-Code 1, sobald eine Regel auf irgendeiner Karte verletzt ist – damit
@@ -102,6 +102,8 @@ for (int k = 0; k < KARTEN; k++)
     schweineGesamt += schweine;
     if (gruppen.Contains("wild") && (kaninchen == 0 || schweine == 0))
         verstoesse.Add($"Karte {k}: {kaninchen} Kaninchen und {schweine} Wildschweine - beide Arten gehören auf jede Karte");
+    if (gruppen.Contains("beeren") && beeren < 15)
+        verstoesse.Add($"Karte {k}: nur {beeren} Beerenbüsche (erwartet: mindestens 15, im Schnitt ~130 - je 9-16 Büsche pro Wald am Rand)");
     int reichweite = MapSettings.Default.DeerStartDistanceMax + 4;   // dazu die Herde: 2 Kacheln je Richtung
     foreach (var b in map.Buildings.Where(b => b.Type == "Stadtzentrum"))
     {
