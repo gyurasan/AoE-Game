@@ -4818,5 +4818,32 @@
     "ziel": "Boden/weg_imperial.png"
    }
   ]
+ },
+ "pfeile": {
+  "groesse": [
+   1664,
+   928
+  ],
+  "schritte": 30,
+  "cfg": 3.0,
+  "freistellen": true,
+  "zuschneiden": true,
+  "zielbreite": 128,
+  "stil": "Game sprite for a top-down 2D medieval strategy game: one single arrow seen exactly from the side, lying perfectly horizontal across the middle of the image, the arrowhead pointing to the right and the feathers on the left, the whole arrow fully visible from tip to nock, detailed 16-bit pixel art, crisp pixels, realistic proportions, warm medieval colors, soft light from the upper left. Isolated on a plain white background, no shadow, no text.",
+  "negativ": "text, letters, logo, watermark, frame, border, multiple arrows, bow, quiver, hand, person, target, diagonal, tilted, vertical, curved, broken, cut off, cropped, blurry, photo, 3d render, landscape, scenery, ground",
+  "bilder": [
+   {
+    "name": "pfeil",
+    "seed": 10102,
+    "ziel": "Effekte/pfeil.png",
+    "prompt": "A simple plain hunting arrow: a thin straight shaft of rough light brown wood, a small dull dark iron arrowhead shaped like a leaf, and two short plain grey-brown feathers at the back end."
+   },
+   {
+    "name": "pfeil_befiedert",
+    "seed": 10201,
+    "ziel": "Effekte/pfeil_befiedert.png",
+    "prompt": "A finely crafted war arrow: a straight polished honey-colored ash shaft, a long sharp shining steel bodkin arrowhead, and three long bright red and white feathers neatly fletched at the back end, bound to the shaft with thin red thread."
+   }
+  ]
  }
 }

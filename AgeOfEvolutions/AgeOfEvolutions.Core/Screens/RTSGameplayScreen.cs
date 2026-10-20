@@ -913,6 +913,10 @@ public partial class RTSGameplayScreen : GameScreen
             }
         }
 
+        // Pfeilbilder (A4): der einfache und der nach „Befiederte Pfeile“
+        _arrowPlain = LoadOptional("Effekte/pfeil");
+        _arrowFletched = LoadOptional("Effekte/pfeil_befiedert");
+
         _grassTex = LoadOptional("Boden/gras");
         _sandTex = LoadOptional("Boden/sand");
         _road1Tex = LoadOptional("Boden/weg_feudal");

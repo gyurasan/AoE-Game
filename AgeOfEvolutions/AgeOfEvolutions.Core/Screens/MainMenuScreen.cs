@@ -31,7 +31,8 @@ public class MainMenuScreen : GameScreen
     SoundEffect soundButton;
 
     // „Spiel laden" ist grau und nicht wählbar, solange es keinen Spielstand gibt;
-    // LoadContent schaltet den Eintrag frei, wenn die Datei da ist
+    // LoadContent schaltet den Eintrag frei, wenn die Datei da ist.
+    // „Update" erscheint nur, wenn ein neueres Release vorliegt (RefreshUpdateEntry)
     readonly (string Text, bool Enabled)[] menuOptions =
     {
         ("Neues Spiel", true),
@@ -39,6 +40,7 @@ public class MainMenuScreen : GameScreen
         ("Spiel laden", false),
         ("Einstellungen", true),
         ("Beenden", true),
+        ("Update", false),
     };
     int selectedIndex = 0;
 
@@ -52,10 +54,15 @@ public class MainMenuScreen : GameScreen
     private const int LOAD_ENTRY = 2;
     readonly SaveGameStore saves = new SaveGameStore();
 
-    // Update (Nutzer 2026-10-18): zeigt unter den Einträgen die Version dieser
-    // Installation; ist GitHub neueste Version neuer, wird die Zeile zum
-    // klickbaren Angebot (OpenUpdate öffnet die Download-Seite)
+    // Update (Nutzer 2026-10-18, Aussehen 2026-10-20: „nicht wie die anderen
+    // menüs"): ein gewöhnlicher Menüeintrag unter „Beenden", nur sichtbar, wenn
+    // GitHubs neueste Version neuer ist; darunter eine kleine Zeile mit der
+    // Version dieser Installation (UpdateService.VersionLine)
+    private const int UPDATE_ENTRY = 5;
     readonly UpdateService updater = new UpdateService();
+    bool updateEntryVisible;
+    // Nach dem Update (Phase Done) beendet sich diese Version genau einmal
+    bool exitRequested;
 
     public MainMenuScreen()
     {
@@ -85,8 +92,10 @@ public class MainMenuScreen : GameScreen
 
         // Update-Prüfung im Hintergrund: blockiert den Menüstart nicht,
         // ohne Netz bleibt die Zeile bei "nicht möglich" — CheckLatest()
-        // ist selbst exception-safe (UpdateService-VERTRAG)
+        // ist selbst exception-safe (UpdateService-VERTRAG). Daneben räumt
+        // CleanupAfterUpdate die Sicherungen eines vorigen Updates weg.
         System.Threading.Tasks.Task.Run(() => updater.CheckLatest());
+        System.Threading.Tasks.Task.Run(() => UpdateService.CleanupAfterUpdate(UpdateService.InstallDir));
 
         // 1x1 white texture, tinted per draw call for panels, plates and bars.
         menuButton = new Texture2D(ScreenManager.GraphicsDevice, 1, 1);
@@ -112,11 +121,19 @@ public class MainMenuScreen : GameScreen
         menuButton = null;
     }
 
+    public override void Update(GameTime gameTime, bool otherScreenHasFocus, bool coveredByOtherScreen)
+    {
+        base.Update(gameTime, otherScreenHasFocus, coveredByOtherScreen);
+        ExitAfterUpdate();
+    }
+
     public override void HandleInput(GameTime gameTime, InputState inputState)
     {
         var keyboard = inputState.CurrentKeyboardStates[0];
         var prevKeyboard = inputState.LastKeyboardStates[0];
         var buffer = ScreenManager.GraphicsDevice.PresentationParameters;
+
+        RefreshUpdateEntry();
 
         // Maus: Zeigen wählt, Loslassen über einem Eintrag startet ihn
         var (selected, activate) = EvaluateMouse(inputState.CurrentMouseState, inputState.LastMouseState,
@@ -131,12 +148,6 @@ public class MainMenuScreen : GameScreen
             HandleMenuSelect();
             return;
         }
-
-        // Update-Zeile: nur bei „Update verfügbar" klickbar — öffnet die
-        // Download-Seite des neuen Releases (UpdateService.OpenUrl)
-        if (OpenUpdateRow(inputState.CurrentMouseState, inputState.LastMouseState,
-                          buffer.BackBufferWidth, buffer.BackBufferHeight))
-            return;
 
         // Tastatur
         if (WasPressed(keyboard, prevKeyboard, Keys.Down))
@@ -157,7 +168,7 @@ public class MainMenuScreen : GameScreen
     {
         do
             selectedIndex = (selectedIndex + step + menuOptions.Length) % menuOptions.Length;
-        while (!menuOptions[selectedIndex].Enabled);
+        while (!EntryEnabled(selectedIndex));
         soundButton?.Play();
     }
 
@@ -171,22 +182,41 @@ public class MainMenuScreen : GameScreen
     private (int Selected, bool Activate) EvaluateMouse(MouseState current, MouseState last, int width, int height)
     {
         int hit = EntryAt(current.Position, width, height);
-        if (hit < 0 || !menuOptions[hit].Enabled)
+        if (hit < 0 || !EntryEnabled(hit))
             return (selectedIndex, false);
         bool moved = current.Position != last.Position;
         bool released = current.LeftButton == ButtonState.Released && last.LeftButton == ButtonState.Pressed;
         return (moved || released ? hit : selectedIndex, released);
     }
 
-    /// <summary>Der Eintrag unter dem Bildschirmpunkt, oder -1.</summary>
+    /// <summary>Der sichtbare Eintrag unter dem Bildschirmpunkt, oder -1.</summary>
     private int EntryAt(Point p, int width, int height)
     {
         for (int i = 0; i < menuOptions.Length; i++)
         {
-            if (EntryRect(i, width, height).Contains(p))
+            if (EntryVisible(i) && EntryRect(i, width, height).Contains(p))
                 return i;
         }
         return -1;
+    }
+
+    /// <summary>Wird der Eintrag gezeichnet? Alle außer „Update" ohne Angebot.</summary>
+    private bool EntryVisible(int index)
+        => index != UPDATE_ENTRY || updateEntryVisible;
+
+    /// <summary>
+    /// Ist der Eintrag wählbar? Sein eigener Zustand aus menuOptions; solange ein
+    /// Update läuft oder die neue Version schon startet, sind dazu „Neues Spiel"
+    /// und „Spiel laden" gesperrt - sonst liefe die alte Version weiter, während
+    /// die neue aufgeht.
+    /// </summary>
+    private bool EntryEnabled(int index)
+    {
+        if (!menuOptions[index].Enabled || !EntryVisible(index))
+            return false;
+        if (index == 0 || index == LOAD_ENTRY)
+            return !updater.UpdateActive && updater.UpdatePhase != UpdateService.Phase.Done;
+        return true;
     }
 
     private static float UiScale(int height) => height / DESIGN_HEIGHT;
@@ -207,55 +237,53 @@ public class MainMenuScreen : GameScreen
     }
 
     /// <summary>
-    /// Die Update-Statuszeile unter dem letzten Eintrag — dieselbe zum Zeichnen
-    /// und Klicken. VERTRAG (Gruppe update): mittig, unter Eintrag 4, im Fenster,
-    /// und ohne Überlappung mit dem letzten Eintrag.
+    /// Die kleine Versionszeile unter dem letzten sichtbaren Eintrag (Index
+    /// <paramref name="lastEntry"/>): mittig, so breit wie eine Platte, ohne
+    /// Überlappung mit ihr.
     /// </summary>
-    private static Rectangle StatusRect(int width, int height)
+    private static Rectangle VersionRect(int lastEntry, int width, int height)
     {
         float ui = UiScale(height);
-        int w = (int)(ENTRY_WIDTH * ui), h = (int)(40 * ui);
-        // menuOptions hat immer 5 Einträge — letzter (4), statt die Instanz
-        // abzufragen, die dieser statischen Methode fehlt
-        int top = EntryRect(4, width, height).Bottom + (int)(14 * ui);
+        int w = (int)(ENTRY_WIDTH * ui), h = (int)(32 * ui);
+        int top = EntryRect(lastEntry, width, height).Bottom + (int)(12 * ui);
         return new Rectangle((width - w) / 2, top, w, h);
     }
 
     /// <summary>
-    /// Klick auf die Update-Zeile — nur, wenn ein Update angeboten wird UND
-    /// gerade kein Download läuft (UpdateService.State ==
-    /// Status.UpdateAvailable): beginnt den automatischen Download+
-    /// Installation (UpdateService.BeginUpdate, Fortschritt läuft über
-    /// Phase/ProgressDone) und meldet true. Ist das Update bereits „installiert
-    /// und gestartet" (Phase Done), schließt der Klick diese (alte) Version
-    /// über UpdateService.ExitApp (die neue läuft bereits). In allen anderen
-    /// Fällen (kein Angebot, laufender Download, Klick neben der Zeile,
-    /// nur Zeigen) false. Das Loslassen muss in der Zeile beginnen UND enden.
+    /// Gleicht den Eintrag „Update" mit dem UpdateService ab: Text aus
+    /// updater.EntryText(), sichtbar nur mit Text (Angebot liegt vor), wählbar
+    /// nur, wenn updater.CanStartUpdate. Verschwindet er, während er gewählt
+    /// ist, springt die Auswahl auf „Neues Spiel".
     /// </summary>
-    private bool OpenUpdateRow(MouseState current, MouseState last, int width, int height)
+    private void RefreshUpdateEntry()
     {
-        if (updater.State != UpdateService.Status.UpdateAvailable)
+        string text = updater.EntryText();
+        updateEntryVisible = text != null;
+        menuOptions[UPDATE_ENTRY] = (text ?? "Update", text != null && updater.CanStartUpdate);
+        if (!updateEntryVisible && selectedIndex == UPDATE_ENTRY)
+            selectedIndex = 0;
+    }
+
+    /// <summary>
+    /// Läuft die neue Version (Phase Done), beendet sich diese alte genau einmal:
+    /// über UpdateService.ExitApp, wenn gesetzt (Tests), sonst regulär per
+    /// Game.Exit(). Meldet true beim auslösenden Aufruf.
+    /// </summary>
+    private bool ExitAfterUpdate()
+    {
+        if (exitRequested || updater.UpdatePhase != UpdateService.Phase.Done)
             return false;
-        if (updater.UpdateActive)
-            return false;
-        var r = StatusRect(width, height);
-        bool released = current.LeftButton == ButtonState.Released && last.LeftButton == ButtonState.Pressed;
-        if (!released || !r.Contains(current.Position) || !r.Contains(last.Position))
-            return false;
-        soundButton?.Play();
-        if (updater.UpdatePhase == UpdateService.Phase.Done)
-        {
-            // Neue Version läuft bereits — die alte wird bewusst geschlossen
+        exitRequested = true;
+        if (UpdateService.ExitApp != null)
             UpdateService.ExitApp();
-            return true;
-        }
-        updater.BeginUpdate();
+        else
+            ScreenManager.Game.Exit();
         return true;
     }
 
     private void HandleMenuSelect()
     {
-        if (!menuOptions[selectedIndex].Enabled)
+        if (!EntryEnabled(selectedIndex))
             return;
         soundButton?.Play();
 
@@ -281,6 +309,9 @@ public class MainMenuScreen : GameScreen
                 break;
             case 4: // Exit
                 ScreenManager.Game.Exit();
+                break;
+            case UPDATE_ENTRY: // Update laden, installieren, neu starten
+                updater.BeginUpdate();
                 break;
         }
     }
@@ -334,6 +365,8 @@ public class MainMenuScreen : GameScreen
         float ui = UiScale(height);
         int shadow = Math.Max(1, (int)(2 * ui));
 
+        RefreshUpdateEntry();
+
         spriteBatch.Begin();
 
         DrawBackground(spriteBatch, width, height);
@@ -341,10 +374,12 @@ public class MainMenuScreen : GameScreen
         // Leicht abgedunkelt, damit Tafel und Schrift sich vom Bild abheben
         spriteBatch.Draw(menuButton, new Rectangle(0, 0, width, height), Color.Black * 0.3f);
 
-        // Tafel hinter Titel und Einträgen; reicht bis unter die Update-Zeile
+        // Tafel hinter Titel und Einträgen; reicht bis unter die Versionszeile
+        int lastEntry = updateEntryVisible ? UPDATE_ENTRY : UPDATE_ENTRY - 1;
+        var versionRect = VersionRect(lastEntry, width, height);
         int panelWidth = (int)(PANEL_WIDTH * ui);
         int panelTop = (int)(PANEL_TOP * ui);
-        int panelBottom = StatusRect(width, height).Bottom + (int)(24 * ui);
+        int panelBottom = versionRect.Bottom + (int)(20 * ui);
         var panel = new Rectangle((width - panelWidth) / 2, panelTop, panelWidth, panelBottom - panelTop);
         spriteBatch.Draw(menuButton, panel, new Color(30, 20, 10) * 0.88f);
         DrawBorder(spriteBatch, panel, Math.Max(2, (int)(3 * ui)), new Color(180, 140, 60));
@@ -354,8 +389,10 @@ public class MainMenuScreen : GameScreen
 
         for (int i = 0; i < menuOptions.Length; i++)
         {
+            if (!EntryVisible(i))
+                continue;
             var text = EntryText(i);
-            bool enabled = menuOptions[i].Enabled;
+            bool enabled = EntryEnabled(i);
             var plate = EntryRect(i, width, height);
             bool selected = i == selectedIndex;
 
@@ -365,31 +402,35 @@ public class MainMenuScreen : GameScreen
             if (selected)
                 DrawBorder(spriteBatch, plate, Math.Max(2, (int)(2 * ui)), new Color(255, 215, 0));
 
-            var color = !enabled ? new Color(120, 110, 95)
+            // Ein laufendes Update ist nicht wählbar, bleibt aber hell lesbar:
+            // sein Text ist die Fortschrittsanzeige
+            bool updateRunning = i == UPDATE_ENTRY && !enabled;
+            var color = !enabled && !updateRunning ? new Color(120, 110, 95)
                       : selected ? new Color(255, 215, 0)
                                  : Color.LightGray;
             DrawCentered(spriteBatch, text, plate.Center.ToVector2(), 40 * ui, color, shadow);
+
+            // Download: dünner Balken am unteren Rand der Platte
+            if (i == UPDATE_ENTRY && updater.UpdatePhase == UpdateService.Phase.Downloading
+                && updater.ProgressTotal > 0)
+            {
+                double f = Math.Min(1.0, (double)updater.ProgressDone / updater.ProgressTotal);
+                int inset = Math.Max(2, (int)(4 * ui));
+                var bar = new Rectangle(plate.X + inset, plate.Bottom - inset - Math.Max(2, (int)(4 * ui)),
+                                        (int)((plate.Width - 2 * inset) * f), Math.Max(2, (int)(4 * ui)));
+                spriteBatch.Draw(menuButton, bar, new Color(255, 215, 0) * 0.85f);
+            }
         }
 
-        // Update-Zeile: Version dieser Installation + Zustand der Prüfung;
-        // bei „Update verfügbar“ als Platte gezeichnet (dann klickbar).
-        // Läuft ein Download, zeigt eine dünne Fortschrittsanzeige.
-        var statusRect = StatusRect(width, height);
-        bool offer = updater.State == UpdateService.Status.UpdateAvailable;
-        if (offer)
-        {
-            spriteBatch.Draw(menuButton, statusRect, new Color(84, 56, 24) * 0.92f);
-            DrawBorder(spriteBatch, statusRect, Math.Max(1, (int)(1 * ui)), new Color(255, 215, 0) * 0.8f);
-        }
-        if (offer && updater.UpdatePhase == UpdateService.Phase.Downloading && updater.ProgressTotal > 0)
-        {
-            double f = Math.Min(1.0, (double)updater.ProgressDone / (double)updater.ProgressTotal);
-            var bar = new Rectangle(statusRect.X + (int)(2 * ui), statusRect.Bottom - (int)(6 * ui),
-                                    (int)((statusRect.Width - 4 * ui) * f), (int)(3 * ui));
-            spriteBatch.Draw(menuButton, bar, new Color(130, 190, 255));
-        }
-        DrawCentered(spriteBatch, updater.StatusText(), statusRect.Center.ToVector2(),
-                     24 * ui, offer ? new Color(255, 228, 120) : new Color(196, 184, 160), shadow);
+        // Versionszeile: klein, gedämpft; lange Meldungen (Fehlergrund) werden
+        // kleiner gezeichnet, statt über die Tafel zu ragen
+        string line = updater.VersionLine();
+        float lineHeight = 24 * ui;
+        float lineWidth = MenuStyle.TextWidth(ScreenManager, line, lineHeight);
+        if (lineWidth > versionRect.Width)
+            lineHeight *= versionRect.Width / lineWidth;
+        DrawCentered(spriteBatch, line, versionRect.Center.ToVector2(), lineHeight,
+                     new Color(196, 184, 160), shadow);
 
         DrawCentered(spriteBatch, "Maus oder Pfeiltasten: wählen   Klick oder Enter: starten",
                      new Vector2(width / 2f, height - 36 * ui), 24 * ui, new Color(220, 210, 190), shadow);

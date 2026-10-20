@@ -415,8 +415,23 @@ public partial class RTSGameplayScreen
         public Vector2 From, To;   // Weltpixel: Bogen und Ziel
         public float Flight;       // Flugzeit in Sekunden
         public float Age;          // Sekunden seit dem Abschuss
+        public bool Fletched;      // der Schütze hat „Befiederte Pfeile“ erforscht (A4)
     }
     private readonly List<Arrow> _arrows = new();
+
+    // --- A4 Pfeilbilder (Nutzer 2026-10-20: „die Pfeile in high quality generieren. Die zwei
+    // verschiedenen typen. Also nach der Weiterentwicklung müssen sie ja etwas anders
+    // aussehen“): der einfache Pfeil und der nach der Forschung „Befiederte Pfeile“
+    // (tools/bilder, Gruppe pfeile). Fehlt ein Bild, zeichnet DrawArrows die Striche aus A3.
+    private Texture2D _arrowPlain, _arrowFletched;
+    internal const float ARROW_LENGTH = 14f;            // Weltpixel, einfacher Pfeil
+    internal const float ARROW_LENGTH_FLETCHED = 17f;   // der befiederte ist länger
+
+    /// <summary>
+    /// Länge eines Pfeils in Weltpixeln.
+    /// VERTRAG: fletched ? ARROW_LENGTH_FLETCHED : ARROW_LENGTH.
+    /// </summary>
+    internal static float ArrowLength(bool fletched) => fletched ? ARROW_LENGTH_FLETCHED : ARROW_LENGTH;
 
     internal const float ARROW_SPEED = 260f;        // Weltpixel je Sekunde
     internal const float ARROW_MIN_FLIGHT = 0.15f;
@@ -475,7 +490,9 @@ public partial class RTSGameplayScreen
     /// from = unit.Position + Vector2(to.X &lt; unit.Position.X ? -5f : 5f, -13f); flight =
     /// ArrowFlight(Abstand(from, to)); launch = AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS - flight.
     /// Gilt before &lt; launch und unit.AttackTimer &gt;= launch: _arrows bekommt new Arrow { From = from,
-    /// To = to, Flight = MathF.Max(1f / 60f, RELOAD_SECONDS - unit.AttackTimer) } (Age 0).
+    /// To = to, Flight = MathF.Max(1f / 60f, RELOAD_SECONDS - unit.AttackTimer), Fletched =
+    /// PlayerOf(unit).Techs.IsResearched(Tech.Fletching) } (Age 0) - die Forschung des Spielers,
+    /// dem der Schütze gehört, nicht die des Gegners (A4).
     /// </summary>
     private void MaybeLaunchArrow(Unit unit, float before)
     {
@@ -494,6 +511,8 @@ public partial class RTSGameplayScreen
                 From = from,
                 To = to,
                 Flight = MathF.Max(1f / 60f, AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS - unit.AttackTimer),
+                // nach „Befiederte Pfeile“ fliegt das bessere Bild - je Spieler
+                Fletched = PlayerOf(unit).Techs.IsResearched(AoE.Core.Economy.Tech.Fletching),
             });
     }
 
@@ -520,17 +539,23 @@ public partial class RTSGameplayScreen
     /// VERTRAG: je Pfeil a in _arrows:
     /// 1. Überspringen, wenn weder die Kachel von a.From noch die von a.To (tileMap.WorldToGrid, als int)
     ///    für Spieler 0 sichtbar ist (tileMap.IsTileVisible(x, y, 0)).
-    /// 2. p = WorldToScreen(ArrowAt(a, a.Age, out angle)); len = 14f * cameraZoom; thick =
-    ///    MathF.Max(1.5f, 1.2f * cameraZoom); dir = Vector2(MathF.Cos(angle), MathF.Sin(angle)).
+    /// 2. p = WorldToScreen(ArrowAt(a, a.Age, out angle)); len = ArrowLength(a.Fletched) * cameraZoom;
+    ///    thick = MathF.Max(1.5f, 1.2f * cameraZoom); dir = Vector2(MathF.Cos(angle), MathF.Sin(angle)).
     /// 3. Schatten: s = Clamp(a.Age / a.Flight, 0, 1); boden = WorldToScreen(Vector2.Lerp(a.From, a.To, s)
     ///    + Vector2(0, 12)); flach = a.To - a.From; px an boden, Quelle null, Color.Black * 0.22f,
     ///    MathF.Atan2(flach.Y, flach.X), Ursprung Vector2(0.5f), Maßstab Vector2(len, thick).
-    /// 4. Schaft: px an p - dir * len * 0.5f, new Color(200, 160, 104), angle, Ursprung Vector2(0, 0.5f),
+    /// 4. Bild (A4): bild = a.Fletched ? _arrowFletched : _arrowPlain. Ist es nicht null: bild an p,
+    ///    Quelle null, Color.White, angle, Ursprung Vector2(bild.Width / 2f, bild.Height / 2f), Maßstab
+    ///    len / bild.Width (eine Zahl, das Bild behält sein Seitenverhältnis) - und weiter mit dem
+    ///    nächsten Pfeil. Die Bilder zeigen nach rechts (Winkel 0), die Spitze rechts, die Federn links.
+    /// Ohne Bild die Striche aus A3:
+    /// 5. Schaft: px an p - dir * len * 0.5f, new Color(200, 160, 104), angle, Ursprung Vector2(0, 0.5f),
     ///    Maßstab Vector2(len, thick).
-    /// 5. Spitze: px an p + dir * len * 0.5f, new Color(214, 216, 222), angle, Ursprung Vector2(0.5f),
+    /// 6. Spitze: px an p + dir * len * 0.5f, new Color(214, 216, 222), angle, Ursprung Vector2(0.5f),
     ///    Maßstab Vector2(MathF.Max(2.5f, 3f * cameraZoom), MathF.Max(2f, 2.2f * cameraZoom)).
-    /// 6. Federn: px an p - dir * len * 0.45f, new Color(150, 44, 34), angle, Ursprung Vector2(0.5f),
-    ///    Maßstab Vector2(MathF.Max(2f, 3f * cameraZoom), MathF.Max(1.5f, 2.2f * cameraZoom)).
+    /// 7. Federn: px an p - dir * len * 0.45f, a.Fletched ? new Color(150, 44, 34) : new Color(132, 120,
+    ///    104), angle, Ursprung Vector2(0.5f), Maßstab Vector2(MathF.Max(2f, 3f * cameraZoom),
+    ///    MathF.Max(1.5f, 2.2f * cameraZoom)).
     /// Alle mit SpriteEffects.None und Tiefe 0f.
     /// </summary>
     private void DrawArrows(SpriteBatch spriteBatch)
@@ -545,7 +570,7 @@ public partial class RTSGameplayScreen
 
             // 2. Position und Richtung des Pfeils auf dem Bildschirm
             Vector2 p = WorldToScreen(ArrowAt(a, a.Age, out float angle));
-            float len = 14f * cameraZoom;
+            float len = ArrowLength(a.Fletched) * cameraZoom;
             float thick = MathF.Max(1.5f, 1.2f * cameraZoom);
             Vector2 dir = new(MathF.Cos(angle), MathF.Sin(angle));
 
@@ -555,14 +580,22 @@ public partial class RTSGameplayScreen
             Vector2 flach = a.To - a.From;
             spriteBatch.Draw(px, boden, null, Color.Black * 0.22f, MathF.Atan2(flach.Y, flach.X), new Vector2(0.5f), new Vector2(len, thick), SpriteEffects.None, 0f);
 
-            // 4. Schaft
+            // 4. Bild (A4): der einfache oder der befiederte Pfeil, die Bilder zeigen nach rechts
+            Texture2D bild = a.Fletched ? _arrowFletched : _arrowPlain;
+            if (bild != null)
+            {
+                spriteBatch.Draw(bild, p, null, Color.White, angle, new Vector2(bild.Width / 2f, bild.Height / 2f), len / bild.Width, SpriteEffects.None, 0f);
+                continue;
+            }
+
+            // 5. Schaft
             spriteBatch.Draw(px, p - dir * len * 0.5f, null, new Color(200, 160, 104), angle, new Vector2(0, 0.5f), new Vector2(len, thick), SpriteEffects.None, 0f);
 
-            // 5. Spitze vorn
+            // 6. Spitze vorn
             spriteBatch.Draw(px, p + dir * len * 0.5f, null, new Color(214, 216, 222), angle, new Vector2(0.5f), new Vector2(MathF.Max(2.5f, 3f * cameraZoom), MathF.Max(2f, 2.2f * cameraZoom)), SpriteEffects.None, 0f);
 
-            // 6. Federn hinten
-            spriteBatch.Draw(px, p - dir * len * 0.45f, null, new Color(150, 44, 34), angle, new Vector2(0.5f), new Vector2(MathF.Max(2f, 3f * cameraZoom), MathF.Max(1.5f, 2.2f * cameraZoom)), SpriteEffects.None, 0f);
+            // 7. Federn hinten
+            spriteBatch.Draw(px, p - dir * len * 0.45f, null, a.Fletched ? new Color(150, 44, 34) : new Color(132, 120, 104), angle, new Vector2(0.5f), new Vector2(MathF.Max(2f, 3f * cameraZoom), MathF.Max(1.5f, 2.2f * cameraZoom)), SpriteEffects.None, 0f);
         }
     }
 }

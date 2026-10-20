@@ -14,9 +14,11 @@
 // zielen (Gegner an der ganzen Figur anklicken), verteidigung (Soldaten verteidigen das
 // Stadtzentrum) und kampfbild (Schlagbilder und Blick gegen Einheiten). Eine gemischte
 // Auswahl filtert typauswahl: in der Leiste steht in einer eigenen Reihe eine Taste je
-// Einheitenart, ein Klick wählt in der Auswahl nur diese Art. Update (Hauptmenü): die
-// gezeigte Version, die Prüfung gegen das GitHub-Release und das Update-Angebot prüft
-// die Gruppe update. Die Geräusche
+// Einheitenart, ein Klick wählt in der Auswahl nur diese Art. Update: updatehilfen prüft
+// die Bausteine (Zip der laufenden Variante, Entpacken, Ersetzen an Ort und Stelle samt
+// Rücksicherung, Aufräumen), updatedienst den UpdateService (Prüfung gegen das
+// GitHub-Release, Download, Ersetzen der laufenden Installation, Neustart), update dazu
+// den Eintrag „Update“ im Hauptmenü und die Versionszeile. Die Geräusche
 // (tools/klang) prüfen klangbrett (Drossel des SoundBoard), arbeitsklang (Werkzeugschläge im
 // Takt, Hörweite und Lage) und kampfklang (Hieb, Klinge, Bogen, Tod, Einsturz).
 //
@@ -174,9 +176,13 @@ for (int karte = 1; karte <= KARTEN; karte++)
     // Das Hauptmenü braucht keine Karte
     if (gruppen.Contains("menue") && karte == 1)
         Pruefe("Hauptmenü", () => Hauptmenue(verstoesse));
-    // Update: das Hauptmenü zeigt die Version und bietet ein neues Release an
+    // Update: die Bausteine, der Dienst allein, und das Hauptmenü mit Eintrag „Update“ und Versionszeile
+    if (gruppen.Contains("updatehilfen") && karte == 1)
+        Pruefe("Updatehilfen", () => UpdateHilfen(verstoesse));
+    if (gruppen.Contains("updatedienst") && karte == 1)
+        Pruefe("Updatedienst", () => UpdateMenue(verstoesse, false));
     if (gruppen.Contains("update") && karte == 1)
-        Pruefe("Update", () => UpdateMenue(verstoesse));
+        Pruefe("Update", () => UpdateMenue(verstoesse, true));
     if (gruppen.Contains("karten") && karte == 1)
         Pruefe("Kartengrößen", () => Kartengroessen(verstoesse));
     if (gruppen.Contains("pfad"))
@@ -2719,6 +2725,44 @@ static void Pfeile(int karte, List<string> verstoesse)
     if (nahPfeile > 0)
         verstoesse.Add($"{wer}: eine Miliz hat {nahPfeile} Pfeile geschossen");
 
+    // Befiederte Pfeile (A4, Nutzer 2026-10-20: „nach der Weiterentwicklung müssen sie ja etwas
+    // anders aussehen“): nach der Forschung fliegt der längere, befiederte Pfeil - aber nur bei
+    // dem Spieler, der sie erforscht hat
+    var laenge = typ.GetMethod("ArrowLength", BindingFlags.NonPublic | BindingFlags.Static);
+    if (laenge is null)
+        verstoesse.Add($"{wer}: ArrowLength fehlt");
+    else if (!((float)laenge.Invoke(null, new object[] { true }) > (float)laenge.Invoke(null, new object[] { false })))
+        verstoesse.Add($"{wer}: der befiederte Pfeil ist nicht länger als der einfache");
+    foreach (var (forscher, besitzer, soll) in new[] { (-1, 0, false), (0, 0, true), (1, 1, true), (1, 0, false), (0, 1, false) })
+    {
+        var wb = new Welt();
+        if (forscher >= 0)
+        {
+            var spieler = (AgeOfEvolutions.Core.Data.Player)wb.Get(forscher == 0 ? "player1" : "player2");
+            spieler.Techs.Begin(Tech.Fletching);
+            spieler.Techs.Complete(Tech.Fletching);
+        }
+        var pfeileB = (System.Collections.IList)wb.Get("_arrows");
+        var platzB = wb.FreieKachel(wb.Dorfbewohner().First(), 4);
+        var schuetzeB = NeueEinheit(wb, UnitType.Archer, besitzer, platzB);
+        var zielB = NeueEinheit(wb, UnitType.Militia, 1 - besitzer, platzB);
+        zielB.Position = schuetzeB.Position - new Vector2(3f * 32f, 0f);
+        wb.Call("AttackUnit", new List<Unit> { schuetzeB }, zielB);
+        var befiedert = new List<bool>();
+        var gesehenB = new HashSet<object>();
+        wb.LaufeBis(() =>
+        {
+            foreach (var a in pfeileB.Cast<object>().Where(gesehenB.Add))
+                befiedert.Add((bool)Feldwert(a, "Fletched"));
+            return befiedert.Count >= 2;
+        }, 20f);
+        string fall = forscher < 0 ? "ohne Forschung" : $"Spieler {forscher} hat „Befiederte Pfeile“";
+        if (befiedert.Count == 0)
+            verstoesse.Add($"{wer}: Testaufbau - {fall}, Schütze von Spieler {besitzer}: kein Pfeil in 20 s");
+        else if (befiedert.Any(f => f != soll))
+            verstoesse.Add($"{wer}: {fall}, Schütze von Spieler {besitzer}: Pfeile befiedert {string.Join(", ", befiedert)}, erwartet {soll}");
+    }
+
     // Auf ein Gebäude: der Pfeil fliegt in seine Mitte und landet beim Treffer
     var w3 = new Welt();
     var pfeile3 = (System.Collections.IList)w3.Get("_arrows");
@@ -4821,26 +4865,201 @@ static void Hauptmenue(List<string> verstoesse)
         Console.WriteLine($"  ok  {wer}: mittig, wächst mit dem Fenster, Zeigen wählt, Klick startet, „Spiel laden“ nur mit Spielstand, Karte wechselt die Größe");
 }
 
-// Update (Nutzer 2026-10-18: „update system im spiel eingebaut und auch im menü
-// sichtbar … wird ein Update auf x.y.z version angeboten“; danach: „es soll
-// wirklich automatisch runterladen und installieren ... vorher prüfen auf was
-// für einem Computer die software läuft“):
-// das Hauptmenü zeigt die Version dieser Installation; ist das letzte
-// GitHub-Release (gyurasan/AoE-Game) neuer, bietet die klickbare Zeile das
-// Update an. Der Klick beginnt jetzt den AUTOMATISCHEN Ablauf: das erkennt
-// die Plattform (OS+Arch), lädt die passende Zip aus dem Release, vergleicht
-// die SHA256 aus dem SHA256SUMS-Asset (fehlend = überspringen, falsch =
-// Abbruch), entpackt in ein neues Versionsverzeichnis und startet die neue
-// Version — im Hintergrund, die Zeile zeigt den Fortschritt. Netz, Download,
-// Text-Hol und Start werden hier pro Fall durch Fake-Hooks ersetzt
-// (UpdateService.FetchJson/FetchText/DownloadFile/StartApp), damit der Lauf
-// ohne echte Abfrage und ohne zweiten Prozess auskommt; die Defaults bleiben
-// unangetastet und werden am Ende wiederhergestellt. Der Fallback-Klick
-// (OpenUpdate, z. B. ohne Release-Asset für die Plattform) öffnet die
-// direkte Download-URL der Plattform-Zip — ebenfalls geprüft.
-static void UpdateMenue(List<string> verstoesse)
+// Update-Hilfen (Gruppe updatehilfen, Teil von updatedienst): die Bausteine des
+// Ersetzens an Ort und Stelle ohne Netz und ohne Menü - welche Zip die laufende
+// Variante lädt, ExtractZip (Top-Ordner bleibt, nichts entkommt dem Ziel),
+// StagedRoot, BackupName, ReplaceInstallation samt Rücksicherung und
+// CleanupAfterUpdate.
+static void UpdateHilfen(List<string> verstoesse)
 {
-    const string wer = "Update";
+    const string wer = "Updatehilfen";
+    int vorher = verstoesse.Count;
+    bool windows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+    string exeName = UpdateService.AppHostName;
+    bool altDx = UpdateService.WindowsDX;
+    string temp = Path.Combine(Path.GetTempPath(), $"aoe-updatehilfen-{Guid.NewGuid():N}");
+    try
+    {
+        // ---- Variante: Windows lädt die Zip der laufenden Variante (DX bleibt DX)
+        if (windows && RuntimeInformation.ProcessArchitecture == Architecture.X64)
+        {
+            UpdateService.WindowsDX = true;
+            if (UpdateService.PlatformZip(new Version(9, 9, 9)) != "AoE_Evolutions_v9.9.9_win-x64-windowsdx.zip")
+                verstoesse.Add($"{wer}: WindowsDX lädt {UpdateService.PlatformZip(new Version(9, 9, 9))}, erwartet die windowsdx-Zip");
+            UpdateService.WindowsDX = false;
+            if (UpdateService.PlatformZip(new Version(9, 9, 9)) != "AoE_Evolutions_v9.9.9_win-x64-desktopgl.zip")
+                verstoesse.Add($"{wer}: DesktopGL lädt {UpdateService.PlatformZip(new Version(9, 9, 9))}, erwartet die desktopgl-Zip");
+            UpdateService.WindowsDX = true;
+        }
+
+        // ---- ExtractZip: Ordner der Zip bleiben erhalten, „../“-Einträge entkommen dem Ziel nicht
+        Directory.CreateDirectory(temp);
+        string zipPfad = Path.Combine(temp, "probe.zip");
+        using (var za = ZipFile.Open(zipPfad, ZipArchiveMode.Create))
+        {
+            void Eintrag(string pfad, string inhalt)
+            {
+                var e = za.CreateEntry(pfad);
+                e.LastWriteTime = new DateTimeOffset(2001, 2, 3, 4, 5, 6, TimeSpan.Zero);
+                using var s = e.Open();
+                var b = System.Text.Encoding.UTF8.GetBytes(inhalt);
+                s.Write(b, 0, b.Length);
+            }
+            Eintrag("rid/" + exeName, "EXE");
+            Eintrag("rid/Content/a.xnb", "A");
+            Eintrag("../entkommen.txt", "BÖSE");
+        }
+        string ziel = Path.Combine(temp, "ziel");
+        UpdateService.ExtractZip(zipPfad, ziel);
+        if (!File.Exists(Path.Combine(ziel, "rid", exeName)) || File.ReadAllText(Path.Combine(ziel, "rid", "Content", "a.xnb")) != "A")
+            verstoesse.Add($"{wer}: ExtractZip legt die Dateien nicht unter rid/ und rid/Content/ ab");
+        if (File.Exists(Path.Combine(temp, "entkommen.txt")))
+            verstoesse.Add($"{wer}: ExtractZip schreibt einen „../“-Eintrag aus dem Ziel heraus");
+        // ExtractToFile übernimmt Zeitstempel und (unter macOS/Linux) die Unix-Rechte aus der
+        // Zip; eine Stream-Kopie verlöre das Ausführungsrecht des Apphosts - unter Windows
+        // sieht man den Unterschied am Zeitstempel
+        if (File.Exists(Path.Combine(ziel, "rid", exeName)) && File.GetLastWriteTime(Path.Combine(ziel, "rid", exeName)).Year != 2001)
+            verstoesse.Add($"{wer}: ExtractZip übernimmt Zeitstempel/Rechte aus der Zip nicht (Stream-Kopie statt entry.ExtractToFile)");
+        if (!OperatingSystem.IsWindows() && File.Exists(Path.Combine(ziel, "rid", exeName)))
+        {
+            // Unix: der Apphost muss ausführbar bleiben (hier: Rechte aus der Zip, 0755)
+            using (var za2 = ZipFile.Open(zipPfad, ZipArchiveMode.Update))
+                za2.GetEntry("rid/" + exeName).ExternalAttributes = (0b111_101_101 | 0x8000) << 16;
+            UpdateService.ExtractZip(zipPfad, ziel);
+            if ((File.GetUnixFileMode(Path.Combine(ziel, "rid", exeName)) & UnixFileMode.UserExecute) == 0)
+                verstoesse.Add($"{wer}: nach ExtractZip ist der Apphost nicht ausführbar");
+        }
+        UpdateService.ExtractZip(zipPfad, ziel);   // zweites Mal: vorhandene Dateien werden überschrieben, kein Fehler
+
+        // ---- Hilfen: StagedRoot und BackupName
+        string ent = Path.Combine(temp, "entpackt");
+        Directory.CreateDirectory(Path.Combine(ent, "win-x64-windowsdx"));
+        File.WriteAllText(Path.Combine(ent, "win-x64-windowsdx", exeName), "x");
+        if (UpdateService.StagedRoot(ent) != Path.Combine(ent, "win-x64-windowsdx"))
+            verstoesse.Add($"{wer}: StagedRoot findet den Top-Ordner der Zip nicht ({UpdateService.StagedRoot(ent)})");
+        File.WriteAllText(Path.Combine(ent, "flach.txt"), "x");
+        if (UpdateService.StagedRoot(ent) != ent)
+            verstoesse.Add($"{wer}: StagedRoot steigt trotz Dateien auf oberster Ebene in den Unterordner");
+        string probe = Path.Combine(temp, "probe.dll");
+        File.WriteAllText(probe, "x");
+        if (UpdateService.BackupName(probe) != probe + UpdateService.OldSuffix)
+            verstoesse.Add($"{wer}: BackupName liefert {UpdateService.BackupName(probe)}, erwartet {probe + UpdateService.OldSuffix}");
+        File.WriteAllText(probe + UpdateService.OldSuffix, "rest");
+        if (UpdateService.BackupName(probe) != probe + UpdateService.OldSuffix || File.Exists(probe + UpdateService.OldSuffix))
+            verstoesse.Add($"{wer}: BackupName räumt eine alte, freie Sicherung nicht weg");
+        File.WriteAllText(probe + UpdateService.OldSuffix, "gesperrt");
+        using (new FileStream(probe + UpdateService.OldSuffix, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            if (windows && UpdateService.BackupName(probe) != probe + UpdateService.OldSuffix + "1")
+                verstoesse.Add($"{wer}: BackupName weicht bei gesperrter Sicherung nicht auf …{UpdateService.OldSuffix}1 aus");
+        }
+
+        // ---- Rücksicherung: scheitert das Ersetzen mittendrin, bleibt die alte Installation
+        string rInst = Path.Combine(temp, "r-install");
+        string rNeu = Path.Combine(temp, "r-neu");
+        Directory.CreateDirectory(rInst);
+        Directory.CreateDirectory(Path.Combine(rNeu, "Content"));
+        foreach (var n in new[] { "a.dll", "m.dll", "z.dll" })
+        {
+            File.WriteAllText(Path.Combine(rInst, n), "ALT-" + n);
+            File.WriteAllText(Path.Combine(rNeu, n), "NEU-" + n);
+        }
+        File.WriteAllText(Path.Combine(rNeu, "Content", "c.xnb"), "NEU-c");
+        if (windows)
+        {
+            bool geworfen = false;
+            // m.dll ohne Lösch-Freigabe offen: Umbenennen scheitert (anders als bei einer laufenden Exe)
+            using (new FileStream(Path.Combine(rInst, "m.dll"), FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                try { UpdateService.ReplaceInstallation(rNeu, rInst); }
+                catch { geworfen = true; }
+            }
+            if (!geworfen)
+                verstoesse.Add($"{wer}: ReplaceInstallation meldet keinen Fehler, obwohl m.dll nicht ersetzt werden konnte");
+            foreach (var n in new[] { "a.dll", "m.dll", "z.dll" })
+            {
+                string p = Path.Combine(rInst, n);
+                if (!File.Exists(p) || File.ReadAllText(p) != "ALT-" + n)
+                    verstoesse.Add($"{wer}: nach dem gescheiterten Ersetzen ist {n} nicht wieder die alte Datei");
+                if (!File.Exists(Path.Combine(rNeu, n)))
+                    verstoesse.Add($"{wer}: nach dem gescheiterten Ersetzen fehlt die neue {n} im Quellordner");
+            }
+            if (Directory.GetFiles(rInst, "*" + UpdateService.OldSuffix + "*", SearchOption.AllDirectories).Length > 0)
+                verstoesse.Add($"{wer}: nach dem gescheiterten Ersetzen liegen noch Sicherungen in der Installation");
+        }
+        // ... und ohne Sperre gelingt dasselbe Ersetzen: neue Dateien drin, Quellordner leer, Sicherungen da
+        UpdateService.ReplaceInstallation(rNeu, rInst);
+        foreach (var n in new[] { "a.dll", "m.dll", "z.dll" })
+        {
+            string p = Path.Combine(rInst, n);
+            if (!File.Exists(p) || File.ReadAllText(p) != "NEU-" + n || !File.Exists(p + UpdateService.OldSuffix))
+                verstoesse.Add($"{wer}: ReplaceInstallation setzt {n} nicht ein oder legt keine Sicherung an");
+        }
+        if (!File.Exists(Path.Combine(rInst, "Content", "c.xnb")) || Directory.GetFiles(rNeu, "*", SearchOption.AllDirectories).Length > 0)
+            verstoesse.Add($"{wer}: ReplaceInstallation übernimmt Unterordner nicht oder lässt Dateien im Quellordner");
+
+
+        // ---- CleanupAfterUpdate: Sicherungen in allen Unterordnern und update/ weg, sonst nichts
+        string cInst = Path.Combine(temp, "c-install");
+        Directory.CreateDirectory(Path.Combine(cInst, "Content", "tief"));
+        Directory.CreateDirectory(Path.Combine(cInst, "update", "neu"));
+        File.WriteAllText(Path.Combine(cInst, "update", "neu", "rest.dll"), "x");
+        File.WriteAllText(Path.Combine(cInst, "spiel.dll"), "bleibt");
+        File.WriteAllText(Path.Combine(cInst, "spiel.dll" + UpdateService.OldSuffix), "weg");
+        File.WriteAllText(Path.Combine(cInst, "Content", "tief", "b.xnb" + UpdateService.OldSuffix + "2"), "weg");
+        int cRest = UpdateService.CleanupAfterUpdate(cInst, 3, 10);
+        if (cRest != 0 || Directory.GetFiles(cInst, "*" + UpdateService.OldSuffix + "*", SearchOption.AllDirectories).Length > 0)
+            verstoesse.Add($"{wer}: CleanupAfterUpdate lässt Sicherungen liegen (gemeldet {cRest})");
+        if (Directory.Exists(Path.Combine(cInst, "update")))
+            verstoesse.Add($"{wer}: CleanupAfterUpdate lässt den Arbeitsordner update/ liegen");
+        if (!File.Exists(Path.Combine(cInst, "spiel.dll")) || !Directory.Exists(Path.Combine(cInst, "Content", "tief")))
+            verstoesse.Add($"{wer}: CleanupAfterUpdate löscht Dateien oder Ordner der Installation");
+        if (windows)
+        {
+            File.WriteAllText(Path.Combine(cInst, "x.dll" + UpdateService.OldSuffix), "gesperrt");
+            using (new FileStream(Path.Combine(cInst, "x.dll" + UpdateService.OldSuffix), FileMode.Open, FileAccess.Read, FileShare.None))
+            {
+                if (UpdateService.CleanupAfterUpdate(cInst, 2, 10) != 1)
+                    verstoesse.Add($"{wer}: CleanupAfterUpdate zählt eine gesperrte Sicherung nicht als Rest");
+            }
+        }
+        if (UpdateService.CleanupAfterUpdate(Path.Combine(temp, "gibt-es-nicht"), 2, 10) != 0)
+            verstoesse.Add($"{wer}: CleanupAfterUpdate meldet für einen fehlenden Ordner Reste");
+    }
+    finally
+    {
+        UpdateService.WindowsDX = altDx;
+        try { if (Directory.Exists(temp)) Directory.Delete(temp, true); } catch { }
+    }
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: Zip der laufenden Variante, ExtractZip, StagedRoot, BackupName, ReplaceInstallation mit Rücksicherung, CleanupAfterUpdate");
+}
+
+// Update (Nutzer 2026-10-18: „update system im spiel eingebaut und auch im menü
+// sichtbar … wird ein Update auf x.y.z version angeboten“; „es soll wirklich
+// automatisch runterladen und installieren ... vorher prüfen auf was für einem
+// Computer die software läuft“; 2026-10-20: „erstens ist es nicht wie die
+// anderen menüs und zweitens scheint das update nicht richtig zu funktionieren“
+// - die Zeile ragte über die Tafel, und das Update entpackte DesktopGL in einen
+// Unterordner der laufenden WindowsDX-Installation, die danach alt blieb).
+// Gruppe updatedienst (mitMenue false) prüft nur den UpdateService: der Start
+// lädt die Zip der laufenden Variante, prüft die SHA256, ersetzt die
+// Installation AN ORT UND STELLE (alte Dateien werden zu *.update-alt
+// umbenannt - auch die einer laufenden Exe, unter Windows ein echter Prozess),
+// startet die neue Exe aus demselben Ordner; ein Fehler mitten im Ersetzen
+// stellt die alte Installation wieder her; der nächste Start räumt die
+// Sicherungen weg. Gruppe update (mitMenue true) prüft dazu das Hauptmenü:
+// „Update“ ist ein gewöhnlicher Menüeintrag (gleiche Platte, nur mit Angebot
+// sichtbar, Maus und Tasten wie bei den anderen), darunter eine Versionszeile;
+// während des Updates sind „Neues Spiel“ und „Spiel laden“ gesperrt, danach
+// beendet sich die alte Version genau einmal. Netz, Download, Text-Hol, Start
+// und Ende sind Fake-Hooks (UpdateService.FetchJson/FetchText/DownloadFile/
+// StartApp/ExitApp), InstallDir zeigt auf einen Temp-Ordner; alles wird am
+// Ende wiederhergestellt.
+static void UpdateMenue(List<string> verstoesse, bool mitMenue)
+{
+    string wer = mitMenue ? "Update" : "Updatedienst";
     int vorher = verstoesse.Count;
     var typ = typeof(MainMenuScreen);
     const BindingFlags F = BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
@@ -4848,303 +5067,358 @@ static void UpdateMenue(List<string> verstoesse)
         ?? throw new InvalidOperationException($"Methode MainMenuScreen.{name} nicht gefunden - umbenannt?");
     var feld = typ.GetField("updater", F)
         ?? throw new InvalidOperationException("Feld MainMenuScreen.updater nicht gefunden - umbenannt?");
+    var auswahl = typ.GetField("selectedIndex", F)
+        ?? throw new InvalidOperationException("Feld MainMenuScreen.selectedIndex nicht gefunden");
     UpdateService Neu(out MainMenuScreen paar)
     {
         var m = new MainMenuScreen();
         paar = m;
         return (UpdateService)feld.GetValue(m);
     }
-
-    var up = Neu(out var mUp);
-    string aktuell = up.CurrentVersionText;
     MouseState Maus(Point p, bool gedrueckt) => new MouseState(p.X, p.Y, 0,
         gedrueckt ? ButtonState.Pressed : ButtonState.Released, ButtonState.Released,
         ButtonState.Released, ButtonState.Released, ButtonState.Released);
+    Rectangle Platte(int i, int bw, int bh) => (Rectangle)Methode("EntryRect").Invoke(null, new object[] { i, bw, bh });
+    Rectangle Zeile(int letzter, int bw, int bh) => (Rectangle)Methode("VersionRect").Invoke(null, new object[] { letzter, bw, bh });
+    (int, bool) Klick(MainMenuScreen m, Point p) => ((int, bool))Methode("EvaluateMouse").Invoke(m,
+        new object[] { Maus(p, false), Maus(p, true), 1920, 1080 });
+    void Abgleich(MainMenuScreen m) => Methode("RefreshUpdateEntry").Invoke(m, null);
+    bool Waehlbar(MainMenuScreen m, int i) => (bool)Methode("EntryEnabled").Invoke(m, new object[] { i });
+    string Text(MainMenuScreen m, int i) => (string)Methode("EntryText").Invoke(m, new object[] { i });
+    bool Sichtbar(MainMenuScreen m, int i) => (bool)Methode("EntryVisible").Invoke(m, new object[] { i });
+    void Pfeil(MainMenuScreen m, int von) { auswahl.SetValue(m, von); Methode("MoveSelection").Invoke(m, new object[] { 1 }); }
+    const int UPDATE = 5;
 
-    // Plattform-Zip (und entprechende Test-Datei) für diese Maschine
-    string asset = UpdateService.PlatformZip(new Version(9, 9, 9));
-    string rid = null;
-    if (asset is not null)
-    {
-        rid = asset[(asset.LastIndexOf('_') + 1)..];
-        rid = rid[..rid.LastIndexOf('.')];
-    }
-    string exeName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
-        ? "AgeOfEvolutions.exe" : "AgeOfEvolutions";
-    byte[] zipBytes = null;
-    if (rid is not null)
-    {
-        using var ms = new MemoryStream();
-        using (var za = new ZipArchive(ms, ZipArchiveMode.Create))
-        {
-            var payload1 = System.Text.Encoding.UTF8.GetBytes("FAKE-EXE");
-            using (var s1 = za.CreateEntry($"{rid}/{exeName}").Open())
-                s1.Write(payload1, 0, payload1.Length);
-            var payload2 = System.Text.Encoding.UTF8.GetBytes("FAKE-DLL");
-            using (var s2 = za.CreateEntry($"{rid}/AgeOfEvolutions.Core.dll").Open())
-                s2.Write(payload2, 0, payload2.Length);
-        }
-        zipBytes = ms.ToArray();
-    }
-    string zipSha = null;
-    if (zipBytes is not null)
-    {
-        using var sha = SHA256.Create();
-        zipSha = Convert.ToHexString(sha.ComputeHash(zipBytes)).ToLowerInvariant();
-    }
-    string sumsRichtig = zipSha is null ? "" : $"{zipSha}  {asset}";
-    string sumsFalsch = zipSha is null ? "falsch  kein-asset" : $"deadbeefdeadbeefdeadbeef  {asset}";
-    string jsonMitAsset = rid is null
-        ? "{\"tag_name\":\"v9.9.9\",\"assets\":[]}"
-        : $"{{\"tag_name\":\"v9.9.9\",\"assets\":[{{\"name\":\"{asset}\",\"browser_download_url\":\"https://gh.test/asset\",\"size\":{zipBytes.Length}}},{{\"name\":\"SHA256SUMS_v9.9.9.md\",\"browser_download_url\":\"https://gh.test/sums\"}}]}}";
-    string jsonOhneAsset = "{\"tag_name\":\"v9.9.9\",\"assets\":[{\"name\":\"SHA256SUMS_v9.9.9.md\",\"browser_download_url\":\"https://gh.test/sums\"}]}";
+    var up = Neu(out _);
+    string aktuell = up.CurrentVersionText;
+    bool windows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+    string exeName = UpdateService.AppHostName;
 
-    string geoeffnet = null;
-    List<string> gestartet = new();
-    string laufJson = "{\"tag_name\":\"v9.9.9\"}";
-    string laufSums = "";
     var altFetch = UpdateService.FetchJson;
     var altOpen = UpdateService.OpenUrl;
     var altDl = UpdateService.DownloadFile;
     var altText = UpdateService.FetchText;
     var altApp = UpdateService.StartApp;
     var altExit = UpdateService.ExitApp;
-    List<int> exitAufrufe = new List<int>();
-    string installDir = Path.Combine(AppContext.BaseDirectory, "AoE_Evolutions_v9.9.9");
-    string arbeitDir = Path.Combine(AppContext.BaseDirectory, "update");
-    string laufendePfad = Path.Combine(AppContext.BaseDirectory, "laufende-AgeOfEvolutions.exe");
+    var altInstall = UpdateService.InstallDir;
+    bool altDx = UpdateService.WindowsDX;
 
-    UpdateService.OpenUrl = url => geoeffnet = url;
-    UpdateService.StartApp = (exe, wd) => gestartet.Add(exe);
-    UpdateService.ExitApp = () => exitAufrufe.Add(1);
-    UpdateService.DownloadFile = (url, ziel, prog) =>
-    {
-        if (!url.EndsWith("/asset"))
-            throw new Exception($"Download-URL abgefragt: {url}");
-        if (zipBytes is null)
-            throw new Exception("Download gefordert, aber diese Plattform hat kein Asset — Konflikt im Test");
-        File.WriteAllBytes(ziel, zipBytes);
-        prog?.Invoke(zipBytes.Length, zipBytes.Length);
-        return zipBytes.Length;
-    };
-    UpdateService.FetchText = url =>
-        url.EndsWith("/sums") ? laufSums : throw new Exception($"FetchText-URL abgefragt: {url}");
-    UpdateService.FetchJson = url =>
-        url.Contains("api.github.com") && url.Contains("gyurasan/AoE-Game") ? laufJson
-            : throw new Exception($"API-URL abgefragt: {url}");
-
-    void BisEnde(UpdateService s)
-    {
-        for (int i = 0; i < 800 && s.UpdateActive; i++)
-            System.Threading.Thread.Sleep(25);
-    }
-    void Aufbereinigen()
-    {
-        try { if (Directory.Exists(installDir)) Directory.Delete(installDir, true); } catch { }
-        try { if (Directory.Exists(arbeitDir)) Directory.Delete(arbeitDir, true); } catch { }
-        try { if (File.Exists(laufendePfad)) File.Delete(laufendePfad); } catch { }
-    }
+    string temp = Path.Combine(Path.GetTempPath(), $"aoe-update-{Guid.NewGuid():N}");
+    string install = Path.Combine(temp, "install");
+    System.Diagnostics.Process laeuft = null;
 
     try
     {
-        // Geometrie: unter dem fünften Eintrag, mittig, im Fenster, ohne Überlappung
-        foreach (var (bw, bh) in new[] { (1280, 768), (2406, 1353), (4812, 2707) })
+        // ---- Geometrie: „Update“ ist eine Platte wie die anderen, die Versionszeile liegt darunter
+        if (mitMenue)
         {
-            var zeile = (Rectangle)Methode("StatusRect").Invoke(null, new object[] { bw, bh });
-            var eintrag = (Rectangle)Methode("EntryRect").Invoke(null, new object[] { 4, bw, bh });
-            if (zeile.Top <= eintrag.Bottom)
-                verstoesse.Add($"{wer} {bw}x{bh}: die Statuszeile überlappt Eintrag 4 ({zeile} vs {eintrag})");
-            if (Math.Abs(zeile.Center.X - bw / 2) > 1)
-                verstoesse.Add($"{wer} {bw}x{bh}: die Statuszeile ist nicht mittig ({zeile})");
-            if (zeile.Top < 0 || zeile.Bottom > bh)
-                verstoesse.Add($"{wer} {bw}x{bh}: die Statuszeile ragt aus dem Fenster ({zeile})");
-        }
-
-        // Anzeige: die Zeile trägt immer die Version dieser Installation
-        if (!up.StatusText().StartsWith($"Version {aktuell}"))
-            verstoesse.Add($"{wer}: die Zeile heißt „{up.StatusText()}“, erwartet „Version {aktuell} …“");
-
-        if (asset is not null && zipSha is not null)
-        {
-            // ---- Happy Path: v9.9.9-Release → Angebot; Klick lädt, prüft,
-            //      entpackt in ein neues Versionsverzeichnis, startet neu
-            // Vorab: die LAUFENDE Installation ist besetzt — Schreiben und
-            // Löschen sind blockiert (wie bei einer laufenden Exe/DLL).
-            // Das Update darf sie nicht anfassen: alles geht in ein neues
-            // Versionsverzeichnis, die neue Version läuft von dort.
-            // (Nur FileAccess.Read im Locking-Handle: ein zusätzlich gesetzter
-            // Schreib-Zugriff blockierte hier auf Windows sogar das eigene
-            // Prüf-Lesen; Schreiben/Löschen bleiben trotzdem verweigert.)
-            byte[] laufendeInhalt = System.Text.Encoding.UTF8.GetBytes("LAUFEND-GELOCKT");
-            File.WriteAllBytes(laufendePfad, laufendeInhalt);
-            var lockHandle = new FileStream(laufendePfad, FileMode.Open, FileAccess.Read, FileShare.Read);
-            laufJson = jsonMitAsset; laufSums = sumsRichtig;
-            up.CheckLatest();
-            if (up.State != UpdateService.Status.UpdateAvailable)
-                verstoesse.Add($"{wer}: bei neuerem Release v9.9.9 ist der Status {up.State}, erwartet UpdateAvailable");
-            if (up.State == UpdateService.Status.UpdateAvailable)
+            foreach (var (bw, bh) in new[] { (1280, 768), (2406, 1353), (4812, 2707) })
             {
-                if (!up.StatusText().Contains("v9.9.9"))
-                    verstoesse.Add($"{wer}: das Angebot nennt die neue Version nicht („{up.StatusText()}“)");
-
-                var r = (Rectangle)Methode("StatusRect").Invoke(null, new object[] { 1280, 768 });
-                bool aktiv = (bool)Methode("OpenUpdateRow").Invoke(mUp,
-                    new object[] { Maus(r.Center, false), Maus(r.Center, true), 1280, 768 });
-                if (!aktiv)
-                    verstoesse.Add($"{wer}: ein Klick auf das Angebot beginnt den Download nicht");
-                BisEnde(up);
-                if (up.UpdatePhase != UpdateService.Phase.Done)
-                    verstoesse.Add($"{wer}: nach Klick läuft der Ablauf zu {up.UpdatePhase} ({up.UpdatePhaseMessage}), erwartet Done");
-                string erwartet = Path.Combine(installDir, rid, exeName);
-                if (up.InstalledExe != erwartet)
-                    verstoesse.Add($"{wer}: installierte Exe ist {up.InstalledExe ?? "—"}, erwartet {erwartet}");
-                if (up.InstalledExe is not null && !File.Exists(up.InstalledExe))
-                    verstoesse.Add($"{wer}: die installierte Datei fehlt ({up.InstalledExe})");
-                if (!gestartet.Contains(erwartet))
-                    verstoesse.Add($"{wer}: die neue Version wurde nicht gestartet (StartApp-Aufrufe: {String.Join(", ", gestartet) ?? "—"})");
-                if (!up.StatusText().Contains("installiert und gestartet"))
-                    verstoesse.Add($"{wer}: nach Done heißt die Zeile „{up.StatusText()}“");
-
-                // Blockierte, laufende Installation: unverändert (Inhalt + Dasein),
-                // Update liegt NEBEN ihr im neuen Versionsverzeichnis
-                if (!File.Exists(laufendePfad)
-                    || !laufendeInhalt.SequenceEqual(File.ReadAllBytes(laufendePfad)))
-                    verstoesse.Add($"{wer}: die laufende, blockierte Installation ({laufendePfad}) wurde verändert oder entfernt");
-                if (up.InstalledExe is not null
-                    && !up.InstalledExe.StartsWith(installDir + Path.DirectorySeparatorChar, StringComparison.Ordinal))
-                    verstoesse.Add($"{wer}: die neue Version liegt im laufenden Installationsordner, nicht nebenher ({up.InstalledExe})");
-                // Klick NACH Done: schließt bewusst diese (alte) Version —
-                // die neue Version läuft bereits (ExitApp-Hook zählt den Aufruf)
-                int exitVor = exitAufrufe.Count;
-                bool nach = (bool)Methode("OpenUpdateRow").Invoke(mUp,
-                    new object[] { Maus(r.Center, false), Maus(r.Center, true), 1280, 768 });
-                if (!nach || exitAufrufe.Count != exitVor + 1)
-                    verstoesse.Add($"{wer}: Klick nach Done muss diese (alte) Version schließen (nach={nach}, ExitApp-Aufrufe={exitAufrufe.Count - exitVor})");
-                lockHandle.Dispose();
-                Aufbereinigen();
-
-                // ---- Falsche Prüfsumme → Abbruch, kein entpacktes Verzeichnis
-                var up2 = Neu(out var m2);
-                
-                laufSums = sumsFalsch;
-                up2.CheckLatest();
-                var r2 = (Rectangle)Methode("StatusRect").Invoke(null, new object[] { 1280, 768 });
-                Methode("OpenUpdateRow").Invoke(m2,
-                    new object[] { Maus(r2.Center, false), Maus(r2.Center, true), 1280, 768 });
-                BisEnde(up2);
-                if (up2.UpdatePhase != UpdateService.Phase.Failed)
-                    verstoesse.Add($"{wer}: bei falscher SHA256 ist die Phase {up2.UpdatePhase}, erwartet Failed");
-                if (up2.UpdatePhaseMessage == null || !up2.UpdatePhaseMessage.Contains("SHA256"))
-                    verstoesse.Add($"{wer}: die Fehler meldet {up2.UpdatePhaseMessage ?? "—"}, erwartet SHA256");
-                if (Directory.Exists(installDir))
-                    verstoesse.Add($"{wer}: nach der Prüfung wurde trotzdem nach {installDir} entpackt");
-                Aufbereinigen();
-
-                // ---- SHA256SUMS-Asset fehlt → Prüfung wird übersprungen, Update läuft weiter
-                var up3 = Neu(out var m3);
-                laufSums = "";
-                up3.CheckLatest();
-                var r3 = (Rectangle)Methode("StatusRect").Invoke(null, new object[] { 1280, 768 });
-                Methode("OpenUpdateRow").Invoke(m3,
-                    new object[] { Maus(r3.Center, false), Maus(r3.Center, true), 1280, 768 });
-                BisEnde(up3);
-                if (up3.UpdatePhase != UpdateService.Phase.Done)
-                    verstoesse.Add($"{wer}: ohne SHA256SUMS-Asset läuft der Ablauf zu {up3.UpdatePhase} ({up3.UpdatePhaseMessage}), erwartet Done (Prüfung überspringen)");
-                Aufbereinigen();
-
-                // ---- Plattform-Zip fehlt im Release → sauberer Abbruch
-                var up4 = Neu(out var m4);
-                laufJson = jsonOhneAsset;
-                up4.CheckLatest();
-                var r4 = (Rectangle)Methode("StatusRect").Invoke(null, new object[] { 1280, 768 });
-                Methode("OpenUpdateRow").Invoke(m4,
-                    new object[] { Maus(r4.Center, false), Maus(r4.Center, true), 1280, 768 });
-                BisEnde(up4);
-                if (up4.UpdatePhase != UpdateService.Phase.Failed)
-                    verstoesse.Add($"{wer}: ohne Plattform-Zip im Release ist die Phase {up4.UpdatePhase}, erwartet Failed");
-                if ((up4.UpdatePhaseMessage ?? "").Contains("fehlt im Release") == false)
-                    verstoesse.Add($"{wer}: ohne Zip im Release meldet {up4.UpdatePhaseMessage ?? "—"}, erwartet „Asset … fehlt im Release“");
-                if (Directory.Exists(installDir))
-                    verstoesse.Add($"{wer}: ohne Zip im Release wurde trotzdem nach {installDir} entpackt");
-                Aufbereinigen();
+                var beenden = Platte(4, bw, bh);
+                var platte = Platte(UPDATE, bw, bh);
+                if (platte.Width != beenden.Width || platte.Height != beenden.Height)
+                    verstoesse.Add($"{wer} {bw}x{bh}: die Update-Platte ist {platte.Width}x{platte.Height}, die anderen {beenden.Width}x{beenden.Height}");
+                if (platte.Top < beenden.Bottom)
+                    verstoesse.Add($"{wer} {bw}x{bh}: die Update-Platte überlappt „Beenden“ ({platte} vs {beenden})");
+                if (Math.Abs(platte.Center.X - bw / 2) > 1 || platte.Bottom > bh)
+                    verstoesse.Add($"{wer} {bw}x{bh}: die Update-Platte ist nicht mittig oder ragt aus dem Fenster ({platte})");
+                foreach (int letzter in new[] { 4, UPDATE })
+                {
+                    var zeile = Zeile(letzter, bw, bh);
+                    var ueber = Platte(letzter, bw, bh);
+                    if (zeile.Top < ueber.Bottom)
+                        verstoesse.Add($"{wer} {bw}x{bh}: die Versionszeile überlappt Eintrag {letzter} ({zeile} vs {ueber})");
+                    if (Math.Abs(zeile.Center.X - bw / 2) > 1 || zeile.Bottom > bh || zeile.Width > ueber.Width)
+                        verstoesse.Add($"{wer} {bw}x{bh}: die Versionszeile ist nicht mittig, ragt aus dem Fenster oder ist breiter als eine Platte ({zeile})");
+                }
             }
-
-            // ---- Browser-Fallback (OpenUpdate) öffnet die direkte Download-URL der
-            //      Plattform-Zip — hier: genau die Zip, die oben installiert wurde
-            var up5 = Neu(out _);
-            laufJson = jsonMitAsset;
-            up5.CheckLatest();
-            geoeffnet = null;
-            up5.OpenUpdate();
-            string erwartetUrl = UpdateService.UpdateUrl(new Version(9, 9, 9));
-            if (geoeffnet != erwartetUrl)
-                verstoesse.Add($"{wer}: Browser-Fallback öffnet {geoeffnet ?? "—"}, erwartet {erwartetUrl}");
         }
-        else
+
+        // ---- Ohne Angebot: kein Eintrag „Update“ - weder zu sehen noch zu klicken noch per Pfeil
+        UpdateService.FetchJson = _ => $"{{\"tag_name\":\"v{aktuell}\"}}";
+        var upA = Neu(out var mA);
+        upA.CheckLatest();
+        if (upA.State != UpdateService.Status.UpToDate)
+            verstoesse.Add($"{wer}: Neuestes == installiert ({aktuell}) → Status {upA.State}, erwartet UpToDate");
+        if (upA.EntryText() != null || upA.CanStartUpdate)
+            verstoesse.Add($"{wer}: ohne Angebot heißt der Update-Eintrag „{upA.EntryText()}“ (startbar {upA.CanStartUpdate}), erwartet keinen");
+        if (upA.VersionLine() != $"Version {aktuell} – aktuell")
+            verstoesse.Add($"{wer}: bei „aktuell“ heißt die Versionszeile „{upA.VersionLine()}“");
+        if (mitMenue)
         {
-            verstoesse.Add($"{wer}: Testumgebung: diese Plattform liefert kein Release-Asset — Download-Prüfung übersprungen ({asset})");
+            Abgleich(mA);
+            if (Sichtbar(mA, UPDATE) || !Sichtbar(mA, 4))
+                verstoesse.Add($"{wer}: ohne Angebot wird der Update-Eintrag gezeichnet (oder „Beenden“ nicht)");
+            if (Klick(mA, Platte(UPDATE, 1920, 1080).Center) != (0, false))
+                verstoesse.Add($"{wer}: ohne Angebot lässt sich der Platz des Update-Eintrags anklicken");
+            Pfeil(mA, 4);
+            if ((int)auswahl.GetValue(mA) != 0)
+                verstoesse.Add($"{wer}: ohne Angebot führt Pfeil nach unten von „Beenden“ auf {auswahl.GetValue(mA)} statt auf „Neues Spiel“");
         }
 
-        // Neben der Zeile: öffnet beginnt nichts
-        var upNeben = Neu(out var mN);
-        laufJson = jsonMitAsset; laufSums = sumsRichtig;
-        upNeben.CheckLatest();
-        geoeffnet = null; int gestartetVor = gestartet.Count;
-        var rn = (Rectangle)Methode("StatusRect").Invoke(null, new object[] { 1280, 768 });
-        bool außen = (bool)Methode("OpenUpdateRow").Invoke(mN,
-            new object[] { Maus(new Point(2, 2), false), Maus(new Point(2, 2), true), 1280, 768 });
-        if (außen || gestartet.Count != gestartetVor)
-            verstoesse.Add($"{wer}: ein Klick neben der Zeile beginnt das Update trotzdem");
-
-        // Aktuell: Neuestes == installiert → keine Anzeige, Zeile nicht klickbar
-        var upAktuell = Neu(out var mA);
-        laufJson = $"{{\"tag_name\":\"v{aktuell}\"}}";
-        upAktuell.CheckLatest();
-        if (upAktuell.State != UpdateService.Status.UpToDate)
-            verstoesse.Add($"{wer}: Neuestes == installiert ({aktuell}) → Status {upAktuell.State}, erwartet UpToDate");
-        var rA = (Rectangle)Methode("StatusRect").Invoke(null, new object[] { 1920, 1080 });
-        bool klickbar = (bool)Methode("OpenUpdateRow").Invoke(mA,
-            new object[] { Maus(rA.Center, false), Maus(rA.Center, true), 1920, 1080 });
-        if (klickbar)
-            verstoesse.Add($"{wer}: bei „aktuell“ ist die Zeile klickbar");
-        if (!upAktuell.StatusText().EndsWith("— aktuell"))
-            verstoesse.Add($"{wer}: bei „aktuell“ heißt die Zeile „{upAktuell.StatusText()}“");
-
-        // Älteres Release (v0.0.1) → kein Angebot
+        // Älteres Release, offline, kaputte Antwort: kein Angebot, kein Absturz, Version bleibt lesbar
+        UpdateService.FetchJson = _ => "{\"tag_name\":\"v0.0.1\"}";
         var upAlt = Neu(out _);
-        laufJson = "{\"tag_name\":\"v0.0.1\"}";
         upAlt.CheckLatest();
         if (upAlt.State != UpdateService.Status.UpToDate)
-            verstoesse.Add($"{wer}: älteres Release v0.0.1 → Status {upAlt.State}, erwartet UpToDate (kein falsches Angebot)");
-
-        // Offline: keine Ausnahme, Status Unavailable, Zeile bleibt lesbar
-        var upOff = Neu(out _);
+            verstoesse.Add($"{wer}: älteres Release v0.0.1 → Status {upAlt.State}, erwartet UpToDate");
         UpdateService.FetchJson = _ => throw new Exception("offline");
+        var upOff = Neu(out _);
         upOff.CheckLatest();
-        if (upOff.State != UpdateService.Status.Unavailable)
-            verstoesse.Add($"{wer}: ohne Netzwerk ist der Status {upOff.State}, erwartet Unavailable");
-        if (!upOff.StatusText().StartsWith($"Version {aktuell}"))
-            verstoesse.Add($"{wer}: offline verliert die Zeile die Version („{upOff.StatusText()}“)");
-
-        // Kaputte Antwort (kein tag_name) → ebenfalls Unavailable
-        var upK = Neu(out _);
+        if (upOff.State != UpdateService.Status.Unavailable || upOff.VersionLine() != $"Version {aktuell} – Update-Prüfung nicht möglich")
+            verstoesse.Add($"{wer}: offline → Status {upOff.State}, Zeile „{upOff.VersionLine()}“; erwartet Unavailable und „Version {aktuell} – Update-Prüfung nicht möglich“");
         UpdateService.FetchJson = _ => "{\"kaputt\":true}";
+        var upK = Neu(out _);
         upK.CheckLatest();
         if (upK.State != UpdateService.Status.Unavailable)
             verstoesse.Add($"{wer}: Antwort ohne tag_name → Status {upK.State}, erwartet Unavailable");
-
-        // tag_name-Prüfer: Präfixe und Prädikate
         if (UpdateService.ParseLatestTag("{\"tag_name\":\"V1.2.3-rc.1\"}") != new Version(1, 2, 3))
             verstoesse.Add($"{wer}: ParseLatestTag liest „V1.2.3-rc.1“ falsch");
-        try
+        if (new UpdateService().VersionLine() != $"Version {aktuell}")
+            verstoesse.Add($"{wer}: vor der Prüfung heißt die Zeile „{new UpdateService().VersionLine()}“, erwartet „Version {aktuell}“");
+
+        Directory.CreateDirectory(temp);
+        // ---- Happy Path: Angebot → Start → Download → SHA256 → Ersetzen an Ort und Stelle → Neustart
+        string asset = UpdateService.PlatformZip(new Version(9, 9, 9));
+        if (asset is null)
         {
-            UpdateService.ParseLatestTag("{}");
-            verstoesse.Add($"{wer}: ParseLatestTag akzeptiert eine Antwort ohne tag_name");
+            verstoesse.Add($"{wer}: Testumgebung: diese Plattform liefert kein Release-Asset — Download-Prüfung übersprungen");
+            return;
         }
-        catch (FormatException)
+        string rid = asset[(asset.LastIndexOf('_') + 1)..^4];
+        byte[] zipBytes;
+        using (var ms = new MemoryStream())
         {
+            using (var za = new ZipArchive(ms, ZipArchiveMode.Create))
+            {
+                void Eintrag(string pfad, string inhalt)
+                {
+                    using var s = za.CreateEntry(pfad).Open();
+                    var b = System.Text.Encoding.UTF8.GetBytes(inhalt);
+                    s.Write(b, 0, b.Length);
+                }
+                Eintrag($"{rid}/{exeName}", "NEU-EXE");
+                Eintrag($"{rid}/AgeOfEvolutions.Core.dll", "NEU-DLL");
+                Eintrag($"{rid}/Content/a.xnb", "NEU-A");
+                Eintrag($"{rid}/Content/neu/b.xnb", "NEU-B");
+            }
+            zipBytes = ms.ToArray();
         }
-        Aufbereinigen();
+        string zipSha;
+        using (var sha = SHA256.Create())
+            zipSha = Convert.ToHexString(sha.ComputeHash(zipBytes)).ToLowerInvariant();
+        string json = $"{{\"tag_name\":\"v9.9.9\",\"assets\":[{{\"name\":\"{asset}\",\"browser_download_url\":\"https://gh.test/asset\"}},{{\"name\":\"SHA256SUMS_v9.9.9.md\",\"browser_download_url\":\"https://gh.test/sums\"}}]}}";
+        string sums = $"# SHA256\r\n\r\n{zipSha}  {asset}\r\n";
+
+        // Die laufende Installation: alte Dateien, eine Datei, die die neue Version nicht
+        // mehr hat, ein Log - und unter Windows eine wirklich laufende Exe (ping als Stellvertreter)
+        Directory.CreateDirectory(Path.Combine(install, "Content"));
+        Directory.CreateDirectory(Path.Combine(install, "logs"));
+        File.WriteAllText(Path.Combine(install, "AgeOfEvolutions.Core.dll"), "ALT-DLL");
+        File.WriteAllText(Path.Combine(install, "Content", "a.xnb"), "ALT-A");
+        File.WriteAllText(Path.Combine(install, "nur-alt.txt"), "NUR-ALT");
+        File.WriteAllText(Path.Combine(install, "logs", "spiel.log"), "LOG");
+        string altExe = Path.Combine(install, exeName);
+        if (windows)
+        {
+            File.Copy(Path.Combine(Environment.SystemDirectory, "PING.EXE"), altExe);
+            laeuft = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(altExe, "-n 120 127.0.0.1")
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+            });
+            try { File.Delete(altExe); } catch { }
+            if (!File.Exists(altExe))
+                verstoesse.Add($"{wer}: Testaufbau: die laufende Exe ließ sich löschen - die Sperre wirkt nicht");
+        }
+        else
+            File.WriteAllText(altExe, "ALT-EXE");
+        byte[] altExeBytes = windows ? File.ReadAllBytes(Path.Combine(Environment.SystemDirectory, "PING.EXE")) : System.Text.Encoding.UTF8.GetBytes("ALT-EXE");
+
+        var gestartet = new List<(string Exe, string Dir)>();
+        int exits = 0;
+        var freigabe = new System.Threading.ManualResetEventSlim(false);
+        UpdateService.InstallDir = install;
+        UpdateService.FetchJson = url => url == UpdateService.LatestApiUrl ? json : throw new Exception($"API-URL abgefragt: {url}");
+        UpdateService.FetchText = url => url == "https://gh.test/sums" ? sums : throw new Exception($"FetchText-URL abgefragt: {url}");
+        UpdateService.DownloadFile = (url, ziel, prog) =>
+        {
+            if (url != "https://gh.test/asset")
+                throw new Exception($"Download-URL abgefragt: {url}");
+            prog?.Invoke(50, 100);
+            freigabe.Wait(TimeSpan.FromSeconds(20));
+            File.WriteAllBytes(ziel, zipBytes);
+            prog?.Invoke(zipBytes.Length, zipBytes.Length);
+            return zipBytes.Length;
+        };
+        UpdateService.StartApp = (exe, dir) => gestartet.Add((exe, dir));
+        UpdateService.ExitApp = () => exits++;
+        string geoeffnet = null;
+        UpdateService.OpenUrl = url => geoeffnet = url;
+
+        var upH = Neu(out var mH);
+        upH.CheckLatest();
+        if (upH.State != UpdateService.Status.UpdateAvailable || !upH.CanStartUpdate)
+            verstoesse.Add($"{wer}: bei neuerem Release v9.9.9 ist der Status {upH.State} (startbar {upH.CanStartUpdate}), erwartet UpdateAvailable");
+        if (upH.EntryText() != "Update auf v9.9.9")
+            verstoesse.Add($"{wer}: der Update-Eintrag heißt „{upH.EntryText()}“, erwartet „Update auf v9.9.9“");
+        if (upH.VersionLine() != $"Version {aktuell} – v9.9.9 ist verfügbar")
+            verstoesse.Add($"{wer}: die Versionszeile beim Angebot heißt „{upH.VersionLine()}“, erwartet „Version {aktuell} – v9.9.9 ist verfügbar“");
+        if (mitMenue)
+        {
+            Abgleich(mH);
+            if (!Sichtbar(mH, UPDATE) || Text(mH, UPDATE) != "Update auf v9.9.9")
+                verstoesse.Add($"{wer}: mit Angebot fehlt der Update-Eintrag „Update auf v9.9.9“ (sichtbar {Sichtbar(mH, UPDATE)}, Text „{Text(mH, UPDATE)}“)");
+            Pfeil(mH, 4);
+            if ((int)auswahl.GetValue(mH) != UPDATE)
+                verstoesse.Add($"{wer}: mit Angebot führt Pfeil nach unten von „Beenden“ auf {auswahl.GetValue(mH)} statt auf „Update“");
+            if (Klick(mH, Platte(UPDATE, 1920, 1080).Center) != (UPDATE, true))
+                verstoesse.Add($"{wer}: ein Klick auf den Update-Eintrag startet ihn nicht");
+            auswahl.SetValue(mH, UPDATE);
+            Methode("HandleMenuSelect").Invoke(mH, null);
+        }
+        else if (!upH.BeginUpdate())
+            verstoesse.Add($"{wer}: BeginUpdate meldet false, obwohl ein Angebot vorliegt");
+        for (int i = 0; i < 200 && upH.ProgressDone == 0; i++)
+            System.Threading.Thread.Sleep(10);
+
+        // Während des Downloads: Fortschritt im Eintrag, nicht erneut startbar
+        if (!upH.UpdateActive || upH.UpdatePhase != UpdateService.Phase.Downloading)
+            verstoesse.Add($"{wer}: nach dem Start läuft kein Download (Phase {upH.UpdatePhase})");
+        if (upH.EntryText() != "Lade v9.9.9 … 50 %")
+            verstoesse.Add($"{wer}: während des Downloads heißt der Eintrag „{upH.EntryText()}“, erwartet „Lade v9.9.9 … 50 %“");
+        if (upH.CanStartUpdate || upH.VersionLine() != $"Version {aktuell} – Update läuft, bitte warten")
+            verstoesse.Add($"{wer}: während des Downloads ist das Update startbar ({upH.CanStartUpdate}) oder die Zeile heißt „{upH.VersionLine()}“");
+        if (mitMenue)
+        {
+            // „Neues Spiel“ und „Spiel laden“ gesperrt, Pfeile überspringen sie
+            Abgleich(mH);
+            if (Text(mH, UPDATE) != "Lade v9.9.9 … 50 %")
+                verstoesse.Add($"{wer}: während des Downloads zeigt der Menüeintrag „{Text(mH, UPDATE)}“");
+            if (Waehlbar(mH, UPDATE) || Waehlbar(mH, 0) || !Sichtbar(mH, UPDATE))
+                verstoesse.Add($"{wer}: während des Downloads sind „Update“ ({Waehlbar(mH, UPDATE)}) oder „Neues Spiel“ ({Waehlbar(mH, 0)}) wählbar oder „Update“ unsichtbar");
+            if (!Waehlbar(mH, 3) || !Waehlbar(mH, 4))
+                verstoesse.Add($"{wer}: während des Downloads sind „Einstellungen“ oder „Beenden“ gesperrt");
+            Pfeil(mH, 4);
+            if ((int)auswahl.GetValue(mH) != 1)
+                verstoesse.Add($"{wer}: während des Downloads führt Pfeil nach unten von „Beenden“ auf {auswahl.GetValue(mH)} statt über die gesperrten Einträge auf „Karte“");
+            if ((bool)Methode("ExitAfterUpdate").Invoke(mH, null) || exits != 0)
+                verstoesse.Add($"{wer}: die alte Version beendet sich schon vor dem Abschluss des Updates");
+        }
+        if (upH.BeginUpdate() != true || gestartet.Count != 0)
+            verstoesse.Add($"{wer}: ein zweiter Start während des Downloads verhält sich falsch");
+        freigabe.Set();
+        for (int i = 0; i < 800 && upH.UpdateActive; i++)
+            System.Threading.Thread.Sleep(25);
+
+        if (upH.UpdatePhase != UpdateService.Phase.Done)
+            verstoesse.Add($"{wer}: der Ablauf endet in {upH.UpdatePhase} ({upH.UpdatePhaseMessage}), erwartet Done");
+        string Lies(params string[] teile)
+        {
+            string p = Path.Combine(new[] { install }.Concat(teile).ToArray());
+            return File.Exists(p) ? File.ReadAllText(p) : "—";
+        }
+        if (Lies(exeName) != "NEU-EXE" || Lies("AgeOfEvolutions.Core.dll") != "NEU-DLL"
+            || Lies("Content", "a.xnb") != "NEU-A" || Lies("Content", "neu", "b.xnb") != "NEU-B")
+            verstoesse.Add($"{wer}: die Installation ist nicht ersetzt (Exe „{Lies(exeName)}“, Core „{Lies("AgeOfEvolutions.Core.dll")}“, a.xnb „{Lies("Content", "a.xnb")}“, neu/b.xnb „{Lies("Content", "neu", "b.xnb")}“)");
+        if (Lies("nur-alt.txt") != "NUR-ALT" || Lies("logs", "spiel.log") != "LOG")
+            verstoesse.Add($"{wer}: Dateien, die die neue Version nicht mitbringt, wurden verändert oder gelöscht");
+        string sicherung = altExe + UpdateService.OldSuffix;
+        if (!File.Exists(sicherung) || !File.ReadAllBytes(sicherung).SequenceEqual(altExeBytes))
+            verstoesse.Add($"{wer}: die alte Exe liegt nicht als {Path.GetFileName(sicherung)} neben der neuen");
+        if (Directory.Exists(Path.Combine(install, rid)) || Directory.GetDirectories(install, "AoE_Evolutions_v*").Length > 0)
+            verstoesse.Add($"{wer}: die neue Version liegt wieder in einem Unterordner statt an Ort und Stelle");
+        string werk = Path.Combine(install, "update");
+        if (Directory.Exists(werk) && Directory.GetFiles(werk, "*", SearchOption.AllDirectories).Length > 0)
+            verstoesse.Add($"{wer}: im Arbeitsordner update/ liegen nach dem Update noch Dateien");
+        if (gestartet.Count != 1 || gestartet[0].Exe != altExe || gestartet[0].Dir.TrimEnd(Path.DirectorySeparatorChar) != install)
+            verstoesse.Add($"{wer}: gestartet wurde {string.Join(", ", gestartet)}, erwartet genau einmal {altExe} in {install}");
+        if (upH.InstalledExe != altExe)
+            verstoesse.Add($"{wer}: InstalledExe ist {upH.InstalledExe ?? "—"}, erwartet {altExe}");
+        if (upH.EntryText() != "Starte v9.9.9 …" || upH.VersionLine() != $"Version {aktuell} – v9.9.9 startet, diese Version schließt sich")
+            verstoesse.Add($"{wer}: nach Done heißen Eintrag und Zeile „{upH.EntryText()}“ / „{upH.VersionLine()}“");
+        if (upH.CanStartUpdate)
+            verstoesse.Add($"{wer}: nach Done lässt sich das Update erneut starten");
+        if (mitMenue)
+        {
+            Abgleich(mH);
+            if (Waehlbar(mH, 0) || Waehlbar(mH, UPDATE))
+                verstoesse.Add($"{wer}: nach Done sind „Neues Spiel“ oder „Update“ noch wählbar");
+            bool erst = (bool)Methode("ExitAfterUpdate").Invoke(mH, null);
+            bool zweit = (bool)Methode("ExitAfterUpdate").Invoke(mH, null);
+            if (!erst || zweit || exits != 1)
+                verstoesse.Add($"{wer}: nach Done beendet sich die alte Version nicht genau einmal (ExitApp-Aufrufe {exits})");
+        }
+
+        // Nächster Start: die alte Exe läuft noch → Sicherung bleibt; danach ist alles weg
+        if (laeuft is not null)
+        {
+            if (UpdateService.CleanupAfterUpdate(install, 1, 0) == 0)
+                verstoesse.Add($"{wer}: CleanupAfterUpdate meldet 0 Reste, obwohl die alte Exe noch läuft");
+            laeuft.Kill();
+            laeuft.WaitForExit(5000);
+        }
+        File.WriteAllText(Path.Combine(install, "Content", "x.xnb" + UpdateService.OldSuffix + "3"), "rest");
+        int rest = UpdateService.CleanupAfterUpdate(install, 10, 100);
+        if (rest != 0 || Directory.GetFiles(install, "*" + UpdateService.OldSuffix + "*", SearchOption.AllDirectories).Length > 0)
+            verstoesse.Add($"{wer}: nach dem Aufräumen liegen noch Sicherungen in der Installation (gemeldet {rest})");
+        if (Directory.Exists(werk))
+            verstoesse.Add($"{wer}: nach dem Aufräumen gibt es den Arbeitsordner update/ noch");
+        if (Lies(exeName) != "NEU-EXE" || Lies("nur-alt.txt") != "NUR-ALT")
+            verstoesse.Add($"{wer}: das Aufräumen hat Dateien der Installation gelöscht");
+
+        // ---- Falsche Prüfsumme: Abbruch, Installation unverändert, erneut versuchbar
+        sums = $"deadbeef  {asset}";
+        var upS = Neu(out var mS);
+        upS.CheckLatest();
+        string vorExe = Lies(exeName);
+        upS.BeginUpdate();
+        for (int i = 0; i < 800 && upS.UpdateActive; i++)
+            System.Threading.Thread.Sleep(25);
+        if (upS.UpdatePhase != UpdateService.Phase.Failed || !(upS.UpdatePhaseMessage ?? "").Contains("SHA256"))
+            verstoesse.Add($"{wer}: bei falscher SHA256 ist die Phase {upS.UpdatePhase} ({upS.UpdatePhaseMessage}), erwartet Failed mit SHA256");
+        if (Lies(exeName) != vorExe || Directory.GetFiles(install, "*" + UpdateService.OldSuffix + "*", SearchOption.AllDirectories).Length > 0)
+            verstoesse.Add($"{wer}: bei falscher SHA256 wurde die Installation trotzdem angefasst");
+        if (upS.EntryText() != "Update erneut versuchen" || !upS.CanStartUpdate)
+            verstoesse.Add($"{wer}: nach dem Fehler heißt der Eintrag „{upS.EntryText()}“ (startbar {upS.CanStartUpdate}), erwartet „Update erneut versuchen“");
+        if (upS.VersionLine() != $"Version {aktuell} – Update fehlgeschlagen: {upS.UpdatePhaseMessage}")
+            verstoesse.Add($"{wer}: nach dem Fehler heißt die Versionszeile „{upS.VersionLine()}“");
+        if (mitMenue)
+        {
+            Abgleich(mS);
+            if (Text(mS, UPDATE) != "Update erneut versuchen" || !Waehlbar(mS, UPDATE) || !Waehlbar(mS, 0))
+                verstoesse.Add($"{wer}: nach dem Fehler ist „Update erneut versuchen“ ({Waehlbar(mS, UPDATE)}) oder „Neues Spiel“ ({Waehlbar(mS, 0)}) nicht wählbar");
+        }
+
+        // ---- Plattform-Zip fehlt im Release: sauberer Abbruch
+        json = "{\"tag_name\":\"v9.9.9\",\"assets\":[]}";
+        var upO = Neu(out _);
+        upO.CheckLatest();
+        upO.BeginUpdate();
+        for (int i = 0; i < 800 && upO.UpdateActive; i++)
+            System.Threading.Thread.Sleep(25);
+        if (upO.UpdatePhase != UpdateService.Phase.Failed || !(upO.UpdatePhaseMessage ?? "").Contains("fehlt im Release"))
+            verstoesse.Add($"{wer}: ohne Plattform-Zip im Release ist die Phase {upO.UpdatePhase} ({upO.UpdatePhaseMessage}), erwartet Failed „… fehlt im Release“");
+
+        // ---- Schreibgeschützter Spielordner: Browser statt Selbst-Ersetzen
+        UpdateService.InstallDir = Path.Combine(temp, "gibt-es-nicht");
+        var upW = Neu(out _);
+        upW.CheckLatest();
+        geoeffnet = null;
+        bool begonnen = upW.BeginUpdate();
+        if (begonnen || upW.UpdateActive || geoeffnet != UpdateService.UpdateUrl(new Version(9, 9, 9)))
+            verstoesse.Add($"{wer}: ohne Schreibrecht beginnt das Update ({begonnen}) oder öffnet {geoeffnet ?? "—"} statt der Download-Seite");
+        if (upW.UpdatePhase != UpdateService.Phase.Idle || string.IsNullOrEmpty(upW.UpdatePhaseMessage)
+            || upW.VersionLine() != $"Version {aktuell} – {upW.UpdatePhaseMessage}")
+            verstoesse.Add($"{wer}: ohne Schreibrecht nennt die Zeile den Grund nicht („{upW.VersionLine()}“, Phase {upW.UpdatePhase})");
+        if (Directory.Exists(UpdateService.InstallDir))
+            verstoesse.Add($"{wer}: ohne Schreibrecht wurde der Spielordner trotzdem angelegt");
+
+        // ---- Einträge passen auf die Platte: höchstens 24 Zeichen in jeder Phase
+        foreach (var t in new[] { upH.EntryText(), upS.EntryText(), "Update auf v9.9.9" })
+            if (t is null || t.Length > 24)
+                verstoesse.Add($"{wer}: der Update-Eintrag „{t}“ ist zu lang für eine Platte (höchstens 24 Zeichen)");
     }
     finally
     {
@@ -5154,13 +5428,17 @@ static void UpdateMenue(List<string> verstoesse)
         UpdateService.FetchText = altText;
         UpdateService.StartApp = altApp;
         UpdateService.ExitApp = altExit;
-        Aufbereinigen();
+        UpdateService.InstallDir = altInstall;
+        UpdateService.WindowsDX = altDx;
+        try { if (laeuft is not null && !laeuft.HasExited) { laeuft.Kill(); laeuft.WaitForExit(5000); } } catch { }
+        try { if (Directory.Exists(temp)) Directory.Delete(temp, true); } catch { }
     }
 
     if (verstoesse.Count == vorher)
-        Console.WriteLine($"  ok  {wer}: zeigt die Version; Klick lädt die Plattform-Zip, prüft SHA256, entpackt in ein neues Verzeichnis und startet die neue Version; die laufende, blockierte Installation bleibt unangetastet; danach schließt ein Klick die alte Version; falsche Summe/fehlende Zip → sauberes Abbruch; Browser-Fallback öffnet die direkte Zip-URL");
+        Console.WriteLine(mitMenue
+            ? $"  ok  {wer}: Eintrag wie die anderen, nur mit Angebot; während des Updates Spielstart gesperrt; danach beendet sich die alte Version genau einmal"
+            : $"  ok  {wer}: lädt die Zip der laufenden Variante, prüft SHA256, ersetzt die Installation an Ort und Stelle (auch bei laufender Exe), startet neu; Rücksicherung bei Fehlern; Aufräumen beim nächsten Start");
 }
-
 
 // Bewegung der Figuren (C6v): UpdateUnitMotion erkennt, ob eine Einheit läuft
 // und wohin sie blickt; nach kurzem Stillstand gilt sie wieder als stehend und
