@@ -57,7 +57,7 @@ public sealed class Scout : UnitEntity
             HitPoints = BASE_HP,
             BaseAttack = BASE_ATTACK,
             Range = 0,
-            Speed = 1.2f,
+            Speed = 2.7f,
             VisionRange = 7
         };
         return stats;
@@ -227,7 +227,7 @@ public sealed class Knight : UnitEntity
             HitPoints = BASE_HP,
             BaseAttack = BASE_ATTACK,
             Range = 0,
-            Speed = 1.0f,
+            Speed = 2.25f,
             VisionRange = 5
         };
         // Bonus gegen Bogenschützen
@@ -259,7 +259,7 @@ public sealed class CamelRider : UnitEntity
             HitPoints = BASE_HP,
             BaseAttack = BASE_ATTACK,
             Range = 0,
-            Speed = 1.0f,
+            Speed = 2.25f,
             VisionRange = 5
         };
         // Spezial: Bonus gegen Kavallerie

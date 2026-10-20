@@ -28,7 +28,7 @@ public class UnitTests
     {
         var scout = new Scout(0, new Position(0, 0));
         Assert.Equal(7, scout.Stats.VisionRange);
-        Assert.Equal(1.2f, scout.Stats.Speed);
+        Assert.Equal(2.7f, scout.Stats.Speed);
     }
     
     [Fact]

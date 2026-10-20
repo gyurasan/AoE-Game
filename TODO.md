@@ -1,10 +1,15 @@
 # AoE-Clone — TODO / Meilensteine
 
-**Stand:** 2026-10-19 · verifiziert durch Build + Testlauf, nicht aus Doku übernommen.
+**Stand:** 2026-10-20 · verifiziert durch Build + Testlauf, nicht aus Doku übernommen.
 
 ## Wiederaufnahme — hier weitermachen
 
-**Beerenbüsche: am Waldrand statt um die Waldmitte — die Karte trägt jetzt ~127 statt ~13 Büsche** (2026-10-19) — Wunsch: „Wie ist die verteilung der beerenbüsche. Hier scheint es etwas wenige zu geben“.
+**Reiter-Geschwindigkeit: alle Reiter ~2,25× schneller — das 3,1-fache der Fußsoldaten** (2026-10-20) — Wünsche: „die reiter müssen sich etwa 50% schneller bewegen“, „oder etwa doppelt so schnell wie soldaten“, danach „ok er muss noch etwa schneller werden. nochmal etwa 50%“ (weitere Runde +50 % über alle Reiter).
+
+`UnitTypes.cs`: Späher (Scout) 1,2 → 2,7, Ritter 1,0 → 2,25, Kamelreiter 1,0 → 2,25 (Belegungseinheiten/Sekunde; Fußsoldaten liegen bei 0,7–0,8 — die Reiter sind damit gut 3× so schnell wie Miliz/Speer). Test `Scout_HasBetterVision` entsprechend angepasst (1,2f → 2,7f).
+Abnahme: `dotnet build AgeOfEvolutions.slnx` gesperrt durch das laufende Spielfenster (AoE.Core.dll wird von AgeOfEvolutions (31860) blockiert, MSB3027) → isolierter Build von `AgeOfEvolutions.Core`: **0 Fehler, 0 Warnungen** · `dotnet test` **412/412** · `tools/ai-pruefung` alle Prüfungen ok (beide KI-Instanzen, Angriff zeigt Wirkung) · `tools/spielablauf bewegen soldaten angreifen` auf 3 Karten grün. **Offen:** voller Solution-Build (Kopie in die DesktopGL/WindowsDX-Bins) erst, wenn das offene Spielfenster des Users geschlossen ist; neue Werte greifen beim nächsten Spielstart.
+
+Davor: **Beerenbüsche: am Waldrand statt um die Waldmitte — die Karte trägt jetzt ~127 statt ~13 Büsche** (2026-10-19) — Wunsch: „Wie ist die verteilung der beerenbüsche. Hier scheint es etwas wenige zu geben“.
 
 Ursache: `PlaceBerryBushes` streute je Wald 9–16 Büsche in der ±2-Kiste um die KlumpenMITTE. Der Wald trägt aber Radius 3–5 (Soft-Kreis von `InSoftCircle`), also lag fast jede Kachel der Kiste im eigenen Wald und wurde als „keine Wiese“ verworfen — Wälder mit Radius 5 trafen garantiert null Büsche, auf der Karte blieben im Schnitt 13,4 von den ~130 gesetzten. Zusätzlich überschrieben gesetzte Büsche still Schaf-/Reh-/Wildschwein-/Kaninchen-Kacheln (Food-Wechsel ohne Prüfung).
 Neu: `AddResourcePatches` trägt mit jedem Wald seinen Radius weiter (`List<(int x, int y, int radius)>`); `PlaceBerryBushes` stellt die Büsche in einem Band AM WALDRAND (r+1 bis r+2, sicher außerhalb des Soft-Kreis — dort liegen auch die 70-%-Lichtungen) um jeden Wald, bis 12 Winkelversuche je Busch. Eine Kachel mit Gebäude oder bereits stehendem Wild (`Food != FoodSource.None`) wird nicht überschrieben. `kartenpruefung`: neue Gruppe `beeren` (min. 15 Büsche je Karte, sonst Exit 1).
