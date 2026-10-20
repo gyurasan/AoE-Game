@@ -3245,7 +3245,24 @@
    {
     "name": "haus",
     "seed": 5011,
-    "prompt": "A small medieval peasant hut with wattle and daub walls, wooden log posts, a thatched roof, a wooden door and a small blue pennant on the roof.",
+    "prompt": "A small medieval peasant hut with wattle and daub walls, wooden log posts, a thatched roof, a wooden door and a small blue pennant on the roof."
+   },
+   {
+    "name": "haus_kamin",
+    "seed": 5091,
+    "vorlage": "haus_5011_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       530,
+       50,
+       170,
+       230
+      ]
+     ]
+    },
+    "prompt": "A small medieval peasant hut with wattle and daub walls, wooden log posts, a thatched roof with one small chimney of rough fieldstones rising from the roof, a wooden door and a small blue pennant on the roof.",
+    "negativ": "two chimneys, fire, flames",
     "ziel": "Gebaeude/dunkel/haus.png"
    },
    {
@@ -3294,7 +3311,24 @@
    {
     "name": "haus",
     "seed": 5112,
-    "prompt": "A medieval wooden house of planks on a low fieldstone foundation, a wooden shingle roof, a wooden door, a shuttered window and a small blue pennant on the roof.",
+    "prompt": "A medieval wooden house of planks on a low fieldstone foundation, a wooden shingle roof, a wooden door, a shuttered window and a small blue pennant on the roof."
+   },
+   {
+    "name": "haus_kamin",
+    "seed": 5191,
+    "vorlage": "haus_5112_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       540,
+       85,
+       170,
+       230
+      ]
+     ]
+    },
+    "prompt": "A medieval wooden house of planks on a low fieldstone foundation, a wooden shingle roof with one small fieldstone chimney rising from the roof, a wooden door, a shuttered window and a small blue pennant on the roof.",
+    "negativ": "two chimneys, fire, flames",
     "ziel": "Gebaeude/feudal/haus.png"
    },
    {
@@ -3404,7 +3438,24 @@
    {
     "name": "haus",
     "seed": 5311,
-    "prompt": "An elegant three-storey late medieval town house of pale cream stone with ornate framed windows, a decorated stepped gable, a dark slate roof with a dormer, golden ornaments and a small blue pennant on a golden pole on the roof.",
+    "prompt": "An elegant three-storey late medieval town house of pale cream stone with ornate framed windows, a decorated stepped gable, a dark slate roof with a dormer, golden ornaments and a small blue pennant on a golden pole on the roof."
+   },
+   {
+    "name": "haus_kamin",
+    "seed": 5357,
+    "vorlage": "haus_5311_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       470,
+       152,
+       106,
+       190
+      ]
+     ]
+    },
+    "prompt": "An elegant three-storey late medieval town house of pale cream stone with ornate framed windows, a decorated stepped gable, golden ornaments and a small blue pennant on a golden pole on the roof. On the front slope of the dark slate roof, left of the dormer, stands one short square chimney of pale cream stone with a dark stone cap and a dark opening on top.",
+    "negativ": "two chimneys, fire, flames, flat chimney, broken ridge",
     "ziel": "Gebaeude/imperial/haus.png"
    },
    {
@@ -3718,8 +3769,32 @@
     "name": "schmiede",
     "seed": 5370,
     "prompt": "A grand late medieval armory forge of pale cream stone with a dark slate roof, two tall stone chimneys, an open arched front with a glowing orange forge, an iron anvil and a rack of armor in front and a small blue flag on a tall pole beside the building, the flag flying to the right on a golden pole.",
-    "ziel": "Gebaeude/imperial/schmiede.png",
     "zielbreite": 384
+   },
+   {
+    "name": "schmiede_ein_kamin",
+    "seed": 5397,
+    "vorlage": "schmiede_5370_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       290,
+       50,
+       125,
+       200
+      ],
+      [
+       284,
+       240,
+       72,
+       40
+      ]
+     ]
+    },
+    "prompt": "A grand late medieval armory forge of pale cream stone with a dark slate gable roof and only one tall stone chimney at the right corner, an open arched front with a glowing orange forge, an iron anvil and a rack of armor in front and a small blue flag on a tall pole beside the building, the flag flying to the right on a golden pole.",
+    "negativ": "second chimney, two chimneys, chimney behind the gable, chimney on the left, tower, turret",
+    "zielbreite": 384,
+    "ziel": "Gebaeude/imperial/schmiede.png"
    },
    {
     "name": "markt",

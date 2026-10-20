@@ -598,4 +598,268 @@ public partial class RTSGameplayScreen
             spriteBatch.Draw(px, p - dir * len * 0.45f, null, a.Fletched ? new Color(150, 44, 34) : new Color(132, 120, 104), angle, new Vector2(0.5f), new Vector2(MathF.Max(2f, 3f * cameraZoom), MathF.Max(1.5f, 2.2f * cameraZoom)), SpriteEffects.None, 0f);
         }
     }
+
+    // --- A5 Feuer und Rauch ------------------------------------------------------------
+
+    // Nutzer (2026-10-20): „die Animation für die Feuer in der Schmiede fehlt. So wie der Kaminrauch
+    // von den häusern“. Das gemalte Feuer der Schmiede flackert, glüht und sprüht Funken; aus den
+    // Kaminen von Schmiede und Haus steigt Rauch, den der Wind nach rechts treibt. Alles hängt nur an
+    // animationTime - kein Zustand, nichts im Spielstand. Baustellen brennen und rauchen nicht.
+
+    // Die Kaminöffnung je Bild in Bildpunkten des Bilds, am Bild gemessen (blau und rot gleich). Jedes
+    // Haus und jede Schmiede hat genau einen Kamin (Nutzer 2026-10-20: „achte darauf das jedes gebäude
+    // nur einen Kamin hat“) - die Bilder ohne oder mit zwei Kaminen sind dafür neu gemalt (tools/bilder)
+    private static readonly Dictionary<string, Vector2> ChimneyTops = new()
+    {
+        ["Gebaeude/dunkel/haus"] = new Vector2(176, 27),
+        ["Gebaeude/feudal/haus"] = new Vector2(174, 30),
+        ["Gebaeude/ritter/haus"] = new Vector2(163, 26),
+        ["Gebaeude/imperial/haus"] = new Vector2(147, 57),
+        ["Gebaeude/feudal/schmiede"] = new Vector2(244, 7),
+        ["Gebaeude/ritter/schmiede"] = new Vector2(262, 39),
+        ["Gebaeude/imperial/schmiede"] = new Vector2(258, 66),
+    };
+    // Feuerstelle der Schmiede je Bild in Bildpunkten: Fuß der gemalten Flammen (Mitte), ihre Breite und Höhe
+    private static readonly Dictionary<string, (Vector2 Base, float Width, float Height)> ForgeFires = new()
+    {
+        ["Gebaeude/feudal/schmiede"] = (new Vector2(121, 256), 24f, 32f),
+        ["Gebaeude/ritter/schmiede"] = (new Vector2(131, 292), 36f, 46f),
+        ["Gebaeude/imperial/schmiede"] = (new Vector2(127, 266), 30f, 40f),
+    };
+    private readonly Dictionary<Texture2D, Vector2> _chimneys = new();
+    private readonly Dictionary<Texture2D, (Vector2 Base, float Width, float Height)> _forgeFires = new();
+    private Texture2D _flame;   // eine Flammenzunge, weiß: unten breit, oben spitz
+
+    internal const int SMOKE_PUFFS = 10;         // so viele Wolken steigen je Kamin zugleich
+    internal const float SMOKE_SECONDS = 5f;     // so lange steigt eine Wolke, bis sie verweht ist
+    internal const float SMOKE_RISE = 220f;      // so hoch steigt sie, in Bildpunkten des Gebäudebilds
+    internal const int FLAME_TONGUES = 5;        // Flammenzungen je Feuer
+    internal const int SPARKS = 6;               // Funken je Feuer zugleich
+    internal const float SPARK_SECONDS = 1.1f;   // so lange fliegt ein Funke
+
+    /// <summary>
+    /// Eine Rauchwolke (A5): wo sie gegenüber der Kaminöffnung steht, wie groß und wie deckend sie ist
+    /// und wie alt (0 eben aus dem Kamin, gegen 1 verweht). time ist die Uhr des Kamins, k die Nummer
+    /// der Wolke (0 bis SMOKE_PUFFS - 1), gust die Böe am Gebäude (Wind.Gust, 0 bis 1). Längen in
+    /// Bildpunkten des Gebäudebilds, nach oben negativ.
+    /// VERTRAG:
+    /// 1. t = time + k * SMOKE_SECONDS / SMOKE_PUFFS; cycle = (int)MathF.Floor(t / SMOKE_SECONDS);
+    ///    age = t / SMOKE_SECONDS - cycle.
+    /// 2. h = Hash(cycle, k, 500); r = (h % 1000) / 1000f - jede Wolke ein wenig anders.
+    /// 3. offset = new Vector2((24f + 80f * gust) * age * age + MathF.Sin(t * 1.3f + k * 2.1f) * 8f * age,
+    ///    -SMOKE_RISE * age * (1f - 0.3f * gust)).
+    /// 4. radius = (12f + 56f * age) * (0.85f + 0.3f * r).
+    /// 5. alpha = 0.55f * MathHelper.Clamp(age / 0.1f, 0, 1) * (1 - age).
+    /// Rückgabe (offset, radius, alpha, age).
+    /// </summary>
+    internal static (Vector2 Offset, float Radius, float Alpha, float Age) SmokePuff(float time, int k, float gust)
+    {
+        // 1. Uhr des Kamins, jede Wolke mit eigenem Versatz, Zyklus und Alter
+        float t = time + k * SMOKE_SECONDS / SMOKE_PUFFS;
+        int cycle = (int)MathF.Floor(t / SMOKE_SECONDS);
+        float age = t / SMOKE_SECONDS - cycle;
+        // 2. jede Wolke ein wenig anders
+        int h = Hash(cycle, k, 500);
+        float r = (h % 1000) / 1000f;
+        // 3. aufsteigen, vom Wind nach rechts treiben, sanft wackeln
+        Vector2 offset = new((24f + 80f * gust) * age * age + MathF.Sin(t * 1.3f + k * 2.1f) * 8f * age,
+            -SMOKE_RISE * age * (1f - 0.3f * gust));
+        // 4. wächst beim Steigen
+        float radius = (12f + 56f * age) * (0.85f + 0.3f * r);
+        // 5. einblenden, dann verwehen
+        float alpha = 0.55f * MathHelper.Clamp(age / 0.1f, 0, 1) * (1 - age);
+        return (offset, radius, alpha, age);
+    }
+
+    /// <summary>
+    /// Wie hell das Schmiedefeuer zur Zeit time flackert, von 0 bis 1.
+    /// VERTRAG: 0.5f + 0.22f * MathF.Sin(time * 11.3f) + 0.16f * MathF.Sin(time * 17.9f + 1.3f)
+    /// + 0.12f * MathF.Sin(time * 29.1f + 0.7f), mit MathHelper.Clamp auf 0 bis 1 begrenzt.
+    /// </summary>
+    internal static float FireFlicker(float time)
+    {
+        // drei Sinuswellen im eigenen Takt, auf 0 bis 1 begrenzt
+        float f = 0.5f + 0.22f * MathF.Sin(time * 11.3f) + 0.16f * MathF.Sin(time * 17.9f + 1.3f)
+            + 0.12f * MathF.Sin(time * 29.1f + 0.7f);
+        return MathHelper.Clamp(f, 0, 1);
+    }
+
+    /// <summary>
+    /// Eine Flammenzunge (A5), j von 0 bis FLAME_TONGUES - 1: X der Versatz ihres Fußes von der Mitte
+    /// der Feuerstelle und Height ihre Höhe, beide als Anteil an Breite und Höhe des Feuers, Tilt ihre
+    /// Neigung in Bogenmaß (positiv nach rechts).
+    /// VERTRAG:
+    /// 1. s = j / (float)(FLAME_TONGUES - 1) - 0.5f (von -0,5 links bis 0,5 rechts).
+    /// 2. x = s * 0.75f + MathF.Sin(time * 6.1f + j * 1.9f) * 0.05f.
+    /// 3. flick = 0.5f + 0.5f * MathF.Sin(time * (8.3f + j * 2.7f) + j * 1.3f);
+    ///    height = (1f - 0.9f * MathF.Abs(s)) * (0.6f + 0.4f * flick) - außen kürzer, jede im eigenen Takt.
+    /// 4. tilt = s * 0.25f + MathF.Sin(time * 4.7f + j * 2.3f) * 0.12f - außen nach außen geneigt.
+    /// Rückgabe (x, height, tilt).
+    /// </summary>
+    internal static (float X, float Height, float Tilt) FlameTongue(float time, int j)
+    {
+        // 1. von -0,5 links bis 0,5 rechts
+        float s = j / (float)(FLAME_TONGUES - 1) - 0.5f;
+        // 2. Fuß leicht hin und her
+        float x = s * 0.75f + MathF.Sin(time * 6.1f + j * 1.9f) * 0.05f;
+        // 3. außen kürzer, jede im eigenen Takt
+        float flick = 0.5f + 0.5f * MathF.Sin(time * (8.3f + j * 2.7f) + j * 1.3f);
+        float height = (1f - 0.9f * MathF.Abs(s)) * (0.6f + 0.4f * flick);
+        // 4. außen nach außen geneigt
+        float tilt = s * 0.25f + MathF.Sin(time * 4.7f + j * 2.3f) * 0.12f;
+        return (x, height, tilt);
+    }
+
+    /// <summary>
+    /// Ein Funke (A5), k von 0 bis SPARKS - 1: Versatz vom Fuß der Flammen als Anteil an Breite (X) und
+    /// Höhe (Y, nach oben negativ) des Feuers, und wie hell er glüht (0 bis 1).
+    /// VERTRAG:
+    /// 1. t = time + k * 0.37f; cycle = (int)MathF.Floor(t / SPARK_SECONDS); f = t / SPARK_SECONDS - cycle.
+    /// 2. h = Hash(cycle, k, 600); r1 = (h % 1000) / 1000f; r2 = ((h &gt;&gt; 10) % 1000) / 1000f.
+    /// 3. offset = new Vector2((r1 - 0.5f) * 0.6f + MathF.Sin(f * 9f + k) * 0.08f, -f * (0.9f + 0.7f * r2)).
+    /// 4. glow = (1 - f) * MathHelper.Clamp(f / 0.1f, 0, 1).
+    /// Rückgabe (offset, glow).
+    /// </summary>
+    internal static (Vector2 Offset, float Glow) Spark(float time, int k)
+    {
+        // 1. jeder Funke im eigenen Takt
+        float t = time + k * 0.37f;
+        int cycle = (int)MathF.Floor(t / SPARK_SECONDS);
+        float f = t / SPARK_SECONDS - cycle;
+        // 2. jeder Funke ein wenig anders
+        int h = Hash(cycle, k, 600);
+        float r1 = (h % 1000) / 1000f;
+        float r2 = ((h >> 10) % 1000) / 1000f;
+        // 3. nach oben sprühen, leicht wackeln
+        Vector2 offset = new((r1 - 0.5f) * 0.6f + MathF.Sin(f * 9f + k) * 0.08f, -f * (0.9f + 0.7f * r2));
+        // 4. aufleuchten, dann erlöschen
+        float glow = (1 - f) * MathHelper.Clamp(f / 0.1f, 0, 1);
+        return (offset, glow);
+    }
+
+    /// <summary>
+    /// Eine Flammenzunge als Bild, einmal angelegt: weiß, am breitesten bei drei Vierteln der Höhe, oben
+    /// spitz, mit weichem Rand.
+    /// VERTRAG: ist _flame nicht null, _flame. Sonst w = 16, hgt = 32; je Bildpunkt (x, y): v = (y + 0.5f) / hgt
+    /// (0 oben, 1 unten); half = 0.48f * MathF.Sin(MathF.PI * MathF.Pow(v, 2.4f)); d = MathF.Abs((x + 0.5f) / w - 0.5f);
+    /// a = half &lt;= 0.001f ? 0f : MathHelper.Clamp(1 - d / half, 0, 1); a = a * a * (3 - 2 * a); Farbe
+    /// Color.White * a. _flame = new Texture2D(graphicsDevice, w, hgt) mit SetData dieser Farben (Index
+    /// y * w + x); Rückgabe _flame.
+    /// </summary>
+    private Texture2D FlameTexture()
+    {
+        if (_flame != null)
+            return _flame;
+        int w = 16, hgt = 32;
+        Color[] data = new Color[w * hgt];
+        for (int y = 0; y < hgt; y++)
+            for (int x = 0; x < w; x++)
+            {
+                // 0 oben, 1 unten; Breite der Zunge je Höhe, oben spitz
+                float v = (y + 0.5f) / hgt;
+                float half = 0.48f * MathF.Sin(MathF.PI * MathF.Pow(v, 2.4f));
+                float d = MathF.Abs((x + 0.5f) / w - 0.5f);
+                float a = half <= 0.001f ? 0f : MathHelper.Clamp(1 - d / half, 0, 1);
+                a = a * a * (3 - 2 * a);
+                data[y * w + x] = Color.White * a;
+            }
+        _flame = new Texture2D(graphicsDevice, w, hgt);
+        _flame.SetData(data);
+        return _flame;
+    }
+
+    /// <summary>
+    /// Das Feuer der Schmiede (A5) über dem gemalten: Lichtschein, Flammenzungen und Funken. Alle Farben
+    /// mit Alpha 0 - im vormultiplizierten AlphaBlend des Batches addieren sie sich, das Feuer leuchtet.
+    /// VERTRAG (spriteBatch.Draw; px weißes 1x1-Bild):
+    /// 1. Nichts, wenn _forgeFires keinen Eintrag für sprite hat (fire).
+    /// 2. scale = area.Width / (float)sprite.Width; foot = new Vector2(area.X + fire.Base.X * scale,
+    ///    area.Y + fire.Base.Y * scale); w = fire.Width * scale; hgt = fire.Height * scale;
+    ///    t = animationTime + phase; flicker = FireFlicker(t).
+    /// 3. Schein: PuffTexture() auf Rectangle((int)(foot.X - w * 1.3f), (int)(foot.Y - hgt * 1.25f),
+    ///    (int)(w * 2.6f), (int)(hgt * 1.6f)) in new Color(255, 120, 40, 0) * (0.18f + 0.22f * flicker).
+    /// 4. Zungen: flame = FlameTexture(); origin = new Vector2(flame.Width / 2f, flame.Height * 0.9f);
+    ///    for (int j = 0; j &lt; FLAME_TONGUES; j++): (x, height, tilt) = FlameTongue(t, j);
+    ///    p = new Vector2(foot.X + x * w, foot.Y); außen flame an p, Quelle null,
+    ///    new Color(255, 110, 20, 0) * 0.55f, tilt, origin, Maßstab new Vector2(w * 0.34f / flame.Width,
+    ///    hgt * height / flame.Height), SpriteEffects.None, 0f; dann innen dasselbe in
+    ///    new Color(255, 214, 110, 0) * 0.5f mit Maßstab new Vector2(w * 0.17f / flame.Width,
+    ///    hgt * height * 0.6f / flame.Height).
+    /// 5. Funken: size = MathF.Max(1f, 4f * scale); for (int k = 0; k &lt; SPARKS; k++): (offset, glow) =
+    ///    Spark(t, k); q = foot + new Vector2(offset.X * w, offset.Y * hgt); px auf
+    ///    Rectangle((int)q.X, (int)q.Y, (int)size, (int)size) in new Color(255, 196, 90, 0) * glow.
+    /// </summary>
+    private void DrawForgeFire(SpriteBatch spriteBatch, Texture2D sprite, Rectangle area, float phase)
+    {
+        // 1. Nur Schmieden haben eine Feuerstelle
+        if (!_forgeFires.TryGetValue(sprite, out var fire))
+            return;
+        // 2. Größe der Feuerstelle auf dem Bildschirm, Fuß der Flammen, Flackern
+        float scale = area.Width / (float)sprite.Width;
+        Vector2 foot = new(area.X + fire.Base.X * scale, area.Y + fire.Base.Y * scale);
+        float w = fire.Width * scale;
+        float hgt = fire.Height * scale;
+        float t = animationTime + phase;
+        float flicker = FireFlicker(t);
+        // 3. Lichtschein, additiv
+        spriteBatch.Draw(PuffTexture(), new Rectangle((int)(foot.X - w * 1.3f), (int)(foot.Y - hgt * 1.25f),
+            (int)(w * 2.6f), (int)(hgt * 1.6f)), new Color(255, 120, 40, 0) * (0.18f + 0.22f * flicker));
+        // 4. Flammenzungen: außen orange, innen gelb
+        Texture2D flame = FlameTexture();
+        Vector2 origin = new(flame.Width / 2f, flame.Height * 0.9f);
+        for (int j = 0; j < FLAME_TONGUES; j++)
+        {
+            var (x, height, tilt) = FlameTongue(t, j);
+            Vector2 p = new(foot.X + x * w, foot.Y);
+            spriteBatch.Draw(flame, p, null, new Color(255, 110, 20, 0) * 0.55f, tilt, origin,
+                new Vector2(w * 0.34f / flame.Width, hgt * height / flame.Height), SpriteEffects.None, 0f);
+            spriteBatch.Draw(flame, p, null, new Color(255, 214, 110, 0) * 0.5f, tilt, origin,
+                new Vector2(w * 0.17f / flame.Width, hgt * height * 0.6f / flame.Height), SpriteEffects.None, 0f);
+        }
+        // 5. Funken, die nach oben sprühen
+        float size = MathF.Max(1f, 4f * scale);
+        for (int k = 0; k < SPARKS; k++)
+        {
+            var (offset, glow) = Spark(t, k);
+            Vector2 q = foot + new Vector2(offset.X * w, offset.Y * hgt);
+            spriteBatch.Draw(px, new Rectangle((int)q.X, (int)q.Y, (int)size, (int)size), new Color(255, 196, 90, 0) * glow);
+        }
+    }
+
+    /// <summary>
+    /// Rauch aus dem Kamin eines Gebäudebilds (A5): SMOKE_PUFFS weiche Wolken, die aufsteigen, wachsen,
+    /// vom Wind nach rechts treiben und verwehen - am Kamin dunkel, oben hell.
+    /// VERTRAG:
+    /// 1. Nichts, wenn _chimneys keinen Eintrag für sprite hat (chimney).
+    /// 2. scale = area.Width / (float)sprite.Width; puff = PuffTexture(); gust = Wind.Gust(tile, animationTime);
+    ///    top = new Vector2(area.X + chimney.X * scale, area.Y + chimney.Y * scale).
+    /// 3. for (int k = 0; k &lt; SMOKE_PUFFS; k++): (offset, radius, alpha, age) = SmokePuff(animationTime + phase,
+    ///    k, gust); weiter mit der nächsten Wolke, wenn alpha &lt;= 0.003f; c = top + offset * scale;
+    ///    r = radius * scale; puff auf
+    ///    Rectangle((int)(c.X - r), (int)(c.Y - r), (int)(2 * r), (int)(2 * r)) in
+    ///    Color.Lerp(new Color(128, 124, 120), new Color(214, 212, 208), age) * alpha.
+    /// </summary>
+    private void DrawChimneySmoke(SpriteBatch spriteBatch, Texture2D sprite, Rectangle area, Vector2 tile, float phase)
+    {
+        // 1. Nur Gebäude mit Kamin rauchen
+        if (!_chimneys.TryGetValue(sprite, out var chimney))
+            return;
+        // 2. Kaminöffnung auf dem Bildschirm, Böe am Gebäude
+        float scale = area.Width / (float)sprite.Width;
+        Texture2D puff = PuffTexture();
+        float gust = Wind.Gust(tile, animationTime);
+        Vector2 top = new(area.X + chimney.X * scale, area.Y + chimney.Y * scale);
+        // 3. Wolken steigen, wachsen, treiben und verwehen
+        for (int k = 0; k < SMOKE_PUFFS; k++)
+        {
+            var (offset, radius, alpha, age) = SmokePuff(animationTime + phase, k, gust);
+            if (alpha <= 0.003f)
+                continue;
+            Vector2 c = top + offset * scale;
+            float r = radius * scale;
+            // am Kamin dunkel, oben hell
+            spriteBatch.Draw(puff, new Rectangle((int)(c.X - r), (int)(c.Y - r), (int)(2 * r), (int)(2 * r)),
+                Color.Lerp(new Color(128, 124, 120), new Color(214, 212, 208), age) * alpha);
+        }
+    }
 }

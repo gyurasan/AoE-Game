@@ -4,7 +4,14 @@
 
 ## Wiederaufnahme — hier weitermachen
 
-**Pfeilbilder: einfacher Pfeil und „Befiederte Pfeile“ (A4)** (2026-10-20) — Wunsch: „kannst du danach noch die Pfeile in high quality generieren. Die zwei verschiedenen typen. Also nach der Weiterentwicklung müssen sie ja etwas anders aussehen“.
+**Feuer in der Schmiede und Kaminrauch, je Haus und Schmiede genau ein Kamin (A5, C6f)** (2026-10-20) — Wünsche: „die Animation für die Feuer in der Schmiede fehlt. So wie der Kaminrauch von den häusern“, dann „achte darauf das jedes gebäude nur einen Kamin hat“ und „wo nötig musst du das Bild neu generieren mit einem Kamiin“.
+
+Neuer Abschnitt „A5 Feuer und Rauch“ in `Screens/RTSGameplayScreen.Animationen.cs`, alles zustandslos aus `animationTime` (nichts im Spielstand). **Feuer** (`DrawForgeFire`): über dem gemalten Feuer ein flackernder Lichtschein (`FireFlicker`, drei Sinus in krummen Takten), fünf Flammenzungen (`FlameTongue`, Bild `FlameTexture`: unten breit, oben spitz; außen orange, innen gelb, jede im eigenen Takt, außen kürzer und nach außen geneigt) und sechs Funken (`Spark`), die aufglimmen, steigen und verlöschen. Alle Farben mit Alpha 0 — im vormultiplizierten AlphaBlend des Batches addieren sie sich, das Feuer leuchtet ohne eigenen Batch und bleibt in der Tiefensortierung. Feuerstelle je Bild gemessen (`ForgeFires`: Fuß, Breite, Höhe der gemalten Flammen). **Rauch** (`DrawChimneySmoke`): je Kamin zehn weiche Wolken (`SmokePuff`, `PuffTexture`), gestaffelt alle 0,5 s, 5 s Aufstieg über 220 Bildpunkte; sie wachsen, werden heller und verwehen, der Wind (`Wind.Gust` am Gebäude, dieselben Böen wie Bäume und Weizen) treibt sie nach rechts. Kaminöffnung je Bild gemessen (`ChimneyTops`, ein `Vector2` je Bild). Baustellen brennen und rauchen nicht (nur der fertige Zweig von `DrawBuilding` ruft beides).
+**Ein Kamin je Gebäude, Bilder ausgebessert** (Qwen-Image-Inpainting, nur die Maskenfläche neu gemalt, Fahne und Tür bleiben pixelgleich): Häuser der Dunklen Zeit (`haus_kamin` Seed 5091, Feldsteinkamin im Strohdach), Feudalzeit (5191, Feldsteinkamin auf den Schindeln) und Imperialzeit (5357, heller Steinkamin mit dunkler Kappe neben der Gaube — Qwen malte auf der engen Schieferfläche meist gar keinen Kamin oder zerschnitt den First, 11 Seeds versucht); die Imperial-Schmiede (`schmiede_ein_kamin` 5397) hat ihren zweiten, linken Kamin verloren. Die alten Einträge stehen ohne `ziel` weiter in `bilder.json`. Haus-Sprites behalten ihre Größe; die Imperial-Schmiede ist oben 2 px kürzer (371 statt 373), ihr `FlagCloth` rückt von y 92 auf 90, ihre Feuerstelle von 268 auf 266. Ritterzeit-Haus und Feudal-/Ritter-Schmiede hatten schon genau einen Kamin.
+Umgesetzt vom lokalen Modell nach Vertrag (A5, 4 Züge, 45 s, im ersten Lauf angenommen; Code zeichengleich mit der Referenz, nur Kommentare anders — „außen rot“ von Hand zu „orange“ berichtigt).
+Abnahme: Builds DesktopGL + WindowsDX 0 Fehler · `dotnet test` **412/412** · neue Gruppe `tools/spielablauf feuer` (je Haus und Schmiede genau ein Kamin und das Bild dazu, jede Schmiede eine Feuerstelle; `SmokePuff`, `FireFlicker`, `FlameTongue`, `Spark` genau nach Vertrag; Rauch und Funken stetig von Bild zu Bild, Wolken gestaffelt, Flackern zwischen 0,15 und 0,99) mit `pfeile einsturz bauphasen fahne` grün · neue Strukturprüfung `checks/a5_feuer.py` (Einbindung nach dem Windrad, additive Farben, Bausteine der Zeichenrümpfe), `u_vertrag.py`, `c6a_bewegt.py` (Fahnenrechtecke passen zu den neuen Bildern), `c4g_zeitalter.py` (prüft die Pflichtbilder jetzt nach `ziel` statt nach Namen) · Mutantenlauf 18 von 18 gefunden · Startprobe GL + DX · Fotos im Spiel (Foto-Patch in der Scratchpad-Kopie, alle vier Zeitalter, drei Zeitpunkte): Rauch steigt genau aus jedem Kamin, das Feuer wechselt Form und Helligkeit, Funken steigen. Offen: Sichtprüfung durch den Nutzer.
+
+Davor: **Pfeilbilder: einfacher Pfeil und „Befiederte Pfeile“ (A4)** (2026-10-20) — Wunsch: „kannst du danach noch die Pfeile in high quality generieren. Die zwei verschiedenen typen. Also nach der Weiterentwicklung müssen sie ja etwas anders aussehen“.
 
 Die Weiterentwicklung ist die Schmiede-Forschung „Befiederte Pfeile“ (`Tech.Fletching`). Neue Bildgruppe `pfeile` in `tools/bilder/bilder.json` (Qwen-Image 1664×928, waagrecht, Spitze rechts, freigestellt, 128 px breit), je 3 Seeds erzeugt und gewählt: `Content/Effekte/pfeil.png` (Seed 10102: heller Holzschaft, dunkle Eisenspitze, graubraune Federn) und `Content/Effekte/pfeil_befiedert.png` (Seed 10201: Eschenschaft, lange Stahlspitze, rot-weiße Federn mit roter Wicklung), beide in `AgeOfEvolutions.mgcb` (Mipmaps). `Arrow.Fletched` hält beim Abschuss fest, ob der **Besitzer des Schützen** die Forschung hat (`PlayerOf(unit).Techs`); `DrawArrows` zeichnet das passende Bild um den Flugwinkel gedreht und auf `ArrowLength` skaliert (einfach 14, befiedert 17 Weltpixel); fehlt ein Bild, die Striche aus A3 (Federn graubraun bzw. rot). Umgesetzt vom lokalen Modell (A4, 26 s, Code bis auf Kommentare gleich der Referenz).
 Abnahme: Builds DesktopGL + WindowsDX 0 Fehler · `dotnet test` **412/412** · `tools/spielablauf pfeile einsturz bauphasen kampfklang zielen verteidigung soldaten angriff kampfbild` auf 3 Karten grün — `pfeile` prüft neu fünf Fälle (ohne Forschung, Spieler 0 bzw. 1 hat sie, je eigener und fremder Schütze) und die Länge; Mutanten „immer Spieler 1“, „immer/nie befiedert“, „gleiche Länge“ alle gefunden · `checks/u_vertrag.py` (ArrowLength, DrawArrows), `start_rts.py gl|dx` · Foto im Spiel (Foto-Patch in der Scratchpad-Kopie, Zoom 4): beide Typen im Flug steigend, waagrecht, fallend klar zu unterscheiden. Der einfache Pfeil ist auf dunklem Gras eher unauffällig (wie ein echter Holzpfeil).
@@ -575,8 +582,8 @@ Nächste sinnvolle Schritte, in dieser Reihenfolge:
    Zeitalter (T1b, G11, H1) im Spiel; dazu Gehen (C4l, C4m) und Schwertschlag
    (C4n) sind fertig; in Zeitlupe in `docs/bilder/gang.gif` und `docs/bilder/schlag.gif`. Der
    Bogenschütze schießt beim Angriff noch nicht sichtbar (Bogen spannen, Pfeil) - siehe C4n.
-2. **Feuer in der Schmiede animieren** (Hinweis des Nutzers, 2026-10-07) — das Feuer ist
-   bisher nur gemalt und steht still. Siehe C6f.
+2. ~~**Feuer in der Schmiede animieren**~~ — erledigt (A5, 2026-10-20): Feuer flackert, Funken,
+   Kaminrauch aus Haus und Schmiede. Siehe C6f.
 3. **Rechteckige Karte** (Hinweis des Nutzers, 2026-10-07) — die Karte ist quadratisch
    (`TileMap(side, side, …)`), sie sollte ungefähr das Seitenverhältnis des Bildschirms
    haben. Siehe C11r.
@@ -1196,7 +1203,9 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
       Gebaeude/muehle_fluegel dreht der Code um die Nabe), und die Fahnen auf Haus, Mühle,
       Wachturm und den Lagern wehen - das Tuch in Streifen, die eine Welle hebt und
       senkt (DrawWavingFlag, FlagWave) *(Agent C6a)*
-- [ ] **C6f Feuer in der Schmiede** (Hinweis des Nutzers, 2026-10-07): das Feuer der
+- [x] **C6f Feuer in der Schmiede** — erledigt als A5 (2026-10-20, siehe oben), dazu Kaminrauch
+      aus Haus und Schmiede, je Gebäude genau ein Kamin *(Agent A5)*. Ursprünglicher Hinweis
+      (Nutzer, 2026-10-07): das Feuer der
       Schmiede ist nur ins Bild gemalt und steht still. Es soll flackern und glühen, wie die
       Mühle sich dreht und die Fahnen wehen. Die Feuerstelle je Bild messen (wie
       `DoorCenters`, `MillHubs`), für die Schmiede in Feudal-, Ritter- und Imperialzeit

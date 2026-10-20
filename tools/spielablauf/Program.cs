@@ -10,6 +10,7 @@
 // nebelboden (Gras und Pfade im Nebel bleiben, wie man sie zuletzt gesehen hat),
 // festerboden (Gras ändert sich nie, nur Pfade, Wege und Gebäude legen sich darüber; ein Pfad bleibt),
 // bauphasen, einsturz und pfeile (Animationen A1-A3: Bauphasen, Einsturz-Liste, Pfeile landen beim Treffer),
+// feuer (A5: Schmiedefeuer, Funken und Kaminrauch nach Vertrag, je Haus und Schmiede genau ein Kamin),
 // wegkarte (was der Wege-Shader als Weg zeichnet, schräge Lücken aufgefüllt),
 // zielen (Gegner an der ganzen Figur anklicken), verteidigung (Soldaten verteidigen das
 // Stadtzentrum) und kampfbild (Schlagbilder und Blick gegen Einheiten). Eine gemischte
@@ -129,6 +130,9 @@ for (int karte = 1; karte <= KARTEN; karte++)
         Pruefe($"Karte {karte}, Einsturz", () => Einsturz(karte, verstoesse));
     if (gruppen.Contains("pfeile"))
         Pruefe($"Karte {karte}, Pfeile", () => Pfeile(karte, verstoesse));
+    // Feuer und Rauch (A5) hängen nur an der Zeit, nicht an der Karte
+    if (gruppen.Contains("feuer") && karte == 1)
+        Pruefe("Feuer und Rauch", () => FeuerUndRauch(verstoesse));
     if (gruppen.Contains("festerboden"))
         Pruefe($"Karte {karte}, Fester Boden", () => FesterBoden(karte, verstoesse));
     if (gruppen.Contains("nebelboden"))
@@ -2624,6 +2628,137 @@ static void Einsturz(int karte, List<string> verstoesse)
         verstoesse.Add($"{wer}: zwei Einstürze nacheinander: {liste.Count} in der Liste, Alter falsch");
     if (verstoesse.Count == vorher)
         Console.WriteLine($"  ok  {wer}: Haus sofort fort, Einsturz an seiner Stelle, altert mit der Spielschleife, Trümmer {trummer} s");
+}
+
+// Feuer und Rauch (A5): Rauchwolken, Flackern, Flammenzungen und Funken rechnen genau nach ihrem
+// Vertrag, laufen stetig (kein Sprung, wenn eine Wolke oder ein Funke neu beginnt), und jedes Haus
+// und jede Schmiede hat genau einen Kamin (Nutzer 2026-10-20), jede Schmiede eine Feuerstelle
+static void FeuerUndRauch(List<string> verstoesse)
+{
+    const string wer = "Feuer und Rauch";
+    int vorher = verstoesse.Count;
+    var typ = typeof(RTSGameplayScreen);
+    const BindingFlags S = BindingFlags.NonPublic | BindingFlags.Static;
+    MethodInfo M(string n) => typ.GetMethod(n, S) ?? throw new InvalidOperationException($"RTSGameplayScreen.{n} nicht gefunden - umbenannt?");
+    object K(string n) => typ.GetField(n, S)?.GetValue(null) ?? throw new InvalidOperationException($"RTSGameplayScreen.{n} nicht gefunden - umbenannt?");
+    var hash = M("Hash");
+    int H(int a, int b, int k) => (int)hash.Invoke(null, new object[] { a, b, k })!;
+    object[] Tupel(MethodInfo m, params object[] a)
+    {
+        var t = (System.Runtime.CompilerServices.ITuple)m.Invoke(null, a)!;
+        return Enumerable.Range(0, t.Length).Select(i => t[i]!).ToArray();
+    }
+    int puffs = (int)K("SMOKE_PUFFS"), zungen = (int)K("FLAME_TONGUES"), funken = (int)K("SPARKS");
+    float rauchZeit = (float)K("SMOKE_SECONDS"), steigen = (float)K("SMOKE_RISE"), funkenZeit = (float)K("SPARK_SECONDS");
+
+    // 1. Je Haus und Schmiede genau ein Kamin, das Bild dazu gibt es; jede Schmiede eine Feuerstelle
+    var kamine = (System.Collections.IDictionary)K("ChimneyTops");
+    var feuerstellen = (System.Collections.IDictionary)K("ForgeFires");
+    foreach (var alter in new[] { "dunkel", "feudal", "ritter", "imperial" })
+        foreach (var art in new[] { "haus", "schmiede" })
+        {
+            if (art == "schmiede" && alter == "dunkel")
+                continue;   // die Schmiede gibt es erst ab der Feudalzeit
+            string bild = $"Gebaeude/{alter}/{art}";
+            if (!kamine.Contains(bild) || kamine[bild] is not Vector2)
+                verstoesse.Add($"{wer}: {bild} hat nicht genau einen Kamin in ChimneyTops");
+            if (!File.Exists($"AgeOfEvolutions/AgeOfEvolutions.Core/Content/{bild}_blau.png"))
+                verstoesse.Add($"{wer}: zum Kamin von {bild} fehlt das Bild");
+            if (art == "schmiede" && !feuerstellen.Contains(bild))
+                verstoesse.Add($"{wer}: {bild} hat keine Feuerstelle in ForgeFires");
+        }
+
+    // 2. Rauchwolken genau nach Vertrag
+    var wolke = M("SmokePuff");
+    foreach (var (t, k, g) in new[] { (0f, 0, 0f), (3.7f, 4, 0.5f), (123.45f, 9, 1f), (17.2f, 2, 0.2f), (4.99f, 0, 0f), (9.3f, 7, 0.8f) })
+    {
+        float tt = t + k * rauchZeit / puffs;
+        int zyklus = (int)MathF.Floor(tt / rauchZeit);
+        float alt = tt / rauchZeit - zyklus;
+        float r = (H(zyklus, k, 500) % 1000) / 1000f;
+        var soll = new Vector2((24f + 80f * g) * alt * alt + MathF.Sin(tt * 1.3f + k * 2.1f) * 8f * alt, -steigen * alt * (1f - 0.3f * g));
+        float sollR = (12f + 56f * alt) * (0.85f + 0.3f * r);
+        float sollA = 0.55f * Math.Clamp(alt / 0.1f, 0f, 1f) * (1 - alt);
+        var ist = Tupel(wolke, t, k, g);
+        if (Vector2.Distance((Vector2)ist[0], soll) > 0.01f || Math.Abs((float)ist[1] - sollR) > 0.01f
+            || Math.Abs((float)ist[2] - sollA) > 0.001f || Math.Abs((float)ist[3] - alt) > 0.001f)
+            verstoesse.Add($"{wer}: SmokePuff({t}, {k}, {g}) = ({ist[0]}, {ist[1]:0.00}, {ist[2]:0.000}, {ist[3]:0.000}), " +
+                           $"erwartet ({soll}, {sollR:0.00}, {sollA:0.000}, {alt:0.000})");
+    }
+    // ... stetig: von Bild zu Bild kein Sprung, auch nicht, wenn eine Wolke neu am Kamin beginnt
+    float sprungA = 0f, sprungO = 0f;
+    for (int k = 0; k < puffs; k++)
+        for (float t = 0f; t < 2f * rauchZeit; t += 1f / 60f)
+        {
+            var a = Tupel(wolke, t, k, 0.4f);
+            var b = Tupel(wolke, t + 1f / 60f, k, 0.4f);
+            sprungA = Math.Max(sprungA, Math.Abs((float)a[2] - (float)b[2]));
+            if ((float)a[2] > 0.02f && (float)b[2] > 0.02f)
+                sprungO = Math.Max(sprungO, Vector2.Distance((Vector2)a[0], (Vector2)b[0]));
+        }
+    if (sprungA > 0.05f || sprungO > 3f)
+        verstoesse.Add($"{wer}: Rauch springt von Bild zu Bild (Deckkraft um {sprungA:0.000}, Lage um {sprungO:0.0} px)");
+    // ... die Wolken eines Kamins stehen gestaffelt, Wind treibt sie nach rechts
+    var alterJeWolke = Enumerable.Range(0, puffs).Select(k => (float)Tupel(wolke, 7.3f, k, 0f)[3]).OrderBy(a => a).ToList();
+    if (alterJeWolke.Zip(alterJeWolke.Skip(1), (a, b) => b - a).Any(d => d < 0.5f / puffs))
+        verstoesse.Add($"{wer}: die Rauchwolken steigen nicht gestaffelt auf ({string.Join(", ", alterJeWolke.Select(a => a.ToString("0.00")))})");
+
+    // 3. Flackern genau nach Vertrag, zwischen 0 und 1, und es flackert wirklich
+    var flackern = M("FireFlicker");
+    float tief = 1f, hoch = 0f;
+    for (float t = 0f; t < 10f; t += 0.013f)
+    {
+        float f = (float)flackern.Invoke(null, new object[] { t })!;
+        float soll = Math.Clamp(0.5f + 0.22f * MathF.Sin(t * 11.3f) + 0.16f * MathF.Sin(t * 17.9f + 1.3f) + 0.12f * MathF.Sin(t * 29.1f + 0.7f), 0f, 1f);
+        if (Math.Abs(f - soll) > 0.001f)
+        {
+            verstoesse.Add($"{wer}: FireFlicker({t:0.000}) = {f:0.000}, erwartet {soll:0.000}");
+            break;
+        }
+        tief = Math.Min(tief, f);
+        hoch = Math.Max(hoch, f);
+    }
+    if (tief > 0.2f || hoch < 0.8f)
+        verstoesse.Add($"{wer}: das Feuer flackert nur zwischen {tief:0.00} und {hoch:0.00}");
+
+    // 4. Flammenzungen genau nach Vertrag: links nach links, rechts nach rechts, die mittlere am höchsten
+    var zunge = M("FlameTongue");
+    foreach (float t in new[] { 0f, 0.37f, 5.5f, 41.2f })
+        for (int j = 0; j < zungen; j++)
+        {
+            float s = j / (float)(zungen - 1) - 0.5f;
+            float flick = 0.5f + 0.5f * MathF.Sin(t * (8.3f + j * 2.7f) + j * 1.3f);
+            var soll = (X: s * 0.75f + MathF.Sin(t * 6.1f + j * 1.9f) * 0.05f, H: (1f - 0.9f * MathF.Abs(s)) * (0.6f + 0.4f * flick),
+                        N: s * 0.25f + MathF.Sin(t * 4.7f + j * 2.3f) * 0.12f);
+            var ist = Tupel(zunge, t, j);
+            if (Math.Abs((float)ist[0] - soll.X) > 0.001f || Math.Abs((float)ist[1] - soll.H) > 0.001f || Math.Abs((float)ist[2] - soll.N) > 0.001f)
+                verstoesse.Add($"{wer}: FlameTongue({t}, {j}) = ({ist[0]:0.000}, {ist[1]:0.000}, {ist[2]:0.000}), erwartet ({soll.X:0.000}, {soll.H:0.000}, {soll.N:0.000})");
+        }
+
+    // 5. Funken genau nach Vertrag, steigen auf und glimmen nur unterwegs
+    var funke = M("Spark");
+    foreach (var (t, k) in new[] { (0f, 0), (0.55f, 3), (12.34f, 5), (99.9f, 1) })
+    {
+        float tt = t + k * 0.37f;
+        int zyklus = (int)MathF.Floor(tt / funkenZeit);
+        float f = tt / funkenZeit - zyklus;
+        int h = H(zyklus, k, 600);
+        float r1 = (h % 1000) / 1000f, r2 = ((h >> 10) % 1000) / 1000f;
+        var soll = new Vector2((r1 - 0.5f) * 0.6f + MathF.Sin(f * 9f + k) * 0.08f, -f * (0.9f + 0.7f * r2));
+        float sollG = (1 - f) * Math.Clamp(f / 0.1f, 0f, 1f);
+        var ist = Tupel(funke, t, k);
+        if (Vector2.Distance((Vector2)ist[0], soll) > 0.001f || Math.Abs((float)ist[1] - sollG) > 0.001f)
+            verstoesse.Add($"{wer}: Spark({t}, {k}) = ({ist[0]}, {ist[1]:0.000}), erwartet ({soll}, {sollG:0.000})");
+    }
+    float funkenSprung = 0f;
+    for (int k = 0; k < funken; k++)
+        for (float t = 0f; t < 3f * funkenZeit; t += 1f / 60f)
+            funkenSprung = Math.Max(funkenSprung, Math.Abs((float)Tupel(funke, t, k)[1] - (float)Tupel(funke, t + 1f / 60f, k)[1]));
+    if (funkenSprung > 0.2f)
+        verstoesse.Add($"{wer}: ein Funke blitzt auf statt aufzuglimmen (Glut springt um {funkenSprung:0.00})");
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: je Haus und Schmiede ein Kamin, Rauch stetig und gestaffelt, Flackern {tief:0.00} bis {hoch:0.00}, Zungen und Funken nach Vertrag");
 }
 
 // Pfeile (A3): ein Bogenschütze lässt jeden Pfeil so los, dass er genau beim Treffer ankommt;

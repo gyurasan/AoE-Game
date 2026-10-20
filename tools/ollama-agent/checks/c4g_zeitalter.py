@@ -30,7 +30,9 @@ for ordner in ORDNER:
     if not gruppe:
         fehler.append(f"bilder.json: Gruppe gebaeude_{ordner} fehlt")
         continue
-    namen = {e["name"] for e in gruppe["bilder"] if e.get("ziel")}
+    # nach dem Ziel, nicht nach dem Namen: ein ausgebessertes Bild (etwa haus_kamin, A5) heißt
+    # anders als das ursprüngliche, landet aber in derselben Datei
+    namen = {Path(e["ziel"]).stem for e in gruppe["bilder"] if e.get("ziel")}
     for pflicht in ("stadtzentrum", "haus", "muehle_ohne", "holzfaellerlager", "bergbaulager"):
         if pflicht not in namen:
             fehler.append(f"gebaeude_{ordner}: kein Bild {pflicht}")

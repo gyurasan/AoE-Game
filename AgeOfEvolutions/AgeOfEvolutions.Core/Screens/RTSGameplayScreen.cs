@@ -487,7 +487,7 @@ public partial class RTSGameplayScreen : GameScreen
         ["Gebaeude/imperial/kaserne"] = new(342, 223, 42, 26),
         ["Gebaeude/imperial/schiessstand"] = new(336, 88, 48, 48),
         ["Gebaeude/imperial/stall"] = new(282, 38, 55, 35),
-        ["Gebaeude/imperial/schmiede"] = new(317, 92, 66, 46),
+        ["Gebaeude/imperial/schmiede"] = new(317, 90, 66, 46),
         ["Gebaeude/imperial/markt"] = new(433, 85, 79, 44),
         ["Gebaeude/imperial/belagerungswerkstatt"] = new(441, 165, 68, 44),
         ["Gebaeude/imperial/universitaet"] = new(367, 158, 90, 45),
@@ -1278,8 +1278,9 @@ public partial class RTSGameplayScreen : GameScreen
 
     /// <summary>
     /// Lädt das Gebäudebild asset + colour, falls es das gibt, und merkt sich dazu
-    /// sein Fahnentuch (FlagCloth) und bei der Mühle die Nabe (MillHubs). Beide
-    /// gehören zum Bild, nicht zum Gebäudetyp - jedes Zeitalter malt sie woanders.
+    /// sein Fahnentuch (FlagCloth), bei der Mühle die Nabe (MillHubs), seinen Kamin
+    /// (ChimneyTops) und bei der Schmiede die Feuerstelle (ForgeFires). All das
+    /// gehört zum Bild, nicht zum Gebäudetyp - jedes Zeitalter malt es woanders.
     /// </summary>
     private Texture2D LoadBuildingSprite(string asset, string colour)
     {
@@ -1290,6 +1291,10 @@ public partial class RTSGameplayScreen : GameScreen
             _flagCloths[sprite] = cloth;
         if (MillHubs.TryGetValue(asset, out var mill))
             _millHubs[sprite] = mill;
+        if (ChimneyTops.TryGetValue(asset, out var chimney))
+            _chimneys[sprite] = chimney;
+        if (ForgeFires.TryGetValue(asset, out var fire))
+            _forgeFires[sprite] = fire;
         return sprite;
     }
 
@@ -6707,6 +6712,9 @@ public partial class RTSGameplayScreen : GameScreen
                 spriteBatch.Draw(sprite, area, Color.White);
             if (windmill)
                 DrawMillSails(spriteBatch, area, phase, _millHubs[bare]);
+            // Feuer der Schmiede und Rauch aus den Kaminen (A5)
+            DrawForgeFire(spriteBatch, sprite, area, phase);
+            DrawChimneySmoke(spriteBatch, sprite, area, new Vector2(b.X, b.Y), phase);
             return;
         }
         switch (b.Core.BuildingType)
