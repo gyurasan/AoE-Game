@@ -219,6 +219,9 @@ for (int karte = 1; karte <= KARTEN; karte++)
     // Spielstand (SV3): speichern, laden, weiterspielen - pro Karte eine eigene Welt
     if (gruppen.Contains("speichern"))
         Pruefe($"Karte {karte}, Spielstand", () => Speichern(karte, verstoesse));
+    // Türweg (T16): die Straße läuft unter dem Gebäude bis an die Tür
+    if (gruppen.Contains("tuerweg"))
+        Pruefe($"Karte {karte}, Türweg", () => Tuerweg(karte, verstoesse));
 }
 
 if (verstoesse.Count > 0)
@@ -3314,9 +3317,14 @@ static void GebaeudeWege(int karte, List<string> verstoesse)
     int nachAufstieg = wege();
     if (!kette(hausA, tc1))
         verstoesse.Add($"{wer}: nach dem Aufstieg führt vom Haus ({hausA.X},{hausA.Y}) kein Weg zum Stadtzentrum ({nachAufstieg} Wegkacheln)");
-    // Noch lag kein Weg: genau der kürzeste Weg vom Haus, und das Stadtzentrum bekommt keinen
-    if (weglaenge(tc1, hausA.X, hausA.Y, 2) is { } kuerzester && nachAufstieg != kuerzester)
-        verstoesse.Add($"{wer}: nach dem Aufstieg {nachAufstieg} Wegkacheln, erwartet {kuerzester} (der kürzeste Weg vom Haus)");
+    // Noch lag kein Weg: die Wegkacheln sind der kürzeste Weg plus höchstens der Türweg (T16:
+    // die Straße läuft noch unter dem Haus bis an die Tür, höchstens DOOR_ROAD_MAX Kacheln)
+    if (weglaenge(tc1, hausA.X, hausA.Y, 2) is { } kuerzester
+        && (nachAufstieg < kuerzester || nachAufstieg > kuerzester + (int)Welt.Konstante("DOOR_ROAD_MAX")))
+        verstoesse.Add($"{wer}: nach dem Aufstieg {nachAufstieg} Wegkacheln, erwartet {kuerzester} bis {kuerzester + (int)Welt.Konstante("DOOR_ROAD_MAX")} (kürzester Weg + Türweg)");
+    // T16: die Tür des Hauses ist an den Weg angeschlossen
+    if (w.Call("DoorRoadOf", hausA) == null)
+        verstoesse.Add($"{wer}: nach dem Aufstieg liegt an der Tür des Hauses kein Weg (T16)");
 
     // 3) Feudalzeit: ein neues Haus bekommt beim Fertigwerden seinen Weg
     if (platz(tc1, 2, 11) is not { } pB)
@@ -6797,6 +6805,353 @@ static void Kampfklang(int karte, List<string> verstoesse)
         Console.WriteLine($"  ok  {wer}: Hieb, Klinge und Bogen je Treffer am richtigen Ort, Schlag an der Wand, je ein tod und einsturz");
 }
 
+// ---------------------------------------------------------------------------
+// Türweg (T16): die Straße läuft nicht vor der Tür auf, sondern noch unter dem
+// Gebäude bis an die Türschwelle. ConnectDoorRoad bridgt die Lücke zwischen dem
+// Weg in der Vorderreihe und der Türkachel; DoorRoadRects liefert die Rechtecke,
+// die DrawDoorRoad in der Straßenfarbe der erreichten Stufe malt.
+
+static void Tuerweg(int karte, List<string> verstoesse)
+{
+    var wer = $"Karte {karte}, Türweg";
+    int vorher = verstoesse.Count;
+    var lief = new List<string>();
+
+    // Zeitaufstieg ohne Bildschirmtakt: nur die reine Logik, keine Wegenetz-Wirkungen
+    void aufsteigen(Welt w, Age ziel)
+    {
+        var p = w.P1;
+        int schritte = 0;
+        while (p.Ages.Current < ziel && schritte++ < 4)
+        {
+            p.Resources.Add(Resource.Food, 10000);
+            p.Resources.Add(Resource.Wood, 10000);
+            p.Resources.Add(Resource.Gold, 10000);
+            p.Resources.Add(Resource.Stone, 10000);
+            if (!p.Ages.TryStart(p.Resources))
+                throw new InvalidOperationException($"Der Aufstieg nach {ziel} ist nicht gestartet");
+            if (!p.Ages.Update(1_000_000f))
+                throw new InvalidOperationException($"Der Aufstieg nach {ziel} ist nicht fertig geworden");
+        }
+        if (p.Ages.Current != ziel)
+            throw new InvalidOperationException($"Das Zeitalter ist {p.Ages.Current}, erwartet {ziel}");
+    }
+
+    // Ein freier 2x2-Hausplatz, dessen Vorderreihe links a und rechts b Kacheln
+    // frei und weg-tauglich sind; null, wenn die Karte keinen solchen Grund hat
+    (int X, int Y)? hausplatz(Welt w, int links, int rechts)
+    {
+        for (int y = 3; y + 4 < w.Map.Height; y++)
+            for (int x = links; x + rechts + 1 < w.Map.Width; x++)
+            {
+                if (!w.Map.CanPlaceBuilding(x, y, 2))
+                    continue;
+                bool frei = true;
+                for (int bx = x - links; frei && bx <= x + rechts; bx++)
+                {
+                    int fr = y + 2;
+                    frei = w.Map.CanCarryRoad(bx, fr)
+                          && w.Map.GetTile(bx, fr).RoadLevel == 0
+                          && !w.Map.Units.Any(u => w.Map.WorldToGrid(u.Position) == new Vector2(bx, fr));
+                }
+                if (frei)
+                    return (x, y);
+            }
+        return null;
+    }
+
+    // Ein Haus auf einem freien Platz (im gewünschten Zeitalter); Haus = null, wenn kein freier Grund
+    (object Haus, int X, int Y) haus(Welt w, Age zeitalter, int links, int rechts)
+    {
+        if (hausplatz(w, links, rechts) is not { } p)
+            return (null, -1, -1);
+        var b = w.Map.AddBuilding(p.X, p.Y, "Haus", 0, 2);
+        if (zeitalter != Age.Dark)
+            aufsteigen(w, zeitalter);
+        return (b, p.X, p.Y);
+    }
+
+    // Welche Seite der Tür (+1 / -1) in der Vorderreihe abstand Reihen freie,
+    // weg-taugliche Kacheln hat; null, wenn keine
+    int? seite(Welt w, int doorCol, int fr, int abstand)
+    {
+        foreach (var s in new[] { 1, -1 })
+        {
+            bool frei = true;
+            for (int i = 1; frei && i <= abstand; i++)
+            {
+                int c = doorCol + s * i;
+                frei = c >= 0 && c < w.Map.Width
+                      && w.Map.CanCarryRoad(c, fr)
+                      && w.Map.GetTile(c, fr).RoadLevel == 0
+                      && !w.Map.Units.Any(u => w.Map.WorldToGrid(u.Position) == new Vector2(c, fr));
+            }
+            if (frei)
+                return s;
+        }
+        return null;
+    }
+
+    // 1) Dunkle Zeit: es gibt gar keine Wege, also auch keine Türwege
+    void dunkleZeit()
+    {
+        var w = new Welt();
+        var h = haus(w, Age.Dark, 2, 2);
+        if (h.Haus is null)
+        {
+            Console.WriteLine($"      {wer}: 1) kein freier Hausplatz - übersprungen");
+            return;
+        }
+        lief.Add("1");
+        if ((int)w.Call("ConnectDoorRoad", h.Haus) != 0)
+            verstoesse.Add($"{wer}: in der Dunklen Zeit baut ConnectDoorRoad Wege aus");
+        if (w.Map.GetTile(h.X, h.Y + 2).RoadLevel != 0)
+            verstoesse.Add($"{wer}: in der Dunklen Zeit entsteht eine Wegkachel vor dem Haus");
+        if (w.Call("DoorRoadOf", h.Haus) != null)
+            verstoesse.Add($"{wer}: DoorRoadOf sieht in der Dunklen Zeit eine Tür");
+        if (((List<Rectangle>)w.Call("DoorRoadRects")).Count != 0)
+            verstoesse.Add($"{wer}: DoorRoadRects liefert in der Dunklen Zeit Rechtecke");
+    }
+
+    // 2) Feudalzeit ohne Weg in der Vorderreihe: nichts zu bridgen
+    void ohneWeg()
+    {
+        var w = new Welt();
+        var h = haus(w, Age.Feudal, 2, 2);
+        if (h.Haus is null)
+        {
+            Console.WriteLine($"      {wer}: 2) kein freier Hausplatz - übersprungen");
+            return;
+        }
+        lief.Add("2");
+        w.Map.CurrentRoadLevel = 1;
+        if ((int)w.Call("ConnectDoorRoad", h.Haus) != 0)
+            verstoesse.Add($"{wer}: ohne Weg in der Vorderreihe baut ConnectDoorRoad Wege aus");
+        if (w.Map.GetTile(h.X, h.Y + 2).RoadLevel != 0)
+            verstoesse.Add($"{wer}: ohne Weg in der Vorderreihe entsteht eine Wegkachel");
+        if (w.Call("DoorRoadOf", h.Haus) != null)
+            verstoesse.Add($"{wer}: DoorRoadOf sieht eine Tür an einem Haus ohne Weg davor");
+    }
+
+    // 3) Feudalzeit, Weg vier Spalten neben der Tür: die Lücke wird zur Tür hin ausgeglichen
+    void luecke()
+    {
+        var w = new Welt();
+        var h = haus(w, Age.Feudal, 3, 6);
+        if (h.Haus is null)
+        {
+            Console.WriteLine($"      {wer}: 3) kein freier Hausplatz - übersprungen");
+            return;
+        }
+        lief.Add("3");
+        w.Map.CurrentRoadLevel = 1;
+        int doorCol = (int)w.Call("DoorColumnOf", h.Haus);
+        int fr = h.Y + 2;
+        int? s = seite(w, doorCol, fr, 4);
+        if (s is null)
+        {
+            Console.WriteLine($"      {wer}: 3) keine freie Reihe neben dem Haus - übersprungen");
+            return;
+        }
+        int roadCol = doorCol + s.Value * 4;
+        w.Map.GetTile(roadCol, fr).RoadLevel = 1;
+        int count = (int)w.Call("ConnectDoorRoad", h.Haus);
+        if (count != 4)
+            verstoesse.Add($"{wer}: die Lücke bei Spalte {roadCol} wird zu {count} ausgeglichen (erwartet 4)");
+        if (!(bool)w.Call("RoadDrawnAt", doorCol, fr))
+            verstoesse.Add($"{wer}: nach dem Ausgleich liegt auf der Türkachel (Spalte {doorCol}) kein Weg");
+        if (w.Map.GetTile(doorCol, fr).RoadLevel != 1)
+            verstoesse.Add($"{wer}: die Türkachel hat Stufe {w.Map.GetTile(doorCol, fr).RoadLevel}, erwartet 1");
+        if (w.Call("DoorRoadOf", h.Haus) is not ValueTuple<Vector2, float> tuple
+            || tuple.Item1 != new Vector2(doorCol, fr) || tuple.Item2 <= 0)
+            verstoesse.Add($"{wer}: DoorRoadOf zeigt nicht auf die Türkachel oder liefert keine Tiefe");
+
+        // Das Türweg-Rechteck: in der Türspalte, an der Unterkante, Bandbreite wie der Weg
+        int ts = w.Map.TileSize;
+        var rects = (List<Rectangle>)w.Call("DoorRoadRects");
+        var r = rects.FirstOrDefault(rc => rc.Contains(doorCol * ts + ts / 2, fr * ts + 3));
+        if (r == default)
+            verstoesse.Add($"{wer}: kein Türweg-Rechteck in der Türspalte (Spalte {doorCol})");
+        else if (r.Width < 14 || r.Width > 17 || r.Y != fr * ts || r.Height < 8 || r.Height > 16)
+            verstoesse.Add($"{wer}: das Türweg-Rechteck ({r.X}, {r.Y}, {r.Width}x{r.Height}) passt nicht in die Türspalte an der Unterkante");
+    }
+
+    // 4) Ritterzeit (Stufe 2): der Ausgleich kommt auf Weg-Stufe 2
+    void ritterzeit()
+    {
+        var w = new Welt();
+        var h = haus(w, Age.Castle, 3, 6);
+        if (h.Haus is null)
+        {
+            Console.WriteLine($"      {wer}: 4) kein freier Hausplatz - übersprungen");
+            return;
+        }
+        lief.Add("4");
+        w.Map.CurrentRoadLevel = 2;
+        int doorCol = (int)w.Call("DoorColumnOf", h.Haus);
+        int fr = h.Y + 2;
+        int? s = seite(w, doorCol, fr, 4);
+        if (s is null)
+        {
+            Console.WriteLine($"      {wer}: 4) keine freie Reihe neben dem Haus - übersprungen");
+            return;
+        }
+        w.Map.GetTile(doorCol + s.Value * 4, fr).RoadLevel = 2;
+        int count = (int)w.Call("ConnectDoorRoad", h.Haus);
+        if (count != 4)
+            verstoesse.Add($"{wer}: Ritterzeit: die Lücke wird zu {count} ausgeglichen (erwartet 4)");
+        if (w.Map.GetTile(doorCol, fr).RoadLevel != 2)
+            verstoesse.Add($"{wer}: Ritterzeit: die Türkachel hat Stufe {w.Map.GetTile(doorCol, fr).RoadLevel}, erwartet 2");
+    }
+
+    // 5) Palisadenmauer: Mauern haben keine Tür, also auch keinen Türweg
+    void mauer()
+    {
+        var w = new Welt();
+        if (hausplatz(w, 3, 3) is not { } p)
+        {
+            Console.WriteLine($"      {wer}: 5) kein freier Bauort - übersprungen");
+            return;
+        }
+        lief.Add("5");
+        aufsteigen(w, Age.Feudal);
+        w.Map.CurrentRoadLevel = 1;
+        var m = w.Map.AddBuilding(p.X, p.Y, "Palisadenmauer", 0, 1);
+        int fr = p.Y + 1;
+        int? s = seite(w, p.X, fr, 2);
+        if (s is null)
+        {
+            Console.WriteLine($"      {wer}: 5) keine freie Reihe neben der Mauer - übersprungen");
+            return;
+        }
+        w.Map.GetTile(p.X + s.Value * 2, fr).RoadLevel = 1;
+        if ((int)w.Call("ConnectDoorRoad", m) != 0)
+            verstoesse.Add($"{wer}: an der Palisadenmauer baut ConnectDoorRoad einen Türweg aus");
+        if (w.Map.GetTile(p.X, fr).RoadLevel != 0)
+            verstoesse.Add($"{wer}: vor der Palisadenmauer liegt plötzlich eine Wegkachel");
+    }
+
+    // 6) Tür bereits angeschlossen: ConnectDoorRoad lässt alles wie es ist
+    void schonAngeschlossen()
+    {
+        var w = new Welt();
+        var h = haus(w, Age.Feudal, 3, 3);
+        if (h.Haus is null)
+        {
+            Console.WriteLine($"      {wer}: 6) kein freier Hausplatz - übersprungen");
+            return;
+        }
+        lief.Add("6");
+        w.Map.CurrentRoadLevel = 1;
+        int doorCol = (int)w.Call("DoorColumnOf", h.Haus);
+        int fr = h.Y + 2;
+        if (!w.Map.CanCarryRoad(doorCol, fr) || w.Map.GetTile(doorCol, fr).RoadLevel != 0)
+        {
+            Console.WriteLine($"      {wer}: 6) Türkachel nicht frei - übersprungen");
+            return;
+        }
+        w.Map.GetTile(doorCol, fr).RoadLevel = 1;
+        if ((int)w.Call("ConnectDoorRoad", h.Haus) != 0)
+            verstoesse.Add($"{wer}: ist die Tür schon angeschlossen, baut ConnectDoorRoad trotzdem noch");
+        if (!(bool)w.Call("RoadDrawnAt", doorCol, fr))
+            verstoesse.Add($"{wer}: die angelegte Türkachel wird nachher nicht als Weg gezeichnet");
+    }
+
+    // 7) Distanz: zwölf Spalten liegen noch vor der Tür, dreizehn schon nicht mehr
+    void distanz()
+    {
+        var w12 = new Welt();
+        var h = haus(w12, Age.Feudal, 13, 13);
+        if (h.Haus is null)
+        {
+            Console.WriteLine($"      {wer}: 7) keine Reihe für die Distanzprobe - übersprungen");
+            return;
+        }
+        lief.Add("7");
+        w12.Map.CurrentRoadLevel = 1;
+        int doorCol = (int)w12.Call("DoorColumnOf", h.Haus);
+        int fr = h.Y + 2;
+        int? s = seite(w12, doorCol, fr, 12);
+        if (s is null)
+        {
+            Console.WriteLine($"      {wer}: 7) keine freie Reihe für die Distanzprobe - übersprungen");
+            return;
+        }
+        w12.Map.GetTile(doorCol + s.Value * 12, fr).RoadLevel = 1;
+        int c12 = (int)w12.Call("ConnectDoorRoad", h.Haus);
+        if (c12 != 12)
+            verstoesse.Add($"{wer}: 12 Spalten Abstand werden zu {c12} ausgeglichen (erwartet 12)");
+
+        var w13 = new Welt();
+        var h13 = haus(w13, Age.Feudal, 14, 13);
+        if (h13.Haus is null)
+        {
+            Console.WriteLine($"      {wer}: 7) keine Reihe für die Distanzprobe - übersprungen");
+            return;
+        }
+        w13.Map.CurrentRoadLevel = 1;
+        int doorCol13 = (int)w13.Call("DoorColumnOf", h13.Haus);
+        int fr3 = h13.Y + 2;
+        int? s3 = seite(w13, doorCol13, fr3, 13);
+        if (s3 is null)
+        {
+            Console.WriteLine($"      {wer}: 7) keine freie Reihe für die Distanzprobe - übersprungen");
+            return;
+        }
+        w13.Map.GetTile(doorCol13 + s3.Value * 13, fr3).RoadLevel = 1;
+        int c13 = (int)w13.Call("ConnectDoorRoad", h13.Haus);
+        if (c13 != 0)
+            verstoesse.Add($"{wer}: 13 Spalten Abstand werden trotzdem zu {c13} ausgeglichen (erwartet 0)");
+        if (w13.Map.GetTile(doorCol13, fr3).RoadLevel != 0)
+            verstoesse.Add($"{wer}: 13 Spalten weiter liegt plötzlich eine Wegkachel an der Tür");
+    }
+
+    // 8) Blockade: ein Goldvorkommen unterbricht den Ausgleich
+    void blockade()
+    {
+        var w = new Welt();
+        var h = haus(w, Age.Feudal, 3, 6);
+        if (h.Haus is null)
+        {
+            Console.WriteLine($"      {wer}: 8) kein freier Hausplatz - übersprungen");
+            return;
+        }
+        lief.Add("8");
+        w.Map.CurrentRoadLevel = 1;
+        int doorCol = (int)w.Call("DoorColumnOf", h.Haus);
+        int fr = h.Y + 2;
+        int? s = seite(w, doorCol, fr, 4);
+        if (s is null)
+        {
+            Console.WriteLine($"      {wer}: 8) keine freie Reihe für die Blockadeprobe - übersprungen");
+            return;
+        }
+        w.Map.GetTile(doorCol + s.Value * 4, fr).RoadLevel = 1;
+        w.Map.GetTile(doorCol + s.Value * 2, fr).ResourceType = Resource.Gold;
+        int count = (int)w.Call("ConnectDoorRoad", h.Haus);
+        if (count != 1)
+            verstoesse.Add($"{wer}: die Goldkachel bei Spalte {doorCol + s.Value * 2} unterbricht den Ausgleich, es wurden {count} ausgeglichen (erwartet 1)");
+        if (w.Map.GetTile(doorCol, fr).RoadLevel != 0)
+            verstoesse.Add($"{wer}: hinter der Goldkachel liegt trotzdem eine Wegkachel an der Tür");
+    }
+
+    dunkleZeit();
+    ohneWeg();
+    luecke();
+    ritterzeit();
+    mauer();
+    schonAngeschlossen();
+    distanz();
+    blockade();
+
+    if (!lief.Contains("3") && !lief.Contains("4") && !lief.Contains("8"))
+    {
+        Console.WriteLine($"      {wer}: keine Lückenprobe lief - übersprungen");
+        return;
+    }
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"      {wer}: alle {lief.Count} Pröbungen bestanden ({string.Join(", ", lief)})");
+}
 class Welt
 {
     const BindingFlags F = BindingFlags.NonPublic | BindingFlags.Instance;

@@ -515,6 +515,68 @@ public partial class RTSGameplayScreen : GameScreen
         ["Gebaeude/ritter/bergbaulager"] = 0.29f,
         ["Gebaeude/imperial/bergbaulager"] = 0.30f,
     };
+    // Türweg (T16): die Straße läuft unter dem Gebäude bis zur Tür — die Bilder sind
+    // unten frei geschnitten, dort ragt der Weg aus und endet an der Türschwelle.
+    // Türmittelpunkt als Anteil der Bildbreite: nur für Bilder, die noch keinen
+    // Eintrag in DoorCenters haben (die gelten weiterhin zuerst), am Bild gemessen.
+    private static readonly Dictionary<string, float> DoorFractions = new()
+    {
+        ["Gebaeude/dunkel/haus"] = 0.30f, ["Gebaeude/feudal/haus"] = 0.33f,
+        ["Gebaeude/ritter/haus"] = 0.35f, ["Gebaeude/imperial/haus"] = 0.33f,
+        ["Gebaeude/dunkel/kaserne"] = 0.35f, ["Gebaeude/feudal/kaserne"] = 0.33f,
+        ["Gebaeude/ritter/kaserne"] = 0.33f, ["Gebaeude/imperial/kaserne"] = 0.50f,
+        ["Gebaeude/feudal/schiessstand"] = 0.35f, ["Gebaeude/ritter/schiessstand"] = 0.42f,
+        ["Gebaeude/imperial/schiessstand"] = 0.33f,
+        ["Gebaeude/feudal/stall"] = 0.33f, ["Gebaeude/ritter/stall"] = 0.30f,
+        ["Gebaeude/imperial/stall"] = 0.35f,
+        ["Gebaeude/feudal/schmiede"] = 0.30f, ["Gebaeude/ritter/schmiede"] = 0.35f,
+        ["Gebaeude/imperial/schmiede"] = 0.33f,
+        ["Gebaeude/feudal/markt"] = 0.45f, ["Gebaeude/ritter/markt"] = 0.38f,
+        ["Gebaeude/imperial/markt"] = 0.45f,
+        ["Gebaeude/ritter/kloster"] = 0.28f, ["Gebaeude/imperial/kloster"] = 0.42f,
+        ["Gebaeude/ritter/burg"] = 0.38f, ["Gebaeude/imperial/burg"] = 0.48f,
+        ["Gebaeude/ritter/belagerungswerkstatt"] = 0.35f,
+        ["Gebaeude/imperial/belagerungswerkstatt"] = 0.42f,
+        ["Gebaeude/ritter/universitaet"] = 0.40f,
+        ["Gebaeude/imperial/universitaet"] = 0.45f,
+        ["Gebaeude/imperial/wunder"] = 0.33f,
+        ["Gebaeude/feudal/wachturm"] = 0.45f, ["Gebaeude/ritter/wachturm"] = 0.48f,
+        ["Gebaeude/imperial/wachturm"] = 0.48f,
+    };
+    // Türweg (T16): Tiefe der Türschwelle über der Unterkante der Grundfläche, als
+    // Anteil der GrundflächenHÖHE (b.Height · TileSize) — am Bild gemessen, ohne das
+    // Bild selbst (tools/spielablauf läuft ohne Grafik). Mauern haben keinen Türweg.
+    private static readonly Dictionary<string, float> DoorDepths = new()
+    {
+        ["Gebaeude/dunkel/haus"] = 0.13f, ["Gebaeude/feudal/haus"] = 0.15f,
+        ["Gebaeude/ritter/haus"] = 0.12f, ["Gebaeude/imperial/haus"] = 0.10f,
+        ["Gebaeude/dunkel/stadtzentrum"] = 0.08f, ["Gebaeude/feudal/stadtzentrum"] = 0.09f,
+        ["Gebaeude/ritter/stadtzentrum"] = 0.08f, ["Gebaeude/imperial/stadtzentrum"] = 0.10f,
+        ["Gebaeude/dunkel/kaserne"] = 0.08f, ["Gebaeude/feudal/kaserne"] = 0.09f,
+        ["Gebaeude/ritter/kaserne"] = 0.08f, ["Gebaeude/imperial/kaserne"] = 0.11f,
+        ["Gebaeude/dunkel/muehle_ohne"] = 0.10f, ["Gebaeude/feudal/muehle_ohne"] = 0.11f,
+        ["Gebaeude/ritter/muehle_ohne"] = 0.12f, ["Gebaeude/imperial/muehle_ohne"] = 0.14f,
+        ["Gebaeude/dunkel/holzfaellerlager"] = 0.12f, ["Gebaeude/feudal/holzfaellerlager"] = 0.09f,
+        ["Gebaeude/ritter/holzfaellerlager"] = 0.12f, ["Gebaeude/imperial/holzfaellerlager"] = 0.11f,
+        ["Gebaeude/dunkel/bergbaulager"] = 0.07f, ["Gebaeude/feudal/bergbaulager"] = 0.09f,
+        ["Gebaeude/ritter/bergbaulager"] = 0.09f, ["Gebaeude/imperial/bergbaulager"] = 0.11f,
+        ["Gebaeude/feudal/schiessstand"] = 0.09f, ["Gebaeude/ritter/schiessstand"] = 0.12f,
+        ["Gebaeude/imperial/schiessstand"] = 0.09f,
+        ["Gebaeude/feudal/stall"] = 0.11f, ["Gebaeude/ritter/stall"] = 0.11f,
+        ["Gebaeude/imperial/stall"] = 0.09f,
+        ["Gebaeude/feudal/schmiede"] = 0.10f, ["Gebaeude/ritter/schmiede"] = 0.10f,
+        ["Gebaeude/imperial/schmiede"] = 0.10f,
+        ["Gebaeude/feudal/markt"] = 0.09f, ["Gebaeude/ritter/markt"] = 0.11f,
+        ["Gebaeude/imperial/markt"] = 0.12f,
+        ["Gebaeude/ritter/kloster"] = 0.15f, ["Gebaeude/imperial/kloster"] = 0.16f,
+        ["Gebaeude/ritter/burg"] = 0.10f, ["Gebaeude/imperial/burg"] = 0.12f,
+        ["Gebaeude/ritter/belagerungswerkstatt"] = 0.12f,
+        ["Gebaeude/imperial/belagerungswerkstatt"] = 0.11f,
+        ["Gebaeude/ritter/universitaet"] = 0.10f, ["Gebaeude/imperial/universitaet"] = 0.11f,
+        ["Gebaeude/imperial/wunder"] = 0.10f,
+        ["Gebaeude/feudal/wachturm"] = 0.14f, ["Gebaeude/ritter/wachturm"] = 0.13f,
+        ["Gebaeude/imperial/wachturm"] = 0.14f,
+    };
     private readonly Dictionary<Texture2D, Rectangle> _flagCloths = new();
     private const float FLAG_WAVE = 0.18f;
     private const float FLAG_SPEED = 5f;
@@ -3420,8 +3482,8 @@ public partial class RTSGameplayScreen : GameScreen
     ///   dreht sich davor). Mit AgeAsset auf das Zeitalter gebracht ist er der Schlüssel in
     ///   DoorCenters.
     /// - Hat dieses Zeitalter keinen Eintrag, gilt das nächstältere mit Eintrag - wie bei
-    ///   den Bildern selbst; gibt es keinen, 0.5 (Mitte der Vorderseite). Ebenso für Typen
-    ///   ohne Bild.
+    ///   den Bildern selbst. Danach dasselbe über DoorFractions (T16, für Bilder ohne
+    ///   DoorCenters-Eintrag); gibt es auch dort keinen, 0.5 (Mitte der Vorderseite).
     /// - Nur über Namen, ohne Texturen: tools/spielablauf läuft ohne Grafik.
     /// </summary>
     internal float DoorFraction(Data.Building b)
@@ -3445,7 +3507,159 @@ public partial class RTSGameplayScreen : GameScreen
         for (int a = age; a >= 0; a--)
             if (DoorCenters.TryGetValue(AgeAsset(asset, a), out float fraction))
                 return fraction;
+        for (int a = age; a >= 0; a--)
+            if (DoorFractions.TryGetValue(AgeAsset(asset, a), out float tuer))
+                return tuer;
         return 0.5f;
+    }
+
+    /// <summary>
+    /// So tief die Türschwelle eines Gebäudes unter die Unterkante der Grundfläche ragt,
+    /// als Anteil der GrundflächenHÖHE (b.Height · TileSize) — die Tür steht nicht auf der
+    /// Kante, sondern auf der Schwelle in der Fassade (T16).
+    /// VERTRAG:
+    /// - Der Bildname kommt wie in DoorFraction (BuildingSprites, "Mühle" →
+    ///   "Gebaeude/muehle_ohne"), das Zeitalter wie dort (AgeOf(b.OwnerId)).
+    /// - Für age a vom Zeitalter herab: der erste Treffer in DoorDepths gewinnt; gibt es
+    ///   keinen, 0.12 (Schwelle knapp über der Grundkante).
+    /// - Nur über Namen, ohne Texturen: tools/spielablauf läuft ohne Grafik.
+    /// </summary>
+    internal float DoorDepthOf(Data.Building b)
+    {
+        string asset = null;
+        foreach (var (type, name) in BuildingSprites)
+            if (type == b.Type)
+            {
+                asset = name;
+                break;
+            }
+        if (asset == null)
+            return 0.12f;
+        if (b.Type == "Mühle")
+            asset = "Gebaeude/muehle_ohne";
+        int age = (int)AgeOf(b.OwnerId);
+        for (int a = age; a >= 0; a--)
+            if (DoorDepths.TryGetValue(AgeAsset(asset, a), out float tiefe))
+                return tiefe;
+        return 0.12f;
+    }
+
+    /// <summary>
+    /// Der Türweg eines Gebäudes (T16): dort läuft die Straße unter dem Gebäude bis zur
+    /// Tür. Null, wenn es nichts zu verlängern gibt.
+    /// VERTRAG:
+    /// - null, wenn b null ist, !b.IsComplete gilt, b.Core.BuildingType
+    ///   BuildingType.PalisadeWall oder BuildingType.StoneWall ist,
+    ///   TileMap.LevelOfAge(AgeOf(b.OwnerId)) &lt; 1 (Dunkle Zeit: noch keine Wege),
+    ///   tileMap.CurrentRoadLevel &lt; 1 oder auf der Türkachel kein Weg gezeichnet wird
+    ///   (RoadDrawnAt).
+    /// - Türkachel wie in DropOffStand: doorX = (b.X + DoorFraction(b) * b.Width) * TileSize,
+    ///   Spalte Math.Clamp((int)(doorX / TileSize), b.X, b.X + b.Width - 1), Zeile
+    ///   b.Y + b.Height.
+    /// - Rückgabe (Türkachel, Tiefe = DoorDepthOf(b) * b.Height * TileSize).
+    /// </summary>
+    internal (Vector2 DoorTile, float Depth)? DoorRoadOf(Data.Building b)
+    {
+        if (b == null || !b.IsComplete)
+            return null;
+        if (b.Core.BuildingType == BuildingType.PalisadeWall
+            || b.Core.BuildingType == BuildingType.StoneWall)
+            return null;
+        if (TileMap.LevelOfAge(AgeOf(b.OwnerId)) < 1 || tileMap.CurrentRoadLevel < 1)
+            return null;
+        int ts = tileMap.TileSize;
+        int doorCol = DoorColumnOf(b);
+        int doorRow = b.Y + b.Height;
+        if (!RoadDrawnAt(doorCol, doorRow))
+            return null;
+        return (new Vector2(doorCol, doorRow), DoorDepthOf(b) * b.Height * ts);
+    }
+
+    /// <summary>
+    /// Wie weit (in Kacheln) ein Weg höchstens von der Tür entfernt liegen darf, um noch
+    /// „vor der Tür zu liegen" und von der Türweite eingezogen zu werden (T16).
+    /// </summary>
+    private const int DOOR_ROAD_MAX = 12;
+
+    /// <summary>
+    /// Die Spalte, in der die Tür eines Gebäudes steht (T16): die Türtiefe als Türanteil der
+    /// Bauwerksbreite, begrenzt auf die Breite des Gebäudes. Alle Türweg-Methoden (DoorRoadOf,
+    /// ConnectDoorRoad, DoorRoadRects) teilen sich diese, damit sie übereinstimmen, wo die Tür
+    /// liegt.
+    /// VERTRAG: doorX = (b.X + DoorFraction(b) * b.Width) * tileMap.TileSize;
+    /// Rückgabe MathHelper.Clamp((int)(doorX / tileMap.TileSize), b.X, b.X + b.Width - 1).
+    /// </summary>
+    internal int DoorColumnOf(Data.Building b)
+    {
+        int ts = tileMap.TileSize;
+        float doorX = (b.X + DoorFraction(b) * b.Width) * ts;
+        return MathHelper.Clamp((int)(doorX / ts), b.X, b.X + b.Width - 1);
+    }
+
+    /// <summary>
+    /// Die Türweite eines Gebäudes ausbauen (T16):Der Weg in der Reihe direkt vor dem Gebäude
+    /// (Zeile b.Y + b.Height) führt bis an die Tür - die Lücke zwischen bestehendem Wegenetz
+    /// und der Tür wird als Weg ausgeglichen. Rückgabe: wie viele Kacheln neu Wege geworden
+    /// sind.
+    /// VERTRAG:
+    /// - 0, wenn b null ist, !b.IsComplete, b.Core.BuildingType PalisadeWall oder StoneWall
+    ///   ist, TileMap.LevelOfAge(AgeOf(b.OwnerId)) &lt; 1 (Dunkle Zeit: noch keine Wege),
+    ///   tileMap.CurrentRoadLevel &lt; 1 oder auf der Türkachel schon ein Weg gezeichnet wird
+    ///   (DoorRoadOf nicht null).
+    /// - doorRow = b.Y + b.Height, doorCol = DoorColumnOf(b),
+    ///   level = Math.Max(tileMap.CurrentRoadLevel, TileMap.LevelOfAge(AgeOf(b.OwnerId))).
+    /// - Start = das dem Türbereich nach Spaltenabstand nächste Kachel (x, doorRow) mit
+    ///   RoadDrawnAt(x, doorRow) und |x - doorCol| &lt;= DOOR_ROAD_MAX; keine, dann 0.
+    /// - Vom Start aus Kachel für Kachel zur Tür hin: solange die Kachel noch kein Weg ist und
+    ///   tileMap.CanCarryRoad(x, doorRow) gilt, tile.RoadLevel =
+    ///   Math.Max(tile.RoadLevel, level) setzen und zählen. Bei der ersten Kachel, die schon
+    ///   Weg ist oder keinen Weg lässt, aufhören; die gezählte Zahl zurückgeben.
+    /// </summary>
+    internal int ConnectDoorRoad(Data.Building b)
+    {
+        // In der Dunklen Zeit gibt es noch keine Wege, und Mauern haben keine Tür
+        if (b == null || !b.IsComplete
+            || b.Core.BuildingType == BuildingType.PalisadeWall
+            || b.Core.BuildingType == BuildingType.StoneWall
+            || TileMap.LevelOfAge(AgeOf(b.OwnerId)) < 1
+            || tileMap.CurrentRoadLevel < 1)
+            return 0;
+        if (DoorRoadOf(b) is not null)   // der Weg führt schon bis an die Tür
+            return 0;
+
+        int doorRow = b.Y + b.Height;
+        int doorCol = DoorColumnOf(b);
+        int level = Math.Max(tileMap.CurrentRoadLevel, TileMap.LevelOfAge(AgeOf(b.OwnerId)));
+
+        // Der nächste Weg in der Tür-Reihe, höchstens DOOR_ROAD_MAX Spalten von der Tür
+        int nearest = -1, best = int.MaxValue;
+        for (int x = 0; x < tileMap.Width; x++)
+        {
+            if (!RoadDrawnAt(x, doorRow))
+                continue;
+            int d = Math.Abs(x - doorCol);
+            if (d <= DOOR_ROAD_MAX && d < best)
+            {
+                best = d;
+                nearest = x;
+            }
+        }
+        if (nearest < 0)
+            return 0;
+
+        // Von dort aus Kachel für Kachel bis zur Tür, nur über Kacheln, die Wege tragen
+        int count = 0;
+        while (nearest != doorCol)
+        {
+            int x = nearest + Math.Sign(doorCol - nearest);
+            if (!tileMap.CanCarryRoad(x, doorRow))
+                break;
+            var tile = tileMap.GetTile(x, doorRow);
+            tile.RoadLevel = Math.Max(tile.RoadLevel, level);
+            count++;
+            nearest = x;
+        }
+        return count;
     }
 
     /// <summary>
@@ -4453,7 +4667,8 @@ public partial class RTSGameplayScreen : GameScreen
     /// Zeit noch nicht. Mauern bleiben ohne Weg.
     /// VERTRAG: nichts, wenn !b.IsComplete, wenn TileMap.LevelOfAge(AgeOf(b.OwnerId)) &lt; 1
     /// oder wenn b.Core.BuildingType PalisadeWall oder StoneWall ist; sonst
-    /// tileMap.ConnectBuilding(b, Math.Max(tileMap.CurrentRoadLevel, TileMap.LevelOfAge(AgeOf(b.OwnerId)))).
+    /// tileMap.ConnectBuilding(b, Math.Max(tileMap.CurrentRoadLevel, TileMap.LevelOfAge(AgeOf(b.OwnerId))));
+    /// danach ConnectDoorRoad(b), falls die Türweite noch offen steht (T16).
     /// </summary>
     private void ConnectToRoads(Building b)
     {
@@ -4464,6 +4679,8 @@ public partial class RTSGameplayScreen : GameScreen
             || b.Core.BuildingType == BuildingType.StoneWall)
             return;
         tileMap.ConnectBuilding(b, Math.Max(tileMap.CurrentRoadLevel, TileMap.LevelOfAge(AgeOf(b.OwnerId))));
+        // T16: die Straße endet nicht vor der Tür, sondern führt noch unter das Gebäude
+        ConnectDoorRoad(b);
     }
 
     /// <summary>
@@ -5351,6 +5568,8 @@ public partial class RTSGameplayScreen : GameScreen
             DrawGroundShaded(spriteBatch);
             // Die Wege als eigener Durchgang über dem Boden (C16)
             DrawRoads(spriteBatch);
+            // Die Türwege unter den Gebäuden bis zu den Türen (T16)
+            DrawDoorRoad(spriteBatch);
         }
         spriteBatch.Begin(samplerState: SamplerState.LinearWrap);
         DrawGround(spriteBatch);
@@ -5575,6 +5794,112 @@ public partial class RTSGameplayScreen : GameScreen
 
         spriteBatch.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, SamplerState.PointClamp, null, null, _roadEffect);
         spriteBatch.Draw(_roadMap, TileScreenRect(0, 0, tileMap.Width, tileMap.Height), Color.White);
+        spriteBatch.End();
+        ReleaseTextureUnits();
+    }
+
+    /// <summary>
+    /// Die Türwege-Rechtecke in Welt-Pixeln (T16): für jedes Gebäude, an dessen Tür eine
+    /// Straße herangelegt ist (DoorRoadOf), ein Rechteck in der Türspalte von der Unterkante
+    /// des Gebäudes bis zur Türschwelle, so breit wie das Wegband, das der Wegeschader auf der
+    /// erreichten Wegstufe zeichnet - so läuft der Weg nahtlos unter dem Gebäude hindurch bis
+    /// an die Tür.
+    /// VERTRAG:
+    /// - Leere Liste, wenn tileMap.CurrentRoadLevel &lt; 1.
+    /// stufe = tileMap.CurrentRoadLevel; halbeBandbreite = je Stufe { 1 => 0.24f, 2 => 0.27f,
+    /// _ => 0.30f } (dieselbe halbe Bandbreite wie DrawRoads).
+    /// Für jedes Gebäude in tileMap.Buildings, in dieser Reihenfolge: door = DoorRoadOf(b);
+    /// null, dann kein Rechteck. Sonst ts = tileMap.TileSize; x = door.DoorTile.X,
+    /// y = door.DoorTile.Y:
+    /// - links = (x + 0.5f - halbeBandbreite) * ts, breite = 2f * halbeBandbreite * ts,
+    /// - oben = y * ts (Unterkante des Gebäudes), hoehe =
+    ///   Math.Max(door.Depth, (0.5f - halbeBandbreite) * ts) (mindestens bis an die
+    ///   Bandkante des Wegetils in der Türzeile, damit sich beides berührt),
+    /// - alle Ränder gerundet zur ganzen Zahl, als Rectangle aufgenommen.
+    /// Reine Logik ohne Grafiken: tools/spielablauf läuft ohne Renderer.
+    /// </summary>
+    internal List<Rectangle> DoorRoadRects()
+    {
+        var list = new List<Rectangle>();
+        // Keine Wege, keine Türwege
+        if (tileMap.CurrentRoadLevel < 1)
+            return list;
+        // Halbe Bandbreite auf der erreichten Wegstufe, wie DrawRoads
+        float halbe = tileMap.CurrentRoadLevel switch
+        {
+            1 => 0.24f,
+            2 => 0.27f,
+            _ => 0.30f,
+        };
+        int ts = tileMap.TileSize;
+        foreach (var b in tileMap.Buildings)
+        {
+            if (DoorRoadOf(b) is not { } door)
+                continue;
+            int x = (int)door.DoorTile.X, y = (int)door.DoorTile.Y;
+            int links = (int)Math.Round((x + 0.5f - halbe) * ts);
+            int breite = (int)Math.Round(2f * halbe * ts);
+            int oben = y * ts;
+            int hoehe = (int)Math.Ceiling(Math.Max(door.Depth, (0.5f - halbe) * ts));
+            list.Add(new Rectangle(links, oben, breite, hoehe));
+        }
+        return list;
+    }
+
+    /// <summary>
+    /// Die Türwege unter den Gebäuden zeichnen (T16): je Türspalte, in der eine Straße bis an
+    /// die Tür herangeführt ist, ein Stück des Wegbilds von der Unterkante des Gebäudes bis an
+    /// die Türschwelle - der Weg führt an die Tür. Farbe und Breite wie die erreichte Stufe in
+    /// DrawRoads.
+    /// VERTRAG:
+    /// - nichts, wenn _roadEffect oder _roadMap null ist, tileMap.CurrentRoadLevel &lt; 1 oder
+    ///   DoorRoadRects() leer ist.
+    /// stufe = tileMap.CurrentRoadLevel; road = RoadTextureFor(stufe); null, dann nichts.
+    /// Tint = je Stufe { 1 => (0.80f, 0.79f, 0.74f), 2 => (1f, 1f, 1f), _ =>
+    /// (0.88f, 0.87f, 0.83f) } - identisch mit DrawRoads.
+    /// Maßstab = road.Width &lt;= 64 ? 1f : ROAD_TEXELS (Texturel pro Welt-Pixel, siehe
+    /// RoadScale in DrawRoads); für jedes Rechteck r aus DoorRoadRects(): Quellrechteck
+    /// ((int)(r.X * Maßstab) % road.Width, (int)(r.Y * Maßstab) % road.Height,
+    /// Math.Min(r.Width * Maßstab, road.Width), Math.Min(r.Height * Maßstab, road.Height)) -
+    /// der Stoff setzt sich exakt fort, als hätte der Shader ihn abgetastet;
+    /// SpriteBatch.Draw(road, r, Quellrechteck, Tint).
+    /// Davor spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend,
+    /// SamplerState.LinearClamp), danach spriteBatch.End() und ReleaseTextureUnits().
+    /// </summary>
+    private void DrawDoorRoad(SpriteBatch spriteBatch)
+    {
+        // Keine Wege, nichts zu malen; ohne Wege-Effekt nichts zu sehen
+        if (_roadEffect == null || _roadMap == null)
+            return;
+        int stufe = tileMap.CurrentRoadLevel;
+        if (stufe < 1)
+            return;
+        var road = RoadTextureFor(stufe);
+        if (road == null)
+            return;
+        var rects = DoorRoadRects();
+        if (rects.Count == 0)
+            return;
+
+        // Der Wegton der Wegstufe, wie in DrawRoads
+        var tint = stufe switch
+        {
+            1 => new Color(0.80f, 0.79f, 0.74f),
+            2 => new Color(1f, 1f, 1f),
+            _ => new Color(0.88f, 0.87f, 0.83f),
+        };
+        // Texturel pro Welt-Pixel: prozedurale 32er-Weg 1:1, sonst ROAD_TEXELS
+        float maßstab = road.Width <= 64f ? 1f : ROAD_TEXELS;
+
+        spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp);
+        foreach (var r in rects)
+        {
+            int sw = Math.Min(road.Width, Math.Max(1, (int)(r.Width * maßstab)));
+            int sh = Math.Min(road.Height, Math.Max(1, (int)(r.Height * maßstab)));
+            int sx = (int)(r.X * maßstab) % road.Width;
+            int sy = (int)(r.Y * maßstab) % road.Height;
+            spriteBatch.Draw(road, r, new Rectangle(sx, sy, sw, sh), tint);
+        }
         spriteBatch.End();
         ReleaseTextureUnits();
     }
