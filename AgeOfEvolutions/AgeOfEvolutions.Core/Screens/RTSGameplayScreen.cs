@@ -5858,13 +5858,16 @@ public partial class RTSGameplayScreen : GameScreen
     /// Tint = je Stufe { 1 => (0.80f, 0.79f, 0.74f), 2 => (1f, 1f, 1f), _ =>
     /// (0.88f, 0.87f, 0.83f) } - identisch mit DrawRoads.
     /// Maßstab = road.Width &lt;= 64 ? 1f : ROAD_TEXELS (Texturel pro Welt-Pixel, siehe
-    /// RoadScale in DrawRoads); für jedes Rechteck r aus DoorRoadRects(): Quellrechteck
+    /// RoadScale in DrawRoads); für jedes Rechteck r aus DoorRoadRects() (Welt-Pixel): Quellrechteck
     /// ((int)(r.X * Maßstab) % road.Width, (int)(r.Y * Maßstab) % road.Height,
     /// Math.Min(r.Width * Maßstab, road.Width), Math.Min(r.Height * Maßstab, road.Height)) -
     /// der Stoff setzt sich exakt fort, als hätte der Shader ihn abgetastet;
-    /// SpriteBatch.Draw(road, r, Quellrechteck, Tint).
+    /// Ziel = r über WorldToScreen auf den Bildschirm gebracht (Ecken abgerundet wie
+    /// TileScreenRect), außerhalb von screenBounds nichts; SpriteBatch.Draw(road, Ziel,
+    /// Quellrechteck, Tint).
     /// Davor spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend,
-    /// SamplerState.LinearClamp), danach spriteBatch.End() und ReleaseTextureUnits().
+    /// SamplerState.LinearWrap) - das Quellrechteck darf über den Bildrand des kachelbaren
+    /// Wegbilds hinausreichen -, danach spriteBatch.End() und ReleaseTextureUnits().
     /// </summary>
     private void DrawDoorRoad(SpriteBatch spriteBatch)
     {
@@ -5891,14 +5894,24 @@ public partial class RTSGameplayScreen : GameScreen
         // Texturel pro Welt-Pixel: prozedurale 32er-Weg 1:1, sonst ROAD_TEXELS
         float maßstab = road.Width <= 64f ? 1f : ROAD_TEXELS;
 
-        spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp);
+        spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearWrap);
         foreach (var r in rects)
         {
+            // r liegt in Welt-Pixeln; gezeichnet wird ohne Kameramatrix, also selbst
+            // auf den Bildschirm bringen - sonst landen die Stücke fest auf dem
+            // Bildschirm verstreut im Gras, statt unter den Türen
+            var oben = WorldToScreen(new Vector2(r.Left, r.Top));
+            var unten = WorldToScreen(new Vector2(r.Right, r.Bottom));
+            int left = (int)MathF.Floor(oben.X), top = (int)MathF.Floor(oben.Y);
+            var ziel = new Rectangle(left, top, (int)MathF.Floor(unten.X) - left, (int)MathF.Floor(unten.Y) - top);
+            if (!ziel.Intersects(screenBounds))
+                continue;
+            // Der Stoff bleibt an der Welt verankert, wie im Wege-Shader
             int sw = Math.Min(road.Width, Math.Max(1, (int)(r.Width * maßstab)));
             int sh = Math.Min(road.Height, Math.Max(1, (int)(r.Height * maßstab)));
             int sx = (int)(r.X * maßstab) % road.Width;
             int sy = (int)(r.Y * maßstab) % road.Height;
-            spriteBatch.Draw(road, r, new Rectangle(sx, sy, sw, sh), tint);
+            spriteBatch.Draw(road, ziel, new Rectangle(sx, sy, sw, sh), tint);
         }
         spriteBatch.End();
         ReleaseTextureUnits();
