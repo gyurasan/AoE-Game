@@ -36,6 +36,18 @@ def methode(text: str, name: str) -> str | None:
                 tiefe -= 1
             i += 1
 
+        # Initializer eines Konstruktors überspringen: ': base(...)' oder ': this(...)'
+        init = re.match(r"\s*:\s*(base|this)\s*\(", text[i:])
+        if init:
+            j, tiefe = i + init.end(), 1
+            while j < len(text) and tiefe:
+                if text[j] == "(":
+                    tiefe += 1
+                elif text[j] == ")":
+                    tiefe -= 1
+                j += 1
+            i = j
+
         ausdruck = re.match(r"\s*=>", text[i:])
         if ausdruck:
             ende = text.find(";", i)

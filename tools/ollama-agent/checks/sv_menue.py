@@ -1,10 +1,13 @@
-"""Strukturprüfung (SV3): Speichern im Pausenmenü, Laden im Hauptmenü, die Einbindung in
-RTSGameplayScreen.LoadContent und den Startschalter --laden.
+"""Strukturprüfung (SV3/SV4): Speichern im Pausenmenü, Laden im Hauptmenü, die Einbindung
+in RTSGameplayScreen.LoadContent und den Startschalter --laden.
 
 Die Rümpfe selbst prüfen tools/spielablauf (Gruppen speichern und menue) und
 checks/sv_laden.py; was nur mit Grafik und ScreenManager läuft - das Pausenmenü speichert,
 das Hauptmenü lädt -, prüft diese Datei am Quelltext: die Aufrufe aus dem VERTRAG müssen da
 sein, in der richtigen Reihenfolge.
+
+Stand 2026-10-22 (mehrere Spielstand-Plätze, SV5/SV6): Speichern und Laden liegen in den
+Listenmenüs SaveGameScreen und LoadGameScreen - die Menüs öffnen nur noch diese.
 """
 import sys
 from pathlib import Path
@@ -38,24 +41,17 @@ def reihenfolge(text: str, wo: str, *teile: str) -> None:
         fehler.append(f"{wo}: Reihenfolge stimmt nicht - erwartet {' vor '.join(teile)}")
 
 
-# Pausenmenü: speichern, Meldung, Fehler abfangen
-pause = rumpf(SCREENS / "PauseScreen.cs", "SaveGameMenuEntrySelected")
-enthaelt(pause, "PauseScreen.SaveGameMenuEntrySelected", "OfType<RTSGameplayScreen>()", "CaptureSave()",
-         "new SaveGameStore()", ".Save(", "ShowToast(\"Spiel gespeichert\")", "catch",
-         "\"Speichern fehlgeschlagen: \"")
-reihenfolge(pause, "PauseScreen.SaveGameMenuEntrySelected", ".Save(", "ShowToast(\"Spiel gespeichert\")", "catch")
+# Pausenmenü: „Spiel speichern" öffnet die Platzliste
+pause = SCREENS / "PauseScreen.cs"
+enthaelt(rumpf(pause, "SaveGameMenuEntrySelected"), "PauseScreen.SaveGameMenuEntrySelected",
+         "new SaveGameScreen(", "ControllingPlayer")
 
-# Hauptmenü: Eintrag freischalten, laden, Fehler zeigen
+# Hauptmenü: Eintrag freischalten, Platzliste öffnen
 menue = SCREENS / "MainMenuScreen.cs"
 enthaelt(rumpf(menue, "LoadContent"), "MainMenuScreen.LoadContent", "RefreshLoadEntry()")
 auswahl = rumpf(menue, "HandleMenuSelect")
-enthaelt(auswahl, "MainMenuScreen.HandleMenuSelect", "case LOAD_ENTRY", "LoadSavedGame()")
-enthaelt(rumpf(menue, "RefreshLoadEntry"), "MainMenuScreen.RefreshLoadEntry", "saves.Exists", "selectedIndex")
-laden = rumpf(menue, "LoadSavedGame")
-enthaelt(laden, "MainMenuScreen.LoadSavedGame", "saves.Load()", "SaveGameMapper.Restore(", "LoadingScreen.Load(",
-         "new RTSGameplayScreen(", "catch", "\"Spielstand nicht lesbar: \"", "menuOptions[LOAD_ENTRY]",
-         "selectedIndex = 0", "new MessageBoxScreen(")
-reihenfolge(laden, "MainMenuScreen.LoadSavedGame", "saves.Load()", "SaveGameMapper.Restore(", "LoadingScreen.Load(", "catch")
+enthaelt(auswahl, "MainMenuScreen.HandleMenuSelect", "case LOAD_ENTRY", "new LoadGameScreen(")
+enthaelt(rumpf(menue, "RefreshLoadEntry"), "MainMenuScreen.RefreshLoadEntry", "ListSaves(", "selectedIndex")
 
 # Spielbildschirm: geladene Welt statt neuer Karte, gespeicherte Kamera nach dem Startblick
 spiel = rumpf(SCREENS / "RTSGameplayScreen.cs", "LoadContent")
@@ -77,4 +73,5 @@ schalter = rumpf(spielklasse, "ScreenFromCommandLine")
 enthaelt(schalter, "AgeOfEvolutionsGame.ScreenFromCommandLine", "\"--laden\"", "SaveGameStore(", "SaveGameMapper.Restore(",
          "new RTSGameplayScreen(", "catch", "\"[Laden] Spielstand nicht lesbar: \"")
 
-melde(fehler, "Spielstand-Einbindung: Pausenmenü speichert, Hauptmenü lädt, LoadContent und --laden stimmen")
+melde(fehler, "Spielstand-Einbindung: Pausenmenü öffnet die Speicherliste, Hauptmenü die Ladeliste, "
+              "LoadContent und --laden stimmen")

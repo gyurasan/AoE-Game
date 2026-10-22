@@ -30,8 +30,8 @@ public class MainMenuScreen : GameScreen
     Texture2D menuButton;
     SoundEffect soundButton;
 
-    // „Spiel laden" ist grau und nicht wählbar, solange es keinen Spielstand gibt;
-    // LoadContent schaltet den Eintrag frei, wenn die Datei da ist.
+    // „Spiel laden" ist grau und nicht wählbar, solange es keine Spielstände gibt;
+    // LoadContent schaltet den Eintrag frei, wenn welche da sind.
     // „Update" erscheint nur, wenn ein neueres Release vorliegt (RefreshUpdateEntry)
     readonly (string Text, bool Enabled)[] menuOptions =
     {
@@ -50,9 +50,8 @@ public class MainMenuScreen : GameScreen
     MapSize mapSize = MapSize.Standard;
     SettingsManager<AgeOfEvolutionsSettings> settingsManager;
 
-    // „Spiel laden": der Spielstand am Standardort (neben den Einstellungen)
+    // „Spiel laden": öffnet die Liste aller Spielstände (LoadGameScreen)
     private const int LOAD_ENTRY = 2;
-    readonly SaveGameStore saves = new SaveGameStore();
 
     // Update (Nutzer 2026-10-18, Aussehen 2026-10-20: „nicht wie die anderen
     // menüs"): ein gewöhnlicher Menüeintrag unter „Beenden", nur sichtbar, wenn
@@ -301,8 +300,8 @@ public class MainMenuScreen : GameScreen
                     settingsManager.Save();
                 }
                 break;
-            case LOAD_ENTRY: // Spiel laden
-                LoadSavedGame();
+            case LOAD_ENTRY: // Spiel laden: die Liste aller Spielstände
+                ScreenManager.AddScreen(new LoadGameScreen(), ControllingPlayer);
                 break;
             case 3: // Settings
                 ScreenManager.AddScreen(new SettingsScreen(), ControllingPlayer);
@@ -317,44 +316,17 @@ public class MainMenuScreen : GameScreen
     }
 
     /// <summary>
-    /// Schaltet „Spiel laden" frei, wenn es einen Spielstand gibt, sonst sperrt es den Eintrag.
+    /// Schaltet „Spiel laden" frei, wenn es Spielstände gibt, sonst sperrt es den Eintrag.
     /// LoadContent ruft sie auf; tools/spielablauf (Gruppe menue) prüft sie ohne Grafik.
-    /// VERTRAG: menuOptions[LOAD_ENTRY] = ("Spiel laden", saves.Exists); steht die Auswahl
-    /// (selectedIndex) auf dem nun gesperrten Eintrag, springt sie auf 0 („Neues Spiel").
+    /// VERTRAG: menuOptions[LOAD_ENTRY] = ("Spiel laden", SaveGameStore.ListSaves().Count > 0);
+    /// steht die Auswahl (selectedIndex) auf dem nun gesperrten Eintrag, springt sie auf
+    /// 0 („Neues Spiel").
     /// </summary>
     private void RefreshLoadEntry()
     {
-        menuOptions[LOAD_ENTRY] = ("Spiel laden", saves.Exists);
+        menuOptions[LOAD_ENTRY] = ("Spiel laden", SaveGameStore.ListSaves().Count > 0);
         if (selectedIndex == LOAD_ENTRY && !menuOptions[LOAD_ENTRY].Enabled)
             selectedIndex = 0;
-    }
-
-    /// <summary>
-    /// Setzt das gespeicherte Spiel fort (Eintrag „Spiel laden").
-    /// VERTRAG: in einem try: save = saves.Load(); zur Probe
-    /// SaveGameMapper.Restore(save) (Ergebnis verwerfen - ein kaputter Spielstand fällt so
-    /// hier auf und nicht erst mitten im Ladebildschirm); dann wie „Neues Spiel"
-    /// LoadingScreen.Load(ScreenManager, true, ControllingPlayer, new RTSGameplayScreen(save)).
-    /// Jede Ausnahme (catch Exception ex): das Hauptmenü bleibt, der Eintrag wird gesperrt
-    /// (menuOptions[LOAD_ENTRY] = ("Spiel laden", false)), die Auswahl springt auf „Neues Spiel"
-    /// (selectedIndex = 0), und ScreenManager.AddScreen(new MessageBoxScreen("Spielstand nicht
-    /// lesbar: " + ex.Message, false, TimeSpan.FromSeconds(3), true), ControllingPlayer) zeigt es.
-    /// </summary>
-    private void LoadSavedGame()
-    {
-        try
-        {
-            var save = saves.Load();
-            SaveGameMapper.Restore(save);
-            LoadingScreen.Load(ScreenManager, true, ControllingPlayer, new RTSGameplayScreen(save));
-        }
-        catch (Exception ex)
-        {
-            menuOptions[LOAD_ENTRY] = ("Spiel laden", false);
-            selectedIndex = 0;
-            ScreenManager.AddScreen(new MessageBoxScreen("Spielstand nicht lesbar: " + ex.Message, false,
-                                                         TimeSpan.FromSeconds(3), true), ControllingPlayer);
-        }
     }
 
     public override void Draw(GameTime gameTime)

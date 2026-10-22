@@ -5280,12 +5280,14 @@ static void Hauptmenue(List<string> verstoesse)
     if ((string)Methode("EntryText").Invoke(menue, new object[] { 0 }) != "Neues Spiel")
         verstoesse.Add($"{wer}: der erste Eintrag heißt nicht mehr „Neues Spiel“");
 
-    // Spiel laden (SV3): ohne Spielstand gesperrt - die Auswahl verlässt den Eintrag -,
-    // mit Spielstand frei, mit der Maus startbar und mit den Pfeiltasten erreichbar
-    var saves = typ.GetField("saves", F)
-        ?? throw new InvalidOperationException("Feld MainMenuScreen.saves nicht gefunden");
-    string pfad = Path.Combine(Path.GetTempPath(), $"aoe-menue-{Guid.NewGuid():N}.json");
-    saves.SetValue(menue, new SaveGameStore(pfad));
+    // Spiel laden (SV3, Plätze seit SV5): ohne Spielstand gesperrt - die Auswahl verlässt den
+    // Eintrag -, mit Spielstand frei, mit der Maus startbar und mit den Pfeiltasten erreichbar.
+    // Der Platz-Ordner kommt über AOE_SPEICHER_ORDNER aus %TEMP% - der echte Ordner neben den
+    // Einstellungen bleibt unangetastet.
+    string ordner = Path.Combine(Path.GetTempPath(), $"aoe-menue-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(ordner);
+    Environment.SetEnvironmentVariable("AOE_SPEICHER_ORDNER", ordner);
+    string pfad = Path.Combine(ordner, SaveGameStore.FILE_NAME);
     Rectangle Laden() => (Rectangle)Methode("EntryRect").Invoke(null, new object[] { 2, 1920, 1080 });
     (int, bool) Klick(Rectangle r) => ((int, bool))Methode("EvaluateMouse").Invoke(menue,
         new object[] { Maus(r.Center, false), Maus(r.Center, true), 1920, 1080 });
@@ -5298,7 +5300,13 @@ static void Hauptmenue(List<string> verstoesse)
         if (Klick(Laden()) != (0, false))
             verstoesse.Add($"{wer}: ohne Spielstand lässt sich „Spiel laden“ anklicken");
 
-        File.WriteAllText(pfad, "{}");
+        // Ein echter (kleiner) Spielstand, damit die Kopf-Lesung der Platzliste etwas vorfindet.
+        new SaveGameStore(pfad).Save(new SaveGame
+        {
+            Version = SaveGame.CURRENT_VERSION,
+            SavedAt = DateTime.Now,
+            Players = { new PlayerSave { Id = 0, Name = "Spieler", Civilization = "Briten" } },
+        });
         Methode("RefreshLoadEntry").Invoke(menue, null);
         if (Klick(Laden()) != (2, true))
             verstoesse.Add($"{wer}: mit Spielstand startet ein Klick „Spiel laden“ nicht");
@@ -5314,8 +5322,9 @@ static void Hauptmenue(List<string> verstoesse)
     }
     finally
     {
-        if (File.Exists(pfad))
-            File.Delete(pfad);
+        Environment.SetEnvironmentVariable("AOE_SPEICHER_ORDNER", null);
+        if (Directory.Exists(ordner))
+            Directory.Delete(ordner, recursive: true);
     }
 
     if (verstoesse.Count == vorher)

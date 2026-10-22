@@ -1,19 +1,15 @@
 using System;
-using System.Linq;
-using AgeOfEvolutions.Core.Data;
 using AgeOfEvolutions.Core.Screens;
 
 namespace AgeOfEvolutions.Screens;
 
 /// <summary>
 /// The pause menu comes up over the top of the game (Esc), giving the player
-/// options to resume, save or quit. Deutsch wie das Hauptmenü.
+/// options to resume, save or quit. Deutsch wie das Hauptmenü. „Spiel speichern"
+/// öffnet die Platzliste <see cref="SaveGameScreen"/> - es gibt mehrere Plätze.
 /// </summary>
 class PauseScreen : MenuScreen
 {
-    /// <summary>So lange steht eine Meldung wie „Spiel gespeichert" über dem Menü.</summary>
-    private static readonly TimeSpan TOAST_DURATION = TimeSpan.FromSeconds(1.5);
-
     /// <summary>
     /// Initializes a new instance of the <see cref="PauseScreen"/> class.
     /// </summary>
@@ -37,35 +33,14 @@ class PauseScreen : MenuScreen
     }
 
     /// <summary>
-    /// Speichert das laufende Spiel; das Pausenmenü bleibt offen.
-    /// VERTRAG: game = ScreenManager.GetScreens().OfType&lt;RTSGameplayScreen&gt;().LastOrDefault();
-    /// ohne Spielbildschirm geschieht nichts. Sonst in einem try:
-    /// new SaveGameStore().Save(game.CaptureSave()) und danach ShowToast("Spiel gespeichert").
-    /// Jede Ausnahme (catch Exception ex): ShowToast("Speichern fehlgeschlagen: " + ex.Message).
+    /// Öffnet die Platzliste zum Speichern (neuer Spielstand oder überschreiben).
+    /// VERTRAG: ScreenManager.AddScreen(new SaveGameScreen(), ControllingPlayer).
     /// </summary>
     /// <param name="sender">The source of the event.</param>
     /// <param name="e">The <see cref="PlayerIndexEventArgs"/> instance containing the event data.</param>
     private void SaveGameMenuEntrySelected(object sender, PlayerIndexEventArgs e)
     {
-        RTSGameplayScreen game = ScreenManager.GetScreens().OfType<RTSGameplayScreen>().LastOrDefault();
-        if (game == null)
-            return;
-
-        try
-        {
-            new SaveGameStore().Save(game.CaptureSave());
-            ShowToast("Spiel gespeichert");
-        }
-        catch (Exception ex)
-        {
-            ShowToast("Speichern fehlgeschlagen: " + ex.Message);
-        }
-    }
-
-    /// <summary>Eine kurze Meldung über dem Menü, die nach <see cref="TOAST_DURATION"/> verschwindet.</summary>
-    private void ShowToast(string text)
-    {
-        ScreenManager.AddScreen(new MessageBoxScreen(text, false, TOAST_DURATION, true), ControllingPlayer);
+        ScreenManager.AddScreen(new SaveGameScreen(), ControllingPlayer);
     }
 
     /// <summary>
