@@ -168,6 +168,8 @@ public partial class RTSGameplayScreen
             float f = StageReveal[stage];
             int shown = Math.Max(1, (int)(spriteHeight * f));
             Rectangle source = new(0, sprite.Height - (int)(sprite.Height * f), sprite.Width, (int)(sprite.Height * f));
+            // Schlagschatten (C7): der Teil des Gebäudes, der schon steht
+            DrawCastShadow(spriteBatch, sprite, area, SpriteEffects.None, true, source.Y);
             spriteBatch.Draw(sprite, new Rectangle(area.X, area.Bottom - shown, area.Width, shown), source, StageTint[stage]);
             // Gerüst: Stangen, Schrägstreben, Bretter
             int top = area.Bottom - shown - (stage == 3 ? 1 : Px(8));

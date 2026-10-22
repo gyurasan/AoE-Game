@@ -95,6 +95,12 @@ namespace AgeOfEvolutions.Core
             // Profil nicht aus.
             graphicsDeviceManager.GraphicsProfile = GraphicsProfile.HiDef;
 
+            // Der Bildpuffer behält seinen Inhalt, wenn mitten im Bild in ein eigenes
+            // Render-Target gezeichnet wird (Schlagschatten, C7) - sonst füllt MonoGame
+            // ihn beim Zurückschalten mit seiner Verwerfen-Farbe
+            graphicsDeviceManager.PreparingDeviceSettings += (_, e) =>
+                e.GraphicsDeviceInformation.PresentationParameters.RenderTargetUsage = RenderTargetUsage.PreserveContents;
+
             // Share GraphicsDeviceManager as a service.
             Services.AddService(typeof(GraphicsDeviceManager), graphicsDeviceManager);
 

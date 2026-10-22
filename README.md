@@ -9,7 +9,8 @@ Ein Age-of-Empires-I-artiges Echtzeitstrategiespiel, implementiert in C# mit Mon
 *In der Dunklen Zeit ist das Stadtzentrum ein strohgedecktes Langhaus, hier ausgewählt: grüner Rahmen,
 Lebensbalken und unten in der Leiste sein Status - es bildet gerade Dorfbewohner aus, einer wartet
 noch. Zwei Dorfbewohner ernten das Feld an der Mühle, andere fällen Holz und schürfen Gold an den
-Lagern; Schafe ziehen über die Wiese, am See liegt ein Sandstrand.*
+Lagern; Schafe ziehen über die Wiese, am See liegt ein Sandstrand. Jedes Gebäude, jeder Baum und jede
+Figur wirft seinen Schatten in seiner eigenen Form, alle in dieselbe Richtung.*
 
 ![Gefecht in der Feudalzeit: eigene Miliz gegen gegnerische Miliz, dahinter die eigenen Bogenschützen, der Späher greift einen gegnerischen Bogenschützen an der angeschlagenen Kaserne an](docs/bilder/kampf.jpg)
 
@@ -131,8 +132,31 @@ man die Taste noch einmal drückt; ein Rechtsklick bricht das Setzen ab.
 
 ## Herunterladen und Starten
 
-Fertige Pakete für macOS (Apple Silicon `osx-arm64`, Intel `osx-x64`), Windows und Linux liegen unter
+Fertige Pakete für Windows, macOS (Apple Silicon `osx-arm64`, Intel `osx-x64`) und Linux liegen unter
 [Releases](https://github.com/gyurasan/AoE-Game/releases); .NET muss dafür nicht installiert sein.
+Ist eine neuere Version erschienen, bietet das Hauptmenü sie unter „Update“ an und ersetzt die
+Installation an Ort und Stelle.
+
+### Windows
+
+Für Windows gibt es dasselbe Spiel in zwei Fassungen:
+
+| Paket | Grafik |
+|---|---|
+| `AoE_Evolutions_<Version>_win-x64-desktopgl.zip` | OpenGL - dieselbe Fassung wie auf macOS und Linux |
+| `AoE_Evolutions_<Version>_win-x64-windowsdx.zip` | DirectX 11 - falls OpenGL auf dem Rechner Probleme macht |
+
+Zip entpacken und im Ordner `win-x64-desktopgl` (bzw. `win-x64-windowsdx`) `AgeOfEvolutions.exe`
+starten. Das Spiel ist nicht signiert, deshalb hält Windows SmartScreen den ersten Start an („Der
+Computer wurde durch Windows geschützt“): auf „Weitere Informationen“ klicken, dann auf „Trotzdem
+ausführen“. Wer das vermeiden will, nimmt der Zip vor dem Entpacken in PowerShell die
+Download-Markierung:
+
+```powershell
+Unblock-File "$HOME\Downloads\AoE_Evolutions_*_win-x64-desktopgl.zip"
+```
+
+### macOS
 
 Auf einem anderen Mac blockiert macOS das heruntergeladene Spiel zunächst, weil es nicht signiert
 ist, und meldet, es sei beschädigt oder könne nicht geöffnet werden. Nach dem Entpacken deshalb

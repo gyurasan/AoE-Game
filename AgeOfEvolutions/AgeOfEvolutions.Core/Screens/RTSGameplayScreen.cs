@@ -590,7 +590,7 @@ public partial class RTSGameplayScreen : GameScreen
     // Gehphasen (dorfbewohner_lauf1 bis _lauf8 im Ordner des Standbilds, aus tools/bilder/gang.py),
     // deckungsgleich mit dem Standbild zugeschnitten; das Auf und Ab steckt im Bild (C4m)
     private readonly Dictionary<(Age Age, int Owner), Texture2D[]> _villagerWalk = new();
-    private Texture2D _shadowTex;          // weicher Schatten unter den Füßen
+
 
     // Werkzeuge der Dorfbewohner (tools/bilder, Gruppe werkzeuge): waagerecht,
     // Griff links, Kopf rechts, Schneide unten. DrawTool dreht sie um die Faust.
@@ -943,7 +943,7 @@ public partial class RTSGameplayScreen : GameScreen
             }
         }
 
-        // Dorfbewohner-Sprites je Zeitalter und Spielerfarbe und ihr Schatten. Die
+        // Dorfbewohner-Sprites je Zeitalter und Spielerfarbe. Die
         // Dunkle Zeit trägt die Grundkleidung unter Einheiten/, spätere Zeitalter ihre
         // eigene, sonst die des Zeitalters davor; fehlt das Sprite ganz, zeichnet
         // DrawUnits die Figur wie bisher selbst
@@ -965,7 +965,7 @@ public partial class RTSGameplayScreen : GameScreen
                     _villagerWalk[((Age)age, owner)] = walk;
             }
         }
-        _shadowTex = BuildShadowTexture(graphicsDevice);
+
         foreach (var (tool, style) in ToolStyles)
         {
             if (LoadOptional(style.Asset) is { } tex)
@@ -5578,6 +5578,10 @@ public partial class RTSGameplayScreen : GameScreen
         if (_wheatEffect != null && _soilTex != null && _wheatTex != null)
             DrawWheat(spriteBatch);
 
+        // Schlagschatten (C7): Haufen und stehende Objekte legen ihre Schatten in einen
+        // eigenen Batch, der vor ihnen auf den Bildschirm kommt - so liegen alle Schatten
+        // am Boden, auch die nach hinten fallenden unter dem, was dahinter steht
+        BeginCastShadows();
         spriteBatch.Begin();
 
         // Draw tilemap (Boden, Nahrungskacheln, Felder)
@@ -5587,6 +5591,7 @@ public partial class RTSGameplayScreen : GameScreen
         // sortierten Zug - wessen Sohle weiter unten im Bild steht, überdeckt,
         // was weiter oben steht (Haufen und Fleisch liegen flach in DrawTileMap)
         DrawUnits(spriteBatch);
+        EndCastShadows();
 
         // Pfeile im Flug über allem, was steht (A3)
         DrawArrows(spriteBatch);
@@ -6381,6 +6386,8 @@ public partial class RTSGameplayScreen : GameScreen
         if (!target.Intersects(screenBounds))
             return;
         var effekt = ((h >> 9) & 1) == 1 ? SpriteEffects.FlipHorizontally : SpriteEffects.None;
+        // Schlagschatten (C7)
+        DrawCastShadow(spriteBatch, tex, target, effekt, false, 0, TREE_SHADOW_DENSITY);
         spriteBatch.Draw(tex, target, null, Color.White, 0f, Vector2.Zero, effekt, 0f);
     }
 
@@ -6633,7 +6640,11 @@ public partial class RTSGameplayScreen : GameScreen
         var target = new Rectangle(tileRect.Center.X - width / 2 + jx,
                                    tileRect.Bottom - tileRect.Height / 6 - height + jy, width, height);
         if (target.Intersects(screenBounds))
+        {
+            // Schlagschatten (C7): von jedem Steinfuß aus
+            DrawCastShadow(spriteBatch, tex, target, SpriteEffects.None, true);
             spriteBatch.Draw(tex, target, Color.White);
+        }
     }
 
     /// <summary>
@@ -6732,12 +6743,9 @@ public partial class RTSGameplayScreen : GameScreen
         var target = new Rectangle((int)(foot.X - width / 2f), (int)(foot.Y - height - bob), width, height);
         if (!target.Intersects(screenBounds))
             return;
-        if (_shadowTex != null)
-        {
-            int shadowWidth = (int)(width * 0.8f), shadowHeight = Math.Max(2, (int)(width * 0.22f));
-            spriteBatch.Draw(_shadowTex, new Rectangle((int)foot.X - shadowWidth / 2,
-                (int)foot.Y - height / 12 - shadowHeight / 2, shadowWidth, shadowHeight), Color.White);
-        }
+        // Schlagschatten (C7): am Boden unter den Hufen, er wippt nicht mit
+        DrawCastShadow(spriteBatch, tex, new Rectangle(target.X, (int)(foot.Y - height), width, height),
+                       tier.FacingLeft ? SpriteEffects.FlipHorizontally : SpriteEffects.None, false);
         spriteBatch.Draw(tex, target, null, Color.White, 0f, Vector2.Zero,
                          tier.FacingLeft ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 0f);
     }
@@ -6907,6 +6915,8 @@ public partial class RTSGameplayScreen : GameScreen
                                  target.Width + treeHeight / 8, target.Height);
         if (!screenBounds.Intersects(cull)) return;
         float sway = Wind.TreeSway(foot / tileMap.TileSize, animationTime, look);
+        // Schlagschatten (C7): der Baum in Ruhe, der Schatten schwingt nicht mit
+        DrawCastShadow(spriteBatch, tex, target, SpriteEffects.None, false, 0, TREE_SHADOW_DENSITY);
         foreach (var strip in Wind.SwayStrips(target, tex.Width, tex.Height, sway))
         {
             spriteBatch.Draw(tex, strip.Position, strip.Source, Color.White, 0f, Vector2.Zero, strip.Scale, SpriteEffects.None, 0f);
@@ -7044,6 +7054,8 @@ public partial class RTSGameplayScreen : GameScreen
             int spriteHeight = rect.Width * sprite.Height / sprite.Width;
             var area = new Rectangle(rect.X, rect.Bottom - spriteHeight, rect.Width, spriteHeight);
             float phase = (b.X * 7 + b.Y * 13) * 0.37f;   // jedes Gebäude im eigenen Takt
+            // Schlagschatten (C7): das Gebäude ohne Flügelkreuz und Rauch
+            DrawCastShadow(spriteBatch, sprite, area, SpriteEffects.None, true);
             if (_flagCloths.TryGetValue(sprite, out var cloth))
                 DrawWavingFlag(spriteBatch, sprite, area, cloth, phase);
             else
@@ -7807,13 +7819,13 @@ public partial class RTSGameplayScreen : GameScreen
         if (striking)
             figure = attack[AttackPhase(unit.AttackTimer)];
 
-        // Schatten unter den Füßen - er bleibt am Boden, während die Figur wippt
-        if (_shadowTex != null)
-        {
-            int shadowWidth = (int)(size * 0.7f), shadowHeight = Math.Max(2, (int)(size * 0.18f));
-            spriteBatch.Draw(_shadowTex, new Rectangle((int)screenPos.X - shadowWidth / 2,
-                (int)screenPos.Y - shadowHeight / 2, shadowWidth, shadowHeight), Color.White);
-        }
+        // Schlagschatten (C7): die Figur im Maßstab ihres Bilds an den Füßen - er bleibt
+        // am Boden, während die Figur wippt
+        float shadowScale = (float)size / (striking ? _unitSprites[(unit.Type, unit.OwnerId)].Height : figure.Height);
+        int shadowWidth = (int)(figure.Width * shadowScale), shadowHeight = (int)(figure.Height * shadowScale);
+        DrawCastShadow(spriteBatch, figure,
+                       new Rectangle((int)screenPos.X - shadowWidth / 2, (int)screenPos.Y - shadowHeight, shadowWidth, shadowHeight),
+                       motion.FacingLeft ? SpriteEffects.FlipHorizontally : SpriteEffects.None, false);
 
         // Das Werkzeug liegt hinter der Figur: die Faust umschließt den Stiel, Kopf
         // und Hut verdecken ihn auf der Schulter. Beim Arbeiten holt es aus und
@@ -7960,28 +7972,7 @@ public partial class RTSGameplayScreen : GameScreen
         return new Vector2(column, count > 0 ? (float)sum / count : tex.Height / 2f);
     }
 
-    /// <summary>Weicher, ovaler, abgerundeter Schatten: in der Mitte dunkel,
-    /// zum Rand durchsichtig. Hohe Auflösung (72×28) + lineares Filter, damit
-    /// der Rand bei jeder Zielgröße weich ausläuft statt pixelig abzubrechen
-    /// (Nutzer 2026-10-11: „Schatten abrunden").</summary>
-    private static Texture2D BuildShadowTexture(GraphicsDevice gd)
-    {
-        var b = new TextureBuilder(72, 28);
-        for (int y = 0; y < b.H; y++)
-        {
-            for (int x = 0; x < b.W; x++)
-            {
-                float dx = (x + 0.5f - b.W / 2f) / (b.W / 2f), dy = (y + 0.5f - b.H / 2f) / (b.H / 2f);
-                float d = dx * dx + dy * dy;
-                if (d < 1f)
-                    b.Set(x, y, Color.Black * (0.35f * (1f - d)));
-            }
-        }
-        var t = b.Build(gd);
-        return t;   // MonoGame 3.8: kein Filter/AddressMode auf Texture2D —
-                    // die weiche Kante kommt über die hohe Auflösung
-                    // (mehr Stufen pro gestrecktem Ziel-Pixel).
-    }
+
 
     /// <summary>
     /// Nebel des Krieges für Spieler 0: nie Gesehenes schwarz, einmal Gesehenes

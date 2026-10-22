@@ -133,6 +133,9 @@ for (int karte = 1; karte <= KARTEN; karte++)
     // Feuer und Rauch (A5) hängen nur an der Zeit, nicht an der Karte
     if (gruppen.Contains("feuer") && karte == 1)
         Pruefe("Feuer und Rauch", () => FeuerUndRauch(verstoesse));
+    // Schlagschatten (C7): reine Rechnung, keine Karte nötig
+    if (gruppen.Contains("schatten") && karte == 1)
+        Pruefe("Schlagschatten", () => Schatten(verstoesse));
     if (gruppen.Contains("festerboden"))
         Pruefe($"Karte {karte}, Fester Boden", () => FesterBoden(karte, verstoesse));
     if (gruppen.Contains("nebelboden"))
@@ -2631,6 +2634,317 @@ static void Einsturz(int karte, List<string> verstoesse)
         verstoesse.Add($"{wer}: zwei Einstürze nacheinander: {liste.Count} in der Liste, Alter falsch");
     if (verstoesse.Count == vorher)
         Console.WriteLine($"  ok  {wer}: Haus sofort fort, Einsturz an seiner Stelle, altert mit der Spielschleife, Trümmer {trummer} s");
+}
+
+// Schlagschatten (C7): HalfAlpha, BakeShadowMask und ShadowDest rechnen ohne Grafik. Die
+// Maske wird gegen eine zweite Umsetzung desselben Vertrags verglichen (MaskeNachVertrag),
+// dazu die Eigenschaften, die man im Bild sieht: der Schatten hängt am Fuß, fällt nach
+// rechts vorn (Vorbild errors/Schatten.jpg), und wo sich Teile decken,
+// wird es nicht dunkler. Wo die Schatten
+// gezeichnet werden, prüft checks/c7_schatten.py.
+static void Schatten(List<string> verstoesse)
+{
+    const string wer = "Schlagschatten";
+    int vorher = verstoesse.Count;
+    MethodInfo Statisch(string name) => typeof(RTSGameplayScreen).GetMethod(name,
+        BindingFlags.NonPublic | BindingFlags.Static)
+        ?? throw new InvalidOperationException($"statische Methode RTSGameplayScreen.{name} nicht gefunden - umbenannt?");
+    float Wert(string name) => Convert.ToSingle(typeof(RTSGameplayScreen).GetField(name,
+        BindingFlags.NonPublic | BindingFlags.Static)?.GetValue(null)
+        ?? throw new InvalidOperationException($"Konstante RTSGameplayScreen.{name} nicht gefunden"));
+    var halb = Statisch("HalfAlpha");
+    var backen = Statisch("BakeShadowMask");
+    var ziel = Statisch("ShadowDest");
+    float skew = Wert("SHADOW_SKEW"), flat = Wert("SHADOW_FLATTEN"), depth = Wert("SHADOW_DEPTH");
+    int soft = (int)Wert("SHADOW_SOFT");
+
+    byte[] Halb(Color[] p, int w, int h, bool flip, int hidden)
+        => (byte[])halb.Invoke(null, new object[] { p, w, h, flip, hidden })!;
+    (byte[] Maske, int Breite, int Hoehe) Backen(byte[] a, int w, int h, bool contour)
+    {
+        var args = new object[] { a, w, h, contour, 0, 0 };
+        var m = (byte[])backen.Invoke(null, args)!;
+        return (m, (int)args[4], (int)args[5]);
+    }
+
+    // Zweite Umsetzung des Vertrags von BakeShadowMask
+    (byte[] Maske, int Breite, int Hoehe) MaskeNachVertrag(byte[] a, int w, int h, bool contour)
+    {
+        int sw = w + (int)MathF.Ceiling(h * skew), sh = h + (int)MathF.Ceiling(h * flat + w * depth / 2f) + 2 * soft;
+        var hart = new bool[sw * sh];
+        bool Deckt(int x, int y) => a[y * w + x] >= 128;
+        int Boden(int x)
+        {
+            for (int y = h - 1; y >= 0; y--)
+                if (Deckt(x, y))
+                    return y;
+            return -1;
+        }
+        if (contour)
+        {
+            // Bodenlinie: vom tiefsten Punkt nach außen höchstens ein Punkt Anstieg je Spalte
+            var g = new int[w];
+            for (int x = 0; x < w; x++)
+                g[x] = Boden(x);
+            int tiefste = g.Max(), fuss = Array.IndexOf(g, tiefste);
+            for (int x = fuss + 1, vor = fuss; x < w && tiefste >= 0; x++)
+            {
+                if (g[x] < 0)
+                    continue;
+                g[x] = Math.Max(g[x], g[vor] - (x - vor));
+                vor = x;
+            }
+            for (int x = fuss - 1, vor = fuss; x >= 0 && tiefste >= 0; x--)
+            {
+                if (g[x] < 0)
+                    continue;
+                g[x] = Math.Max(g[x], g[vor] - (vor - x));
+                vor = x;
+            }
+            bool Zaehlt(int x, int y) => y <= g[x] && Deckt(x, y);
+            (int X, int Y) Fall(int x, int y)
+            {
+                int b = g[x], hh = b - y;
+                return (x + (int)(hh * skew), b + (int)(hh * flat));
+            }
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < w; x++)
+                {
+                    if (!Zaehlt(x, y))
+                        continue;
+                    var (ax, ay) = Fall(x, y);
+                    hart[ay * sw + ax] = true;
+                    if (x + 1 >= w || !Zaehlt(x + 1, y))
+                        continue;
+                    var (bx, by) = Fall(x + 1, y);
+                    int steps = Math.Max(Math.Abs(bx - ax), Math.Abs(by - ay));
+                    for (int k = 1; k < steps; k++)
+                        hart[(ay + (by - ay) * k / steps) * sw + ax + (bx - ax) * k / steps] = true;
+                }
+            }
+        }
+        else
+        {
+            int tief = -1;
+            for (int x = 0; x < w; x++)
+                tief = Math.Max(tief, Boden(x));
+            for (int y = 0; y <= tief; y++)
+            {
+                int l = -1, r = -1;
+                for (int x = 0; x < w; x++)
+                {
+                    if (!Deckt(x, y))
+                        continue;
+                    if (l < 0)
+                        l = x;
+                    r = x;
+                }
+                if (l < 0)
+                    continue;
+                int hh = tief - y;
+                float cx = (l + r + 1) / 2f + hh * skew, cy = tief + 0.5f + hh * flat;
+                float rx = (r - l + 1) / 2f, ry = Math.Max(0.5f, rx * depth);
+                for (int py = 0; py < sh; py++)
+                {
+                    float dy = (py + 0.5f - cy) / ry;
+                    if (dy * dy > 1f)
+                        continue;
+                    float half = rx * MathF.Sqrt(1f - dy * dy);
+                    int x0 = Math.Max(0, (int)MathF.Ceiling(cx - half - 0.5f));
+                    int x1 = Math.Min(sw - 1, (int)MathF.Floor(cx + half - 0.5f));
+                    for (int px = x0; px <= x1; px++)
+                        hart[py * sw + px] = true;
+                }
+            }
+        }
+        int n = 2 * soft + 1;
+        var zeile = new int[sw * sh];
+        for (int y = 0; y < sh; y++)
+            for (int x = 0; x < sw; x++)
+            {
+                int s = 0;
+                for (int k = -soft; k <= soft; k++)
+                    if (x + k >= 0 && x + k < sw && hart[y * sw + x + k])
+                        s += 255;
+                zeile[y * sw + x] = s / n;
+            }
+        var m = new byte[sw * sh];
+        for (int y = 0; y < sh; y++)
+            for (int x = 0; x < sw; x++)
+            {
+                int s = 0;
+                for (int k = -soft; k <= soft; k++)
+                    if (y + k >= 0 && y + k < sh)
+                        s += zeile[(y + k) * sw + x];
+                m[y * sw + x] = (byte)(s / n);
+            }
+        return (m, sw, sh);
+    }
+
+    // Formen: ein Pfahl, ein Baum (Stamm und Krone), eine Mauer mit schräger Unterkante,
+    // ein leeres Bild und Zufallsflecken
+    byte[] Bild(int w, int h, Func<int, int, bool> deckt)
+    {
+        var a = new byte[w * h];
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                a[y * w + x] = deckt(x, y) ? (byte)255 : (byte)0;
+        return a;
+    }
+    var formen = new List<(string Name, byte[] A, int W, int H)>
+    {
+        ("Pfahl", Bild(6, 30, (x, y) => x == 2), 6, 30),
+        ("Baum", Bild(24, 40, (x, y) => (x >= 11 && x <= 12 && y >= 18) || ((x - 12) * (x - 12) + (y - 10) * (y - 10) <= 81)), 24, 40),
+        ("Mauer", Bild(20, 24, (x, y) => y >= 4 && y <= 14 + x / 3), 20, 24),
+        ("Dach", Bild(24, 24, (x, y) => (x <= 9 && y >= 6 && y <= 20) || (x <= 15 && y >= 3 && y <= 6) || (x >= 18 && x <= 19 && y >= 1 && y <= 12)), 24, 24),
+        ("leer", new byte[8 * 8], 8, 8),
+        ("breite Krone", Bild(40, 50, (x, y) => (x >= 19 && x <= 20 && y >= 25) || ((x - 20) * (x - 20) + (y - 12) * (y - 12) <= 324)), 40, 50),
+    };
+    // Die Grenze: Deckkraft 128 deckt, 127 nicht
+    byte[] Pfahl(byte deckkraft) => Bild(6, 30, (x, y) => x == 2).Select(v => v > 0 ? deckkraft : (byte)0).ToArray();
+    formen.Add(("Pfahl mit A 128", Pfahl(128), 6, 30));
+    formen.Add(("Pfahl mit A 127", Pfahl(127), 6, 30));
+    var zufall = new Random(7);
+    for (int i = 0; i < 4; i++)
+    {
+        int w = 10 + zufall.Next(20), h = 10 + zufall.Next(20);
+        var a = new byte[w * h];
+        for (int k = 0; k < a.Length; k++)
+            a[k] = (byte)zufall.Next(256);
+        formen.Add(($"Zufall {i}", a, w, h));
+    }
+    foreach (var (name, a, w, h) in formen)
+    {
+        foreach (bool contour in new[] { true, false })
+        {
+            string art = contour ? "Kontur" : "Körper";
+            var (ist, iw, ih) = Backen(a, w, h, contour);
+            var (soll, sw, sh) = MaskeNachVertrag(a, w, h, contour);
+            if (iw != sw || ih != sh || ist.Length != soll.Length)
+            {
+                verstoesse.Add($"{wer}: {name} ({art}) Maske {iw} x {ih}, {ist.Length} Punkte - erwartet {sw} x {sh}, {soll.Length}");
+                continue;
+            }
+            int abweichend = 0, erste = -1;
+            for (int k = 0; k < ist.Length; k++)
+            {
+                if (ist[k] == soll[k])
+                    continue;
+                abweichend++;
+                if (erste < 0)
+                    erste = k;
+            }
+            if (abweichend > 0)
+                verstoesse.Add($"{wer}: {name} ({art}) {abweichend} Maskenpunkte weichen ab, erster bei x {erste % sw}, y {erste / sw}: {ist[erste]} statt {soll[erste]}");
+        }
+    }
+
+    // Was man sieht: der Pfahlschatten hängt am Fuß und endet rechts vorn (Vorbild errors/Schatten.jpg)
+    foreach (bool contour in new[] { true, false })
+    {
+        var (m, sw, sh) = Backen(Bild(6, 30, (x, y) => x == 2), 6, 30, contour);
+        string art = contour ? "Kontur" : "Körper";
+        if (m[29 * sw + 2] == 0)
+            verstoesse.Add($"{wer}: Pfahl ({art}) ohne Schatten an seinem Fuß (x 2, y 29) - der Schatten muss am Objekt hängen");
+        int spitzeX = 2 + (int)(29 * skew), spitzeY = 29 + (int)(29 * flat);
+        if (spitzeY >= sh || m[spitzeY * sw + spitzeX] == 0)
+            verstoesse.Add($"{wer}: Pfahl ({art}): die Spitze wirft keinen Schatten bei x {spitzeX}, y {spitzeY} (rechts vorn)");
+        if (m[29 * sw + 0] != 0 || m[27 * sw + 2] != 0 || m[0 * sw + 2] != 0)
+            verstoesse.Add($"{wer}: Pfahl ({art}): Schatten links vom Fuß oder über ihm - er fällt nur nach rechts vorn");
+    }
+    // Ein Dachüberstand steht auf der Wand, nicht auf dem Boden: sein Schatten fällt von dort
+    // nach rechts vorn, kein Keil nach oben (Nutzer 2026-10-22, errors/rot markierter fehler.png)
+    {
+        var dach = Bild(24, 24, (x, y) => (x <= 9 && y >= 6 && y <= 20) || (x <= 15 && y >= 3 && y <= 6));
+        var (m, sw, sh) = Backen(dach, 24, 24, true);
+        int oben = 0;
+        for (int y = 0; y <= 9; y++)
+            for (int x = 10; x < sw; x++)
+                if (m[y * sw + x] > 0)
+                    oben++;
+        if (oben > 0)
+            verstoesse.Add($"{wer}: Dachüberstand wirft {oben} Schattenpunkte nach oben (x ab 10, y bis 9) - er steht auf der Wand, nicht auf dem Boden");
+    }
+    // Kein Kronenschatten wird unten abgeschnitten: die Maske reicht unter jede Ellipse samt
+    // weichem Rand (Nutzer 2026-10-22, errors/Schatten ist hier scharf abgeschnitten.png)
+    foreach (var (name, a, w, h) in formen)
+    {
+        var (_, _, ih) = Backen(a, w, h, false);
+        int tief = -1;
+        for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+                if (a[y * w + x] >= 128)
+                    tief = Math.Max(tief, y);
+        float unten = 0f;
+        for (int y = 0; y <= tief; y++)
+        {
+            int l = -1, r = -1;
+            for (int x = 0; x < w; x++)
+            {
+                if (a[y * w + x] < 128)
+                    continue;
+                if (l < 0)
+                    l = x;
+                r = x;
+            }
+            if (l >= 0)
+                unten = Math.Max(unten, tief + 0.5f + (tief - y) * flat + Math.Max(0.5f, (r - l + 1) / 2f * depth));
+        }
+        if (tief >= 0 && ih < (int)MathF.Ceiling(unten) + soft)
+            verstoesse.Add($"{wer}: {name} (Körper) - die Maske ist {ih} hoch, der Schatten reicht bis {unten:0.0} und wird unten abgeschnitten");
+    }
+    foreach (var (deckkraft, schatten) in new[] { ((byte)128, true), ((byte)127, false) })
+    {
+        var (m, _, _) = Backen(Pfahl(deckkraft), 6, 30, false);
+        if (m.Any(v => v != 0) != schatten)
+            verstoesse.Add($"{wer}: ein Pfahl mit Deckkraft {deckkraft} wirft {(schatten ? "keinen" : "einen")} Schatten - ab 128 deckt ein Punkt");
+    }
+    // Überlappung macht nicht dunkler: auch ein dicker Block bleibt bei 255
+    {
+        var (m, _, _) = Backen(Bild(16, 16, (x, y) => true), 16, 16, true);
+        if (m.Max() != 255)
+            verstoesse.Add($"{wer}: voller Block erreicht {m.Max()} - der Kernschatten muss genau 255 sein");
+    }
+
+    // HalfAlpha: größtes A je 2 x 2, ungerade Ränder, Spiegelung, verdeckte Oberkante
+    {
+        var p = new Color[3 * 3];
+        for (int k = 0; k < p.Length; k++)
+            p[k] = new Color(0, 0, 0, k * 20);   // A = 0, 20, ... 160
+        var a = Halb(p, 3, 3, false, 0);
+        var soll = new byte[] { 80, 100, 140, 160 };
+        if (!a.SequenceEqual(soll))
+            verstoesse.Add($"{wer}: HalfAlpha 3 x 3 ergibt [{string.Join(", ", a)}], erwartet [{string.Join(", ", soll)}]");
+        var gespiegelt = Halb(p, 3, 3, true, 0);
+        var sollG = new byte[] { 100, 60, 160, 120 };
+        if (!gespiegelt.SequenceEqual(sollG))
+            verstoesse.Add($"{wer}: HalfAlpha gespiegelt ergibt [{string.Join(", ", gespiegelt)}], erwartet [{string.Join(", ", sollG)}]");
+        var verdeckt = Halb(p, 3, 3, false, 2);
+        var sollV = new byte[] { 0, 0, 140, 160 };
+        if (!verdeckt.SequenceEqual(sollV))
+            verstoesse.Add($"{wer}: HalfAlpha mit 2 verdeckten Zeilen ergibt [{string.Join(", ", verdeckt)}], erwartet [{string.Join(", ", sollV)}]");
+        // Ungerade verdeckte Oberkante: jede Zeile zählt einzeln, nicht der ganze 2 x 2-Block
+        var hoch = new Color[2 * 4];
+        for (int k = 0; k < hoch.Length; k++)
+            hoch[k] = new Color(0, 0, 0, (k + 1) * 10);   // Zeilen [10, 20], [30, 40], [50, 60], [70, 80]
+        foreach (var (verdeckteZeilen, sollU) in new[] { (1, new byte[] { 40, 80 }), (3, new byte[] { 0, 80 }) })
+        {
+            var ungerade = Halb(hoch, 2, 4, false, verdeckteZeilen);
+            if (!ungerade.SequenceEqual(sollU))
+                verstoesse.Add($"{wer}: HalfAlpha 2 x 4 mit {verdeckteZeilen} verdeckten Zeilen ergibt [{string.Join(", ", ungerade)}], erwartet [{string.Join(", ", sollU)}] - jede Zeile zählt einzeln");
+        }
+    }
+
+    // ShadowDest: linke obere Ecke wie das Bild, im Maßstab des Bilds
+    {
+        var d = (Rectangle)ziel.Invoke(null, new object[] { new Rectangle(100, 50, 64, 80), 256, 320, 200, 160 })!;
+        if (d != new Rectangle(100, 50, 100, 80))
+            verstoesse.Add($"{wer}: ShadowDest ergibt {d}, erwartet {{X:100 Y:50 Width:100 Height:80}}");
+    }
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: Maske nach Vertrag ({formen.Count} Formen, Kontur und Körper), hängt am Fuß, fällt nach rechts vorn, HalfAlpha, ShadowDest");
 }
 
 // Feuer und Rauch (A5): Rauchwolken, Flackern, Flammenzungen und Funken rechnen genau nach ihrem
