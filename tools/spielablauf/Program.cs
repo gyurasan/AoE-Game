@@ -454,7 +454,10 @@ static void FarmErnte(int karte, List<string> verstoesse)
         verstoesse.Add($"{wer}: kein Stadttz. gefunden");
         return;
     }
-    // Bauplatz: 3×3 in Laufweite des TC, ohne auf bestehende Gebäude zu stoßen.
+    // Bauplatz: 3×3 in Laufweite des TC, ohne auf bestehende Gebäude zu
+    // stoßen. Die angeklickte Mittelkachel muss erkundet sein - die Start-
+    // plätze sind zufällig (SZ1), und ein Klick in den Nebel ist nur ein
+    // Laufbefehl, keine Ernte.
     Vector2? platz = null;
     for (int r = 2; r <= 8 && platz == null; r++)
     {
@@ -462,7 +465,8 @@ static void FarmErnte(int karte, List<string> verstoesse)
             for (int dy = -r; dy <= r && dy <= r; dy++)
             {
                 var c = new Vector2(tc.X + dx, tc.Y + dy);
-                if (w.Map.CanPlaceBuilding((int)c.X, (int)c.Y, 3))
+                if (w.Map.CanPlaceBuilding((int)c.X, (int)c.Y, 3)
+                    && w.Map.IsTileExplored((int)c.X + 1, (int)c.Y + 1, 0))
                 {
                     platz = c; break;
                 }
@@ -7615,8 +7619,10 @@ class Welt
     {
         var start = Map.WorldToGrid(von.Position);
         var kandidaten = new List<Vector2>();
-        for (int x = 0; x < 40; x++)
-        for (int y = 0; y < 40; y++)
+        // ganze Karte abtasten - die Startplätze sind zufällig (SZ1), der
+        // erkundete Streifen um sie herum kann bis an den rechten Rand reichen
+        for (int x = 0; x < Map.Width; x++)
+        for (int y = 0; y < Map.Height; y++)
         {
             var c = new Vector2(x, y);
             if (!(bool)Call("CanPlace", typ, c))
@@ -7636,7 +7642,7 @@ class Welt
     public Vector2 FreieKachel(Unit von, float abstand)
     {
         var start = Map.WorldToGrid(von.Position);
-        return Enumerable.Range(0, 40).SelectMany(x => Enumerable.Range(0, 40).Select(y => new Vector2(x, y)))
+        return Enumerable.Range(0, Map.Width).SelectMany(x => Enumerable.Range(0, Map.Height).Select(y => new Vector2(x, y)))
             .Where(c => Map.IsWalkable((int)c.X, (int)c.Y) && Map.GetTile((int)c.X, (int)c.Y).ResourceType == null
                         && !_units.Any(u => Map.WorldToGrid(u.Position) == c))
             .OrderBy(c => Math.Abs(Vector2.Distance(c, start) - abstand))

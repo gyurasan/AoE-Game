@@ -1108,7 +1108,8 @@ public partial class RTSGameplayScreen : GameScreen
         // liegt in Weltkoordinaten bei bildschirm / (2 * zoom).
         cameraZoom = ZoomScale;
         _appliedZoomScale = cameraZoom;
-        var start = tileMap.GridToWorld(new Vector2(3, 3));
+        var startCell = tileMap.StartPosition(0);
+        var start = tileMap.GridToWorld(new Vector2(startCell.x, startCell.y));
         cameraPosition = new Vector2(screenBounds.Width / (2f * cameraZoom),
                                      HUD_TOP_HEIGHT / cameraZoom + FreeHeight / (2f * cameraZoom)) - start;
         ClampCamera();

@@ -25,6 +25,8 @@ var naechster = new Dictionary<(int Spieler, Resource Art), List<int>>();
 int fische = 0, kartenMitFisch = 0;
 int reheGesamt = 0, schafeGesamt = 0, ohneReh = 0, kaninchenGesamt = 0, schweineGesamt = 0, beerenGesamt = 0;
 var startJagd = new List<int>();   // Abstand der nächsten Rehe zu jedem Stadtzentrum
+var startAbstaende = new List<double>();   // SZ1: Abstand der beiden Startplätze
+var startP1 = new HashSet<(int, int)>();   // SZ1: die verschiedenen Plätze von Spieler 1
 
 for (int k = 0; k < KARTEN; k++)
 {
@@ -116,6 +118,23 @@ for (int k = 0; k < KARTEN; k++)
         if (gruppen.Contains("wild") && best > reichweite)
             verstoesse.Add($"Karte {k}: Spieler {b.OwnerId} hat das nächste Reh erst in {(best == int.MaxValue ? "keiner" : best.ToString())} Kacheln Entfernung (erlaubt: {reichweite})");
     }
+
+    // Startplätze (SZ1): beide zufällig in der Randzone 3..Seite-7, ihre
+    // euklidische Entfernung mindestens eine halbe Kartenbreite
+    var start0 = map.StartPosition(0);
+    var start1 = map.StartPosition(1);
+    double startAbstand = Math.Sqrt((start0.x - start1.x) * (double)(start0.x - start1.x)
+                                    + (start0.y - start1.y) * (double)(start0.y - start1.y));
+    startAbstaende.Add(startAbstand);
+    startP1.Add(start0);
+    if (gruppen.Contains("startabstand"))
+    {
+        if (startAbstand < map.Width / 2.0)
+            verstoesse.Add($"Karte {k}: Startabstand {startAbstand:0.0} Kacheln - gefordert mindestens die halbe Kartenbreite ({map.Width / 2.0})");
+        foreach (var (s, spieler) in new[] { (start0, 0), (start1, 1) })
+            if (s.x < 3 || s.x > map.Width - 7 || s.y < 3 || s.y > map.Height - 7)
+                verstoesse.Add($"Karte {k}: Spieler {spieler} startet bei ({s.x}, {s.y}) - erlaubt 3..{map.Width - 7} x 3..{map.Height - 7}");
+    }
 }
 
 Console.WriteLine($"{KARTEN} Karten, 64 x 64");
@@ -137,6 +156,10 @@ Console.WriteLine($"  Wild: {reheGesamt / (float)KARTEN:0.0} Rehe und {schafeGes
                   $"nächstes Reh im Schnitt {startJagd.Where(d => d != int.MaxValue).DefaultIfEmpty(0).Average():0.0} Kacheln vom Stadtzentrum");
 Console.WriteLine($"  Kleinwild: {kaninchenGesamt / (float)KARTEN:0.0} Kaninchen und {schweineGesamt / (float)KARTEN:0.0} Wildschweine je Karte");
 Console.WriteLine($"  Beerenbuusche: {beerenGesamt / (float)KARTEN:0.0} je Karte");
+Console.WriteLine($"  Startplaetze: Abstand im Schnitt {startAbstaende.Average():0.0}, kleinster {startAbstaende.Min():0.0} Kacheln " +
+                  $"(gefragt: mindestens {32} = halbe Kartenbreite), Spieler 1 startet auf {startP1.Count} verschiedenen Plaetzen");
+if (gruppen.Contains("startabstand") && startP1.Count < 2)
+    verstoesse.Add($"Spieler 1 startet auf {KARTEN} Karten immer am selben Platz ({startP1.First()}) - erwartet: zufällig");
 if (gruppen.Contains("wild") && (verhaeltnis < 0.55f || verhaeltnis > 1.0f))
     verstoesse.Add($"Rehe sind {verhaeltnis:P0} der Schafe - erwartet: etwa 60 bis 100 % (seit 2026-10-04 ~70 %)");
 int felsen = anzahl.GetValueOrDefault(TileType.Rock);

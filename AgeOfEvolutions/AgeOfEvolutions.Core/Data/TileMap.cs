@@ -153,9 +153,12 @@ public class TileMap
             }
         }
         
+        // Startplätze zuerst würfeln (SZ1) - Seen, Klumpen und Wild umgehen sie.
+        ChooseStartPositions();
+
         // Add resource patches
         AddResourcePatches();
-        
+
         // Place starting positions
         PlaceStartingPositions();
     }
@@ -237,7 +240,7 @@ public class TileMap
     /// </summary>
     private bool NearStartArea(int cx, int cy, int r)
     {
-        foreach (var (sx, sy) in new[] { (4.5f, 4.5f), (Width - 2.5f, Height - 2.5f) })
+        foreach (var (sx, sy) in new[] { (_startP1.x + 1.5f, _startP1.y + 1.5f), (_startP2.x + 1.5f, _startP2.y + 1.5f) })
         {
             float dx = cx - sx, dy = cy - sy;
             if (dx * dx + dy * dy < (r + 7f) * (r + 7f))
@@ -305,8 +308,8 @@ public class TileMap
     
     private bool TooCloseToStart(int x, int y, int dist)
     {
-        if (Math.Abs(x - 3) + Math.Abs(y - 3) < dist * 2) return true;
-        if (Math.Abs(x - (Width - 4)) + Math.Abs(y - (Height - 4)) < dist * 3) return true;
+        if (Math.Abs(x - _startP1.x) + Math.Abs(y - _startP1.y) < dist * 2) return true;
+        if (Math.Abs(x - _startP2.x) + Math.Abs(y - _startP2.y) < dist * 2) return true;
         return false;
     }
     
@@ -387,9 +390,9 @@ public class TileMap
         foreach (var (cx, cy) in PlaceClusterCenters(_random.Next(Settings.GoldClustersMin, Settings.GoldClustersMax + 1), 2))
             StampResource(cx, cy, _random.Next(Settings.GoldRadiusMin, Settings.GoldRadiusMax + 1), TileType.GoldMine, Resource.Gold, 60);
 
-        // Startrohstoffe in Laufweite beider Stadtzentren
-        PlaceStartResources(3, 3, 1, 1);
-        PlaceStartResources(Width - 4, Height - 4, -1, -1);
+        // Startrohstoffe in Laufweite beider Stadtzentren, zur Kartenmitte hin
+        PlaceStartResources(_startP1.x, _startP1.y, _startP1.x * 2 < Width ? 1 : -1, _startP1.y * 2 < Height ? 1 : -1);
+        PlaceStartResources(_startP2.x, _startP2.y, _startP2.x * 2 < Width ? 1 : -1, _startP2.y * 2 < Height ? 1 : -1);
 
         // Nahrung: Schafherden auf der Wiese + Rehe als Wild + Beerenbüsche
         PlaceSheep(woodCenters);
@@ -507,7 +510,7 @@ public class TileMap
     private void PlaceDeer(List<(int x, int y)> woodCenters)
     {
         int herds = _random.Next(Settings.DeerHerdsMin, Settings.DeerHerdsMax + 1);
-        var starts = new[] { (x: 3, y: 3), (x: Width - 4, y: Height - 4) };
+        var starts = new[] { (x: _startP1.x, y: _startP1.y), (x: _startP2.x, y: _startP2.y) };
         for (int h = 0; h < herds; h++)
         {
             int count = _random.Next(Settings.DeerPerHerdMin, Settings.DeerPerHerdMax + 1);
@@ -629,18 +632,75 @@ public class TileMap
         }
     }
     
+    // --- Startplätze (SZ1) --------------------------------------------------
+
+    // Linke obere Ecke des 4 × 4-Stadtzentrums je Spieler, pro Karte zufällig
+    // gewählt (ChooseStartPositions). Der leeren Karte (CreateBlank) genügen die
+    // alten Werte - dort kommen die Stadtzentren ohnehin aus dem Spielstand.
+    private (int x, int y) _startP1 = (3, 3);
+    private (int x, int y) _startP2;
+
+    /// <summary>
+    /// Die linke obere Ecke des Stadtzentrums von Spieler <paramref name="owner"/>
+    /// in Kacheln (0 = Spieler 1, 1 = Spieler 2).
+    /// VERTRAG: owner 0 liefert _startP1, jeder andere Wert _startP2.
+    /// </summary>
+    public (int x, int y) StartPosition(int owner) => owner == 0 ? _startP1 : _startP2;
+
+    /// <summary>
+    /// Wählt die beiden Startplätze zufällig. InitializeRandomMap ruft das vor
+    /// AddResourcePatches auf, damit Seen, Rohstoffklumpen und Wild die
+    /// Startplätze von Anfang an umgehen.
+    /// VERTRAG:
+    /// 1) Der erlaubte Bereich ist x von 3 bis Width - 7 und y von 3 bis
+    ///    Height - 7 (darin passen ClearStartArea von x - 2 bis x + 5 und die
+    ///    Dorfbewohner-Versätze bis x + 5); ist die Karte so klein, dass die
+    ///    obere Grenze unter der 3 läge, ist sie die 3.
+    /// 2) Die euklidische Entfernung der beiden Plätze zueinander beträgt
+    ///    mindestens die halbe Kartenbreite (Width / 2,0).
+    /// 3) Gewürfelt wird bis zu 400 Mal: beide Plätze unabhängig und
+    ///    gleichverteilt im erlaubten Bereich; das erste Paar mit dem
+    ///    Mindestabstand gewinnt.
+    /// 4) Findet kein Wurf ein Paar (sehr kleine Karten), stehen die beiden
+    ///    Plätze auf einander gegenüberliegenden Ecken des erlaubten Bereichs:
+    ///    (3, 3) und (obere Grenzen) - die größtmögliche Entfernung.
+    /// 5) _startP1 trägt den ersten Platz (Spieler 1), _startP2 den zweiten
+    ///    (Spieler 2).
+    /// </summary>
+    private void ChooseStartPositions()
+    {
+        int loX = 3, hiX = Math.Max(3, Width - 7);
+        int loY = 3, hiY = Math.Max(3, Height - 7);
+        double mindestens = Width / 2.0;
+        for (int versuch = 0; versuch < 400; versuch++)
+        {
+            var a = (x: _random.Next(loX, hiX + 1), y: _random.Next(loY, hiY + 1));
+            var b = (x: _random.Next(loX, hiX + 1), y: _random.Next(loY, hiY + 1));
+            double dx = a.x - b.x, dy = a.y - b.y;
+            if (Math.Sqrt(dx * dx + dy * dy) >= mindestens)
+            {
+                _startP1 = a;
+                _startP2 = b;
+                return;
+            }
+        }
+        // Sehr kleine Karten: die gegenüberliegenden Ecken des erlaubten Bereichs
+        // sind die größtmögliche Entfernung, die geht immer.
+        _startP1 = (loX, loY);
+        _startP2 = (hiX, hiY);
+    }
+
     private void PlaceStartingPositions()
     {
         // Place starting town centers
-        // Player 1 (top left)
-        int p1x = 3;
-        int p1y = 3;
+        // Player 1 - gewürfelter Startplatz (SZ1)
+        var (p1x, p1y) = _startP1;
         ClearStartArea(p1x, p1y);
         AddBuilding(p1x, p1y, "Stadtzentrum", 0);
-        
-        // Player 2 (bottom right)
-        int p2x = Width - 4;
-        int p2y = Height - 4;
+
+        // Player 2 - der zweite gewürfelte Startplatz, mindestens eine halbe
+        // Kartenbreite von Spieler 1 entfernt
+        var (p2x, p2y) = _startP2;
         ClearStartArea(p2x, p2y);
         AddBuilding(p2x, p2y, "Stadtzentrum", 1);
         
