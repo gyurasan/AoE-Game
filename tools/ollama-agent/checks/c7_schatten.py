@@ -93,7 +93,10 @@ if bis >= 1:
                                      "Color.White * density", "SHADOW_TINT * density"])
     braucht("DrawSwayCastShadow", teil, ["ShadowMaskFor(", "SwayBands", "MathF.Pow(hoehenteil, 1.5f)",
                                          "target.Height * 2f / tex.Height", "Color.White * density",
-                                         "SHADOW_TINT * density", "_castShadowsOpen"])
+                                         "SHADOW_TINT * density", "_castShadowsOpen",
+                                         # MonoGame: erst Ziel, dann Quelle - vertauscht lag jedes Band
+                                         # als Rechteck am linken Bildrand (errors/Schattenprobleme*.png)
+                                         "info.Tex, ziel, quelle"])
 
 # --- einbau1: Draw, Bildpuffer, Gebäude -------------------------------------------------
 if bis >= 2:

@@ -607,9 +607,10 @@ public partial class RTSGameplayScreen
     /// Verschiebung = sway * target.Height * Hoehenteil^1,5, Ziel = (int)(target.X +
     /// Verschiebung) und (int)(target.Y + Py0 * Zeilenhöhe) mit Breite (int)(Maske.Breite
     /// * 2 * target.Width / tex.Width) und Höhe (int)((Py1 - Py0) * Zeilenhöhe). Ist
-    /// _castShadowsOpen: genau ein _castShadowBatch.Draw(Maske, Quelle, Ziel, Color.White
-    /// * density); sonst genau ein spriteBatch.Draw(Maske, Quelle, Ziel, SHADOW_TINT *
-    /// density).
+    /// _castShadowsOpen: genau ein _castShadowBatch.Draw(Maske, Ziel, Quelle, Color.White
+    /// * density); sonst genau ein spriteBatch.Draw(Maske, Ziel, Quelle, SHADOW_TINT *
+    /// density). MonoGame nimmt erst das Ziel, dann die Quelle - vertauscht landete jedes
+    /// Band als Rechteck am linken Bildrand (errors/Schattenprobleme*.png, 2026-10-23).
     /// </summary>
     private void DrawSwayCastShadow(SpriteBatch spriteBatch, Texture2D tex, Rectangle target, SpriteEffects effects,
                                     int hiddenTop, float density, float sway)
@@ -638,10 +639,11 @@ public partial class RTSGameplayScreen
             var quelle = new Rectangle(0, py0, info.Tex.Width, py1 - py0);
             var ziel = new Rectangle((int)(target.X + verschiebung), (int)(target.Y + py0 * zeile),
                                      (int)breite, (int)((py1 - py0) * zeile));
+            // Erst das Ziel, dann die Quelle (MonoGame-Reihenfolge)
             if (_castShadowsOpen)
-                _castShadowBatch.Draw(info.Tex, quelle, ziel, Color.White * density);
+                _castShadowBatch.Draw(info.Tex, ziel, quelle, Color.White * density);
             else
-                spriteBatch.Draw(info.Tex, quelle, ziel, SHADOW_TINT * density);
+                spriteBatch.Draw(info.Tex, ziel, quelle, SHADOW_TINT * density);
         }
     }
 

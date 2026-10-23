@@ -6,11 +6,22 @@ using Microsoft.Xna.Framework.Graphics;
 namespace AgeOfEvolutions.Screens;
 
 /// <summary>
-/// The BackgroundScreen renders a static background image behind all other menu screens.
-/// It remains fixed and unaffected by transitions on top of it.
+/// Der gemeinsame Hintergrund aller Menüs außerhalb des Spiels: das Menübild
+/// (Dorfplatz, Qwen-Image, bilder.json: menu/hintergrund), fensterfüllend und
+/// leicht abgedunkelt, damit Tafeln und Schrift sich abheben. Er bleibt stehen,
+/// während Hauptmenü, „Einstellungen“ und „Spiel laden“ darüber wechseln.
+/// Vorher lag hier noch das blaue Gebirge aus der Platformer-Vorlage
+/// (Layer0_2), ins 800×480-Raster gestreckt mit schwarzen Rändern - nur das
+/// Hauptmenü verdeckte es mit seinem eigenen Bild.
 /// </summary>
 class BackgroundScreen : GameScreen
 {
+    // Abdunklung über dem Bild; vorher im Hauptmenü, jetzt für alle Menüs gleich
+    private const float DIM = 0.3f;
+
+    // Dunkles Pergament: Grund unter dem Bild und Ersatz, falls es fehlt
+    private static readonly Color Parchment = new Color(69, 46, 24);
+
     ContentManager content;
     Texture2D backgroundTexture;
 
@@ -25,15 +36,23 @@ class BackgroundScreen : GameScreen
     }
 
     /// <summary>
-    /// Loads the background texture using a local ContentManager.
-    /// This allows for independent unloading of the background texture.
+    /// Lädt das Menübild über einen eigenen ContentManager, damit es mit dem
+    /// Hintergrund wieder entladen wird. Fehlt es, bleibt das Pergament -
+    /// das Spiel startet trotzdem.
     /// </summary>
     public override void LoadContent()
     {
         if (content == null)
             content = new ContentManager(ScreenManager.Game.Services, "Content");
 
-        backgroundTexture = content.Load<Texture2D>("Backgrounds/Layer0_2");
+        try
+        {
+            backgroundTexture = content.Load<Texture2D>("Backgrounds/menu");
+        }
+        catch
+        {
+            backgroundTexture = null;
+        }
     }
 
     /// <summary>
@@ -58,22 +77,36 @@ class BackgroundScreen : GameScreen
     }
 
     /// <summary>
-    /// Draws the background screen.
-    /// Clears the screen and renders the background texture with transition alpha.
+    /// Zeichnet das Menübild (16:9) fensterfüllend im eigenen Seitenverhältnis,
+    /// in echten Fensterpixeln: was über den Rand ragt, wird abgeschnitten - die
+    /// Mitte mit dem Dorfplatz bleibt immer sichtbar, und es gibt keine leeren
+    /// Balken. Beim Ein- und Ausblenden geht alles gemeinsam aus dem Schwarz.
     /// </summary>
     /// <param name="gameTime">Provides a snapshot of timing values.</param>
     public override void Draw(GameTime gameTime)
     {
-        // Clear the screen to black to prevent visual artifacts.
         ScreenManager.GraphicsDevice.Clear(ClearOptions.Target, Color.Black, 0, 0);
 
         SpriteBatch spriteBatch = ScreenManager.SpriteBatch;
-        Rectangle fullscreen = new Rectangle(0, 0, (int)ScreenManager.BaseScreenSize.X, (int)ScreenManager.BaseScreenSize.Y);
+        int width = ScreenManager.GraphicsDevice.PresentationParameters.BackBufferWidth;
+        int height = ScreenManager.GraphicsDevice.PresentationParameters.BackBufferHeight;
+        Color tint = new Color(TransitionAlpha, TransitionAlpha, TransitionAlpha);
 
-        spriteBatch.Begin(SpriteSortMode.Deferred, null, null, null, null, null, ScreenManager.GlobalTransformation);
+        // Ohne GlobalTransformation: Fensterpixel statt 800×480-Raster
+        spriteBatch.Begin();
 
-        // Draw the background texture with the current transition alpha.
-        spriteBatch.Draw(backgroundTexture, fullscreen, new Color(TransitionAlpha, TransitionAlpha, TransitionAlpha));
+        spriteBatch.Draw(ScreenManager.WhitePixel, new Rectangle(0, 0, width, height), Parchment * TransitionAlpha);
+
+        if (backgroundTexture != null)
+        {
+            float scale = Math.Max((float)width / backgroundTexture.Width,
+                                   (float)height / backgroundTexture.Height);
+            int w = (int)(backgroundTexture.Width * scale);
+            int h = (int)(backgroundTexture.Height * scale);
+            spriteBatch.Draw(backgroundTexture, new Rectangle((width - w) / 2, (height - h) / 2, w, h), tint);
+        }
+
+        spriteBatch.Draw(ScreenManager.WhitePixel, new Rectangle(0, 0, width, height), Color.Black * DIM);
 
         spriteBatch.End();
     }

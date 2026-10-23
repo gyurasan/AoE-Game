@@ -26,7 +26,6 @@ public class MainMenuScreen : GameScreen
     private const int PANEL_WIDTH = 560, PANEL_TOP = 170;
     private const int ENTRY_WIDTH = 440, ENTRY_HEIGHT = 64, ENTRY_STEP = 84, ENTRY_TOP = 330;
 
-    Texture2D menuBackground;
     Texture2D menuButton;
     SoundEffect soundButton;
 
@@ -63,10 +62,15 @@ public class MainMenuScreen : GameScreen
     // Nach dem Update (Phase Done) beendet sich diese Version genau einmal
     bool exitRequested;
 
+    // Beim Spielstart blendet die Tafel langsam auf, bei der Rückkehr aus
+    // „Einstellungen“ oder „Spiel laden“ und beim Wechsel dorthin so schnell
+    // wie diese Menüs (MenuScreen) - die Tafeln überblenden sich gleichmäßig
+    private static readonly TimeSpan RETURN_TRANSITION = TimeSpan.FromSeconds(0.25);
+
     public MainMenuScreen()
     {
         TransitionOnTime = TimeSpan.FromSeconds(1.5);
-        TransitionOffTime = TimeSpan.FromSeconds(0.5);
+        TransitionOffTime = RETURN_TRANSITION;
     }
 
     public override void LoadContent()
@@ -75,10 +79,9 @@ public class MainMenuScreen : GameScreen
 
         var content = ScreenManager.Game.Content;
 
-        // Menübild aus tools/bilder (Qwen-Image, bilder.json: menu/hintergrund).
-        // Everything is loaded defensively: a missing asset degrades to the plain
-        // parchment look rather than taking the whole game down on startup.
-        menuBackground = TryLoad<Texture2D>(content, "Backgrounds/menu");
+        // Das Menübild zeichnet der BackgroundScreen darunter - es bleibt stehen,
+        // während „Einstellungen“ und „Spiel laden“ über ihm wechseln.
+        // Loaded defensively: a missing sound must not take the game down on startup.
         soundButton = TryLoad<SoundEffect>(content, "Sounds/PlayerGemCollected");
 
         // Die zuletzt gewählte Kartengröße
@@ -137,6 +140,8 @@ public class MainMenuScreen : GameScreen
     public override void Update(GameTime gameTime, bool otherScreenHasFocus, bool coveredByOtherScreen)
     {
         base.Update(gameTime, otherScreenHasFocus, coveredByOtherScreen);
+        if (ScreenState == ScreenState.Active)
+            TransitionOnTime = RETURN_TRANSITION;
         ExitAfterUpdate();
     }
 
@@ -350,15 +355,13 @@ public class MainMenuScreen : GameScreen
         var height = ScreenManager.GraphicsDevice.PresentationParameters.BackBufferHeight;
         float ui = UiScale(height);
         int shadow = Math.Max(1, (int)(2 * ui));
+        // Bild und Abdunklung liegen im BackgroundScreen darunter; beim Wechsel
+        // blendet nur die Tafel - eine Schwarzblende ließ das Bild aufblitzen
+        float alpha = TransitionAlpha;
 
         RefreshUpdateEntry();
 
         spriteBatch.Begin();
-
-        DrawBackground(spriteBatch, width, height);
-
-        // Leicht abgedunkelt, damit Tafel und Schrift sich vom Bild abheben
-        spriteBatch.Draw(menuButton, new Rectangle(0, 0, width, height), Color.Black * 0.3f);
 
         // Tafel hinter Titel und Einträgen; reicht bis unter die Versionszeile
         int lastEntry = updateEntryVisible ? UPDATE_ENTRY : UPDATE_ENTRY - 1;
@@ -367,11 +370,11 @@ public class MainMenuScreen : GameScreen
         int panelTop = (int)(PANEL_TOP * ui);
         int panelBottom = versionRect.Bottom + (int)(20 * ui);
         var panel = new Rectangle((width - panelWidth) / 2, panelTop, panelWidth, panelBottom - panelTop);
-        spriteBatch.Draw(menuButton, panel, new Color(30, 20, 10) * 0.88f);
-        DrawBorder(spriteBatch, panel, Math.Max(2, (int)(3 * ui)), new Color(180, 140, 60));
+        spriteBatch.Draw(menuButton, panel, new Color(30, 20, 10) * 0.88f * alpha);
+        DrawBorder(spriteBatch, panel, Math.Max(2, (int)(3 * ui)), new Color(180, 140, 60) * alpha);
 
         DrawCentered(spriteBatch, "Age of Evolutions", new Vector2(width / 2f, panelTop + 78 * ui),
-                     72 * ui, new Color(255, 215, 0), Math.Max(2, (int)(3 * ui)));
+                     72 * ui, new Color(255, 215, 0), alpha, Math.Max(2, (int)(3 * ui)));
 
         for (int i = 0; i < menuOptions.Length; i++)
         {
@@ -382,11 +385,11 @@ public class MainMenuScreen : GameScreen
             var plate = EntryRect(i, width, height);
             bool selected = i == selectedIndex;
 
-            spriteBatch.Draw(menuButton, plate, selected
+            spriteBatch.Draw(menuButton, plate, (selected
                 ? new Color(100, 60, 30) * 0.95f
-                : new Color(55, 38, 20) * 0.9f);
+                : new Color(55, 38, 20) * 0.9f) * alpha);
             if (selected)
-                DrawBorder(spriteBatch, plate, Math.Max(2, (int)(2 * ui)), new Color(255, 215, 0));
+                DrawBorder(spriteBatch, plate, Math.Max(2, (int)(2 * ui)), new Color(255, 215, 0) * alpha);
 
             // Ein laufendes Update ist nicht wählbar, bleibt aber hell lesbar:
             // sein Text ist die Fortschrittsanzeige
@@ -394,7 +397,7 @@ public class MainMenuScreen : GameScreen
             var color = !enabled && !updateRunning ? new Color(120, 110, 95)
                       : selected ? new Color(255, 215, 0)
                                  : Color.LightGray;
-            DrawCentered(spriteBatch, text, plate.Center.ToVector2(), 40 * ui, color, shadow);
+            DrawCentered(spriteBatch, text, plate.Center.ToVector2(), 40 * ui, color, alpha, shadow);
 
             // Download: dünner Balken am unteren Rand der Platte
             if (i == UPDATE_ENTRY && updater.UpdatePhase == UpdateService.Phase.Downloading
@@ -404,7 +407,7 @@ public class MainMenuScreen : GameScreen
                 int inset = Math.Max(2, (int)(4 * ui));
                 var bar = new Rectangle(plate.X + inset, plate.Bottom - inset - Math.Max(2, (int)(4 * ui)),
                                         (int)((plate.Width - 2 * inset) * f), Math.Max(2, (int)(4 * ui)));
-                spriteBatch.Draw(menuButton, bar, new Color(255, 215, 0) * 0.85f);
+                spriteBatch.Draw(menuButton, bar, new Color(255, 215, 0) * 0.85f * alpha);
             }
         }
 
@@ -416,16 +419,12 @@ public class MainMenuScreen : GameScreen
         if (lineWidth > versionRect.Width)
             lineHeight *= versionRect.Width / lineWidth;
         DrawCentered(spriteBatch, line, versionRect.Center.ToVector2(), lineHeight,
-                     new Color(196, 184, 160), shadow);
+                     new Color(196, 184, 160), alpha, shadow);
 
         DrawCentered(spriteBatch, "Maus oder Pfeiltasten: wählen   Klick oder Enter: starten",
-                     new Vector2(width / 2f, height - 36 * ui), 24 * ui, new Color(220, 210, 190), shadow);
+                     new Vector2(width / 2f, height - 36 * ui), 24 * ui, new Color(220, 210, 190), alpha, shadow);
 
         spriteBatch.End();
-
-        // Fade the screen in/out while transitioning.
-        if (TransitionPosition > 0)
-            ScreenManager.FadeBackBufferToBlack(1f - TransitionAlpha);
     }
 
     /// <summary>
@@ -435,32 +434,9 @@ public class MainMenuScreen : GameScreen
     /// sie auf großen Fenstern nicht gestreckt und unscharf wird.
     /// </summary>
     private void DrawCentered(SpriteBatch spriteBatch, string text, Vector2 center, float pixelHeight,
-                              Color color, int shadow)
+                              Color color, float alpha, int shadow)
     {
-        MenuStyle.DrawText(ScreenManager, text, center, pixelHeight, color, 1f, shadow);
-    }
-
-    /// <summary>
-    /// Zeichnet das Menübild (16:9) fensterfüllend im eigenen Seitenverhältnis:
-    /// was über den Rand ragt, wird abgeschnitten - die Mitte mit dem Dorfplatz
-    /// bleibt immer sichtbar, und es gibt keine leeren Balken.
-    /// </summary>
-    private void DrawBackground(SpriteBatch spriteBatch, int width, int height)
-    {
-        // Dark parchment base, also the fallback if the artwork is missing.
-        spriteBatch.Draw(menuButton, new Rectangle(0, 0, width, height), new Color(69, 46, 24));
-
-        if (menuBackground == null)
-            return;
-
-        float scale = Math.Max((float)width / menuBackground.Width,
-                               (float)height / menuBackground.Height);
-        int w = (int)(menuBackground.Width * scale);
-        int h = (int)(menuBackground.Height * scale);
-
-        spriteBatch.Draw(menuBackground,
-            new Rectangle((width - w) / 2, (height - h) / 2, w, h),
-            Color.White);
+        MenuStyle.DrawText(ScreenManager, text, center, pixelHeight, color, alpha, shadow);
     }
 
     private void DrawBorder(SpriteBatch spriteBatch, Rectangle rect, int thickness, Color color)
