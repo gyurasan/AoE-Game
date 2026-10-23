@@ -72,7 +72,9 @@ Spielbar sind Wirtschaft, Aufstieg durch die Zeitalter und Kampf gegen einen Com
   verfolgen niemanden. Von Gebäuden halten sie fünf Kacheln Abstand und ziehen sich vor neuen
   zurück. Getroffene Soldaten wehren sich, ein Klick setzt die Auswahl auf ein Raubtier an -
   Bogenschützen schießen aus sicherer Entfernung. Ein erlegter Bär liefert Fleisch, die Jäger
-  zerlegen ihn gleich
+  zerlegen ihn gleich. Bären und Wölfe laufen in acht Phasen und greifen in acht an: der Wolf duckt
+  sich, springt und beißt zu, der Bär richtet sich auf und schlägt mit der Pranke - der Biss trifft
+  genau mit dem Schaden ([Zeitlupe](docs/bilder/raubtiere.gif))
 - Niederlage: wer weder Dorfbewohner noch Stadtzentrum hat, verliert; ein Endbildschirm nennt den
   Sieger
 - Geräusche: Axt, Spitzhacke, Hacke, Sichel und Hammer klingen im Takt der Arbeit, dazu Schwerter,

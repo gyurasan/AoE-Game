@@ -3052,7 +3052,6 @@
    {
     "name": "baer_lauf1",
     "seed": 9881,
-    "ziel": "Tiere/baer_lauf1.png",
     "figur": "baer",
     "zielbreite": 256,
     "entgruenen": true,
@@ -3073,12 +3072,12 @@
       ]
      ]
     },
-    "prompt": "A huge powerful brown bear with thick shaggy dark brown fur, lighter golden-brown tips on its back, a muscular shoulder hump, a broad head with small round ears and a dark snout, big paws with pale claws, facing right, walking slowly to the right with a heavy lumbering gait. Its legs are in mid-stride: the front legs spread apart, one big paw reaching forward, the hind legs spread the other way."
+    "prompt": "A huge powerful brown bear with thick shaggy dark brown fur, lighter golden-brown tips on its back, a muscular shoulder hump, a broad head with small round ears and a dark snout, big paws with pale claws, facing right, walking slowly to the right with a heavy lumbering gait. Its legs are in mid-stride: the front legs spread apart, one big paw reaching forward, the hind legs spread the other way.",
+    "_hinweis": "Ersetzt durch die acht Laufphasen aus tieranim.py (Gruppe tieranim) - nicht mehr im Spiel."
    },
    {
     "name": "baer_lauf2",
     "seed": 9883,
-    "ziel": "Tiere/baer_lauf2.png",
     "figur": "baer",
     "zielbreite": 256,
     "entgruenen": true,
@@ -3099,12 +3098,12 @@
       ]
      ]
     },
-    "prompt": "A huge powerful brown bear with thick shaggy dark brown fur, lighter golden-brown tips on its back, a muscular shoulder hump, a broad head with small round ears and a dark snout, big paws with pale claws, facing right, walking slowly to the right with a heavy lumbering gait. Its legs pass each other under the body: one front paw is lifted off the ground, one hind leg swings forward."
+    "prompt": "A huge powerful brown bear with thick shaggy dark brown fur, lighter golden-brown tips on its back, a muscular shoulder hump, a broad head with small round ears and a dark snout, big paws with pale claws, facing right, walking slowly to the right with a heavy lumbering gait. Its legs pass each other under the body: one front paw is lifted off the ground, one hind leg swings forward.",
+    "_hinweis": "Ersetzt durch die acht Laufphasen aus tieranim.py (Gruppe tieranim) - nicht mehr im Spiel."
    },
    {
     "name": "baer2_lauf1",
     "seed": 9886,
-    "ziel": "Tiere/baer2_lauf1.png",
     "figur": "baer2",
     "zielbreite": 256,
     "entgruenen": true,
@@ -3126,12 +3125,12 @@
      ],
      "weich": 16
     },
-    "prompt": "A huge powerful brown bear with thick shaggy dark brown fur, lighter golden-brown tips on its back, a muscular shoulder hump, a broad head with small round ears and a dark snout, big paws with pale claws, facing right, its head lowered, walking slowly to the right with a heavy lumbering gait. Its legs are in mid-stride: the front legs spread apart, one big paw reaching forward, the hind legs spread the other way."
+    "prompt": "A huge powerful brown bear with thick shaggy dark brown fur, lighter golden-brown tips on its back, a muscular shoulder hump, a broad head with small round ears and a dark snout, big paws with pale claws, facing right, its head lowered, walking slowly to the right with a heavy lumbering gait. Its legs are in mid-stride: the front legs spread apart, one big paw reaching forward, the hind legs spread the other way.",
+    "_hinweis": "Ersetzt durch die acht Laufphasen aus tieranim.py (Gruppe tieranim) - nicht mehr im Spiel."
    },
    {
     "name": "baer2_lauf2",
     "seed": 9887,
-    "ziel": "Tiere/baer2_lauf2.png",
     "figur": "baer2",
     "zielbreite": 256,
     "entgruenen": true,
@@ -3153,12 +3152,12 @@
      ],
      "weich": 16
     },
-    "prompt": "A huge powerful brown bear with thick shaggy dark brown fur, lighter golden-brown tips on its back, a muscular shoulder hump, a broad head with small round ears and a dark snout, big paws with pale claws, facing right, its head lowered, walking slowly to the right with a heavy lumbering gait. Its legs pass each other under the body: one front paw is lifted off the ground, one hind leg swings forward."
+    "prompt": "A huge powerful brown bear with thick shaggy dark brown fur, lighter golden-brown tips on its back, a muscular shoulder hump, a broad head with small round ears and a dark snout, big paws with pale claws, facing right, its head lowered, walking slowly to the right with a heavy lumbering gait. Its legs pass each other under the body: one front paw is lifted off the ground, one hind leg swings forward.",
+    "_hinweis": "Ersetzt durch die acht Laufphasen aus tieranim.py (Gruppe tieranim) - nicht mehr im Spiel."
    },
    {
     "name": "wolf_lauf1",
     "seed": 9890,
-    "ziel": "Tiere/wolf_lauf1.png",
     "figur": "wolf",
     "zielbreite": 256,
     "entgruenen": true,
@@ -3174,12 +3173,12 @@
      ],
      "weich": 16
     },
-    "prompt": "A lean wild grey wolf with thick grey fur, tawny flanks, a cream-white chest, throat and belly, pointed upright ears, amber eyes, long legs and a long bushy tail, facing right, trotting to the right. Its long legs are in mid-stride: the front legs spread apart, one paw reaching forward, the hind legs spread the other way."
+    "prompt": "A lean wild grey wolf with thick grey fur, tawny flanks, a cream-white chest, throat and belly, pointed upright ears, amber eyes, long legs and a long bushy tail, facing right, trotting to the right. Its long legs are in mid-stride: the front legs spread apart, one paw reaching forward, the hind legs spread the other way.",
+    "_hinweis": "Ersetzt durch die acht Laufphasen aus tieranim.py (Gruppe tieranim) - nicht mehr im Spiel."
    },
    {
     "name": "wolf_lauf2",
     "seed": 9893,
-    "ziel": "Tiere/wolf_lauf2.png",
     "figur": "wolf",
     "zielbreite": 256,
     "entgruenen": true,
@@ -3195,12 +3194,12 @@
      ],
      "weich": 16
     },
-    "prompt": "A lean wild grey wolf with thick grey fur, tawny flanks, a cream-white chest, throat and belly, pointed upright ears, amber eyes, long legs and a long bushy tail, facing right, trotting to the right. Its long legs pass each other under the body: one front paw is lifted with the wrist bent, one hind leg swings forward."
+    "prompt": "A lean wild grey wolf with thick grey fur, tawny flanks, a cream-white chest, throat and belly, pointed upright ears, amber eyes, long legs and a long bushy tail, facing right, trotting to the right. Its long legs pass each other under the body: one front paw is lifted with the wrist bent, one hind leg swings forward.",
+    "_hinweis": "Ersetzt durch die acht Laufphasen aus tieranim.py (Gruppe tieranim) - nicht mehr im Spiel."
    },
    {
     "name": "wolf2_lauf1",
     "seed": 9913,
-    "ziel": "Tiere/wolf2_lauf1.png",
     "figur": "wolf2",
     "zielbreite": 256,
     "entgruenen": true,
@@ -3222,12 +3221,12 @@
      ],
      "weich": 32
     },
-    "prompt": "A lean wild dark grey wolf with thick charcoal and silver-grey fur, a pale grey chest and belly, pointed upright ears, amber eyes, long legs and a long bushy tail, facing right, its head held low, trotting to the right. Its long legs are in mid-stride: the front legs spread apart, one paw reaching forward, the hind legs spread the other way."
+    "prompt": "A lean wild dark grey wolf with thick charcoal and silver-grey fur, a pale grey chest and belly, pointed upright ears, amber eyes, long legs and a long bushy tail, facing right, its head held low, trotting to the right. Its long legs are in mid-stride: the front legs spread apart, one paw reaching forward, the hind legs spread the other way.",
+    "_hinweis": "Ersetzt durch die acht Laufphasen aus tieranim.py (Gruppe tieranim) - nicht mehr im Spiel."
    },
    {
     "name": "wolf2_lauf2",
     "seed": 9915,
-    "ziel": "Tiere/wolf2_lauf2.png",
     "figur": "wolf2",
     "zielbreite": 256,
     "entgruenen": true,
@@ -3249,12 +3248,12 @@
      ],
      "weich": 32
     },
-    "prompt": "A lean wild dark grey wolf with thick charcoal and silver-grey fur, a pale grey chest and belly, pointed upright ears, amber eyes, long legs and a long bushy tail, facing right, its head held low, trotting to the right. Its long legs pass each other under the body: one front paw is lifted with the wrist bent, one hind leg swings forward."
+    "prompt": "A lean wild dark grey wolf with thick charcoal and silver-grey fur, a pale grey chest and belly, pointed upright ears, amber eyes, long legs and a long bushy tail, facing right, its head held low, trotting to the right. Its long legs pass each other under the body: one front paw is lifted with the wrist bent, one hind leg swings forward.",
+    "_hinweis": "Ersetzt durch die acht Laufphasen aus tieranim.py (Gruppe tieranim) - nicht mehr im Spiel."
    },
    {
     "name": "baer_angriff",
     "seed": 9901,
-    "ziel": "Tiere/baer_angriff.png",
     "figur": "baer",
     "zielbreite": 256,
     "entgruenen": true,
@@ -3277,12 +3276,12 @@
     },
     "stil": "Game sprite for a top-down 2D strategy game, seen from above at a three-quarter angle from the south, the body shown from the side, detailed 16-bit pixel art, crisp pixels, warm natural colors, soft light from the upper left. One single wild animal attacking, centered and fully visible, isolated on a plain flat solid green background like a green screen, no ground, no grass, no shadow, no text.",
     "negativ": "calm, closed mouth, sitting, standing upright, two legs, blood, gore",
-    "prompt": "A huge powerful brown bear with thick shaggy dark brown fur, lighter golden-brown tips on its back, a muscular shoulder hump, a broad head with small round ears and a dark snout, big paws with pale claws, facing right, attacking: it lunges forward roaring with its jaws wide open, baring its teeth, one front paw raised high with the claws spread out."
+    "prompt": "A huge powerful brown bear with thick shaggy dark brown fur, lighter golden-brown tips on its back, a muscular shoulder hump, a broad head with small round ears and a dark snout, big paws with pale claws, facing right, attacking: it lunges forward roaring with its jaws wide open, baring its teeth, one front paw raised high with the claws spread out.",
+    "_hinweis": "Vorlage der acht Angriffsphasen (tieranim.py, Gruppe tieranim) - nicht mehr selbst im Spiel."
    },
    {
     "name": "baer2_angriff",
     "seed": 9904,
-    "ziel": "Tiere/baer2_angriff.png",
     "figur": "baer2",
     "zielbreite": 256,
     "entgruenen": true,
@@ -3305,12 +3304,12 @@
     },
     "stil": "Game sprite for a top-down 2D strategy game, seen from above at a three-quarter angle from the south, the body shown from the side, detailed 16-bit pixel art, crisp pixels, warm natural colors, soft light from the upper left. One single wild animal attacking, centered and fully visible, isolated on a plain flat solid green background like a green screen, no ground, no grass, no shadow, no text.",
     "negativ": "calm, closed mouth, sitting, standing upright, two legs, blood, gore",
-    "prompt": "A huge powerful brown bear with thick shaggy dark brown fur, lighter golden-brown tips on its back, a muscular shoulder hump, a broad head with small round ears and a dark snout, big paws with pale claws, facing right, its head lowered, attacking: it lunges forward roaring with its jaws wide open, baring its teeth, one front paw raised high with the claws spread out."
+    "prompt": "A huge powerful brown bear with thick shaggy dark brown fur, lighter golden-brown tips on its back, a muscular shoulder hump, a broad head with small round ears and a dark snout, big paws with pale claws, facing right, its head lowered, attacking: it lunges forward roaring with its jaws wide open, baring its teeth, one front paw raised high with the claws spread out.",
+    "_hinweis": "Vorlage der acht Angriffsphasen (tieranim.py, Gruppe tieranim) - nicht mehr selbst im Spiel."
    },
    {
     "name": "wolf_angriff",
     "seed": 9905,
-    "ziel": "Tiere/wolf_angriff.png",
     "figur": "wolf",
     "zielbreite": 256,
     "entgruenen": true,
@@ -3327,12 +3326,12 @@
     },
     "stil": "Game sprite for a top-down 2D strategy game, seen from above at a three-quarter angle from the south, the body shown from the side, detailed 16-bit pixel art, crisp pixels, warm natural colors, soft light from the upper left. One single wild animal attacking, centered and fully visible, isolated on a plain flat solid green background like a green screen, no ground, no grass, no shadow, no text.",
     "negativ": "calm, closed mouth, sitting, standing upright, two legs, blood, gore",
-    "prompt": "A lean wild grey wolf with thick grey fur, tawny flanks, a cream-white chest, throat and belly, pointed upright ears, amber eyes, long legs and a long bushy tail, facing right, attacking: it lunges forward snarling with its jaws wide open, baring sharp white fangs, ears laid back, low on its front legs."
+    "prompt": "A lean wild grey wolf with thick grey fur, tawny flanks, a cream-white chest, throat and belly, pointed upright ears, amber eyes, long legs and a long bushy tail, facing right, attacking: it lunges forward snarling with its jaws wide open, baring sharp white fangs, ears laid back, low on its front legs.",
+    "_hinweis": "Vorlage der acht Angriffsphasen (tieranim.py, Gruppe tieranim) - nicht mehr selbst im Spiel."
    },
    {
     "name": "wolf2_angriff",
     "seed": 9909,
-    "ziel": "Tiere/wolf2_angriff.png",
     "figur": "wolf2",
     "zielbreite": 256,
     "entgruenen": true,
@@ -3350,7 +3349,431 @@
     },
     "stil": "Game sprite for a top-down 2D strategy game, seen from above at a three-quarter angle from the south, the body shown from the side, detailed 16-bit pixel art, crisp pixels, warm natural colors, soft light from the upper left. One single wild animal attacking, centered and fully visible, isolated on a plain flat solid green background like a green screen, no ground, no grass, no shadow, no text.",
     "negativ": "calm, closed mouth, sitting, standing upright, two legs, blood, gore",
-    "prompt": "A lean wild dark grey wolf with thick charcoal and silver-grey fur, a pale grey chest and belly, pointed upright ears, amber eyes, long legs and a long bushy tail, facing right, its head held low, attacking: it lunges forward snarling with its jaws wide open, baring sharp white fangs, ears laid back, low on its front legs."
+    "prompt": "A lean wild dark grey wolf with thick charcoal and silver-grey fur, a pale grey chest and belly, pointed upright ears, amber eyes, long legs and a long bushy tail, facing right, its head held low, attacking: it lunges forward snarling with its jaws wide open, baring sharp white fangs, ears laid back, low on its front legs.",
+    "_hinweis": "Vorlage der acht Angriffsphasen (tieranim.py, Gruppe tieranim) - nicht mehr selbst im Spiel."
+   }
+  ]
+ },
+ "tieranim": {
+  "_hinweis": "Acht Lauf- und acht Angriffsphasen je Bär und Wolf aus tools/bilder/tieranim.py (Beine weich über ein Skelett gebogen, Gelenke und Schlüsselposen in tieranim.json), nicht aus qwen_image.py. Die Angriffsbilder liegen auf einer größeren Leinwand im Maßstab des Standbilds - zielbreite aus der Ausgabe von tieranim.py, die Pfoten stehen an derselben Stelle. Seed 1 ist nur das Namensschema.",
+  "zielbreite": 256,
+  "entgruenen": true,
+  "bilder": [
+   {
+    "name": "baer_lauf1",
+    "seed": 1,
+    "ziel": "Tiere/baer_lauf1.png",
+    "figur": "baer"
+   },
+   {
+    "name": "baer_lauf2",
+    "seed": 1,
+    "ziel": "Tiere/baer_lauf2.png",
+    "figur": "baer"
+   },
+   {
+    "name": "baer_lauf3",
+    "seed": 1,
+    "ziel": "Tiere/baer_lauf3.png",
+    "figur": "baer"
+   },
+   {
+    "name": "baer_lauf4",
+    "seed": 1,
+    "ziel": "Tiere/baer_lauf4.png",
+    "figur": "baer"
+   },
+   {
+    "name": "baer_lauf5",
+    "seed": 1,
+    "ziel": "Tiere/baer_lauf5.png",
+    "figur": "baer"
+   },
+   {
+    "name": "baer_lauf6",
+    "seed": 1,
+    "ziel": "Tiere/baer_lauf6.png",
+    "figur": "baer"
+   },
+   {
+    "name": "baer_lauf7",
+    "seed": 1,
+    "ziel": "Tiere/baer_lauf7.png",
+    "figur": "baer"
+   },
+   {
+    "name": "baer_lauf8",
+    "seed": 1,
+    "ziel": "Tiere/baer_lauf8.png",
+    "figur": "baer"
+   },
+   {
+    "name": "baer_angriff1",
+    "seed": 1,
+    "ziel": "Tiere/baer_angriff1.png",
+    "figur": "baer_angriff",
+    "zielbreite": 305
+   },
+   {
+    "name": "baer_angriff2",
+    "seed": 1,
+    "ziel": "Tiere/baer_angriff2.png",
+    "figur": "baer_angriff",
+    "zielbreite": 305
+   },
+   {
+    "name": "baer_angriff3",
+    "seed": 1,
+    "ziel": "Tiere/baer_angriff3.png",
+    "figur": "baer_angriff",
+    "zielbreite": 305
+   },
+   {
+    "name": "baer_angriff4",
+    "seed": 1,
+    "ziel": "Tiere/baer_angriff4.png",
+    "figur": "baer_angriff",
+    "zielbreite": 305
+   },
+   {
+    "name": "baer_angriff5",
+    "seed": 1,
+    "ziel": "Tiere/baer_angriff5.png",
+    "figur": "baer_angriff",
+    "zielbreite": 305
+   },
+   {
+    "name": "baer_angriff6",
+    "seed": 1,
+    "ziel": "Tiere/baer_angriff6.png",
+    "figur": "baer_angriff",
+    "zielbreite": 305
+   },
+   {
+    "name": "baer_angriff7",
+    "seed": 1,
+    "ziel": "Tiere/baer_angriff7.png",
+    "figur": "baer_angriff",
+    "zielbreite": 305
+   },
+   {
+    "name": "baer_angriff8",
+    "seed": 1,
+    "ziel": "Tiere/baer_angriff8.png",
+    "figur": "baer_angriff",
+    "zielbreite": 305
+   },
+   {
+    "name": "baer2_lauf1",
+    "seed": 1,
+    "ziel": "Tiere/baer2_lauf1.png",
+    "figur": "baer2"
+   },
+   {
+    "name": "baer2_lauf2",
+    "seed": 1,
+    "ziel": "Tiere/baer2_lauf2.png",
+    "figur": "baer2"
+   },
+   {
+    "name": "baer2_lauf3",
+    "seed": 1,
+    "ziel": "Tiere/baer2_lauf3.png",
+    "figur": "baer2"
+   },
+   {
+    "name": "baer2_lauf4",
+    "seed": 1,
+    "ziel": "Tiere/baer2_lauf4.png",
+    "figur": "baer2"
+   },
+   {
+    "name": "baer2_lauf5",
+    "seed": 1,
+    "ziel": "Tiere/baer2_lauf5.png",
+    "figur": "baer2"
+   },
+   {
+    "name": "baer2_lauf6",
+    "seed": 1,
+    "ziel": "Tiere/baer2_lauf6.png",
+    "figur": "baer2"
+   },
+   {
+    "name": "baer2_lauf7",
+    "seed": 1,
+    "ziel": "Tiere/baer2_lauf7.png",
+    "figur": "baer2"
+   },
+   {
+    "name": "baer2_lauf8",
+    "seed": 1,
+    "ziel": "Tiere/baer2_lauf8.png",
+    "figur": "baer2"
+   },
+   {
+    "name": "baer2_angriff1",
+    "seed": 1,
+    "ziel": "Tiere/baer2_angriff1.png",
+    "figur": "baer2_angriff",
+    "zielbreite": 322
+   },
+   {
+    "name": "baer2_angriff2",
+    "seed": 1,
+    "ziel": "Tiere/baer2_angriff2.png",
+    "figur": "baer2_angriff",
+    "zielbreite": 322
+   },
+   {
+    "name": "baer2_angriff3",
+    "seed": 1,
+    "ziel": "Tiere/baer2_angriff3.png",
+    "figur": "baer2_angriff",
+    "zielbreite": 322
+   },
+   {
+    "name": "baer2_angriff4",
+    "seed": 1,
+    "ziel": "Tiere/baer2_angriff4.png",
+    "figur": "baer2_angriff",
+    "zielbreite": 322
+   },
+   {
+    "name": "baer2_angriff5",
+    "seed": 1,
+    "ziel": "Tiere/baer2_angriff5.png",
+    "figur": "baer2_angriff",
+    "zielbreite": 322
+   },
+   {
+    "name": "baer2_angriff6",
+    "seed": 1,
+    "ziel": "Tiere/baer2_angriff6.png",
+    "figur": "baer2_angriff",
+    "zielbreite": 322
+   },
+   {
+    "name": "baer2_angriff7",
+    "seed": 1,
+    "ziel": "Tiere/baer2_angriff7.png",
+    "figur": "baer2_angriff",
+    "zielbreite": 322
+   },
+   {
+    "name": "baer2_angriff8",
+    "seed": 1,
+    "ziel": "Tiere/baer2_angriff8.png",
+    "figur": "baer2_angriff",
+    "zielbreite": 322
+   },
+   {
+    "name": "wolf_lauf1",
+    "seed": 1,
+    "ziel": "Tiere/wolf_lauf1.png",
+    "figur": "wolf"
+   },
+   {
+    "name": "wolf_lauf2",
+    "seed": 1,
+    "ziel": "Tiere/wolf_lauf2.png",
+    "figur": "wolf"
+   },
+   {
+    "name": "wolf_lauf3",
+    "seed": 1,
+    "ziel": "Tiere/wolf_lauf3.png",
+    "figur": "wolf"
+   },
+   {
+    "name": "wolf_lauf4",
+    "seed": 1,
+    "ziel": "Tiere/wolf_lauf4.png",
+    "figur": "wolf"
+   },
+   {
+    "name": "wolf_lauf5",
+    "seed": 1,
+    "ziel": "Tiere/wolf_lauf5.png",
+    "figur": "wolf"
+   },
+   {
+    "name": "wolf_lauf6",
+    "seed": 1,
+    "ziel": "Tiere/wolf_lauf6.png",
+    "figur": "wolf"
+   },
+   {
+    "name": "wolf_lauf7",
+    "seed": 1,
+    "ziel": "Tiere/wolf_lauf7.png",
+    "figur": "wolf"
+   },
+   {
+    "name": "wolf_lauf8",
+    "seed": 1,
+    "ziel": "Tiere/wolf_lauf8.png",
+    "figur": "wolf"
+   },
+   {
+    "name": "wolf_angriff1",
+    "seed": 1,
+    "ziel": "Tiere/wolf_angriff1.png",
+    "figur": "wolf_angriff",
+    "zielbreite": 303
+   },
+   {
+    "name": "wolf_angriff2",
+    "seed": 1,
+    "ziel": "Tiere/wolf_angriff2.png",
+    "figur": "wolf_angriff",
+    "zielbreite": 303
+   },
+   {
+    "name": "wolf_angriff3",
+    "seed": 1,
+    "ziel": "Tiere/wolf_angriff3.png",
+    "figur": "wolf_angriff",
+    "zielbreite": 303
+   },
+   {
+    "name": "wolf_angriff4",
+    "seed": 1,
+    "ziel": "Tiere/wolf_angriff4.png",
+    "figur": "wolf_angriff",
+    "zielbreite": 303
+   },
+   {
+    "name": "wolf_angriff5",
+    "seed": 1,
+    "ziel": "Tiere/wolf_angriff5.png",
+    "figur": "wolf_angriff",
+    "zielbreite": 303
+   },
+   {
+    "name": "wolf_angriff6",
+    "seed": 1,
+    "ziel": "Tiere/wolf_angriff6.png",
+    "figur": "wolf_angriff",
+    "zielbreite": 303
+   },
+   {
+    "name": "wolf_angriff7",
+    "seed": 1,
+    "ziel": "Tiere/wolf_angriff7.png",
+    "figur": "wolf_angriff",
+    "zielbreite": 303
+   },
+   {
+    "name": "wolf_angriff8",
+    "seed": 1,
+    "ziel": "Tiere/wolf_angriff8.png",
+    "figur": "wolf_angriff",
+    "zielbreite": 303
+   },
+   {
+    "name": "wolf2_lauf1",
+    "seed": 1,
+    "ziel": "Tiere/wolf2_lauf1.png",
+    "figur": "wolf2"
+   },
+   {
+    "name": "wolf2_lauf2",
+    "seed": 1,
+    "ziel": "Tiere/wolf2_lauf2.png",
+    "figur": "wolf2"
+   },
+   {
+    "name": "wolf2_lauf3",
+    "seed": 1,
+    "ziel": "Tiere/wolf2_lauf3.png",
+    "figur": "wolf2"
+   },
+   {
+    "name": "wolf2_lauf4",
+    "seed": 1,
+    "ziel": "Tiere/wolf2_lauf4.png",
+    "figur": "wolf2"
+   },
+   {
+    "name": "wolf2_lauf5",
+    "seed": 1,
+    "ziel": "Tiere/wolf2_lauf5.png",
+    "figur": "wolf2"
+   },
+   {
+    "name": "wolf2_lauf6",
+    "seed": 1,
+    "ziel": "Tiere/wolf2_lauf6.png",
+    "figur": "wolf2"
+   },
+   {
+    "name": "wolf2_lauf7",
+    "seed": 1,
+    "ziel": "Tiere/wolf2_lauf7.png",
+    "figur": "wolf2"
+   },
+   {
+    "name": "wolf2_lauf8",
+    "seed": 1,
+    "ziel": "Tiere/wolf2_lauf8.png",
+    "figur": "wolf2"
+   },
+   {
+    "name": "wolf2_angriff1",
+    "seed": 1,
+    "ziel": "Tiere/wolf2_angriff1.png",
+    "figur": "wolf2_angriff",
+    "zielbreite": 268
+   },
+   {
+    "name": "wolf2_angriff2",
+    "seed": 1,
+    "ziel": "Tiere/wolf2_angriff2.png",
+    "figur": "wolf2_angriff",
+    "zielbreite": 268
+   },
+   {
+    "name": "wolf2_angriff3",
+    "seed": 1,
+    "ziel": "Tiere/wolf2_angriff3.png",
+    "figur": "wolf2_angriff",
+    "zielbreite": 268
+   },
+   {
+    "name": "wolf2_angriff4",
+    "seed": 1,
+    "ziel": "Tiere/wolf2_angriff4.png",
+    "figur": "wolf2_angriff",
+    "zielbreite": 268
+   },
+   {
+    "name": "wolf2_angriff5",
+    "seed": 1,
+    "ziel": "Tiere/wolf2_angriff5.png",
+    "figur": "wolf2_angriff",
+    "zielbreite": 268
+   },
+   {
+    "name": "wolf2_angriff6",
+    "seed": 1,
+    "ziel": "Tiere/wolf2_angriff6.png",
+    "figur": "wolf2_angriff",
+    "zielbreite": 268
+   },
+   {
+    "name": "wolf2_angriff7",
+    "seed": 1,
+    "ziel": "Tiere/wolf2_angriff7.png",
+    "figur": "wolf2_angriff",
+    "zielbreite": 268
+   },
+   {
+    "name": "wolf2_angriff8",
+    "seed": 1,
+    "ziel": "Tiere/wolf2_angriff8.png",
+    "figur": "wolf2_angriff",
+    "zielbreite": 268
    }
   ]
  },

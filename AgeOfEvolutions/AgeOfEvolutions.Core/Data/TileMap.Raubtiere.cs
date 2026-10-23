@@ -25,7 +25,7 @@ public readonly record struct PredatorStrike(FoodSource Kind, int X, int Y, Unit
 // (Slaughtered, BearFood Nahrung), ein erlegter Wolf verschwindet.
 public partial class TileMap
 {
-    /// <summary>Sekunden, die ein Raubtier nach jedem Schlag sein Angriffsbild zeigt (WildAnimal.Strike).</summary>
+    /// <summary>Sekunden, die ein Raubtier nach jedem Schlag zuschlägt und zurücknimmt (WildAnimal.Strike).</summary>
     public const float PREDATOR_STRIKE_SECONDS = 0.45f;
 
     /// <summary>
@@ -208,6 +208,7 @@ public partial class TileMap
     ///    das Opfer ist unter allen u aus units mit u.State != UnitState.Dead und u.Health größer 0
     ///    das mit dem kleinsten Vector2.Distance(u.Position, center), sofern dieser Abstand kleiner
     ///    oder gleich reach ist (bei Gleichstand das erste in units).
+    ///    tier.Engaged = (es gibt ein Opfer).
     /// 3. Mit Opfer: ist victim.Position.X != center.X, dann tier.FacingLeft = victim.Position.X
     ///    kleiner center.X. Ist tier.AttackCooldown kleiner oder gleich 0: damage = Math.Max(1,
     ///    (Bear: Settings.BearDamage, Wolf: Settings.WolfDamage) - victim.Armor); victim.Health =
@@ -264,6 +265,9 @@ public partial class TileMap
                         }
                     }
                 }
+
+                // Ausholen zeigt das Bild nur, solange jemand in Reichweite steht.
+                tier.Engaged = victim is not null;
 
                 // 3. Mit Opfer: zuschlagen, aber niemandem folgen.
                 if (victim is not null)

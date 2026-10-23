@@ -29,7 +29,7 @@ tests/AoE.Tests/ - net10.0, xUnit, 267 Tests, alle grün
 demo/DemoApp.csproj - net10.0, kleine Konsolen-Testapp
 tools/ollama-agent/ - Harness, der TODO-Punkte an ein lokales Ollama-Modell verteilt
 tools/kartenpruefung/ - prüft Regeln des Kartengenerators über 50 erzeugte Karten
-tools/bilder/ - erzeugt Spielgrafiken mit Qwen-Image über ComfyUI; Prompts und Seeds in bilder.json, uebernehmen.ps1 bereitet die gewählten Bilder für Content/ auf; gang.py stellt aus einem Standbild acht Gehphasen (Bein-Skelett, Gelenke in gang.json), schlag.py acht Schlagphasen (Waffenarm oder Speer über einem Rumpf ohne Waffe, schlag.json)
+tools/bilder/ - erzeugt Spielgrafiken mit Qwen-Image über ComfyUI; Prompts und Seeds in bilder.json, uebernehmen.ps1 bereitet die gewählten Bilder für Content/ auf; gang.py stellt aus einem Standbild acht Gehphasen (Bein-Skelett, Gelenke in gang.json), schlag.py acht Schlagphasen (Waffenarm oder Speer über einem Rumpf ohne Waffe, schlag.json), tieranim.py je acht Lauf- und Angriffsphasen für Bär und Wolf (Beine weich gebogen, Gelenke und Schlüsselposen in tieranim.json)
 tools/klang/ - schneidet die Geräusche für Arbeit und Kampf aus CC0-Aufnahmen von Freesound (klang.py, numpy und scipy aus der Python von ComfyUI, ffmpeg) nach Content/Sounds; --vorschau schreibt alle Varianten zum Anhören in ausgabe/
 tools/spielablauf/ - lässt die Spielschleife ohne Grafik laufen und prüft Abläufe (Bauen, Weiterbauen, Linksklick, Farm, Schafe, Bewegen, Minimap, Zoom, Leiste, Zeitalter, Wachturm, Hauptmenü, Animation, Fenster, Werkzeug, Feld, Trampelpfad, Wind, Gang, Blick, Dunkel, Neubauten, Türen, Gebäudeauswahl, Angriff, Soldaten, Forschung, Schlag, Klangbrett, Arbeitsklang, Kampfklang)
 ```
@@ -80,7 +80,15 @@ Schrittlänge `Gait.VILLAGER_STRIDE` (5,06 Welteinheiten) ist die der Bilder, so
 Füße nicht; `docs/bilder/gang.gif` zeigt alle Figuren in Zeitlupe. Greifen Miliz und Späher ein
 Gebäude an, zeigt das Spiel acht Schlagphasen aus `tools/bilder/schlag.py` (`AttackPhase` nach
 `AttackTimer`, der Treffer im Bild fällt auf den Abzug der Stärke), auf größerer Leinwand im
-Maßstab des Standbilds; Zeitlupe in `docs/bilder/schlag.gif`. Den Schwung der Werkzeuge
+Maßstab des Standbilds; Zeitlupe in `docs/bilder/schlag.gif`. Bären und Wölfe haben je acht
+Lauf- und acht Angriffsphasen aus `tools/bilder/tieranim.py`: wie bei `gang.py` ein Bein-Skelett
+über dem Standbild, aber für Fell weich gebogen statt an Gelenken geschnitten (jeder Bildpunkt dreht
+anteilig um Hüfte, Knie und Knöchel), die abgewandten Beine hinter dem Rumpf; der Angriff aus
+Schlüsselposen über Stand- und Angriffsbild (ducken, springen, beißen; aufrichten, Prankenhieb),
+auf größerer Leinwand im Maßstab des Standbilds. Im Spiel laufen sie nach der Strecke
+(`PredatorWalkFrame`, `BEAR_STRIDE`/`WOLF_STRIDE`) und greifen am Schlagtakt an
+(`PredatorAttackFrame`: Ausholen vor dem Schlag, wenn ein Opfer in Reichweite steht, der Biss im
+Bild des Treffers); Zeitlupe in `docs/bilder/raubtiere.gif`. Den Schwung der Werkzeuge
 und den Schritt der Tiere rechnet das Spiel selbst (`RTSGameplayScreen.DrawVillager`,
 `DrawTool`, `DrawAnimal`). Fehlt eine Grafik, zeichnet das Spiel wie früher
 prozedural. Gras, Sand und Wasser setzt der Bodenshader `Content/Effects/Boden.fx` in einem

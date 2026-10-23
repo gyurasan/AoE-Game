@@ -58,7 +58,7 @@ Texture2D -> Sparte/Zeichnung in RTSGameplayScreen o. Ä.
 | `Felder/` | `acker`, `weizen` |
 | `Einheiten/` | `dorfbewohner_blau`, `dorfbewohner_rot`, plus `_lauf1.._lauf8` (Gang) und `_schlag1.._schlag8` (Angriff) |
 | `Gebaeude/` | je `_<farbe>` (z. B. `muehle_fluegel`), Fahnentuch-Positionen sind pro Asset im Code |
-| `Tiere/` | `schaf_blau`, `reich_schaf`, `fleisch_schaf` … |
+| `Tiere/` | `schaf_blau`, `reich_schaf`, `fleisch_schaf` …; Bär und Wolf dazu `_lauf1.._lauf8` und `_angriff1.._angriff8` |
 | `Leiste/` | `dunkel`, `feudal`, `ritter`, `imperial` (Panel pro Zeitalter) |
 | `Icons/` | Befehlssymbole (128 px) |
 | `Backgrounds/` | `menu.png`, Parallax-Ebenen `Layer0_0` … |
@@ -132,14 +132,15 @@ Der „echte" Weg, um (neue) Bilder zu produzieren, lebt unter `tools/bilder/`
 - **Danach:** neue Ziele per Hand in `AgeOfEvolutions.mgcb` eintragen
   (ausdrücklich im ps1-Kopfkommentar vermerkt) und in C# laden.
 - Spezialwerkzeuge: `gang.py`/`gang.json` (Lauf-Reihen),
-  `schlag.py`/`schlag.json` (Angriffsphasen), `naht.py` (nahtloses Kacheln).
+  `schlag.py`/`schlag.json` (Angriffsphasen), `tieranim.py`/`tieranim.json` (Lauf- und
+  Angriffsphasen von Bär und Wolf), `naht.py` (nahtloses Kacheln).
 
 ## Checkliste „Bild ist nicht zu sehen"
 
 1. PNG unter dem exakten Pfad/Namen im Content-Ordner? (Groß-/Kleinschreibung!)
 2. In `AgeOfEvolutions.mgcb` ein `#begin <Pfad>.png` drin?
 3. Neu gebaut (`.xnb` in `bin/…/Content/` vorhanden)?
-4. Für Animationen: alle Frames da (`_lauf1..8` oder `_schlag1..8`), sonst
+4. Für Animationen: alle Frames da (`_lauf1..8`, `_schlag1..8` oder `_angriff1..8`), sonst
    nullt die ganze Reihe.
 5. Im Code: `LoadOptional` liefert `null` bei `ContentLoadException` – die
    `Asset fehlt: <name>`-Zeile im Log (`logs/` neben der Exe) zeigt, welches.

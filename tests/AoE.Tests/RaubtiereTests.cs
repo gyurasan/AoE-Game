@@ -186,6 +186,25 @@ public class RaubtiereTests
     }
 
     [Fact]
+    public void MitOpferInReichweiteHoltEsAus()
+    {
+        // Engaged steuert das Ausholen vor dem nächsten Schlag (Angriffsphasen 0 bis 2)
+        var karte = Leer(wandern: false);
+        karte.PlacePredator(FoodSource.Wolf, 10, 10);
+        var tier = karte.GetTile(10, 10).Animal;
+        var dorfi = Einheit(UnitType.Villager, Mitte(11, 10));
+        var einheiten = new List<Unit> { dorfi };
+        Assert.False(tier.Engaged);
+        karte.UpdatePredators(1f / 60f, einheiten);
+        Assert.True(tier.Engaged);
+        karte.UpdatePredators(1f / 60f, einheiten);
+        Assert.True(tier.Engaged);                         // auch zwischen den Schlägen
+        dorfi.Position = Mitte(14, 10);
+        karte.UpdatePredators(1f / 60f, einheiten);
+        Assert.False(tier.Engaged);
+    }
+
+    [Fact]
     public void WerAbstandHaeltBleibtUnbehelligt()
     {
         var karte = Leer(wandern: false);

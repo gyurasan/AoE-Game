@@ -6757,6 +6757,9 @@ public partial class RTSGameplayScreen : GameScreen
     /// setzt dabei die Beine (Laufbilder im Wechsel, WalkPhase) und wippt
     /// leicht. Ein weicher Schatten verankert es auf dem Gras. Ein
     /// geschlachtetes Tier (WildAnimal.Slaughtered) zeigt nur noch sein Fleisch.
+    /// Bären und Wölfe (RT) gehen in acht Phasen (PredatorWalkFrame, das Wippen steckt
+    /// schon in den Bildern) und greifen in acht an (PredatorAttackFrame) - deren Bilder
+    /// sind größer als das Standbild, im selben Maßstab, die Pfoten an derselben Stelle.
     /// </summary>
     private void DrawAnimal(SpriteBatch spriteBatch, Data.Tile tile, int x, int y, Texture2D[] sprites, bool hover = false)
     {
@@ -6772,14 +6775,17 @@ public partial class RTSGameplayScreen : GameScreen
             _ => _sheepMeat,
         };
         bool butchered = tier.Slaughtered && meat != null;
-        var tex = butchered ? meat : sprites[tier.Look % sprites.Length];
-        // Ein Raubtier, das eben zuschlägt, zeigt sein Angriffsbild (RT)
-        if (!butchered && tier.Strike > 0f && _animalStrike.TryGetValue(tex, out var strike))
-            tex = strike;
-        int phase = butchered ? -1 : WalkPhase(tier.Glide);
-        if (phase >= 0 && _animalWalk.TryGetValue(tex, out var walk))
+        var stand = butchered ? meat : sprites[tier.Look % sprites.Length];
+        var tex = stand;
+        // Bär und Wolf (RT): acht Angriffsphasen beim Ausholen und Zuschlagen, sonst acht Laufphasen
+        bool predatorGait = !butchered && _animalWalk.TryGetValue(stand, out var gait) && gait.Length == Gait.WALK_FRAMES;
+        int attack = butchered ? -1 : PredatorAttackFrame(tier);
+        int phase = butchered ? -1 : predatorGait ? PredatorWalkFrame(tile) : WalkPhase(tier.Glide);
+        if (attack >= 0 && _animalAttack.TryGetValue(stand, out var attackFrames))
+            tex = attackFrames[attack];
+        else if (phase >= 0 && _animalWalk.TryGetValue(stand, out var walk))
             tex = walk[phase];
-        int width = (int)(tileRect.Width * tile.Food switch
+        int standWidth = (int)(tileRect.Width * tile.Food switch
         {
             FoodSource.Deer => DEER_WIDTH,
             FoodSource.Rabbit => RABBIT_WIDTH,
@@ -6788,14 +6794,16 @@ public partial class RTSGameplayScreen : GameScreen
             FoodSource.Wolf => WOLF_WIDTH,
             _ => SHEEP_WIDTH,
         });
+        // Ein Angriffsbild liegt auf einer größeren Leinwand im Maßstab des Standbilds
+        int width = standWidth * tex.Width / stand.Width;
         int height = width * tex.Height / tex.Width;
 
         float rest = MathHelper.Clamp(tier.Glide / TileMap.WILD_STEP_SECONDS, 0f, 1f);
         float progress = 1f - rest;
         // Die Hufe aus AnimalFoot, rest ist der Teil des Schritts, der noch fehlt.
         var foot = AnimalFoot(tile, x, y);
-        // Es wippt im Takt der Beine und nur, solange es Fahrt hat.
-        float bob = rest > 0f ? MathF.Abs(MathF.Sin(Gait.Ease(progress) * MathF.PI * 2f * WALK_CYCLES_PER_STEP)) * 1.5f * cameraZoom * Gait.EaseSpeed(progress) : 0f;
+        // Es wippt im Takt der Beine und nur, solange es Fahrt hat (Bär und Wolf schon im Bild).
+        float bob = rest > 0f && !predatorGait ? MathF.Abs(MathF.Sin(Gait.Ease(progress) * MathF.PI * 2f * WALK_CYCLES_PER_STEP)) * 1.5f * cameraZoom * Gait.EaseSpeed(progress) : 0f;
 
         var target = new Rectangle((int)(foot.X - width / 2f), (int)(foot.Y - height - bob), width, height);
         if (!target.Intersects(screenBounds))
@@ -6809,8 +6817,9 @@ public partial class RTSGameplayScreen : GameScreen
         if (hover)
             spriteBatch.Draw(tex, target, null, HoverLift, 0f, Vector2.Zero,
                              tier.FacingLeft ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 0f);
-        // Lebensbalken eines verwundeten Raubtiers (RT)
-        DrawPredatorHealth(spriteBatch, tile, target);
+        // Lebensbalken eines verwundeten Raubtiers (RT) - über dem Standbild, er springt beim Angriff nicht mit
+        int standHeight = standWidth * stand.Height / stand.Width;
+        DrawPredatorHealth(spriteBatch, tile, new Rectangle((int)(foot.X - standWidth / 2f), (int)(foot.Y - standHeight - bob), standWidth, standHeight));
     }
 
     /// <summary>

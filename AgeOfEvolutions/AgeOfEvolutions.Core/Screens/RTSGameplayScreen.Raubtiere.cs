@@ -284,28 +284,37 @@ public partial class RTSGameplayScreen
 
     // --- RT3 Bilder -------------------------------------------------------------------
 
-    // Bären und Wölfe aus tools/bilder (Gruppen tiere, tiere_lauf, fleisch), nach rechts blickend.
-    // Ihre Breite als Anteil an der Kachel wie bei den übrigen Tieren - ein Bär ist breiter als
-    // eine Kachel, ein Wolf so breit wie ein Reh
+    // Bären und Wölfe aus tools/bilder (Gruppen tiere, fleisch; Lauf- und Angriffsphasen aus
+    // tieranim.py, Gruppe tieranim), nach rechts blickend. Ihre Breite als Anteil an der Kachel wie
+    // bei den übrigen Tieren - ein Bär ist breiter als eine Kachel, ein Wolf so breit wie ein Reh
     private static readonly string[] BearAssets = { "Tiere/baer", "Tiere/baer2" };
     private static readonly string[] WolfAssets = { "Tiere/wolf", "Tiere/wolf2" };
     private const float BEAR_WIDTH = 1.3f;
     private const float WOLF_WIDTH = 1.0f;
+    // Schrittlänge in Welteinheiten (wie Gait.VILLAGER_STRIDE): so weit kommt das Tier, während eine
+    // Pfote am Boden steht - aus der Ausgabe von tieranim.py ("Schritt ... Bildbreiten" mal Bildbreite:
+    // Bär 0,165 * 1,3 * 32, Wolf 0,177 bis 0,197 * 32). So rutschen die Pfoten nicht über das Gras
+    private const float BEAR_STRIDE = 6.85f;
+    private const float WOLF_STRIDE = 6.0f;
     private Texture2D[] _bearSprites = Array.Empty<Texture2D>();
     private Texture2D[] _wolfSprites = Array.Empty<Texture2D>();
     private Texture2D _bearMeat;
-    // Angriffsbild je Standbild (Tiere/<name>_angriff), deckungsgleich mit ihm zugeschnitten
-    private readonly Dictionary<Texture2D, Texture2D> _animalStrike = new();
+    // Angriffsphasen je Standbild (Tiere/<name>_angriff1 bis _angriff8 aus tieranim.py), auf einer
+    // größeren Leinwand im Maßstab des Standbilds - Sprung und Aufrichten ragen über es hinaus
+    private readonly Dictionary<Texture2D, Texture2D[]> _animalAttack = new();
+    private const int PREDATOR_ATTACK_FRAMES = 8;
+    // So viele Sekunden vor dem nächsten Schlag holt ein Raubtier aus, wenn ein Opfer in Reichweite steht
+    private const float PREDATOR_WINDUP_SECONDS = 0.3f;
 
     /// <summary>
     /// Lädt die Bilder der Raubtiere; LoadContent ruft es nach den Laufbildern der übrigen Tiere.
-    /// Fehlt ein Bild, zeichnet das Spiel das Tier nicht bzw. ohne Lauf- und Angriffsbild.
+    /// Fehlt ein Bild, zeichnet das Spiel das Tier nicht bzw. ohne Lauf- oder Angriffsphasen.
     /// VERTRAG: _bearSprites = BearAssets.Select(LoadOptional).Where(t =&gt; t != null).ToArray(),
     /// _wolfSprites ebenso aus WolfAssets; _bearMeat = LoadOptional("Tiere/fleisch_baer"). Für jedes
     /// asset aus BearAssets und dann WolfAssets mit stand = LoadOptional(asset) nicht null: gibt es
-    /// LoadOptional(asset + "_lauf1") und LoadOptional(asset + "_lauf2"), dann
-    /// _animalWalk[stand] = new[] { lauf1, stand, lauf2, stand }; gibt es
-    /// LoadOptional(asset + "_angriff"), dann _animalStrike[stand] = dieses Bild.
+    /// LoadOptional(asset + "_lauf" + i) für alle i von 1 bis Gait.WALK_FRAMES, dann
+    /// _animalWalk[stand] = diese Bilder in dieser Reihenfolge; gibt es LoadOptional(asset +
+    /// "_angriff" + i) für alle i von 1 bis PREDATOR_ATTACK_FRAMES, dann _animalAttack[stand] = diese.
     /// </summary>
     private void LoadPredatorSprites()
     {
@@ -316,11 +325,61 @@ public partial class RTSGameplayScreen
         {
             if (LoadOptional(asset) is not { } stand)
                 continue;
-            if (LoadOptional(asset + "_lauf1") is { } lauf1 && LoadOptional(asset + "_lauf2") is { } lauf2)
-                _animalWalk[stand] = new[] { lauf1, stand, lauf2, stand };
-            if (LoadOptional(asset + "_angriff") is { } ang)
-                _animalStrike[stand] = ang;
+            var lauf = Enumerable.Range(1, Gait.WALK_FRAMES).Select(i => LoadOptional(asset + "_lauf" + i)).ToArray();
+            if (lauf.All(t => t != null))
+                _animalWalk[stand] = lauf;
+            var angriff = Enumerable.Range(1, PREDATOR_ATTACK_FRAMES).Select(i => LoadOptional(asset + "_angriff" + i)).ToArray();
+            if (angriff.All(t => t != null))
+                _animalAttack[stand] = angriff;
         }
+    }
+
+    /// <summary>
+    /// Welches Laufbild ein Raubtier zeigt (RT): die acht Phasen aus tieranim.py nach der weich
+    /// gegangenen Strecke seines Schritts - so setzt es die Pfoten, ohne dass sie über den Boden
+    /// rutschen; -1, solange es steht.
+    /// VERTRAG: -1, wenn tile.Animal null ist oder Glide kleiner oder gleich 0. Sonst schritt =
+    /// tileMap.TileSize * Länge von (FromX, FromY) (diagonal länger), gelaufen = Gait.Ease(1 -
+    /// Glide / TileMap.WILD_STEP_SECONDS, auf 0 bis 1 begrenzt) * schritt; Ergebnis
+    /// Gait.WalkFrame(gelaufen, Bär: BEAR_STRIDE, sonst WOLF_STRIDE, Gait.WALK_FRAMES).
+    /// </summary>
+    private int PredatorWalkFrame(Data.Tile tile)
+    {
+        var tier = tile.Animal;
+        if (tier is null || tier.Glide <= 0f)
+            return -1;
+        float schritt = tileMap.TileSize * MathF.Sqrt(tier.FromX * tier.FromX + tier.FromY * tier.FromY);
+        float gelaufen = Gait.Ease(1f - MathHelper.Clamp(tier.Glide / TileMap.WILD_STEP_SECONDS, 0f, 1f)) * schritt;
+        return Gait.WalkFrame(gelaufen, tile.Food == FoodSource.Bear ? BEAR_STRIDE : WOLF_STRIDE, Gait.WALK_FRAMES);
+    }
+
+    /// <summary>
+    /// Welche Angriffsphase (0 bis 7) ein Raubtier zeigt, oder -1 für sein Stand- oder Laufbild.
+    /// Die Phasen aus tieranim.py: der Wolf duckt sich (0, 1), springt (2), beißt zu (3), fasst
+    /// nach (4) und nimmt zurück (5 bis 7); der Bär richtet sich auf (0, 1), hebt die Pranke (2),
+    /// schlägt zu (3, 4) und nimmt zurück. Wie bei den Soldaten (AttackTimeline) trifft der Biss
+    /// genau mit dem Schlag (TileMap.UpdatePredators): danach laufen die Phasen 3 bis 7 über
+    /// PREDATOR_STRIKE_SECONDS ab; steht ein Opfer in Reichweite (Engaged), holt das Tier in den
+    /// letzten PREDATOR_WINDUP_SECONDS vor dem nächsten Schlag mit 0 bis 2 aus. Den ersten Schlag
+    /// gegen jemanden, der eben herankommt, führt es ohne Ausholen.
+    /// VERTRAG: tier.Strike größer 0: t = 1 - Strike / TileMap.PREDATOR_STRIKE_SECONDS auf 0 bis 1
+    /// begrenzt, Phase 3 + Math.Min(4, (int)(t * 5)). Sonst, wenn tier.Engaged, Glide gleich 0 und
+    /// AttackCooldown größer 0 und kleiner PREDATOR_WINDUP_SECONDS: w = 1 - AttackCooldown /
+    /// PREDATOR_WINDUP_SECONDS, Phase Math.Min(2, (int)(w * 3)). Sonst -1.
+    /// </summary>
+    private int PredatorAttackFrame(WildAnimal tier)
+    {
+        if (tier.Strike > 0f)
+        {
+            float t = Math.Clamp(1f - tier.Strike / TileMap.PREDATOR_STRIKE_SECONDS, 0f, 1f);
+            return 3 + Math.Min(4, (int)(t * 5));
+        }
+        if (tier.Engaged && tier.Glide == 0f && tier.AttackCooldown > 0f && tier.AttackCooldown < PREDATOR_WINDUP_SECONDS)
+        {
+            float w = 1f - tier.AttackCooldown / PREDATOR_WINDUP_SECONDS;
+            return Math.Min(2, (int)(w * 3));
+        }
+        return -1;
     }
 
     /// <summary>

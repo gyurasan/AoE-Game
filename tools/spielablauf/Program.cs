@@ -25,7 +25,8 @@
 // die Mauszeiger-Hervorhebung: HoverUnder trifft dieselbe Stelle wie der Linksklick - Figur,
 // Gegner (nur mit Auswahl), Gebäude, Reparatur, Baum (nur mit Dorfbewohner), Raubtier, und
 // HandleRtsInput pflegt das Feld _hover. Bären und
-// Wölfe prüft raubtiere (Raubtiere.cs: zuschlagen, nicht verfolgen, Gegenwehr, Jagd, Abstand).
+// Wölfe prüft raubtiere (Raubtiere.cs: zuschlagen, nicht verfolgen, Gegenwehr, Jagd, Abstand),
+// ihre Lauf- und Angriffsphasen raubtieranim (RaubtierAnimation.cs).
 //
 // Jede genannte Gruppe läuft auf drei frisch erzeugten Karten. Die Spielschleife
 // läuft Bild für Bild (60 je Sekunde) mit denselben Methoden, die Update() im Spiel
@@ -232,6 +233,9 @@ for (int karte = 1; karte <= KARTEN; karte++)
     // Raubtiere (RT): Bären und Wölfe greifen an, wer zu nahe kommt, und meiden Gebäude
     if (gruppen.Contains("raubtiere"))
         Pruefe($"Karte {karte}, Raubtiere", () => Raubtiere.Pruefen(karte, verstoesse));
+    // Raubtiere in Bewegung (RT): acht Lauf- und acht Angriffsphasen, der Biss trifft mit dem Schlag
+    if (gruppen.Contains("raubtieranim"))
+        Pruefe($"Karte {karte}, Raubtiere in Bewegung", () => RaubtierAnimation.Pruefen(karte, verstoesse));
     // Mauszeiger-Hervorhebung (C17): was der Linksklick unter dem Zeiger täte, wird leicht heller gezeichnet
     if (gruppen.Contains("hover"))
         Pruefe($"Karte {karte}, Hover", () => Hover.Pruefen(karte, verstoesse));

@@ -1,0 +1,139 @@
+{
+ "_hinweis": "Skelette für tieranim.py (RT): Gelenke in Pixeln des freigestellten Rohbilds, Beine der abgewandten Seite mit \"hinten\": true. Siehe Kopf von tieranim.py.",
+ "wolf": {
+  "bild": "tiere/wolf_9741.png",
+  "angriff_bild": "tiere_lauf/wolf_angriff_9905.png",
+  "schritt": 170,
+  "breite": 60,
+  "wippen": 6,
+  "mitte_versatz": -30,
+  "gang": {"stand": 0.5, "ferse_ende": 0.08, "zehe_anfang": 0.3, "ferse_grad": 6.0, "zehe_grad": -30.0, "schwung_hub": 0.11, "mitte_ruhe": true},
+  "beine": [
+   {"huefte": [390, 495], "knie": [405, 570], "knoechel": [440, 615], "zehe": [478, 640], "knick": "hinten", "saum": 495, "versatz": 0.5, "ferse_x": -15, "hinten": true, "traegt": false, "breite": 50},
+   {"huefte": [705, 600], "knie": [712, 790], "knoechel": [730, 815], "zehe": [795, 845], "saum": 600, "versatz": 0.0, "ferse_x": -15, "hinten": true, "gang": {"schwung_hub": 0.07}},
+   {"huefte": [225, 505], "knie": [208, 595], "knoechel": [215, 655], "zehe": [262, 697], "knick": "hinten", "saum": 505, "versatz": 0.0, "ferse_x": -15, "breite": 75},
+   {"huefte": [565, 610], "knie": [588, 800], "knoechel": [602, 840], "zehe": [650, 885], "saum": 592, "versatz": 0.5, "ferse_x": -15, "breite": 75, "maske": [[[495, 592], [535, 592], [535, 680], [495, 680]]], "gang": {"schwung_hub": 0.07}}
+  ],
+  "angriff_beine": [
+   null,
+   {"huefte": [680, 630], "knie": [850, 712], "knoechel": [895, 735], "zehe": [955, 762], "saum": 625},
+   null,
+   {"huefte": [560, 625], "knie": [700, 800], "knoechel": [745, 845], "zehe": [800, 878], "saum": 615, "maske": [[[485, 588], [535, 588], [535, 725], [485, 725]]]}
+  ],
+  "angriff": {
+   "um": [230, 690],
+   "phasen": [
+    {"quelle": "stand", "koerper": [-10, 10, -2], "beine": ["steht", "steht", "steht", "steht"]},
+    {"quelle": "stand", "koerper": [-22, 20, -3], "beine": ["steht", "steht", "steht", "steht"]},
+    {"quelle": "angriff", "koerper": [-6, -8, 3], "beine": ["steht", {"fuss": [10, -40, -10]}, "steht", {"fuss": [10, -35, -10]}]},
+    {"quelle": "angriff", "koerper": [34, 4, -3], "beine": ["steht", {"fuss": [34, 0, 0]}, "steht", {"fuss": [34, 0, 0]}]},
+    {"quelle": "angriff", "koerper": [30, 9, -5], "beine": ["steht", {"fuss": [34, 0, 0]}, "steht", {"fuss": [34, 0, 0]}]},
+    {"quelle": "angriff", "koerper": [18, 4, 0], "beine": ["steht", {"fuss": [26, 0, 0]}, "steht", {"fuss": [26, 0, 0]}]},
+    {"quelle": "stand", "koerper": [8, 2, 0], "beine": ["steht", "steht", "steht", "steht"]},
+    {"quelle": "stand", "koerper": [3, 0, 0], "beine": ["steht", "steht", "steht", "steht"]}
+   ]
+  }
+ },
+ "baer": {
+  "bild": "tiere/baer_9721.png",
+  "angriff_bild": "tiere_lauf/baer_angriff_9901.png",
+  "schritt": 150,
+  "breite": 85,
+  "wippen": 8,
+  "nicken": 0.8,
+  "mitte_versatz": -50,
+  "gang": {"stand": 0.65, "ferse_ende": 0.08, "zehe_anfang": 0.4, "ferse_grad": 4.0, "zehe_grad": -24.0, "schwung_hub": 0.1, "mitte_ruhe": true},
+  "beine": [
+   {"huefte": [715, 635], "knie": [725, 765], "knoechel": [785, 815], "zehe": [865, 835], "saum": 630, "versatz": 0.25, "ferse_x": -70, "hinten": true},
+   {"huefte": [178, 550], "knie": [170, 645], "knoechel": [200, 700], "zehe": [262, 720], "knick": "hinten", "saum": 560, "versatz": 0.5, "ferse_x": -75, "breite": 95},
+   {"huefte": [500, 640], "knie": [505, 810], "knoechel": [560, 870], "zehe": [630, 905], "saum": 640, "versatz": 0.75, "ferse_x": -80, "breite": 100}
+  ],
+  "angriff_beine": [
+   {"fehlt": true},
+   null,
+   {"huefte": [490, 640], "knie": [590, 810], "knoechel": [640, 860], "zehe": [690, 885], "saum": 640}
+  ],
+  "angriff": {
+   "um": [200, 715],
+   "phasen": [
+    {"quelle": "stand", "koerper": [-10, 0, 5], "beine": [{"mit": [0, 0, 0]}, "steht", {"mit": [0, 0, 0]}]},
+    {"quelle": "stand", "koerper": [-16, 0, 10], "beine": [{"mit": [12, -25, 0]}, "steht", {"mit": [10, -20, 0]}]},
+    {"quelle": "angriff", "koerper": [-12, 0, 14], "beine": [{"mit": [0, 0, 0]}, "steht", {"mit": [0, 0, 0]}]},
+    {"quelle": "angriff", "koerper": [26, 0, 4], "beine": [{"mit": [0, 0, 0]}, "steht", "steht"]},
+    {"quelle": "angriff", "koerper": [36, 4, -4], "beine": [{"mit": [0, 0, 0]}, "steht", "steht"]},
+    {"quelle": "angriff", "koerper": [24, 2, -1], "beine": [{"mit": [0, 0, 0]}, "steht", "steht"]},
+    {"quelle": "stand", "koerper": [10, 0, 0], "beine": ["steht", "steht", "steht"]},
+    {"quelle": "stand", "koerper": [3, 0, 0], "beine": ["steht", "steht", "steht"]}
+   ]
+  }
+ },
+ "wolf2": {
+  "bild": "tiere/wolf2_9753.png",
+  "angriff_bild": "tiere_lauf/wolf2_angriff_9909.png",
+  "schritt": 170,
+  "breite": 60,
+  "wippen": 6,
+  "mitte_versatz": -60,
+  "rumpf": {"stand": [[[750, 560], [1000, 560], [1000, 700], [775, 700]]], "angriff": [[[780, 520], [1000, 520], [1000, 655], [790, 655]]]},
+  "gang": {"stand": 0.5, "ferse_ende": 0.08, "zehe_anfang": 0.3, "ferse_grad": 6.0, "zehe_grad": -30.0, "schwung_hub": 0.11, "mitte_ruhe": true},
+  "beine": [
+   {"huefte": [345, 470], "knie": [375, 555], "knoechel": [410, 592], "zehe": [462, 612], "saum": 470, "versatz": 0.5, "ferse_x": -15, "hinten": true, "traegt": false, "breite": 50, "mitte_versatz": -20.0},
+   {"huefte": [715, 625], "knie": [785, 790], "knoechel": [808, 812], "zehe": [878, 842], "saum": 635, "versatz": 0.0, "ferse_x": -15, "hinten": true, "gang": {"schwung_hub": 0.06}, "mitte_versatz": -75.0},
+   {"huefte": [185, 500], "knie": [163, 585], "knoechel": [172, 650], "zehe": [228, 690], "saum": 500, "versatz": 0.0, "ferse_x": -15, "breite": 75, "mitte_versatz": -20.0},
+   {"huefte": [535, 620], "knie": [650, 860], "knoechel": [672, 890], "zehe": [738, 935], "saum": 612, "versatz": 0.5, "ferse_x": -15, "breite": 75, "maske": [[[478, 590], [515, 590], [515, 665], [478, 665]]], "gang": {"schwung_hub": 0.06}, "mitte_versatz": -75.0}
+  ],
+  "angriff_beine": [
+   null,
+   {"huefte": [720, 610], "knie": [850, 740], "knoechel": [895, 765], "zehe": [945, 790], "saum": 610},
+   null,
+   {"huefte": [540, 610], "knie": [690, 840], "knoechel": [725, 870], "zehe": [775, 900], "saum": 605, "maske": [[[478, 590], [515, 590], [515, 665], [478, 665]]]}
+  ],
+  "angriff": {
+   "um": [200, 690],
+   "phasen": [
+    {"quelle": "stand", "koerper": [-10, 10, -2], "beine": ["steht", "steht", "steht", "steht"]},
+    {"quelle": "stand", "koerper": [-22, 20, -3], "beine": ["steht", "steht", "steht", "steht"]},
+    {"quelle": "angriff", "koerper": [-6, -8, 3], "beine": ["steht", {"fuss": [10, -40, -10]}, "steht", {"fuss": [10, -35, -10]}]},
+    {"quelle": "angriff", "koerper": [34, 4, -3], "beine": ["steht", {"fuss": [34, 0, 0]}, "steht", {"fuss": [34, 0, 0]}]},
+    {"quelle": "angriff", "koerper": [30, 9, -5], "beine": ["steht", {"fuss": [34, 0, 0]}, "steht", {"fuss": [34, 0, 0]}]},
+    {"quelle": "angriff", "koerper": [18, 4, 0], "beine": ["steht", {"fuss": [26, 0, 0]}, "steht", {"fuss": [26, 0, 0]}]},
+    {"quelle": "stand", "koerper": [8, 2, 0], "beine": ["steht", "steht", "steht", "steht"]},
+    {"quelle": "stand", "koerper": [3, 0, 0], "beine": ["steht", "steht", "steht", "steht"]}
+   ]
+  }
+ },
+ "baer2": {
+  "bild": "tiere/baer2_9731.png",
+  "angriff_bild": "tiere_lauf/baer2_angriff_9904.png",
+  "rumpf": {"stand": [[[748, 680], [1000, 680], [1000, 810], [845, 810], [800, 788], [748, 752]]]},
+  "schritt": 150,
+  "breite": 85,
+  "wippen": 8,
+  "nicken": 0.8,
+  "mitte_versatz": -50,
+  "gang": {"stand": 0.65, "ferse_ende": 0.08, "zehe_anfang": 0.4, "ferse_grad": 4.0, "zehe_grad": -24.0, "schwung_hub": 0.1, "mitte_ruhe": true},
+  "beine": [
+   {"huefte": [655, 680], "knie": [680, 780], "knoechel": [725, 822], "zehe": [778, 842], "saum": 680, "versatz": 0.25, "ferse_x": -70, "hinten": true, "mitte_versatz": -75.0},
+   {"huefte": [165, 610], "knie": [148, 700], "knoechel": [180, 750], "zehe": [250, 775], "saum": 605, "versatz": 0.5, "ferse_x": -75, "breite": 95, "mitte_versatz": -30.0},
+   {"huefte": [470, 690], "knie": [485, 830], "knoechel": [540, 880], "zehe": [612, 908], "saum": 690, "versatz": 0.75, "ferse_x": -80, "breite": 100, "mitte_versatz": -75.0}
+  ],
+  "angriff_beine": [
+   {"fehlt": true},
+   null,
+   {"huefte": [470, 690], "knie": [560, 840], "knoechel": [610, 880], "zehe": [670, 900], "saum": 690}
+  ],
+  "angriff": {
+   "um": [180, 775],
+   "phasen": [
+    {"quelle": "stand", "koerper": [-10, 0, 5], "beine": [{"mit": [0, 0, 0]}, "steht", {"mit": [0, 0, 0]}]},
+    {"quelle": "stand", "koerper": [-16, 0, 10], "beine": [{"mit": [12, -25, 0]}, "steht", {"mit": [10, -20, 0]}]},
+    {"quelle": "angriff", "koerper": [-12, 0, 14], "beine": [{"mit": [0, 0, 0]}, "steht", {"mit": [0, 0, 0]}]},
+    {"quelle": "angriff", "koerper": [26, 0, 4], "beine": [{"mit": [0, 0, 0]}, "steht", "steht"]},
+    {"quelle": "angriff", "koerper": [36, 4, -4], "beine": [{"mit": [0, 0, 0]}, "steht", "steht"]},
+    {"quelle": "angriff", "koerper": [24, 2, -1], "beine": [{"mit": [0, 0, 0]}, "steht", "steht"]},
+    {"quelle": "stand", "koerper": [10, 0, 0], "beine": ["steht", "steht", "steht"]},
+    {"quelle": "stand", "koerper": [3, 0, 0], "beine": ["steht", "steht", "steht"]}
+   ]
+  }
+ }
+}

@@ -229,10 +229,16 @@ public class WildAnimal
     public float AttackCooldown { get; set; }
 
     /// <summary>
-    /// Sekunden, die das Raubtier noch sein Angriffsbild zeigt; nach jedem Schlag
-    /// TileMap.PREDATOR_STRIKE_SECONDS. Nur für das Bild, nicht im Spielstand.
+    /// Sekunden, die das Raubtier noch zuschlägt (seine Angriffsphasen nach dem Treffer); nach
+    /// jedem Schlag TileMap.PREDATOR_STRIKE_SECONDS. Nur für das Bild, nicht im Spielstand.
     /// </summary>
     public float Strike { get; set; }
+
+    /// <summary>
+    /// Ein Opfer steht in seiner Reichweite (TileMap.UpdatePredators) - dann holt das Raubtier
+    /// kurz vor dem nächsten Schlag sichtbar aus. Nur für das Bild, nicht im Spielstand.
+    /// </summary>
+    public bool Engaged { get; set; }
 }
 
 /// <summary>

@@ -24,7 +24,7 @@ static class Raubtiere
     }
 
     /// <summary>Eine Welt ohne die Raubtiere der Kartenerzeugung - jeder Ablauf stellt seine eigenen auf.</summary>
-    static Welt NeueWelt(List<(string Name, Vector2 Position)> log = null)
+    internal static Welt NeueWelt(List<(string Name, Vector2 Position)> log = null)
     {
         var w = new Welt();
         w.Set("cameraZoom", 1f);
@@ -58,7 +58,7 @@ static class Raubtiere
     /// von dort kommen Dorfbewohner, Miliz und Bogenschütze. Die Karten sind zufällig: eine feste Seite
     /// oder ein enger Umkreis fanden auf manchen Karten keinen Platz.
     /// </summary>
-    static (int X, int Y, int D) Platz(Welt w)
+    internal static (int X, int Y, int D) Platz(Welt w)
     {
         var (sx, sy) = w.Map.StartPosition(0);
         var kandidaten = new List<(int X, int Y, int D)>();
@@ -85,7 +85,7 @@ static class Raubtiere
         return kandidaten.OrderBy(k => Math.Abs(k.X - sx) + Math.Abs(k.Y - sy)).First();
     }
 
-    static WildAnimal Aufstellen(Welt w, FoodSource art, (int X, int Y, int D) p)
+    internal static WildAnimal Aufstellen(Welt w, FoodSource art, (int X, int Y, int D) p)
     {
         if (!w.Map.PlacePredator(art, p.X, p.Y))
             throw new InvalidOperationException($"PlacePredator({art}, {p.X}, {p.Y}) lehnt ab");
@@ -94,7 +94,7 @@ static class Raubtiere
         return tier;
     }
 
-    static Unit Neu(Welt w, UnitType typ, int x, int y)
+    internal static Unit Neu(Welt w, UnitType typ, int x, int y)
     {
         var u = w.Map.AddUnit(typ, x, y, 0);
         w.P1.AddUnit(u);
