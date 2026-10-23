@@ -95,5 +95,57 @@
    {"huefte": [420, 635], "knie": [320, 744], "knoechel": [344, 880], "zehe": [396, 928]},
    {"huefte": [530, 635], "knie": [570, 800], "knoechel": [624, 920], "zehe": [704, 912]}
   ]
+ },
+ "pikenier": {
+  "bild": "soldaten/pikenier_s85_4916.png",
+  "saum": 667, "breite": 85, "schritt": 200,
+  "rumpf_linien": [[390, 576, 25, 879, 48]],
+  "beine": [
+   {"huefte": [420, 630], "knie": [354, 776], "knoechel": [282, 896], "zehe": [346, 940]},
+   {"huefte": [490, 630], "knie": [552, 785], "knoechel": [586, 925], "zehe": [690, 922]}
+  ]
+ },
+ "kavalier": {
+  "bild": "soldaten/kavalier_4941.png",
+  "saum": 700, "breite": 45, "schritt": 150,
+  "gang": {"stand": 0.62, "ferse_ende": 0.08, "zehe_anfang": 0.4, "ferse_grad": 6.0, "zehe_grad": -28.0, "schwung_hub": 0.12},
+  "rumpf": [[80, 600, 180, 830]],
+  "decke": [[90, 560, 800, 820, 35, 165]],
+  "beine": [
+   {"huefte": [230, 600], "knie": [228, 770], "knoechel": [228, 900], "zehe": [271, 950], "knick": "hinten", "saum": 680, "versatz": 0.5, "ferse_x": -12},
+   {"huefte": [605, 690], "knie": [602, 868], "knoechel": [603, 935], "zehe": [652, 978], "saum": 730, "versatz": 0.75, "ferse_x": -12},
+   {"huefte": [315, 600], "knie": [321, 760], "knoechel": [350, 865], "zehe": [419, 915], "knick": "hinten", "saum": 680, "versatz": 0.0, "ferse_x": -10},
+   {"huefte": [685, 700], "knie": [677, 872], "knoechel": [680, 932], "zehe": [731, 955], "saum": 740, "versatz": 0.25, "ferse_x": -12}
+  ]
+ },
+ "paladin": {
+  "bild": "soldaten/paladin_4951.png",
+  "saum": 700, "breite": 45, "schritt": 150,
+  "gang": {"stand": 0.62, "ferse_ende": 0.08, "zehe_anfang": 0.4, "ferse_grad": 6.0, "zehe_grad": -28.0, "schwung_hub": 0.12},
+  "rumpf": [[80, 600, 180, 830]],
+  "decke": [[90, 560, 800, 820, 35]],
+  "beine": [
+   {"huefte": [230, 600], "knie": [228, 770], "knoechel": [228, 900], "zehe": [271, 950], "knick": "hinten", "saum": 680, "versatz": 0.5, "ferse_x": -12},
+   {"huefte": [605, 690], "knie": [602, 868], "knoechel": [603, 935], "zehe": [652, 978], "saum": 730, "versatz": 0.75, "ferse_x": -12},
+   {"huefte": [315, 600], "knie": [321, 760], "knoechel": [350, 865], "zehe": [419, 915], "knick": "hinten", "saum": 680, "versatz": 0.0, "ferse_x": -10},
+   {"huefte": [685, 700], "knie": [677, 872], "knoechel": [680, 932], "zehe": [731, 955], "saum": 740, "versatz": 0.25, "ferse_x": -12}
+  ]
+ },
+ "hellebardier": {
+  "bild": "soldaten/hellebardier_s92_4926.png",
+  "saum": 667, "breite": 85, "schritt": 200,
+  "rumpf_linien": [[390, 565, 25, 888, 48]],
+  "beine": [
+   {"huefte": [420, 630], "knie": [354, 776], "knoechel": [282, 896], "zehe": [346, 940]},
+   {"huefte": [490, 630], "knie": [552, 785], "knoechel": [586, 925], "zehe": [690, 922]}
+  ]
+ },
+ "elite_plaenkler": {
+  "bild": "soldaten/elite_plaenkler_saum_4971.png",
+  "saum": 672, "breite": 85, "schritt": 200,
+  "beine": [
+   {"huefte": [420, 635], "knie": [320, 744], "knoechel": [344, 880], "zehe": [396, 928]},
+   {"huefte": [530, 635], "knie": [570, 800], "knoechel": [624, 920], "zehe": [704, 912]}
+  ]
  }
 }

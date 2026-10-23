@@ -27,6 +27,9 @@ Beinmasken reichen bis zum unteren Bildrand: neu gemalte Beine stehen oft tiefer
 und würden an einer Maskenkante abgeschnitten. "staerke" (0 bis 1, sonst 1) entrauscht die
 Maske nur teilweise: Aufbau und Linien der Vorlage bleiben, Stoff und Farbe
 ändern sich - so wird aus dem reifen Feld dasselbe Feld nach der Ernte.
+Malt das Modell in eine Maske beharrlich etwas hinein (einen Arm vor die Brust), hilft
+"vorfuellen": vorfuellen.py schmiert die Maske in dieser Datei mit den Farben ringsum zu und
+schreibt das Ergebnis als "vorlage" - danach mit "staerke" um 0,6 laufen lassen.
 
 Vor dem Lauf das Ollama-Sprachmodell entladen (ollama stop qwen3.8:27b) - es
 belegt sonst rund 27 GB Grafikspeicher.

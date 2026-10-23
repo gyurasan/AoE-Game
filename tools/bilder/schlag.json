@@ -66,6 +66,52 @@
    {"name": "zurueck", "winkel": -22, "schub": 30, "rumpf": 1}
   ]
  },
+ "pikenier": {
+  "modus": "speer",
+  "bild": "soldaten/pikenier_s85_4916.png",
+  "rumpf_bild": "soldaten/pikenier_ohne_speer_4962.png",
+  "figur": "pikenier",
+  "speer": [[40, 867, 975, 89, 26], [880, 168, 984, 80, 40], [30, 876, 80, 834, 36]],
+  "schaft_fuellen": true,
+  "faust_aus_standbild": true,
+  "haende": [[378, 568, 54, 50]],
+  "griff": [378, 584],
+  "oberkoerper": [0, 0, 1024, 640],
+  "huefte": [470, 640],
+  "phasen": [
+   {"name": "bereit", "winkel": -14, "schub": 0, "rumpf": 0},
+   {"name": "senken", "winkel": -24, "schub": -45, "rumpf": -1},
+   {"name": "ausgeholt", "winkel": -31, "schub": -90, "rumpf": -3},
+   {"name": "ausgeholt2", "winkel": -34, "schub": -105, "rumpf": -4},
+   {"name": "stoss", "winkel": -35, "schub": -20, "rumpf": 0},
+   {"name": "treffer", "winkel": -36, "schub": 115, "rumpf": 4},
+   {"name": "nachfedern", "winkel": -34, "schub": 85, "rumpf": 3},
+   {"name": "zurueck", "winkel": -22, "schub": 30, "rumpf": 1}
+  ]
+ },
+ "hellebardier": {
+  "modus": "speer",
+  "bild": "soldaten/hellebardier_s92_4926.png",
+  "rumpf_bild": "soldaten/hellebardier_ohne_speer3_5062.png",
+  "figur": "hellebardier",
+  "speer": [[36, 878, 999, 26, 26], [760, 300, 960, 100, 260], [22, 886, 80, 840, 36]],
+  "schaft_fuellen": true,
+  "faust_aus_standbild": true,
+  "haende": [[378, 568, 54, 50]],
+  "griff": [378, 576],
+  "oberkoerper": [0, 0, 1024, 640],
+  "huefte": [470, 640],
+  "phasen": [
+   {"name": "bereit", "winkel": -14, "schub": 0, "rumpf": 0},
+   {"name": "senken", "winkel": -24, "schub": -45, "rumpf": -1},
+   {"name": "ausgeholt", "winkel": -31, "schub": -90, "rumpf": -3},
+   {"name": "ausgeholt2", "winkel": -34, "schub": -105, "rumpf": -4},
+   {"name": "stoss", "winkel": -35, "schub": -20, "rumpf": 0},
+   {"name": "treffer", "winkel": -36, "schub": 115, "rumpf": 4},
+   {"name": "nachfedern", "winkel": -34, "schub": 85, "rumpf": 3},
+   {"name": "zurueck", "winkel": -22, "schub": 30, "rumpf": 1}
+  ]
+ },
  "ritter": {
   "bild": "soldaten/ritter_fleck_4871.png",
   "rumpf_bild": "soldaten/ritter_ohne_arm_4887.png",
@@ -87,6 +133,52 @@
    {"name": "treffer", "oberarm": 0, "unterarm": -68, "rumpf": 0},
    {"name": "durchziehen", "oberarm": 0, "unterarm": -85, "rumpf": 0},
    {"name": "zurueck", "oberarm": 0, "unterarm": -40, "rumpf": 0}
+  ]
+ },
+ "kavalier": {
+  "bild": "soldaten/kavalier_4941.png",
+  "rumpf_bild": "soldaten/kavalier_ohne_arm_v_5011.png",
+  "figur": "kavalier",
+  "arm": {"schulter": [392, 232], "ellbogen": [378, 318], "hand": [448, 342]},
+  "oberarm_breite": 30, "unterarm_breite": 22,
+  "waffe": [[468, 333, 677, 49, 26], [446, 305, 497, 349, 16]],
+  "nicht_arm": [],
+  "kopf": [452, 112, 72, 98],
+  "schulterkappe": [400, 228, 42, 32],
+  "schulter_schnitt": 250,
+  "huefte": [470, 340],
+  "phasen": [
+   {"name": "bereit", "oberarm": 0, "unterarm": 0, "rumpf": 0},
+   {"name": "ausholen", "oberarm": 0, "unterarm": 30, "rumpf": 0},
+   {"name": "oben", "oberarm": 0, "unterarm": 46, "rumpf": 0, "hinter_kopf": true},
+   {"name": "ueber_kopf", "oberarm": 0, "unterarm": 50, "rumpf": 0, "hinter_kopf": true},
+   {"name": "vor_kopf", "oberarm": 0, "unterarm": 12, "rumpf": 0},
+   {"name": "treffer", "oberarm": 0, "unterarm": -68, "rumpf": 0},
+   {"name": "durchziehen", "oberarm": 0, "unterarm": -85, "rumpf": 0},
+   {"name": "zurueck", "oberarm": 0, "unterarm": -40, "rumpf": 0}
+  ]
+ },
+ "paladin": {
+  "bild": "soldaten/paladin_4951.png",
+  "rumpf_bild": "soldaten/paladin_ohne_arm_c_5051.png",
+  "figur": "paladin",
+  "arm": {"schulter": [398, 190], "ellbogen": [384, 276], "hand": [553, 272]},
+  "oberarm_breite": 32, "unterarm_breite": 24,
+  "waffe": [[553, 262, 636, 19, 26], [530, 245, 575, 262, 14]],
+  "nicht_arm": [],
+  "kopf": [470, 92, 60, 64],
+  "schulterkappe": [400, 165, 44, 42],
+  "schulter_schnitt": 230,
+  "huefte": [470, 340],
+  "phasen": [
+   {"name": "bereit", "oberarm": 0, "unterarm": 0, "rumpf": 0},
+   {"name": "ausholen", "oberarm": 0, "unterarm": 30, "rumpf": 0},
+   {"name": "oben", "oberarm": 0, "unterarm": 46, "rumpf": 0, "hinter_kopf": true},
+   {"name": "ueber_kopf", "oberarm": 0, "unterarm": 50, "rumpf": 0, "hinter_kopf": true},
+   {"name": "vor_kopf", "oberarm": 0, "unterarm": 12, "rumpf": 0},
+   {"name": "treffer", "oberarm": 0, "unterarm": -78, "rumpf": 0},
+   {"name": "durchziehen", "oberarm": 0, "unterarm": -95, "rumpf": 0},
+   {"name": "zurueck", "oberarm": 0, "unterarm": -45, "rumpf": 0}
   ]
  }
 }

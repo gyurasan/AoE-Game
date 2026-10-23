@@ -198,10 +198,18 @@ def figur(name, cfg):
     # Beine liegt dann oben unter der Decke: was der Stoff verdeckt, füllt "unter" weiter unten
     # mit der Farbe des Beins, so reicht das schwingende Bein bis unter den Stoff. Um 6 Pixel
     # erweitert: die schmale graue Umrisslinie der Borte ist nicht bunt - bliebe sie am Bein,
-    # schmierte "unter" ihr Grau als helle Streifen in das Bein unter dem Stoff
-    for x0, y0, x1, y1, bunt in cfg.get("decke", []):
+    # schmierte "unter" ihr Grau als helle Streifen in das Bein unter dem Stoff. Ein sechster Wert
+    # "Helligkeit" zählt auch helle unbunte Flächen zum Stoff (weiß-silbern karierte Borte des
+    # Kavaliers); nur Flächen ab 40 Pixeln - einzelne Glanzlichter am Bein bleiben beim Bein
+    for x0, y0, x1, y1, bunt, *hell in cfg.get("decke", []):
         farbe = a[y0:y1, x0:x1, :3].astype(int)
         stoff = (farbe.max(axis=2) - farbe.min(axis=2)) >= bunt
+        if hell:
+            weiss = (farbe.max(axis=2) >= hell[0]) & (a[y0:y1, x0:x1, 3] > 8)
+            teile_weiss, anzahl = ndimage.label(weiss)
+            if anzahl:
+                groesse = ndimage.sum(weiss, teile_weiss, range(1, anzahl + 1))
+                stoff |= np.isin(teile_weiss, 1 + np.where(groesse >= 40)[0])
         geschuetzt[y0:y1, x0:x1] |= ndimage.binary_dilation(stoff, iterations=6)
     beinbereich &= ~geschuetzt
     # Was danach vom Rumpf abgetrennt unter dem Saum liegt (etwa die Kante einer Stiefelferse),

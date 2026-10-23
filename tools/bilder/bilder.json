@@ -5032,6 +5032,1207 @@
     },
     "prompt": "A medieval knight in shining steel plate armor and a bright blue surcoat, his right arm hidden behind his back: below his steel shoulder plate only the side of his steel breastplate and his bright blue cape hanging down behind it are visible.",
     "negativ": "arm, upper arm, elbow, vambrace, gauntlet, hand, fist, sword, blade, weapon, extra arm, shadow"
+   },
+   {
+    "name": "pikenier",
+    "seed": 4911,
+    "figur": "pikenier",
+    "vorlage": "speer_beine_4811_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       80,
+       0,
+       920,
+       522
+      ],
+      [
+       80,
+       522,
+       258,
+       128
+      ],
+      [
+       418,
+       522,
+       582,
+       128
+      ],
+      [
+       338,
+       598,
+       80,
+       52
+      ]
+     ],
+     "linien": [
+      [
+       20,
+       876,
+       318,
+       628,
+       64
+      ]
+     ]
+    },
+    "prompt": "A medieval pikeman foot soldier in a bright blue padded gambeson with a steel breastplate over it, a brown belt, brown trousers and leather boots, a steel kettle hat with a wide brim, a very long wooden pike with a small narrow steel point in his right hand, the pike slanting forward with its point raised high to the right and its butt end low behind him, determined face, walking pose turned to the right.",
+    "negativ": "shield, sword, extra hand, extra arm, second pike, shadow"
+   },
+   {
+    "name": "pikenier_s85",
+    "seed": 4916,
+    "ziel": "Einheiten/pikenier.png",
+    "zielbreite": 219,
+    "figur": "pikenier",
+    "vorlage": "speer_beine_4811_roh.png",
+    "staerke": 0.85,
+    "maske": {
+     "rechtecke": [
+      [
+       80,
+       0,
+       920,
+       522
+      ],
+      [
+       80,
+       522,
+       258,
+       128
+      ],
+      [
+       418,
+       522,
+       582,
+       128
+      ],
+      [
+       338,
+       598,
+       80,
+       52
+      ]
+     ],
+     "linien": [
+      [
+       20,
+       876,
+       318,
+       628,
+       64
+      ]
+     ]
+    },
+    "prompt": "A medieval pikeman foot soldier in a bright blue padded gambeson with a steel breastplate over it, a brown belt, brown trousers and leather boots, a steel kettle hat with a wide brim, a very long wooden pike with a small narrow steel point in his right hand, the pike slanting forward with its point raised high to the right and its butt end low behind him, determined face, walking pose turned to the right.",
+    "negativ": "shield, sword, extra hand, extra arm, second pike, shadow"
+   },
+   {
+    "name": "hellebardier",
+    "seed": 4921,
+    "figur": "hellebardier",
+    "vorlage": "speer_beine_4811_roh.png",
+    "staerke": 0.85,
+    "maske": {
+     "rechtecke": [
+      [
+       80,
+       0,
+       920,
+       522
+      ],
+      [
+       80,
+       522,
+       258,
+       128
+      ],
+      [
+       418,
+       522,
+       582,
+       128
+      ],
+      [
+       338,
+       598,
+       80,
+       52
+      ]
+     ],
+     "linien": [
+      [
+       20,
+       876,
+       318,
+       628,
+       64
+      ]
+     ]
+    },
+    "prompt": "A late medieval halberdier foot soldier in a bright blue and white striped doublet under a polished steel breastplate with steel shoulder guards, a brown belt, brown trousers and leather boots, a steel sallet helmet, a halberd in his right hand: a long wooden shaft with a broad steel axe blade, a back hook and a long spike at its upper end, slanting forward with the head raised high to the right and the butt end low behind him, determined face, walking pose turned to the right.",
+    "negativ": "shield, sword, extra hand, extra arm, second halberd, two-handed grip, shadow"
+   },
+   {
+    "name": "hellebardier_s92",
+    "seed": 4926,
+    "ziel": "Einheiten/hellebardier.png",
+    "zielbreite": 212,
+    "figur": "hellebardier",
+    "vorlage": "speer_beine_4811_roh.png",
+    "staerke": 0.92,
+    "maske": {
+     "rechtecke": [
+      [
+       80,
+       0,
+       920,
+       522
+      ],
+      [
+       80,
+       522,
+       258,
+       128
+      ],
+      [
+       418,
+       522,
+       582,
+       128
+      ],
+      [
+       338,
+       598,
+       80,
+       52
+      ]
+     ],
+     "linien": [
+      [
+       20,
+       876,
+       318,
+       628,
+       64
+      ]
+     ]
+    },
+    "prompt": "A late medieval halberdier foot soldier in a bright blue and white striped doublet under a polished steel breastplate with steel shoulder guards, a brown belt, brown trousers and leather boots, a steel sallet helmet, a halberd in his right hand: a long wooden shaft with a broad steel axe blade, a back hook and a long spike at its upper end, slanting forward with the head raised high to the right and the butt end low behind him, determined face, walking pose turned to the right.",
+    "negativ": "shield, sword, extra hand, extra arm, second halberd, two-handed grip, shadow"
+   },
+   {
+    "name": "elite_plaenkler",
+    "seed": 4931,
+    "figur": "elite_plaenkler",
+    "vorlage": "plaenkler_beine_b_4836_roh.png",
+    "staerke": 0.85,
+    "maske": {
+     "rechtecke": [
+      [
+       120,
+       0,
+       780,
+       655
+      ]
+     ]
+    },
+    "prompt": "An elite medieval skirmisher in a bright blue quilted tunic with a short mail shirt over it, a brown belt, brown trousers and leather boots, a round steel cap helmet, a round wooden shield with an iron rim and an iron boss on his left arm, a quiver with short javelins on his back, one short javelin held in his right hand, alert face, walking pose turned to the right.",
+    "negativ": "bow, arrows, sword, extra hand, extra arm, shadow"
+   },
+   {
+    "name": "kavalier",
+    "seed": 4941,
+    "ziel": "Einheiten/kavalier.png",
+    "zielbreite": 148,
+    "blau_saettigung": 0.75,
+    "figur": "kavalier",
+    "vorlage": "ritter_fleck_4871_roh.png",
+    "staerke": 0.85,
+    "maske": {
+     "rechtecke": [
+      [
+       330,
+       0,
+       390,
+       192
+      ],
+      [
+       728,
+       184,
+       17,
+       8
+      ],
+      [
+       330,
+       192,
+       415,
+       108
+      ],
+      [
+       330,
+       300,
+       270,
+       4
+      ],
+      [
+       608,
+       300,
+       137,
+       12
+      ],
+      [
+       330,
+       304,
+       254,
+       16
+      ],
+      [
+       600,
+       312,
+       145,
+       16
+      ],
+      [
+       330,
+       320,
+       250,
+       8
+      ],
+      [
+       330,
+       328,
+       254,
+       8
+      ],
+      [
+       592,
+       328,
+       153,
+       8
+      ],
+      [
+       296,
+       336,
+       449,
+       8
+      ],
+      [
+       256,
+       344,
+       489,
+       8
+      ],
+      [
+       232,
+       352,
+       512,
+       8
+      ],
+      [
+       224,
+       360,
+       520,
+       8
+      ],
+      [
+       208,
+       368,
+       536,
+       8
+      ],
+      [
+       200,
+       376,
+       536,
+       16
+      ],
+      [
+       192,
+       392,
+       544,
+       8
+      ],
+      [
+       184,
+       400,
+       552,
+       8
+      ],
+      [
+       176,
+       408,
+       560,
+       24
+      ],
+      [
+       744,
+       424,
+       1,
+       8
+      ],
+      [
+       168,
+       432,
+       577,
+       16
+      ],
+      [
+       760,
+       450,
+       24,
+       6
+      ],
+      [
+       752,
+       456,
+       40,
+       8
+      ],
+      [
+       160,
+       448,
+       576,
+       24
+      ],
+      [
+       760,
+       464,
+       32,
+       16
+      ],
+      [
+       768,
+       480,
+       24,
+       8
+      ],
+      [
+       776,
+       488,
+       16,
+       8
+      ],
+      [
+       160,
+       472,
+       592,
+       32
+      ],
+      [
+       160,
+       504,
+       600,
+       56
+      ],
+      [
+       680,
+       560,
+       80,
+       8
+      ],
+      [
+       696,
+       568,
+       64,
+       8
+      ],
+      [
+       704,
+       576,
+       56,
+       8
+      ],
+      [
+       160,
+       560,
+       512,
+       32
+      ],
+      [
+       712,
+       584,
+       48,
+       8
+      ],
+      [
+       152,
+       592,
+       520,
+       16
+      ],
+      [
+       728,
+       592,
+       32,
+       40
+      ],
+      [
+       152,
+       608,
+       512,
+       64
+      ],
+      [
+       728,
+       632,
+       40,
+       72
+      ],
+      [
+       144,
+       672,
+       520,
+       56
+      ],
+      [
+       176,
+       728,
+       488,
+       8
+      ],
+      [
+       240,
+       736,
+       424,
+       8
+      ],
+      [
+       192,
+       736,
+       40,
+       8
+      ],
+      [
+       336,
+       744,
+       328,
+       8
+      ],
+      [
+       704,
+       704,
+       64,
+       56
+      ],
+      [
+       344,
+       752,
+       320,
+       8
+      ],
+      [
+       408,
+       760,
+       256,
+       8
+      ],
+      [
+       728,
+       760,
+       40,
+       16
+      ],
+      [
+       416,
+       768,
+       248,
+       8
+      ],
+      [
+       520,
+       776,
+       144,
+       8
+      ],
+      [
+       728,
+       776,
+       32,
+       8
+      ],
+      [
+       568,
+       784,
+       96,
+       8
+      ],
+      [
+       728,
+       784,
+       24,
+       8
+      ],
+      [
+       736,
+       792,
+       8,
+       8
+      ],
+      [
+       592,
+       792,
+       72,
+       8
+      ]
+     ]
+    },
+    "prompt": "A medieval cavalier on a strong grey warhorse, the rider in heavy polished steel plate armor with a closed great helm crowned by a tall bright blue feather plume, a bright blue surcoat with a white cross, a longsword raised upright in his right hand, his left hand holds the reins. The horse is covered by a long bright blue cloth caparison with a broad white and silver checkered border and white crosses. Standing pose turned slightly to the right.",
+    "negativ": "two hands on the sword, shield, lance, extra arm, extra hand, shadow"
+   },
+   {
+    "name": "paladin",
+    "seed": 4951,
+    "ziel": "Einheiten/paladin.png",
+    "zielbreite": 149,
+    "blau_saettigung": 0.75,
+    "figur": "paladin",
+    "vorlage": "ritter_fleck_4871_roh.png",
+    "staerke": 0.85,
+    "maske": {
+     "rechtecke": [
+      [
+       330,
+       0,
+       390,
+       192
+      ],
+      [
+       728,
+       184,
+       17,
+       8
+      ],
+      [
+       330,
+       192,
+       415,
+       108
+      ],
+      [
+       330,
+       300,
+       270,
+       4
+      ],
+      [
+       608,
+       300,
+       137,
+       12
+      ],
+      [
+       330,
+       304,
+       254,
+       16
+      ],
+      [
+       600,
+       312,
+       145,
+       16
+      ],
+      [
+       330,
+       320,
+       250,
+       8
+      ],
+      [
+       330,
+       328,
+       254,
+       8
+      ],
+      [
+       592,
+       328,
+       153,
+       8
+      ],
+      [
+       296,
+       336,
+       449,
+       8
+      ],
+      [
+       256,
+       344,
+       489,
+       8
+      ],
+      [
+       232,
+       352,
+       512,
+       8
+      ],
+      [
+       224,
+       360,
+       520,
+       8
+      ],
+      [
+       208,
+       368,
+       536,
+       8
+      ],
+      [
+       200,
+       376,
+       536,
+       16
+      ],
+      [
+       192,
+       392,
+       544,
+       8
+      ],
+      [
+       184,
+       400,
+       552,
+       8
+      ],
+      [
+       176,
+       408,
+       560,
+       24
+      ],
+      [
+       744,
+       424,
+       1,
+       8
+      ],
+      [
+       168,
+       432,
+       577,
+       16
+      ],
+      [
+       760,
+       450,
+       24,
+       6
+      ],
+      [
+       752,
+       456,
+       40,
+       8
+      ],
+      [
+       160,
+       448,
+       576,
+       24
+      ],
+      [
+       760,
+       464,
+       32,
+       16
+      ],
+      [
+       768,
+       480,
+       24,
+       8
+      ],
+      [
+       776,
+       488,
+       16,
+       8
+      ],
+      [
+       160,
+       472,
+       592,
+       32
+      ],
+      [
+       160,
+       504,
+       600,
+       56
+      ],
+      [
+       680,
+       560,
+       80,
+       8
+      ],
+      [
+       696,
+       568,
+       64,
+       8
+      ],
+      [
+       704,
+       576,
+       56,
+       8
+      ],
+      [
+       160,
+       560,
+       512,
+       32
+      ],
+      [
+       712,
+       584,
+       48,
+       8
+      ],
+      [
+       152,
+       592,
+       520,
+       16
+      ],
+      [
+       728,
+       592,
+       32,
+       40
+      ],
+      [
+       152,
+       608,
+       512,
+       64
+      ],
+      [
+       728,
+       632,
+       40,
+       72
+      ],
+      [
+       144,
+       672,
+       520,
+       56
+      ],
+      [
+       176,
+       728,
+       488,
+       8
+      ],
+      [
+       240,
+       736,
+       424,
+       8
+      ],
+      [
+       192,
+       736,
+       40,
+       8
+      ],
+      [
+       336,
+       744,
+       328,
+       8
+      ],
+      [
+       704,
+       704,
+       64,
+       56
+      ],
+      [
+       344,
+       752,
+       320,
+       8
+      ],
+      [
+       408,
+       760,
+       256,
+       8
+      ],
+      [
+       728,
+       760,
+       40,
+       16
+      ],
+      [
+       416,
+       768,
+       248,
+       8
+      ],
+      [
+       520,
+       776,
+       144,
+       8
+      ],
+      [
+       728,
+       776,
+       32,
+       8
+      ],
+      [
+       568,
+       784,
+       96,
+       8
+      ],
+      [
+       728,
+       784,
+       24,
+       8
+      ],
+      [
+       736,
+       792,
+       8,
+       8
+      ],
+      [
+       592,
+       792,
+       72,
+       8
+      ]
+     ]
+    },
+    "prompt": "A medieval paladin on a strong grey warhorse, the rider in ornate gilded plate armor with golden trim, a closed great helm with a golden crown crest, a bright blue surcoat with a golden lion, a longsword raised upright in his right hand, his left hand holds the reins. The horse is covered by a long bright blue cloth caparison embroidered with golden fleur-de-lis and a golden fringe along its hem. Standing pose turned slightly to the right.",
+    "negativ": "two hands on the sword, shield, lance, extra arm, extra hand, shadow"
+   },
+   {
+    "name": "pikenier_ohne_speer",
+    "seed": 4961,
+    "vorlage": "pikenier_s85_4916_roh.png",
+    "maske": {
+     "linien": [
+      [
+       18,
+       885,
+       990,
+       76,
+       58
+      ],
+      [
+       760,
+       268,
+       994,
+       72,
+       70
+      ]
+     ]
+    },
+    "prompt": "A medieval pikeman foot soldier in a bright blue padded gambeson with a steel breastplate over it, a brown belt, brown trousers and leather boots, a steel kettle hat with a wide brim, his right hand clenched into an empty fist in front of his belly, determined face, walking pose turned to the right. He carries no pike.",
+    "negativ": "pike, spear, lance, pole, stick, staff, weapon, rod, shaft, sword"
+   },
+   {
+    "name": "elite_plaenkler_saum",
+    "seed": 4971,
+    "ziel": "Einheiten/elite_plaenkler.png",
+    "zielbreite": 153,
+    "figur": "elite_plaenkler",
+    "vorlage": "elite_plaenkler_4932_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       174,
+       650,
+       80,
+       16
+      ],
+      [
+       692,
+       650,
+       62,
+       14
+      ],
+      [
+       338,
+       650,
+       22,
+       18
+      ],
+      [
+       598,
+       650,
+       26,
+       18
+      ]
+     ]
+    },
+    "prompt": "Plain white background beside a medieval soldier.",
+    "negativ": "speck, dot, line, dirt, cloth, weapon, shadow"
+   },
+   {
+    "name": "hellebardier_ohne_speer",
+    "seed": 4981,
+    "vorlage": "hellebardier_s92_4926_roh.png",
+    "maske": {
+     "linien": [
+      [
+       18,
+       894,
+       820,
+       184,
+       58
+      ]
+     ],
+     "rechtecke": [
+      [
+       680,
+       10,
+       334,
+       395
+      ]
+     ]
+    },
+    "prompt": "A late medieval halberdier foot soldier in a bright blue and white striped doublet under a polished steel breastplate with steel shoulder guards, a brown belt, brown trousers and leather boots, a steel sallet helmet, his right hand clenched into an empty fist in front of his belly, determined face, walking pose turned to the right. He carries no halberd. Plain white background around him.",
+    "negativ": "halberd, axe, pike, spear, lance, pole, stick, staff, weapon, rod, shaft, sword"
+   },
+   {
+    "name": "kavalier_ohne_arm",
+    "seed": 4991,
+    "vorlage": "kavalier_4941_roh.png",
+    "maske": {
+     "linien": [
+      [
+       372,
+       316,
+       452,
+       344,
+       46
+      ],
+      [
+       462,
+       330,
+       682,
+       44,
+       40
+      ],
+      [
+       442,
+       302,
+       500,
+       352,
+       22
+      ]
+     ],
+     "ellipsen": [
+      [
+       448,
+       342,
+       30,
+       26
+      ]
+     ]
+    },
+    "prompt": "A medieval cavalier on a strong grey warhorse, his right arm hidden behind his back: in front of his chest only the polished steel breastplate and the bright blue surcoat with a white cross are visible, his left hand holds the reins low in front of the saddle. Plain white background above his shoulders. The horse is covered by a long bright blue cloth caparison with a broad white and silver checkered border. Standing pose turned slightly to the right.",
+    "negativ": "sword, blade, weapon, raised arm, raised hand, hand in the air, waving, fist, gauntlet in front of the chest, forearm across the body, extra arm, extra hand, three hands, dagger, lance, shadow"
+   },
+   {
+    "name": "paladin_ohne_arm",
+    "seed": 5001,
+    "vorlage": "paladin_4951_roh.png",
+    "maske": {
+     "linien": [
+      [
+       384,
+       276,
+       556,
+       272,
+       50
+      ],
+      [
+       548,
+       262,
+       640,
+       14,
+       40
+      ],
+      [
+       525,
+       245,
+       580,
+       262,
+       20
+      ]
+     ],
+     "ellipsen": [
+      [
+       553,
+       272,
+       34,
+       30
+      ]
+     ]
+    },
+    "prompt": "A medieval paladin on a strong grey warhorse, his right arm hidden behind his back: in front of his chest only the ornate gilded breastplate and the bright blue surcoat with a golden lion are visible, his left hand holds the reins low in front of the saddle. Plain white background above his shoulders. The horse is covered by a long bright blue cloth caparison embroidered with golden fleur-de-lis. Standing pose turned slightly to the right.",
+    "negativ": "sword, blade, weapon, raised arm, raised hand, hand in the air, waving, fist, gauntlet in front of the chest, forearm across the body, extra arm, extra hand, three hands, dagger, lance, shadow"
+   },
+   {
+    "name": "kavalier_ohne_arm_v",
+    "seed": 5011,
+    "vorfuellen": "kavalier_4941_roh.png",
+    "vorlage": "kavalier_ohne_arm_v_vorlage.png",
+    "maske": {
+     "linien": [
+      [
+       372,
+       316,
+       452,
+       344,
+       46
+      ],
+      [
+       462,
+       330,
+       682,
+       44,
+       40
+      ],
+      [
+       442,
+       302,
+       500,
+       352,
+       22
+      ]
+     ],
+     "ellipsen": [
+      [
+       448,
+       342,
+       30,
+       26
+      ]
+     ]
+    },
+    "prompt": "A medieval cavalier on a strong grey warhorse, his right arm hidden behind his back: in front of his chest only the polished steel breastplate and the bright blue surcoat with a white cross are visible, his left hand holds the reins low in front of the saddle. Plain white background above his shoulders. The horse is covered by a long bright blue cloth caparison with a broad white and silver checkered border. Standing pose turned slightly to the right.",
+    "negativ": "sword, blade, weapon, raised arm, raised hand, hand in the air, waving, fist, gauntlet in front of the chest, forearm across the body, extra arm, extra hand, three hands, dagger, lance, shadow",
+    "staerke": 0.6
+   },
+   {
+    "name": "paladin_ohne_arm_v",
+    "seed": 5021,
+    "vorfuellen": "paladin_4951_roh.png",
+    "vorlage": "paladin_ohne_arm_v_vorlage.png",
+    "maske": {
+     "linien": [
+      [
+       384,
+       276,
+       556,
+       272,
+       50
+      ],
+      [
+       548,
+       262,
+       640,
+       14,
+       40
+      ],
+      [
+       525,
+       245,
+       580,
+       262,
+       20
+      ]
+     ],
+     "ellipsen": [
+      [
+       553,
+       272,
+       34,
+       30
+      ]
+     ]
+    },
+    "prompt": "A medieval paladin on a strong grey warhorse, his right arm hidden behind his back: in front of his chest only the ornate gilded breastplate and the bright blue surcoat with a golden lion are visible, his left hand holds the reins low in front of the saddle. Plain white background above his shoulders. The horse is covered by a long bright blue cloth caparison embroidered with golden fleur-de-lis. Standing pose turned slightly to the right.",
+    "negativ": "sword, blade, weapon, raised arm, raised hand, hand in the air, waving, fist, gauntlet in front of the chest, forearm across the body, extra arm, extra hand, three hands, dagger, lance, shadow",
+    "staerke": 0.6
+   },
+   {
+    "name": "hellebardier_ohne_speer2",
+    "seed": 5031,
+    "vorlage": "hellebardier_ohne_speer_4982_roh.png",
+    "maske": {
+     "linien": [
+      [
+       158,
+       732,
+       312,
+       612,
+       24
+      ]
+     ],
+     "rechtecke": [
+      [
+       622,
+       328,
+       76,
+       60
+      ]
+     ]
+    },
+    "prompt": "Plain white background beside a medieval soldier.",
+    "negativ": "speck, dot, line, stick, dirt, weapon, metal, shadow"
+   },
+   {
+    "name": "paladin_ohne_arm_c",
+    "seed": 5051,
+    "vorfuellen": "paladin_ohne_arm_v_5021_roh.png",
+    "vorlage": "paladin_ohne_arm_c_vorlage.png",
+    "staerke": 0.6,
+    "maske": {
+     "rechtecke": [
+      [
+       425,
+       276,
+       125,
+       30
+      ]
+     ]
+    },
+    "prompt": "A medieval paladin in ornate gilded plate armor, in front of his belly only the bright blue surcoat with a golden lion is visible above his gilded belt.",
+    "negativ": "arm, forearm, hand, fist, gauntlet, sword, weapon, extra arm, shadow"
+   },
+   {
+    "name": "hellebardier_ohne_speer3",
+    "seed": 5061,
+    "vorlage": "hellebardier_ohne_speer2_5031_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       603,
+       324,
+       40,
+       54
+      ]
+     ]
+    },
+    "prompt": "Plain white background beside a medieval soldier.",
+    "negativ": "speck, dot, line, stick, dirt, weapon, metal, shadow"
    }
   ]
  },
@@ -5751,6 +6952,302 @@
     "figur": "ritter",
     "zielbreite": 149,
     "blau_saettigung": 0.75
+   },
+   {
+    "name": "pikenier_lauf1",
+    "seed": 1,
+    "ziel": "Einheiten/pikenier_lauf1.png",
+    "figur": "pikenier",
+    "zielbreite": 219
+   },
+   {
+    "name": "pikenier_lauf2",
+    "seed": 1,
+    "ziel": "Einheiten/pikenier_lauf2.png",
+    "figur": "pikenier",
+    "zielbreite": 219
+   },
+   {
+    "name": "pikenier_lauf3",
+    "seed": 1,
+    "ziel": "Einheiten/pikenier_lauf3.png",
+    "figur": "pikenier",
+    "zielbreite": 219
+   },
+   {
+    "name": "pikenier_lauf4",
+    "seed": 1,
+    "ziel": "Einheiten/pikenier_lauf4.png",
+    "figur": "pikenier",
+    "zielbreite": 219
+   },
+   {
+    "name": "pikenier_lauf5",
+    "seed": 1,
+    "ziel": "Einheiten/pikenier_lauf5.png",
+    "figur": "pikenier",
+    "zielbreite": 219
+   },
+   {
+    "name": "pikenier_lauf6",
+    "seed": 1,
+    "ziel": "Einheiten/pikenier_lauf6.png",
+    "figur": "pikenier",
+    "zielbreite": 219
+   },
+   {
+    "name": "pikenier_lauf7",
+    "seed": 1,
+    "ziel": "Einheiten/pikenier_lauf7.png",
+    "figur": "pikenier",
+    "zielbreite": 219
+   },
+   {
+    "name": "pikenier_lauf8",
+    "seed": 1,
+    "ziel": "Einheiten/pikenier_lauf8.png",
+    "figur": "pikenier",
+    "zielbreite": 219
+   },
+   {
+    "name": "hellebardier_lauf1",
+    "seed": 1,
+    "ziel": "Einheiten/hellebardier_lauf1.png",
+    "figur": "hellebardier",
+    "zielbreite": 212
+   },
+   {
+    "name": "hellebardier_lauf2",
+    "seed": 1,
+    "ziel": "Einheiten/hellebardier_lauf2.png",
+    "figur": "hellebardier",
+    "zielbreite": 212
+   },
+   {
+    "name": "hellebardier_lauf3",
+    "seed": 1,
+    "ziel": "Einheiten/hellebardier_lauf3.png",
+    "figur": "hellebardier",
+    "zielbreite": 212
+   },
+   {
+    "name": "hellebardier_lauf4",
+    "seed": 1,
+    "ziel": "Einheiten/hellebardier_lauf4.png",
+    "figur": "hellebardier",
+    "zielbreite": 212
+   },
+   {
+    "name": "hellebardier_lauf5",
+    "seed": 1,
+    "ziel": "Einheiten/hellebardier_lauf5.png",
+    "figur": "hellebardier",
+    "zielbreite": 212
+   },
+   {
+    "name": "hellebardier_lauf6",
+    "seed": 1,
+    "ziel": "Einheiten/hellebardier_lauf6.png",
+    "figur": "hellebardier",
+    "zielbreite": 212
+   },
+   {
+    "name": "hellebardier_lauf7",
+    "seed": 1,
+    "ziel": "Einheiten/hellebardier_lauf7.png",
+    "figur": "hellebardier",
+    "zielbreite": 212
+   },
+   {
+    "name": "hellebardier_lauf8",
+    "seed": 1,
+    "ziel": "Einheiten/hellebardier_lauf8.png",
+    "figur": "hellebardier",
+    "zielbreite": 212
+   },
+   {
+    "name": "elite_plaenkler_lauf1",
+    "seed": 1,
+    "ziel": "Einheiten/elite_plaenkler_lauf1.png",
+    "figur": "elite_plaenkler",
+    "zielbreite": 153
+   },
+   {
+    "name": "elite_plaenkler_lauf2",
+    "seed": 1,
+    "ziel": "Einheiten/elite_plaenkler_lauf2.png",
+    "figur": "elite_plaenkler",
+    "zielbreite": 153
+   },
+   {
+    "name": "elite_plaenkler_lauf3",
+    "seed": 1,
+    "ziel": "Einheiten/elite_plaenkler_lauf3.png",
+    "figur": "elite_plaenkler",
+    "zielbreite": 153
+   },
+   {
+    "name": "elite_plaenkler_lauf4",
+    "seed": 1,
+    "ziel": "Einheiten/elite_plaenkler_lauf4.png",
+    "figur": "elite_plaenkler",
+    "zielbreite": 153
+   },
+   {
+    "name": "elite_plaenkler_lauf5",
+    "seed": 1,
+    "ziel": "Einheiten/elite_plaenkler_lauf5.png",
+    "figur": "elite_plaenkler",
+    "zielbreite": 153
+   },
+   {
+    "name": "elite_plaenkler_lauf6",
+    "seed": 1,
+    "ziel": "Einheiten/elite_plaenkler_lauf6.png",
+    "figur": "elite_plaenkler",
+    "zielbreite": 153
+   },
+   {
+    "name": "elite_plaenkler_lauf7",
+    "seed": 1,
+    "ziel": "Einheiten/elite_plaenkler_lauf7.png",
+    "figur": "elite_plaenkler",
+    "zielbreite": 153
+   },
+   {
+    "name": "elite_plaenkler_lauf8",
+    "seed": 1,
+    "ziel": "Einheiten/elite_plaenkler_lauf8.png",
+    "figur": "elite_plaenkler",
+    "zielbreite": 153
+   },
+   {
+    "name": "kavalier_lauf1",
+    "seed": 1,
+    "ziel": "Einheiten/kavalier_lauf1.png",
+    "figur": "kavalier",
+    "zielbreite": 148,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "kavalier_lauf2",
+    "seed": 1,
+    "ziel": "Einheiten/kavalier_lauf2.png",
+    "figur": "kavalier",
+    "zielbreite": 148,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "kavalier_lauf3",
+    "seed": 1,
+    "ziel": "Einheiten/kavalier_lauf3.png",
+    "figur": "kavalier",
+    "zielbreite": 148,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "kavalier_lauf4",
+    "seed": 1,
+    "ziel": "Einheiten/kavalier_lauf4.png",
+    "figur": "kavalier",
+    "zielbreite": 148,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "kavalier_lauf5",
+    "seed": 1,
+    "ziel": "Einheiten/kavalier_lauf5.png",
+    "figur": "kavalier",
+    "zielbreite": 148,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "kavalier_lauf6",
+    "seed": 1,
+    "ziel": "Einheiten/kavalier_lauf6.png",
+    "figur": "kavalier",
+    "zielbreite": 148,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "kavalier_lauf7",
+    "seed": 1,
+    "ziel": "Einheiten/kavalier_lauf7.png",
+    "figur": "kavalier",
+    "zielbreite": 148,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "kavalier_lauf8",
+    "seed": 1,
+    "ziel": "Einheiten/kavalier_lauf8.png",
+    "figur": "kavalier",
+    "zielbreite": 148,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "paladin_lauf1",
+    "seed": 1,
+    "ziel": "Einheiten/paladin_lauf1.png",
+    "figur": "paladin",
+    "zielbreite": 149,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "paladin_lauf2",
+    "seed": 1,
+    "ziel": "Einheiten/paladin_lauf2.png",
+    "figur": "paladin",
+    "zielbreite": 149,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "paladin_lauf3",
+    "seed": 1,
+    "ziel": "Einheiten/paladin_lauf3.png",
+    "figur": "paladin",
+    "zielbreite": 149,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "paladin_lauf4",
+    "seed": 1,
+    "ziel": "Einheiten/paladin_lauf4.png",
+    "figur": "paladin",
+    "zielbreite": 149,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "paladin_lauf5",
+    "seed": 1,
+    "ziel": "Einheiten/paladin_lauf5.png",
+    "figur": "paladin",
+    "zielbreite": 149,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "paladin_lauf6",
+    "seed": 1,
+    "ziel": "Einheiten/paladin_lauf6.png",
+    "figur": "paladin",
+    "zielbreite": 149,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "paladin_lauf7",
+    "seed": 1,
+    "ziel": "Einheiten/paladin_lauf7.png",
+    "figur": "paladin",
+    "zielbreite": 149,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "paladin_lauf8",
+    "seed": 1,
+    "ziel": "Einheiten/paladin_lauf8.png",
+    "figur": "paladin",
+    "zielbreite": 149,
+    "blau_saettigung": 0.75
    }
   ]
  },
@@ -5987,6 +7484,246 @@
     "seed": 1,
     "ziel": "Einheiten/ritter_schlag8.png",
     "figur": "ritter_schlag",
+    "zielbreite": 150,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "pikenier_schlag1",
+    "seed": 1,
+    "ziel": "Einheiten/pikenier_schlag1.png",
+    "figur": "pikenier_schlag",
+    "zielbreite": 356
+   },
+   {
+    "name": "pikenier_schlag2",
+    "seed": 1,
+    "ziel": "Einheiten/pikenier_schlag2.png",
+    "figur": "pikenier_schlag",
+    "zielbreite": 356
+   },
+   {
+    "name": "pikenier_schlag3",
+    "seed": 1,
+    "ziel": "Einheiten/pikenier_schlag3.png",
+    "figur": "pikenier_schlag",
+    "zielbreite": 356
+   },
+   {
+    "name": "pikenier_schlag4",
+    "seed": 1,
+    "ziel": "Einheiten/pikenier_schlag4.png",
+    "figur": "pikenier_schlag",
+    "zielbreite": 356
+   },
+   {
+    "name": "pikenier_schlag5",
+    "seed": 1,
+    "ziel": "Einheiten/pikenier_schlag5.png",
+    "figur": "pikenier_schlag",
+    "zielbreite": 356
+   },
+   {
+    "name": "pikenier_schlag6",
+    "seed": 1,
+    "ziel": "Einheiten/pikenier_schlag6.png",
+    "figur": "pikenier_schlag",
+    "zielbreite": 356
+   },
+   {
+    "name": "pikenier_schlag7",
+    "seed": 1,
+    "ziel": "Einheiten/pikenier_schlag7.png",
+    "figur": "pikenier_schlag",
+    "zielbreite": 356
+   },
+   {
+    "name": "pikenier_schlag8",
+    "seed": 1,
+    "ziel": "Einheiten/pikenier_schlag8.png",
+    "figur": "pikenier_schlag",
+    "zielbreite": 356
+   },
+   {
+    "name": "hellebardier_schlag1",
+    "seed": 1,
+    "ziel": "Einheiten/hellebardier_schlag1.png",
+    "figur": "hellebardier_schlag",
+    "zielbreite": 359
+   },
+   {
+    "name": "hellebardier_schlag2",
+    "seed": 1,
+    "ziel": "Einheiten/hellebardier_schlag2.png",
+    "figur": "hellebardier_schlag",
+    "zielbreite": 359
+   },
+   {
+    "name": "hellebardier_schlag3",
+    "seed": 1,
+    "ziel": "Einheiten/hellebardier_schlag3.png",
+    "figur": "hellebardier_schlag",
+    "zielbreite": 359
+   },
+   {
+    "name": "hellebardier_schlag4",
+    "seed": 1,
+    "ziel": "Einheiten/hellebardier_schlag4.png",
+    "figur": "hellebardier_schlag",
+    "zielbreite": 359
+   },
+   {
+    "name": "hellebardier_schlag5",
+    "seed": 1,
+    "ziel": "Einheiten/hellebardier_schlag5.png",
+    "figur": "hellebardier_schlag",
+    "zielbreite": 359
+   },
+   {
+    "name": "hellebardier_schlag6",
+    "seed": 1,
+    "ziel": "Einheiten/hellebardier_schlag6.png",
+    "figur": "hellebardier_schlag",
+    "zielbreite": 359
+   },
+   {
+    "name": "hellebardier_schlag7",
+    "seed": 1,
+    "ziel": "Einheiten/hellebardier_schlag7.png",
+    "figur": "hellebardier_schlag",
+    "zielbreite": 359
+   },
+   {
+    "name": "hellebardier_schlag8",
+    "seed": 1,
+    "ziel": "Einheiten/hellebardier_schlag8.png",
+    "figur": "hellebardier_schlag",
+    "zielbreite": 359
+   },
+   {
+    "name": "kavalier_schlag1",
+    "seed": 1,
+    "ziel": "Einheiten/kavalier_schlag1.png",
+    "figur": "kavalier_schlag",
+    "zielbreite": 149,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "kavalier_schlag2",
+    "seed": 1,
+    "ziel": "Einheiten/kavalier_schlag2.png",
+    "figur": "kavalier_schlag",
+    "zielbreite": 149,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "kavalier_schlag3",
+    "seed": 1,
+    "ziel": "Einheiten/kavalier_schlag3.png",
+    "figur": "kavalier_schlag",
+    "zielbreite": 149,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "kavalier_schlag4",
+    "seed": 1,
+    "ziel": "Einheiten/kavalier_schlag4.png",
+    "figur": "kavalier_schlag",
+    "zielbreite": 149,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "kavalier_schlag5",
+    "seed": 1,
+    "ziel": "Einheiten/kavalier_schlag5.png",
+    "figur": "kavalier_schlag",
+    "zielbreite": 149,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "kavalier_schlag6",
+    "seed": 1,
+    "ziel": "Einheiten/kavalier_schlag6.png",
+    "figur": "kavalier_schlag",
+    "zielbreite": 149,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "kavalier_schlag7",
+    "seed": 1,
+    "ziel": "Einheiten/kavalier_schlag7.png",
+    "figur": "kavalier_schlag",
+    "zielbreite": 149,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "kavalier_schlag8",
+    "seed": 1,
+    "ziel": "Einheiten/kavalier_schlag8.png",
+    "figur": "kavalier_schlag",
+    "zielbreite": 149,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "paladin_schlag1",
+    "seed": 1,
+    "ziel": "Einheiten/paladin_schlag1.png",
+    "figur": "paladin_schlag",
+    "zielbreite": 150,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "paladin_schlag2",
+    "seed": 1,
+    "ziel": "Einheiten/paladin_schlag2.png",
+    "figur": "paladin_schlag",
+    "zielbreite": 150,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "paladin_schlag3",
+    "seed": 1,
+    "ziel": "Einheiten/paladin_schlag3.png",
+    "figur": "paladin_schlag",
+    "zielbreite": 150,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "paladin_schlag4",
+    "seed": 1,
+    "ziel": "Einheiten/paladin_schlag4.png",
+    "figur": "paladin_schlag",
+    "zielbreite": 150,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "paladin_schlag5",
+    "seed": 1,
+    "ziel": "Einheiten/paladin_schlag5.png",
+    "figur": "paladin_schlag",
+    "zielbreite": 150,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "paladin_schlag6",
+    "seed": 1,
+    "ziel": "Einheiten/paladin_schlag6.png",
+    "figur": "paladin_schlag",
+    "zielbreite": 150,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "paladin_schlag7",
+    "seed": 1,
+    "ziel": "Einheiten/paladin_schlag7.png",
+    "figur": "paladin_schlag",
+    "zielbreite": 150,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "paladin_schlag8",
+    "seed": 1,
+    "ziel": "Einheiten/paladin_schlag8.png",
+    "figur": "paladin_schlag",
     "zielbreite": 150,
     "blau_saettigung": 0.75
    }
