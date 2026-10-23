@@ -4795,6 +4795,243 @@
     },
     "prompt": "A medieval scout rider on a brown horse, the rider in a bright blue tunic with a light leather cap, both gloved hands resting in front of his belt, the horse with a simple saddle and bridle, the whole horse visible from ears to hooves, standing pose turned slightly to the right. He carries no spear.",
     "negativ": "spear, lance, pole, stick, staff, weapon, rod, shaft"
+   },
+   {
+    "name": "speer",
+    "seed": 4801,
+    "prompt": "A medieval spearman foot soldier in a bright blue padded gambeson with a brown belt, brown trousers, leather boots and a conical iron helmet with a nose guard, a long wooden spear with an iron spearhead in his right hand, the spear slanting forward with its point raised high to the right and its butt end low behind him, his left hand empty at his side, determined face, standing pose turned slightly to the right.",
+    "figur": "speer"
+   },
+   {
+    "name": "plaenkler",
+    "seed": 4821,
+    "prompt": "A light medieval skirmisher in a bright blue quilted tunic with a brown belt, brown trousers, leather boots and a brown leather cap, a small round wicker shield on his left arm and a quiver with short javelins on his back, one short javelin held in his right hand, alert face, standing pose turned slightly to the right.",
+    "figur": "plaenkler"
+   },
+   {
+    "name": "ritter",
+    "seed": 4845,
+    "prompt": "A medieval knight on a strong grey warhorse, the knight in shining steel plate armor with a closed great helm and a bright blue surcoat, a longsword held upright in his right hand. The horse is covered by a long bright blue cloth caparison with a golden trim that drapes over its whole body, neck and rump and hangs straight down to just above its knees and hocks; below the hem only the four grey lower legs and hooves are visible, all four standing straight and apart. The whole horse visible from ears to hooves, standing pose turned slightly to the right.",
+    "negativ": "shadow, cast shadow, ground shadow, shadow on the ground, ground, floor",
+    "figur": "ritter"
+   },
+   {
+    "name": "speer_beine",
+    "seed": 4811,
+    "ziel": "Einheiten/speerkaempfer.png",
+    "zielbreite": 216,
+    "figur": "speer",
+    "vorlage": "speer_4802_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       300,
+       655,
+       400,
+       369
+      ],
+      [
+       195,
+       765,
+       105,
+       259
+      ]
+     ]
+    },
+    "prompt": "A medieval spearman foot soldier in a bright blue padded gambeson with a brown belt, brown trousers, leather boots and a conical iron helmet with a nose guard, a long wooden spear with an iron spearhead in his right hand, determined face, walking pose turned to the right: his legs in a relaxed stride seen from the side, the front leg forward and the back leg behind, both feet pointing to the right.",
+    "negativ": "extra leg, three legs, missing leg, feet pointing at the viewer, frontal stance, second spear, spear shaft between the legs"
+   },
+   {
+    "name": "plaenkler_beine",
+    "seed": 4831,
+    "figur": "plaenkler",
+    "vorlage": "plaenkler_4821_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       330,
+       700,
+       410,
+       324
+      ]
+     ]
+    },
+    "prompt": "A light medieval skirmisher in a bright blue quilted tunic with a brown belt, brown trousers, leather boots and a brown leather cap, a small round wicker shield on his left arm and a quiver with short javelins on his back, one short javelin held in his right hand with its iron point slanting down in front of his legs, alert face, walking pose turned to the right: his legs in a relaxed stride seen from the side, the front leg forward and the back leg behind, both feet pointing to the right.",
+    "negativ": "extra leg, three legs, missing leg, feet pointing at the viewer, frontal stance, second javelin, shadow"
+   },
+   {
+    "name": "plaenkler_beine_b",
+    "seed": 4836,
+    "ziel": "Einheiten/plaenkler.png",
+    "zielbreite": 141,
+    "figur": "plaenkler",
+    "vorlage": "plaenkler_4822_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       300,
+       665,
+       410,
+       359
+      ]
+     ]
+    },
+    "prompt": "A light medieval skirmisher in a bright blue quilted tunic with a brown belt, brown trousers, leather boots and a brown leather cap, a small round wicker shield on his left arm and a quiver with short javelins on his back, one short javelin held in his right hand, alert face, walking pose turned to the right: his legs in a relaxed stride seen from the side, the front leg forward and the back leg behind, both feet pointing to the right.",
+    "negativ": "extra leg, three legs, missing leg, feet pointing at the viewer, frontal stance, second javelin, shadow"
+   },
+   {
+    "name": "ritter_einhand",
+    "seed": 4851,
+    "figur": "ritter",
+    "vorlage": "ritter_4845_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       360,
+       205,
+       275,
+       140
+      ]
+     ],
+     "linien": [
+      [
+       505,
+       300,
+       690,
+       15,
+       46
+      ]
+     ]
+    },
+    "prompt": "A medieval knight on a strong grey warhorse, the knight in shining steel plate armor and a bright blue surcoat. In his right steel gauntlet he holds a longsword upright, the blade pointing up to the upper right; his left hand holds the reins low in front of the saddle. The horse is covered by a long bright blue cloth caparison with a golden trim. Standing pose turned slightly to the right.",
+    "negativ": "two hands on the sword, both hands on the hilt, two-handed grip, shield, lance, extra arm, extra hand, three hands, shadow"
+   },
+   {
+    "name": "speer_ohne_speer",
+    "seed": 4861,
+    "vorlage": "speer_beine_4811_roh.png",
+    "maske": {
+     "linien": [
+      [
+       20,
+       876,
+       988,
+       69,
+       58
+      ],
+      [
+       760,
+       259,
+       994,
+       62,
+       84
+      ]
+     ]
+    },
+    "prompt": "A medieval spearman foot soldier in a bright blue padded gambeson with a brown belt, brown trousers, leather boots and a conical iron helmet with a nose guard, his right hand clenched into an empty fist in front of his belly, determined face, walking pose turned to the right. He carries no spear.",
+    "negativ": "spear, lance, pole, stick, staff, weapon, rod, shaft, sword, javelin"
+   },
+   {
+    "name": "ritter_fleck",
+    "seed": 4871,
+    "ziel": "Einheiten/ritter.png",
+    "zielbreite": 149,
+    "blau_saettigung": 0.75,
+    "figur": "ritter",
+    "vorlage": "ritter_einhand_4852_roh.png",
+    "maske": {
+     "ellipsen": [
+      [
+       596,
+       200,
+       16,
+       20
+      ]
+     ]
+    },
+    "prompt": "Plain white background beside a medieval knight in shining steel plate armor.",
+    "negativ": "speck, dot, dirt, blade, sword, weapon, stick, shadow"
+   },
+   {
+    "name": "ritter_ohne_arm",
+    "seed": 4885,
+    "vorlage": "ritter_fleck_4871_roh.png",
+    "maske": {
+     "linien": [
+      [
+       396,
+       242,
+       380,
+       292,
+       52
+      ],
+      [
+       380,
+       292,
+       492,
+       295,
+       58
+      ],
+      [
+       490,
+       285,
+       702,
+       12,
+       42
+      ],
+      [
+       448,
+       244,
+       532,
+       272,
+       26
+      ]
+     ],
+     "ellipsen": [
+      [
+       486,
+       293,
+       42,
+       34
+      ]
+     ]
+    },
+    "prompt": "A medieval knight on a strong grey warhorse, his right arm hidden behind his back: in front of his chest only the steel breastplate and the bright blue surcoat are visible, his left hand holds the reins low in front of the saddle. Plain white background above his shoulders. The horse is covered by a long bright blue cloth caparison with a golden trim. Standing pose turned slightly to the right.",
+    "negativ": "sword, blade, weapon, raised arm, raised hand, hand in the air, waving, fist, gauntlet in front of the chest, forearm across the body, extra arm, extra hand, three hands, dagger, lance, shadow"
+   },
+   {
+    "name": "speer_faust",
+    "seed": 4891,
+    "vorlage": "speer_ohne_speer_4862_roh.png",
+    "maske": {
+     "ellipsen": [
+      [
+       380,
+       574,
+       58,
+       52
+      ]
+     ]
+    },
+    "prompt": "A medieval spearman foot soldier in a bright blue padded gambeson with a brown belt, his bare right hand clenched into a tight empty fist in front of his belly, the knuckles facing forward, the fist held as if gripping a pole, walking pose turned to the right. He carries no spear.",
+    "negativ": "spear, lance, pole, stick, staff, weapon, rod, shaft, sword, open hand, fingers spread, glove, hand in belt, extra hand"
+   },
+   {
+    "name": "ritter_ohne_arm2",
+    "seed": 4901,
+    "vorlage": "ritter_ohne_arm_4887_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       346,
+       238,
+       96,
+       92
+      ]
+     ]
+    },
+    "prompt": "A medieval knight in shining steel plate armor and a bright blue surcoat, his right arm hidden behind his back: below his steel shoulder plate only the side of his steel breastplate and his bright blue cape hanging down behind it are visible.",
+    "negativ": "arm, upper arm, elbow, vambrace, gauntlet, hand, fist, sword, blade, weapon, extra arm, shadow"
    }
   ]
  },
@@ -5338,6 +5575,182 @@
     "seed": 1,
     "ziel": "Einheiten/spaeher_lauf8.png",
     "figur": "spaeher"
+   },
+   {
+    "name": "speer_lauf1",
+    "seed": 1,
+    "ziel": "Einheiten/speerkaempfer_lauf1.png",
+    "figur": "speer",
+    "zielbreite": 216
+   },
+   {
+    "name": "speer_lauf2",
+    "seed": 1,
+    "ziel": "Einheiten/speerkaempfer_lauf2.png",
+    "figur": "speer",
+    "zielbreite": 216
+   },
+   {
+    "name": "speer_lauf3",
+    "seed": 1,
+    "ziel": "Einheiten/speerkaempfer_lauf3.png",
+    "figur": "speer",
+    "zielbreite": 216
+   },
+   {
+    "name": "speer_lauf4",
+    "seed": 1,
+    "ziel": "Einheiten/speerkaempfer_lauf4.png",
+    "figur": "speer",
+    "zielbreite": 216
+   },
+   {
+    "name": "speer_lauf5",
+    "seed": 1,
+    "ziel": "Einheiten/speerkaempfer_lauf5.png",
+    "figur": "speer",
+    "zielbreite": 216
+   },
+   {
+    "name": "speer_lauf6",
+    "seed": 1,
+    "ziel": "Einheiten/speerkaempfer_lauf6.png",
+    "figur": "speer",
+    "zielbreite": 216
+   },
+   {
+    "name": "speer_lauf7",
+    "seed": 1,
+    "ziel": "Einheiten/speerkaempfer_lauf7.png",
+    "figur": "speer",
+    "zielbreite": 216
+   },
+   {
+    "name": "speer_lauf8",
+    "seed": 1,
+    "ziel": "Einheiten/speerkaempfer_lauf8.png",
+    "figur": "speer",
+    "zielbreite": 216
+   },
+   {
+    "name": "plaenkler_lauf1",
+    "seed": 1,
+    "ziel": "Einheiten/plaenkler_lauf1.png",
+    "figur": "plaenkler",
+    "zielbreite": 141
+   },
+   {
+    "name": "plaenkler_lauf2",
+    "seed": 1,
+    "ziel": "Einheiten/plaenkler_lauf2.png",
+    "figur": "plaenkler",
+    "zielbreite": 141
+   },
+   {
+    "name": "plaenkler_lauf3",
+    "seed": 1,
+    "ziel": "Einheiten/plaenkler_lauf3.png",
+    "figur": "plaenkler",
+    "zielbreite": 141
+   },
+   {
+    "name": "plaenkler_lauf4",
+    "seed": 1,
+    "ziel": "Einheiten/plaenkler_lauf4.png",
+    "figur": "plaenkler",
+    "zielbreite": 141
+   },
+   {
+    "name": "plaenkler_lauf5",
+    "seed": 1,
+    "ziel": "Einheiten/plaenkler_lauf5.png",
+    "figur": "plaenkler",
+    "zielbreite": 141
+   },
+   {
+    "name": "plaenkler_lauf6",
+    "seed": 1,
+    "ziel": "Einheiten/plaenkler_lauf6.png",
+    "figur": "plaenkler",
+    "zielbreite": 141
+   },
+   {
+    "name": "plaenkler_lauf7",
+    "seed": 1,
+    "ziel": "Einheiten/plaenkler_lauf7.png",
+    "figur": "plaenkler",
+    "zielbreite": 141
+   },
+   {
+    "name": "plaenkler_lauf8",
+    "seed": 1,
+    "ziel": "Einheiten/plaenkler_lauf8.png",
+    "figur": "plaenkler",
+    "zielbreite": 141
+   },
+   {
+    "name": "ritter_lauf1",
+    "seed": 1,
+    "ziel": "Einheiten/ritter_lauf1.png",
+    "figur": "ritter",
+    "zielbreite": 149,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "ritter_lauf2",
+    "seed": 1,
+    "ziel": "Einheiten/ritter_lauf2.png",
+    "figur": "ritter",
+    "zielbreite": 149,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "ritter_lauf3",
+    "seed": 1,
+    "ziel": "Einheiten/ritter_lauf3.png",
+    "figur": "ritter",
+    "zielbreite": 149,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "ritter_lauf4",
+    "seed": 1,
+    "ziel": "Einheiten/ritter_lauf4.png",
+    "figur": "ritter",
+    "zielbreite": 149,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "ritter_lauf5",
+    "seed": 1,
+    "ziel": "Einheiten/ritter_lauf5.png",
+    "figur": "ritter",
+    "zielbreite": 149,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "ritter_lauf6",
+    "seed": 1,
+    "ziel": "Einheiten/ritter_lauf6.png",
+    "figur": "ritter",
+    "zielbreite": 149,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "ritter_lauf7",
+    "seed": 1,
+    "ziel": "Einheiten/ritter_lauf7.png",
+    "figur": "ritter",
+    "zielbreite": 149,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "ritter_lauf8",
+    "seed": 1,
+    "ziel": "Einheiten/ritter_lauf8.png",
+    "figur": "ritter",
+    "zielbreite": 149,
+    "blau_saettigung": 0.75
    }
   ]
  },
@@ -5456,6 +5869,126 @@
     "ziel": "Einheiten/spaeher_schlag8.png",
     "figur": "spaeher_schlag",
     "zielbreite": 145
+   },
+   {
+    "name": "speer_schlag1",
+    "seed": 1,
+    "ziel": "Einheiten/speerkaempfer_schlag1.png",
+    "figur": "speer_schlag",
+    "zielbreite": 353
+   },
+   {
+    "name": "speer_schlag2",
+    "seed": 1,
+    "ziel": "Einheiten/speerkaempfer_schlag2.png",
+    "figur": "speer_schlag",
+    "zielbreite": 353
+   },
+   {
+    "name": "speer_schlag3",
+    "seed": 1,
+    "ziel": "Einheiten/speerkaempfer_schlag3.png",
+    "figur": "speer_schlag",
+    "zielbreite": 353
+   },
+   {
+    "name": "speer_schlag4",
+    "seed": 1,
+    "ziel": "Einheiten/speerkaempfer_schlag4.png",
+    "figur": "speer_schlag",
+    "zielbreite": 353
+   },
+   {
+    "name": "speer_schlag5",
+    "seed": 1,
+    "ziel": "Einheiten/speerkaempfer_schlag5.png",
+    "figur": "speer_schlag",
+    "zielbreite": 353
+   },
+   {
+    "name": "speer_schlag6",
+    "seed": 1,
+    "ziel": "Einheiten/speerkaempfer_schlag6.png",
+    "figur": "speer_schlag",
+    "zielbreite": 353
+   },
+   {
+    "name": "speer_schlag7",
+    "seed": 1,
+    "ziel": "Einheiten/speerkaempfer_schlag7.png",
+    "figur": "speer_schlag",
+    "zielbreite": 353
+   },
+   {
+    "name": "speer_schlag8",
+    "seed": 1,
+    "ziel": "Einheiten/speerkaempfer_schlag8.png",
+    "figur": "speer_schlag",
+    "zielbreite": 353
+   },
+   {
+    "name": "ritter_schlag1",
+    "seed": 1,
+    "ziel": "Einheiten/ritter_schlag1.png",
+    "figur": "ritter_schlag",
+    "zielbreite": 150,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "ritter_schlag2",
+    "seed": 1,
+    "ziel": "Einheiten/ritter_schlag2.png",
+    "figur": "ritter_schlag",
+    "zielbreite": 150,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "ritter_schlag3",
+    "seed": 1,
+    "ziel": "Einheiten/ritter_schlag3.png",
+    "figur": "ritter_schlag",
+    "zielbreite": 150,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "ritter_schlag4",
+    "seed": 1,
+    "ziel": "Einheiten/ritter_schlag4.png",
+    "figur": "ritter_schlag",
+    "zielbreite": 150,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "ritter_schlag5",
+    "seed": 1,
+    "ziel": "Einheiten/ritter_schlag5.png",
+    "figur": "ritter_schlag",
+    "zielbreite": 150,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "ritter_schlag6",
+    "seed": 1,
+    "ziel": "Einheiten/ritter_schlag6.png",
+    "figur": "ritter_schlag",
+    "zielbreite": 150,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "ritter_schlag7",
+    "seed": 1,
+    "ziel": "Einheiten/ritter_schlag7.png",
+    "figur": "ritter_schlag",
+    "zielbreite": 150,
+    "blau_saettigung": 0.75
+   },
+   {
+    "name": "ritter_schlag8",
+    "seed": 1,
+    "ziel": "Einheiten/ritter_schlag8.png",
+    "figur": "ritter_schlag",
+    "zielbreite": 150,
+    "blau_saettigung": 0.75
    }
   ]
  },

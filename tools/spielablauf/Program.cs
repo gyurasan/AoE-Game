@@ -26,7 +26,9 @@
 // Gegner (nur mit Auswahl), Gebäude, Reparatur, Baum (nur mit Dorfbewohner), Raubtier, und
 // HandleRtsInput pflegt das Feld _hover. Bären und
 // Wölfe prüft raubtiere (Raubtiere.cs: zuschlagen, nicht verfolgen, Gegenwehr, Jagd, Abstand),
-// ihre Lauf- und Angriffsphasen raubtieranim (RaubtierAnimation.cs).
+// ihre Lauf- und Angriffsphasen raubtieranim (RaubtierAnimation.cs). F1 prüft beschuss:
+// Wachturm und Stadtzentrum schießen auf nächste sichtbare Feinde im Takt, außerhalb der
+// Reichweite und an unbewaffneten Gebäuden bleibt der Gegner unverletzt.
 //
 // Jede genannte Gruppe läuft auf drei frisch erzeugten Karten. Die Spielschleife
 // läuft Bild für Bild (60 je Sekunde) mit denselben Methoden, die Update() im Spiel
@@ -155,6 +157,9 @@ for (int karte = 1; karte <= KARTEN; karte++)
         Pruefe($"Karte {karte}, Reparatur", () => Reparatur(karte, verstoesse));
     if (gruppen.Contains("turm"))
         Pruefe($"Karte {karte}, Wachturm", () => Turm(karte, verstoesse));
+    // F1: Wachturm, Stadtzentrum und Burg schießen auf sichtbare Feinde
+    if (gruppen.Contains("beschuss"))
+        Pruefe($"Karte {karte}, Gebaeudeschuss", () => Beschuss(karte, verstoesse));
     if (gruppen.Contains("neubauten"))
         Pruefe($"Karte {karte}, Neubauten", () => Neubauten(karte, verstoesse));
     if (gruppen.Contains("tuer"))
@@ -7641,6 +7646,174 @@ static void Tuerweg(int karte, List<string> verstoesse)
     if (verstoesse.Count == vorher)
         Console.WriteLine($"      {wer}: alle {lief.Count} Pröbungen bestanden ({string.Join(", ", lief)})");
 }
+
+// F1 (Gebaeudeschuss): Wachturm und Stadtzentrum schießen auf die nächste sichtbare
+// Feindeinheit in Reichweite im Takt von BuildingCombat.BOMBARD_SECONDS - außerhalb
+// der Reichweite, an einem unbewaffneten Haus und an einer unvollendeten Baustelle
+// bleibt der Gegner unverletzt.
+static void Beschuss(int karte, List<string> verstoesse)
+{
+    string wer = $"Karte {karte}, Gebaeudeschuss";
+    var w = new Welt();
+    w.Set("cameraZoom", 1f);
+    w.Set("cameraPosition", Vector2.Zero);
+    TileMap.TestNoFog = true;
+    RTSGameplayScreen.TestBombard = true;   // die Welt baut ohne Beschuss (F1)
+    try
+    {
+        // freie, weit genug von beiden Stadtzentren abliegende Kacheln (die Zentren
+        // schießen inzwischen selbst - sie dürfen bei Turm- und Hausprüfungen nicht
+        // mitmischen)
+        var zentren = w.Map.Buildings
+            .Where(b => b.Core.BuildingType == BuildingType.TownCenter)
+            .Select(b => new Point(b.X + b.Width / 2, b.Y + b.Height / 2)).ToList();
+        bool Frei(int x, int y) => x > 6 && y > 6 && x < w.Map.Width - 7 && y < w.Map.Height - 7
+            && w.Map.GetTile(x, y) is { } t && w.Map.IsWalkable(x, y) && t.ResourceType == null
+            && string.IsNullOrEmpty(t.Building) && t.Food == FoodSource.None
+            // eine Kachel Abstand zu jedem Gebäude: kein Opfer steht in einer Grundfläche
+            && !w.Map.Buildings.Any(b => x >= b.X - 1 && x <= b.X + b.Width && y >= b.Y - 1 && y <= b.Y + b.Height)
+            && zentren.All(z => Math.Max(Math.Abs(x - z.X), Math.Abs(y - z.Y)) >= 14)
+            && !w.Map.Units.Any(u => w.Map.WorldToGrid(u.Position) == new Vector2(x, y));
+        bool Um(int x, int y, float vonX, float vonY, float min, float max)
+        {
+            float d = Vector2.Distance(new Vector2(x, y), new Vector2(vonX, vonY));
+            return d >= min && d <= max;
+        }
+        // Rollen-Kachel (Ziele und Zuschauer): begehbar, keine Grundfläche, keine
+        // Einheit - das Umland darf Wald sein, die Opfer müssen nicht auf Wiese stehen
+        bool Rolle(int x, int y) => x > 3 && y > 3 && x < w.Map.Width - 4 && y < w.Map.Height - 4
+            && w.Map.GetTile(x, y) is { } t && w.Map.IsWalkable(x, y) && string.IsNullOrEmpty(t.Building)
+            && zentren.All(z => Math.Max(Math.Abs(x - z.X), Math.Abs(y - z.Y)) >= 9)
+            && !w.Map.Units.Any(u => w.Map.WorldToGrid(u.Position) == new Vector2(x, y));
+        (int, int) Suche(Func<int, int, bool> bedingung)
+        {
+            for (int x = 7; x < w.Map.Width - 7; x++)
+                for (int y = 7; y < w.Map.Height - 7; y++)
+                    if (Frei(x, y) && bedingung(x, y))
+                        return (x, y);
+            return (-1, -1);
+        }
+        (int, int) RolleSuche(Func<int, int, bool> bedingung)
+        {
+            for (int x = 7; x < w.Map.Width - 7; x++)
+                for (int y = 7; y < w.Map.Height - 7; y++)
+                    if (Rolle(x, y) && bedingung(x, y))
+                        return (x, y);
+            return (-1, -1);
+        }
+        // Abstände so gewählt, dass sich die Rollen nicht in dieselbe Kachel
+        // setzen: Ziel 3..6, Zuschauer 10..13, Haus 15..17, Baustelle 18..20
+        // Kacheln vom Turm; die Haus- und Baustellenopfer 2..4 Kacheln "um" ihr
+        // Gebäude (drei von der Ecke an) und nie unter 9,5 vom Turm. Ein
+        // Turmplatz nach dem nächsten probiert - die Wälder stehen voll.
+        var starts = Enumerable.Range(7, w.Map.Width - 14).SelectMany(
+            x => Enumerable.Range(7, w.Map.Height - 14).Where(y => Frei(x, y)).Select(y => (x, y))).ToList();
+        (int tx, int ty, int ox, int oy, int zx, int zy, int hx, int hy, int hx2, int hy2,
+         int bx, int by, int b2x, int b2y) auf = (tx: -1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        foreach (var (tx0, ty0) in starts)
+        {
+            float cx = tx0 + 1f, cy = ty0 + 1f;                 // Turmmitte (Grundfläche 2)
+            var o = RolleSuche((x, y) => Um(x, y, cx, cy, 3f, 6f));
+            var z = RolleSuche((x, y) => Um(x, y, cx, cy, 10f, 13f));
+            var h = Suche((x, y) => Um(x, y, cx, cy, 15f, 17f));
+            if (h == (-1, -1)) continue;
+            var h2 = RolleSuche((x, y) => Um(x, y, h.Item1 + 1f, h.Item2 + 1f, 2f, 4f)
+                && Um(x, y, cx, cy, 9.5f, 99f) && Math.Max(Math.Abs(x - h.Item1), Math.Abs(y - h.Item2)) >= 3
+                && !(x == z.Item1 && y == z.Item2) && !(x == o.Item1 && y == o.Item2));
+            var b = Suche((x, y) => Um(x, y, cx, cy, 18f, 20f));
+            if (b == (-1, -1)) continue;
+            var b2 = RolleSuche((x, y) => Um(x, y, b.Item1 + 1f, b.Item2 + 1f, 2f, 4f)
+                && Um(x, y, cx, cy, 9.5f, 99f) && Math.Max(Math.Abs(x - b.Item1), Math.Abs(y - b.Item2)) >= 3
+                && !(x == z.Item1 && y == z.Item2) && !(x == h2.Item1 && y == h2.Item2));
+            if (o == (-1, -1) || z == (-1, -1) || h2 == (-1, -1) || b2 == (-1, -1))
+                continue;
+            auf = (tx0, ty0, o.Item1, o.Item2, z.Item1, z.Item2, h.Item1, h.Item2,
+                   h2.Item1, h2.Item2, b.Item1, b.Item2, b2.Item1, b2.Item2);
+            break;
+        }
+        if (auf.tx < 0)
+        {
+            verstoesse.Add($"{wer}: Testaufbau - kein freier Aufbau fern der Stadtzentren ({w.Map.Width})");
+            return;
+        }
+
+        var turm = w.Map.AddBuilding(auf.tx, auf.ty, "Wachturm", 0, 2);
+        var haus = w.Map.AddBuilding(auf.hx, auf.hy, "Haus", 0, 2);
+        var baustelle = w.Map.AddBuilding(auf.bx, auf.by, "Wachturm", 0, 2);
+        baustelle.Construction = new AoE.Core.Economy.Construction(600f);   // bleibt unvollendet
+
+        Unit Legen(UnitType typ, int x, int y)
+        {
+            var u = w.Map.AddUnit(typ, x, y, 1);
+            w.P2.AddUnit(u);
+            return u;
+        }
+        var opfer = Legen(UnitType.Militia, auf.ox, auf.oy);
+        var zuschauer = Legen(UnitType.Archer, auf.zx, auf.zy);
+        var hausopfer = Legen(UnitType.Militia, auf.hx2, auf.hy2);
+        var bauopfer = Legen(UnitType.Militia, auf.b2x, auf.b2y);
+
+        int opferLeben = opfer.Health, zuLeben = zuschauer.Health, hausLeben = hausopfer.Health;
+        int bauLeben = bauopfer?.Health ?? 0;
+
+        // 1) Der Turm trifft: erster Schlag nach einer Taktlaenge, nicht spaeter als 3,5 s
+        float zeit = w.LaufeBis(() => opfer.Health < opferLeben, 3.5f);
+        if (opfer.Health >= opferLeben)
+        {
+            verstoesse.Add($"{wer}: der Wachturm schießt in 3,5 s nicht auf die Miliz in 4 Kacheln");
+            return;
+        }
+        if (zeit < 1.5f)
+            verstoesse.Add($"{wer}: erster Treffer nach {zeit:0.0} s - frueher als ein Takt (2 s)");
+
+        // 2) und toetlich: acht Treffer a 5 (40 LP Miliz) - spaetestens nach 20 s tot
+        w.LaufeBis(() => opfer.State == UnitState.Dead || !w.Map.Units.Contains(opfer), 20f);
+        if (opfer.Health > 0 && w.Map.Units.Contains(opfer))
+            verstoesse.Add($"{wer}: die Miliz steht nach 23 s noch ({opfer.Health} LP) - der Turm schießt zu selten");
+        if (opfer.State == UnitState.Dead && w.Map.Units.Contains(opfer))
+            verstoesse.Add($"{wer}: die tote Miliz wird nicht aus der Einheitenliste geraeumt");
+
+        // 3) Außer Reichweite, am Haus und an der Baustelle: unverletzt
+        if (zuschauer.Health != zuLeben)
+            verstoesse.Add($"{wer}: der Bogenschuetze in 11 Kacheln hat {zuLeben - zuschauer.Health} LP verloren - Reichweite 8");
+        if (hausopfer.Health != hausLeben)
+            verstoesse.Add($"{wer}: die Miliz am Haus wurde beschossen - das Haus schießt nicht");
+        if (bauopfer != null && bauopfer.Health != bauLeben)
+            verstoesse.Add($"{wer}: die Miliz an der Turm-Baustelle wurde beschossen - unfertig schießt nicht");
+        _ = haus;
+
+        // 4) Das Stadtzentrum schießt selbst: Miliz 3 Kacheln vom eigenen Startzentrum
+        var tc = w.Map.Buildings.First(b => b.OwnerId == 0 && b.Core.BuildingType == BuildingType.TownCenter);
+        int tcx = tc.X + tc.Width / 2, tcy = tc.Y + tc.Height / 2;
+        var (nx, ny) = Enumerable.Range(0, w.Map.Width * w.Map.Height)
+            .Select(i => (i % w.Map.Width, i / w.Map.Width))
+            .Where(p => p.Item1 > 3 && p.Item2 > 3 && p.Item1 < w.Map.Width - 4 && p.Item2 < w.Map.Height - 4
+                && w.Map.GetTile(p.Item1, p.Item2) is { } t && w.Map.IsWalkable(p.Item1, p.Item2)
+                && string.IsNullOrEmpty(t.Building) && t.ResourceType == null && t.Food == FoodSource.None
+                && Vector2.Distance(new Vector2(p.Item1, p.Item2), new Vector2(tcx, tcy)) <= 5f
+                && !w.Map.Units.Any(u => w.Map.WorldToGrid(u.Position) == new Vector2(p.Item1, p.Item2)))
+            .Select(p => (p.Item1, p.Item2))
+            .OrderBy(p => Vector2.Distance(new Vector2(p.Item1, p.Item2), new Vector2(tcx, tcy)))
+            .FirstOrDefault();
+        if (nx == 0 && ny == 0)
+        {
+            verstoesse.Add($"{wer}: Testaufbau - keine freie Kachel 5 um das Stadtzentrum");
+            return;
+        }
+        var tcopfer = Legen(UnitType.Militia, nx, ny);
+        int tcLeben = tcopfer.Health;
+        w.LaufeBis(() => tcopfer.Health < tcLeben, 3.5f);
+        if (tcopfer.Health >= tcLeben)
+            verstoesse.Add($"{wer}: das Stadtzentrum schießt in 3,5 s nicht auf die Miliz in 5 Kacheln");
+        else
+            Console.WriteLine($"  ok  {wer}: Turm trifft in {zeit:0.0} s, tot in <=23 s; Bogenschuetze, Haus und Baustelle bleiben unverletzt; Stadtzentrum trifft selbst");
+    }
+    finally
+    {
+        TileMap.TestNoFog = false;
+        RTSGameplayScreen.TestBombard = false;
+    }
+}
 class Welt
 {
     const BindingFlags F = BindingFlags.NonPublic | BindingFlags.Instance;
@@ -7671,6 +7844,10 @@ class Welt
         P1 = new(0, "P1", "Briten");
         P2 = new(1, "P2", "Azteken");
         Map = new TileMap(dims.Width, dims.Height, 32, settings);
+        // F1: Wachtürme, Stadtzentren und Burgen schießen - viele Szenarien stehen
+        // neben dem Start-Stadtzentrum und würden beschossen. Die Gruppe beschuss
+        // schaltet den Beschuss für sich wieder an.
+        RTSGameplayScreen.TestBombard = false;
         // Bären und Wölfe der Kartenerzeugung (RT) beißen sonst zufällig in andere Abläufe -
         // etwa die Auto-Antwort in der Kartenmitte. Die Gruppe raubtiere stellt ihre eigenen auf.
         for (int x = 0; x < Map.Width; x++)
@@ -7703,6 +7880,7 @@ class Welt
     public Welt(SaveGame stand)
     {
         Call("RestoreWorld", stand);
+        RTSGameplayScreen.TestBombard = false;    // wie im Hauptbauer (F1)
         Map = (TileMap)Get("tileMap");
         P1 = (Player)Get("player1");
         P2 = (Player)Get("player2");

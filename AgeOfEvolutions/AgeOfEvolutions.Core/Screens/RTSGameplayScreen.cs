@@ -5055,6 +5055,9 @@ public partial class RTSGameplayScreen : GameScreen
         UpdatePredators(dt);
         UpdateFallen(dt);
 
+        // Wachtürme, Stadtzentren und Burgen schießen auf sichtbare Feinde (F1)
+        UpdateBombard(dt);
+
         // Pfeile fliegen, Einstürze und Trümmer altern (A2, A3)
         UpdateEffects(dt);
 

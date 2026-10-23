@@ -166,14 +166,20 @@ public sealed class BuildingEntity : UnitEntity
         };
     }
     
+    /// <summary>
+    /// Das Stadtzentrum nach AoE II: 500 LP, Rüstung 2, Sicht 5 — und seit F1
+    /// Verteidigung mit Pfeilen: Angriff 5 auf Reichweite 6 (Fletching und
+    /// Maurerkunst wirken über <see cref="Economy.TechEffects.Apply"/> auf den
+    /// Werten dieser Tabelle).
+    /// </summary>
     public static BuildingEntity CreateTownCenter(int ownerId, Position position)
     {
         var stats = new UnitStats
         {
             HitPoints = 500,
-            BaseAttack = 0,
+            BaseAttack = 5,
             BaseArmor = 2,
-            Range = 0,
+            Range = 6,
             Speed = 0,
             VisionRange = 5
         };

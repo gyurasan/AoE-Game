@@ -65,5 +65,35 @@
    {"huefte": [255, 570], "knie": [235, 760], "knoechel": [245, 810], "zehe": [275, 836], "knick": "hinten", "saum": 585, "versatz": 0.0, "ferse_x": -10},
    {"huefte": [555, 660], "knie": [545, 805], "knoechel": [552, 940], "zehe": [585, 985], "saum": 675, "versatz": 0.25, "ferse_x": -12}
   ]
+ },
+ "ritter": {
+  "bild": "soldaten/ritter_fleck_4871.png",
+  "saum": 700, "breite": 45, "schritt": 150,
+  "gang": {"stand": 0.62, "ferse_ende": 0.08, "zehe_anfang": 0.4, "ferse_grad": 6.0, "zehe_grad": -28.0, "schwung_hub": 0.12},
+  "rumpf": [[80, 600, 180, 830]],
+  "decke": [[90, 560, 800, 820, 35]],
+  "beine": [
+   {"huefte": [230, 600], "knie": [228, 770], "knoechel": [228, 900], "zehe": [271, 950], "knick": "hinten", "saum": 680, "versatz": 0.5, "ferse_x": -12},
+   {"huefte": [605, 690], "knie": [602, 868], "knoechel": [603, 935], "zehe": [652, 978], "saum": 730, "versatz": 0.75, "ferse_x": -12},
+   {"huefte": [315, 600], "knie": [321, 760], "knoechel": [350, 865], "zehe": [419, 915], "knick": "hinten", "saum": 680, "versatz": 0.0, "ferse_x": -10},
+   {"huefte": [685, 700], "knie": [677, 872], "knoechel": [680, 932], "zehe": [731, 955], "saum": 740, "versatz": 0.25, "ferse_x": -12}
+  ]
+ },
+ "speer": {
+  "bild": "soldaten/speer_beine_4811.png",
+  "saum": 667, "breite": 85, "schritt": 200,
+  "rumpf_linien": [[390, 550, 25, 880, 48]],
+  "beine": [
+   {"huefte": [420, 630], "knie": [354, 776], "knoechel": [282, 896], "zehe": [346, 940]},
+   {"huefte": [490, 630], "knie": [552, 785], "knoechel": [586, 925], "zehe": [690, 922]}
+  ]
+ },
+ "plaenkler": {
+  "bild": "soldaten/plaenkler_beine_b_4836.png",
+  "saum": 672, "breite": 85, "schritt": 200,
+  "beine": [
+   {"huefte": [420, 635], "knie": [320, 744], "knoechel": [344, 880], "zehe": [396, 928]},
+   {"huefte": [530, 635], "knie": [570, 800], "knoechel": [624, 920], "zehe": [704, 912]}
+  ]
  }
 }

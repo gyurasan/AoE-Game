@@ -2004,6 +2004,15 @@ public class Building
     /// <summary>Fertig gebaut: keine Baustelle mehr oder die Baustelle ist abgeschlossen.</summary>
     public bool IsComplete => Construction == null || Construction.IsComplete;
 
+    /// <summary>
+    /// Sekunden seit dem letzten Pfeil dieses Gebäudes (F1); ein Schuss alle
+    /// <see cref="AoE.Core.Combat.BuildingCombat.BOMBARD_SECONDS"/>. Nur für
+    /// schießende Gebäude gepflegt und nicht im Spielstand — nach dem Laden
+    /// beginnt der Takt von vorn, was höchstens einen halben Sekundenbruchteil
+    /// Versatz kostet.
+    /// </summary>
+    public float BombardTimer { get; set; }
+
     public Building(BuildingEntity core)
     {
         Core = core;

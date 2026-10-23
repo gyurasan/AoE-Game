@@ -997,6 +997,31 @@ public class EconomyAiTests
     }
 
     [Fact]
+    public void RaidAvoidsArmedBuildingWhenAnotherVisible()
+    {
+        // F1: Wachtürme, Stadtzentren und Burgen schießen zurück (IsArmed) —
+        // die Welle weicht ihnen aus, solange es ein anderes sichtbares Gebäude gibt
+        var (w, soldiers) = RaidWorld();
+        w.AddEnemy(new EnemyInfo(30, 30, IsBuilding: true, Health: 2400, IsTownCenter: true, IsArmed: true));
+        w.AddEnemy(new EnemyInfo(45, 45, IsBuilding: true, Health: 550));
+        ai.Tick(w, w, 0.1f, new AiContext(1));
+        Assert.Contains($"attack({soldiers[0]},45,45)", w.Log);
+        Assert.DoesNotContain(w.Log, l => l.StartsWith("attack(") && l.EndsWith(",30,30)"));
+    }
+
+    [Fact]
+    public void RaidAttacksArmedBuildingWhenItIsTheOnlyTarget()
+    {
+        // Nur bewehrte Gebäude sichtbar: die Welle zieht trotzdem dagegen —
+        // meiden heißt nicht weglassen
+        var (w, soldiers) = RaidWorld();
+        w.AddEnemy(new EnemyInfo(30, 30, IsBuilding: true, Health: 2400, IsTownCenter: true, IsArmed: true));
+        w.AddEnemy(new EnemyInfo(50, 50, IsBuilding: true, Health: 550, IsArmed: true));
+        ai.Tick(w, w, 0.1f, new AiContext(1));
+        Assert.Contains($"attack({soldiers[0]},30,30)", w.Log);
+    }
+
+    [Fact]
     public void RaidTargetsNearestUnitWhenNoBuildingVisible()
     {
         // Bis K9 lieferte FirstOrDefault(e => e.IsTownCenter) auf dem Struct EnemyInfo ohne

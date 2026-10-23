@@ -192,6 +192,17 @@ def figur(name, cfg):
         geschuetzt[y0:y1, x0:x1] = True
     for x1, y1, x2, y2, dicke in cfg.get("rumpf_linien", []):
         geschuetzt |= abstand_strecke(xx, yy, (x1, y1), (x2, y2)) < dicke / 2
+    # Eine Decke über den Beinen (Schabracke des Ritterpferds): in den Rechtecken
+    # [x0, y0, x1, y1, Buntheit] gehört jedes Pixel ab dieser Buntheit (größter minus kleinster
+    # Farbkanal) zum Rumpf - Stoff und Borte sind bunt, das graue Pferdebein nicht. Der Saum der
+    # Beine liegt dann oben unter der Decke: was der Stoff verdeckt, füllt "unter" weiter unten
+    # mit der Farbe des Beins, so reicht das schwingende Bein bis unter den Stoff. Um 6 Pixel
+    # erweitert: die schmale graue Umrisslinie der Borte ist nicht bunt - bliebe sie am Bein,
+    # schmierte "unter" ihr Grau als helle Streifen in das Bein unter dem Stoff
+    for x0, y0, x1, y1, bunt in cfg.get("decke", []):
+        farbe = a[y0:y1, x0:x1, :3].astype(int)
+        stoff = (farbe.max(axis=2) - farbe.min(axis=2)) >= bunt
+        geschuetzt[y0:y1, x0:x1] |= ndimage.binary_dilation(stoff, iterations=6)
     beinbereich &= ~geschuetzt
     # Was danach vom Rumpf abgetrennt unter dem Saum liegt (etwa die Kante einer Stiefelferse),
     # schwebte im Bild stehen - es gehört zum Bein

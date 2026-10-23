@@ -4,6 +4,10 @@
 
 ## Wiederaufnahme — hier weitermachen
 
+**Bilder der Konter-Einheiten: Speerkämpfer, Plänkler, Ritter (F2)** (2026-10-23) — Wunsch: „kannst du F2 · Konter-Einheiten (Speerkämpfer, Plänkler, Ritter) die Bilder dazu generieren“. 86 Bilder in `Content/Einheiten` samt mgcb-Einträgen: je Spielerfarbe Stand und 8 Gehphasen (`gang.py`), Speerkämpfer und Ritter dazu 8 Schlagphasen (`schlag.py`: Speerstoß wie beim Späher, Ritter haut aus dem Ellbogen); der Plänkler bekommt wie der Bogenschütze keine Schlagbilder. Qwen-Einträge in `bilder.json` (Gruppe `soldaten`: `speer*`, `plaenkler*`, `ritter*`), Gelenke in `gang.json`/`schlag.json`. Zielbreiten so, dass die Figuren so viele Pixel hoch sind wie Miliz (216) und Bogenschütze (217): Speerkämpfer 216 breit (der Speer), Plänkler 141; Ritter 149 × 175 für Maßstab 1,4 (Späher 1,35 bei 169). Im Spiel noch nicht eingebunden - `SoldierSprites` braucht `(UnitType.SpearMan, "Einheiten/speerkaempfer", 1f)`, `(UnitType.Skirmisher, "Einheiten/plaenkler", 1f)`, `(UnitType.Cavalry, "Einheiten/ritter", 1.4f)`. Werkzeuge erweitert: `gang.py` `"decke"` (bunte Schabracke über den Pferdebeinen bleibt Rumpf, der Saum darf unter dem Stoff liegen), `schlag.py` `"schaft_fuellen"` (Schaft unter der Faust, sonst wandert beim Gleiten eine Lücke mit) und `"faust_aus_standbild"`. Lehren: Ritterpferd mit langer Schabracke, unter der alle vier Beine hervorkommen - bei halber Decke rissen Schwung und Bauch Löcher; Qwen malt unter einer Schulterplatte immer wieder einen Oberarm (7 Versuche), daher der Hieb aus dem Ellbogen; Rot erst ab Sättigung 0,75 (`blau_saettigung`), sonst wird die bläuliche Rüstung rosa; zwei `qwen_image.py` nie gleichzeitig (`/free` und BiRefNet zwischen fremden Qwen-Läufen).
+
+**Gebäude schießen: Wachturm, Stadtzentrum und Burg beschießen sichtbare Feinde (F1)** (2026-10-23) — Block F abgearbeitet, zuerst die größte Lücke: „Kein Gebäude schießt“. Werte stehen in AoE.Core: Wachturm 5 Angriff / 8 Reichweite (war schon da, tat nichts), **neu Stadtzentrum 5/6** (`CreateTownCenter`), Burg 11/8 (stand schon in der Tabelle); Schusstakt `BuildingCombat.BOMBARD_SECONDS` 2 s wie bei den Einheiten. Der Schaden ist der **allgemeine `DamageCalculator`** (neu `BuildingCombat.DamageToUnit`): Angreifer hat Range > 0, also zählt Fernkampf gegen die Fernkampf-Rüstung des Ziels, mindestens 1 — kein neues Regelwerk. Neue Teildatei `Screens/RTSGameplayScreen.Beschuss.cs`: `UpdateBombard(dt)` hängt in `UpdateUnits` nach `UpdateFallen`; je fertigem Gebäude mit eigenem Angriff (`BuildingCombat.Shoots` = Angriff > 0 und Range > 0 — trifft genau Turm, Zentrum, Burg) das **nächste sichtbare Feindziel** in Reichweite (euklidisch, halbe Kachel Großzügigkeit, Zielkachel muss für den Besitzer `IsTileVisible` sein — der Nebel schützt), Takt auf dem neuen transienten `Building.BombardTimer` (nicht im Spielstand; geladen beginnt er bei 0). Der Pfeil startet wie bei einer Figur eine Flugzeit vor dem Schlag und landet genau beim Treffer (`_arrows`, A3-Bahn, Klang „bogen“ an der Gebäudemitte, `RegisterDamageTaken`); Tote räumt der Aufräumer am Ende von `UpdateUnits`. **Forschungen:** Maurerkunst wirkt auf Gebäude wie zuvor (LP +10 %, Rüstung +1 — betraf Türme schon); **Befiederte Pfeile heben jetzt auch die schießenden Gebäude** (Angriff +1, Reichweite +1 über `TechEffects.Apply` auf `BuildingEntity { Stats.Range: > 0 }` — wie in AoE II die Bogentechnologien die Türme mitnehmen); die Taste zeigt weiter den alten Kurztext (Prüfung fixiert die Zeichenkette — Nebenbefund). **KI:** `EnemyInfo.IsArmed` (neu, Brücke setzt es für fertige schießende Gebäude); die Angriffswelle **meidet bewehrte Gebäude**, solange ein anderes sichtbar ist, und zieht sonst auf das nächste bewehrte („gezielt angreifen oder meiden“). **Prüfwelt-Haken:** `RTSGameplayScreen.TestBombard` (wie `TileMap.TestNoFog`) — `tools/spielablauf` baut jede Welt ohne Beschuss, weil viele Szenarien neben dem Start-Stadtzentrum stehen (ohne den Schalter liefen pfeile/zielwechsel/autoantwort auf 3 Karten rot: das Zentrum erschoss ihre Testopfer); die neue Gruppe `beschuss` schaltet ihn für sich an. Umgesetzt von Hand (Regel: nie auf qwen3.8:27b wechseln, alles selbst — auch die Prüfung auf Auslagerung hat der Nutzer am selben Tag bekräftigt). Abnahme: Builds DesktopGL + WindowsDX 0 Fehler · `dotnet test` **485/485** (+21: `GebaeudeSchussTests` 19 — Werte, Schuss-Regel je Typ, Fernkampf gegen Fernkampf-Rüstung, mindestens 1, Fletching an Turm/Haus/Bogenschütze, Fletching+Maurerkunst kombiniert, Takt 2 s; +2 KI — Welle meidet das bewehrte Zentrum, greift es aber an, wenn nur bewehrte sichtbar sind) · neue Gruppe `tools/spielablauf beschuss` (auf 3 Karten: erster Treffer genau nach einem Takt nicht früher, Miliz in 4 Kacheln in ≤23 s tot und aus der Liste geräumt, Bogenschütze in 11 Kacheln / Miliz am Haus / Miliz an der Turm-Baustelle unverletzt, Stadtzentrum trifft selbst in 3,5 s) · Mutantenlauf 4 von 4 gefunden (Takt +4 s, Stadtzentrum-Angriff 0, `IsComplete`-Wache aus, KI-IsArmed ignoriert) · breite Regression `linksklick auswahl ziele soldaten angriff verteidigung kampfbild raubtiere wild schafe tuer strassen neubauten bauen weiterbauen bauphasen pfeile farm beweg zielwechsel schatten animation autoantwort turm zeitalter speichern beschuss` auf 3 Karten grün · neue Strukturprüfung `checks/f1_beschuss.py` grün und **gegen den Altstand rot** (11 Punkte, Git-Worktree auf 95cf78e) · `u_vertrag.py` auf der neuen Teildatei · `tools/ai-pruefung` alle Prüfungen ok (beide KI-Instanzen, Wirkung weiter beobachtet) · Startprobe GL + DX. **Offen:** Sichtprüfung durch den Nutzer im laufenden Spiel (feindliche Einheiten am eigenen Stadtzentrum: Pfeile von den Zinnen, Klang, Todeszeitpunkt); feindliche Türme stehen der Ernte näher als vor F1 — die KI weicht ihnen aus, der Mensch muss es selbst.
+
 **Abgleich mit `docs/AgeOfEmpires.md` → neuer Block F** (2026-10-23) — Wunsch: „Kannst du AgeOfEmpires.md durchgehen und prüfen was fehlt. Dann die TODO liste auffühlen“. Jedes Kapitel gegen den Code geprüft; 19 Lücken als F1–F19 nach Priorität, dazu die bewussten Abweichungen (Draufsicht statt isometrisch, Linksklick = Befehl). Größte Lücken: kein Gebäude schießt (F1), nur vier ausbildbare Einheiten ohne Konter (F2), Markt, Kloster, Burg, Werkstatt und Wunder ohne Funktion (F8, F9, F15–F17), fremde Gebäude im Nebel werden live statt im letzten bekannten Zustand gezeichnet (F7). Dabei vier alte offene Haken nach Prüfung im Code als erledigt bzw. gegenstandslos markiert (C9, C10, C13 Ausbildungsplatz, C14 KI greift Gebäude an) und die C4-Notiz auf den Stand gebracht.
 
 **Menühintergrund: Dorfplatz auch hinter „Einstellungen“ und „Spiel laden“** (2026-10-23) — Wunsch: „Der Hintergrund in Einstellungen und Spiel laden muss noch Thematisch angepasst werden“. Hinter beiden Untermenüs lag noch `BackgroundScreen` mit `Layer0_2.png` (blaues Gebirge aus der Platformer-Vorlage, ins 800×480-Raster gestreckt, schwarze Ränder); nur das Hauptmenü verdeckte es mit seinem eigenen Bild. Jetzt zeichnet `BackgroundScreen` das Menübild (`Backgrounds/menu`, Dorfplatz) fensterfüllend in Fensterpixeln mit der Abdunklung 0,3, Pergament als Ersatz, falls das Bild fehlt; `MainMenuScreen` zeichnet kein eigenes Bild mehr, und statt der Schwarzblende über den ganzen Schirm blendet nur seine Tafel (`TransitionAlpha`) — sonst blitzte beim Wechsel Schwarz zwischen zwei gleichen Bildern auf. Ausblenden und Rückkehr des Hauptmenüs dauern wie bei den Untermenüs 0,25 s (der erste Start blendet weiter 1,5 s). Die `Layer*.png` sind damit unbenutzt (noch im mgcb). **Abnahme:** `dotnet build` DesktopGL 0 Fehler · `tools/spielablauf -- menue update` grün · Fotos aus Scratchpad-Kopie (DX, Patch `foto_menue_patch.ps1`): Hauptmenü, Überblendung zu Einstellungen (Dorf bleibt, kein Schwarz), Einstellungen, Spiel laden. **Nebenbefund:** Titel „Settings“, „Display Mode : Windowed“ und „Back“ kommen englisch aus `Resources`.
@@ -77,7 +81,7 @@ Abnahme: Builds DesktopGL + WindowsDX 0 Fehler · `dotnet test` **412/412** · `
 
 Ursache 1, Aussehen: die Update-Zeile war eine eigene, flache Platte mit 24-px-Text, der lange Angebotstext ragte über Platte und Tafel hinaus. Ursache 2, Ablauf (aus den Logs in `release/publish/v0.4.4/win-x64-windowsdx/`): der Klick lud v0.4.5, aber die **DesktopGL**-Zip (`PlatformZip` kannte unter Windows nur desktopgl) und entpackte sie in den Unterordner `AoE_Evolutions_v0.4.5/win-x64-desktopgl/` der laufenden **WindowsDX**-Installation und startete sie dort; die Installation selbst blieb 0.4.4, beim nächsten Start bot sie das Update erneut an. Dazu: `DefaultDownloadFile` rief `GetAsync` ohne `ResponseHeadersRead` — die ganze Zip lag erst im Speicher, der Fortschritt stand bis zum Schluss auf 0; die alte Version schloss sich nur per weiterem Klick; die Stream-Kopie beim Entpacken verlöre unter macOS/Linux das Ausführungsrecht.
 Neu (`UpdateService`): Download nach `<Install>/update/`, SHA256, Entpacken nach `update/neu/`, `StagedRoot` (Top-Ordner der Zip), dann `ReplaceInstallation`: jede alte Datei wird zu `<Name>.update-alt` umbenannt und die neue an ihren Platz verschoben — Windows verbietet Überschreiben und Löschen laufender Exe/DLL, erlaubt aber das Umbenennen (an einer laufenden v0.4.4 nachgemessen: 231 von 231 Dateien, auch die 70 geladenen); scheitert ein Schritt, wird alles zurückgesichert. Danach startet die neue Exe aus demselben Ordner, das Hauptmenü beendet die alte genau einmal regulär (`ExitAfterUpdate` → `Game.Exit()`), der nächste Start räumt `*.update-alt*` und `update/` weg (`CleanupAfterUpdate`, bis 20 Versuche à 0,5 s, solange die alte noch endet). Unter Windows kommt die Zip der laufenden Variante (`WindowsDX` = `SharpDX.Direct3D11.dll` liegt neben der Exe). Spielordner ohne Schreibrecht → Browser auf die Download-Seite. Download mit `ResponseHeadersRead` und 15-min-Frist über Kopf und Inhalt; `ExtractZip` per `ExtractToFile` (Unix-Rechte). Menü (`MainMenuScreen`): „Update auf v0.4.5“ ist ein gewöhnlicher Eintrag unter „Beenden“ (gleiche Platte, Maus, Pfeile, Enter), nur mit Angebot sichtbar; während des Laufs „Lade v0.4.5 … 37 %“ mit Balken in der Platte, „Neues Spiel“ und „Spiel laden“ sind dann gesperrt; darunter die kleine Versionszeile (`VersionLine`, lange Fehlermeldungen werden kleiner gezeichnet). Umgesetzt vom lokalen Modell nach Vertrag: U1a (40 s), U1b (zweiter Lauf, 44 s — der erste scheiterte an `Task.Run` ohne `using System.Threading.Tasks`), U2a (16 s), U2b (22 s). Nachbesserung aus U1a: `ExtractZip` hatte die Stream-Kopie behalten und im Kommentar den Grund umgedreht — unter Windows für keinen Test sichtbar; `updatehilfen` prüft jetzt den Zeitstempel aus der Zip, den nur `ExtractToFile` übernimmt.
-Abnahme: Builds DesktopGL + WindowsDX 0 Fehler · `dotnet test` **412/412** · `tools/spielablauf updatehilfen updatedienst update menue` grün (neu: `updatehilfen` und `updatedienst`, `update` neu geschrieben; unter Windows ersetzt der Test eine wirklich laufende Exe — `ping.exe` als Stellvertreter); Mutantenlauf 15 von 15 gefunden · `checks/u2_einbindung.py`, neu `checks/start_menue.py gl|dx` (Startprobe ins Hauptmenü — `start_rts.py` zeichnet das Menü nie) · **echter End-to-End-Test gegen GitHub** mit der angenommenen Fassung: Kopie der offiziellen v0.4.4 (WindowsDX) läuft, das Update lädt das echte v0.4.5-Release (185 MB, Fortschritt live), ersetzt 770 Dateien unter der laufenden Exe, startet v0.4.5 (FileVersion 0.4.5.0) aus demselben Ordner, Aufräumen ohne Reste · Fotos des Menüs in vier Zuständen (aktuell, Angebot, Laden 37 %, Fehler). **Offen:** wirkt erst ab dem nächsten Release (v0.4.6) — Installationen bis v0.4.5 haben noch das alte Update und entpacken v0.4.6 ein letztes Mal verschachtelt (als DesktopGL); von dort aus läuft jedes weitere Update richtig. Wer die alte Verknüpfung behält, lädt v0.4.6 einmal von Hand. In `release/publish/v0.4.4/win-x64-windowsdx/` liegt noch `AoE_Evolutions_v0.4.5/` vom alten Update — kann weg.
+Abnahme: Builds DesktopGL + WindowsDX 0 Fehler · `dotnet test` **412/412** · `tools/spielablauf updatehilfen updatedienst update menue` grün (neu: `updatehilfen` und `updatedienst`, `update` neu geschrieben; unter Windows ersetzt der Test eine wirklich laufende Exe — `ping.exe` als Stellvertreter); Mutantenlauf 15 von 15 gefunden · `checks/u2_einbindung.py`, neu `checks/start_menue.py gl|dx` (Startprobe ins Hauptmenü — `start_rts.py` zeichnet das Menü nie) · **echter End-to-End-Test gegen GitHub** mit der angenommenen Fassung: Kopie der offiziellen v0.4.4 (WindowsDX) läuft, das Update lädt das echte v0.4.5-Release (185 MB, Fortschritt live), ersetzt 770 Dateien unter der laufenden Exe, startet v0.4.5 (FileVersion 0.4.5.0) aus demselben Ordner, Aufräumen ohne Reste · Fotos des Menüs in vier Zuständen (aktuell, Angebot, Laden 37 %, Fehler). **Offen:** wirkt erst ab dem nächsten Release (v0.4.6) — Installationen bis v0.4.5 haben noch das alte Update und entpacken v0.4.6 ein letztes Mal verschachtelt (als DesktopGL); von dort aus läuft jedes weitere Update richtig. Wer die alte Verknüpfung behält, lädt v0.4.6 einmal von Hand. (Stand 2026-10-23: v0.4.6 bis v0.4.8 sind ausgeliefert, aktueller Stand 0.4.9 — der Hinweis betrifft nur noch Installationen ≤ v0.4.5.) In `release/publish/v0.4.4/win-x64-windowsdx/` liegt noch `AoE_Evolutions_v0.4.5/` vom alten Update — kann weg.
 
 Davor: **Reiter-Geschwindigkeit: alle Reiter ~2,25× schneller — das 3,1-fache der Fußsoldaten** (2026-10-20) — Wünsche: „die reiter müssen sich etwa 50% schneller bewegen“, „oder etwa doppelt so schnell wie soldaten“, danach „ok er muss noch etwa schneller werden. nochmal etwa 50%“ (weitere Runde +50 % über alle Reiter).
 
@@ -791,7 +795,9 @@ Deshalb meldet `git status` nach jedem Build geänderte `.dll`-, `.pdb`- und
 `.cache`-Dateien (am 2026-09-30: 32 Stück).
 
 - [x] `.gitignore` für .NET + MonoGame + Visual Studio anlegen *(Agent H1)*
-- [ ] `git rm -r --cached` für `bin/`, `obj/`, `.vs/`, `Content/obj/`, `Content/bin/`
+- [x] `git rm -r --cached` für `bin/`, `obj/`, `.vs/`, `Content/obj/`, `Content/bin/`
+      — vom Nutzer ausgeführt (geprüft 2026-10-23: `git ls-files` kennt keine
+      `bin/`- oder `obj`-Datei mehr)
       — **bewusst nicht automatisiert.** Das stellt 501 Löschungen in den Index;
       dieser Schritt gehört dir, nicht einem Agent. Per Trockenlauf geprüft, erfasst
       genau diese 501 Dateien und keine Quelldatei, in PowerShell wie in der Git-Bash:
@@ -799,7 +805,7 @@ Deshalb meldet `git status` nach jedem Build geänderte `.dll`-, `.pdb`- und
       Der früher hier notierte Befehl mit `AgeOfEvolutions/*/bin` erfasste `src/`,
       `tests/`, `demo/` und `Content/` nicht und bricht in der Git-Bash mit
       „pathspec did not match" ganz ab.
-- [ ] Abnahme: `git status --short` zeigt nur noch echte Quelldateien
+- [x] Abnahme: `git status --short` zeigt nur noch echte Quelldateien (geprüft 2026-10-23)
 
 ### H2 · csproj-Dateinamen begradigen [L]
 
@@ -1029,9 +1035,10 @@ Kleinster Einstieg, weil der Typ isoliert ist und Tests hat.
 - [x] `Data/Resource.cs` entfernt — der struct war toter Code, genutzt wurde nur
       die verschachtelte `Type`-Enum (42 Stellen), jetzt `AoE.Core.Entities.Resource`
 - [x] Ressourcenanzeige liest aus dem Pool
-- [ ] **Verhaltensänderung:** Startkapital kommt jetzt aus `ResourcePool`
+- [x] **Verhaltensänderung:** Startkapital kommt jetzt aus `ResourcePool`
       (200/200/100/**200**). Das Spiel begann vorher mit 100 Stein. Falls du die
       alten 100 willst, muss `ResourcePool.START_STONE` geändert werden.
+      (angenommen 2026-10-23: 200 sind durch `GameSettingsTests` fixiert)
 
 ### B2 · `DamageCalculator` verdrahten [X]
 
@@ -1041,8 +1048,9 @@ Kleinster Einstieg, weil der Typ isoliert ist und Tests hat.
 - [x] Nebenbefund behoben: die Werttabelle deckte nur 8 der 17 Einheitentypen ab —
       die übrigen 9 kamen mit **0 Lebenspunkten** zur Welt. `CoreUnits.Create`
       bildet jetzt alle 17 ab.
-- [ ] Offen: das Spiel ruft `Attack()` noch nirgends auf — es gibt keine
-      Kampfschleife. Das gehört zu Block C.
+- [x] Gegenstandslos (geprüft 2026-10-23): die Kampfschleife existiert — Einheiten
+      greifen über `AttackUnit` an (Klickbefehl, K6-Verteidigung, Auto-Antwort,
+      KI-Welle), Gebäude über `BuildingCombat.Hit`
 
 ### B3 · Einheitentypen vereinen [X]
 
@@ -1454,9 +1462,10 @@ und Einheiten laufen darauf 20 % schneller.
 - [x] **Kaserne** baubar - wie in AoE II und `AgeRules` schon ab der Dunklen Zeit, nicht
   erst ab der Feudalzeit: Taste K in der zweiten Tastenreihe, eigene Grafik je Zeitalter unter
   `Content/Gebaeude/<zeitalter>/`, Bauzeit 50 s *(Agent C5a, L1, L2)*
-- [ ] Dorfkerne und Kasernen sind wie das Start-Stadtzentrum auswählbar (Klick) und
+- [x] Dorfkerne und Kasernen sind wie das Start-Stadtzentrum auswählbar (Klick) und
   bilden Dorfbewohner aus. Stand B1/P1: jedes eigene Stadtzentrum ist auswählbar und bildet
-  Dorfbewohner aus, die Kaserne die Miliz
+  Dorfbewohner aus, die Kaserne die Miliz (gegenstandslos geprüft 2026-10-23:
+  `Products` bildet je Stadtzentrum Dorfbewohner aus, Kaserne Miliz)
 - [ ] **Mauern** ab der Feudalzeit baubar: `StoneWall` (Bau `PalisadeWall` ist im
   `BuildingType`-Enum schon da, aber nicht verdrahtet), mit **Stein** kachelweise bauen
   wie Straßen (C12: `AgeRules.RequiredAgeOf`, Baumenü, Taste). Mauern sind für
@@ -1464,6 +1473,9 @@ und Einheiten laufen darauf 20 % schneller.
   Stand L2: Palisadenmauer (Taste P, ab der Dunklen Zeit, 2 Holz) und Steinmauer (W, ab der
   Feudalzeit, 5 Stein) stehen im Baumenü, je Kachel ein Stück; nach einem Stück bleibt der
   Setzmodus an. Offen ist die Abnahme `mauern` (Umlaufen, Abreißen)
+  — Regel Teil erledigt (geprüft 2026-10-23: beide Typen im Baumenü, Kosten und
+  Zeitalter in `AgeRules`/`Construction`; Abnahme bleibt den beiden Kästen darunter
+  vorbehalten)
 - [ ] Mauer ist zerstörbare Struktur (wie Gebäude HP aus dem `BuildingType`-Werten):
   nur ein angreifender Feind, der ein Stück Mauer **zerstört**, kommt durch; nach
   Zerstörung ist die Kachel wieder begehbar
@@ -1523,8 +1535,9 @@ um sie wieder herzustellen.“
 - [x] Zustandsmaschine: Ankunft und `Building`-Zweig auch für `IsComplete`-Gebäude
   mit laufender Reparatur (vorher: Arbeiter wurden sofort wieder abgewiesen)
 - [x] Leiste zeigt „Reparatur p %"; Meldungen für Auftrag, Kosten und Fehlbeträge
-- [ ] Abnahme: `reparatur` in `tools/spielablauf` — 3 Zufallskarten grün: 50 %
+- [x] Abnahme: `reparatur` in `tools/spielablauf` — 3 Zufallskarten grün: 50 %
   → 13 Holz und 12,5 s (1 Arbeiter), 9,6 s (2 Arbeiter), unverletzt nichts
+  (geprüft 2026-10-23: Gruppe erneut ausgeführt, 3 Karten grün)
 
 ### C16 · Wege von Gebäuden und Wegbilder je Zeitalter [R]
 
@@ -1572,16 +1585,18 @@ drei Zuständen und Boden-Gedächtnis (G14); A*-Wegfindung, Verband verteilt sic
 dreigeteiltes HUD mit Minimap; faire Startressourcen je Spieler (`PlaceStartResources`);
 Wirtschafts-KI mit Angriffswellen auf sichtbare Gebäude (K9).
 
-### F1 · Türme, Stadtzentrum und Burg schießen [X]
+### F1 · Türme, Stadtzentrum und Burg schießen [X] — umgesetzt 2026-10-23 (oben)
 
 Stand: Kein Gebäude schießt. Der Wachturm (50 Holz + 125 Stein) bringt nur Sicht, das
 Stadtzentrum ruft bei Angriff nur Soldaten herbei (K6, `DefendTownCenters`), die Burg tut nichts.
 
-- [ ] Pfeilangriff für Wachturm, Stadtzentrum und Burg: Reichweite, Takt, Schaden über
+- [x] Pfeilangriff für Wachturm, Stadtzentrum und Burg: Reichweite, Takt, Schaden über
       `DamageCalculator` (Fernkampf gegen Fernkampf-Rüstung), Ziel = nächster sichtbarer Feind
-- [ ] Pfeile mit der Flugbahn aus A3 (`MaybeLaunchArrow`) zeichnen, Geräusch wie beim Bogen
-- [ ] Befiederte Pfeile und Maurerkunst wirken mit; KI greift Türme gezielt an oder meidet sie
-- [ ] Abnahme: neue Gruppe in `tools/spielablauf` (Feind im Radius nimmt Schaden, außerhalb nicht)
+- [x] Pfeile mit der Flugbahn aus A3 (`MaybeLaunchArrow`) zeichnen, Geräusch wie beim Bogen
+- [x] Befiederte Pfeile und Maurerkunst wirken mit; KI greift Türme gezielt an oder meidet sie
+      (gemieden: `EnemyInfo.IsArmed`; die Welle zieht auf bewehrte nur, wenn nichts anderes sichtbar ist)
+- [x] Abnahme: neue Gruppe in `tools/spielablauf` (Feind im Radius nimmt Schaden, außerhalb nicht)
+      — Gruppe `beschuss`
 
 ### F2 · Konter-Einheiten: Speerkämpfer, Plänkler, Ritter [X]
 
@@ -1593,7 +1608,10 @@ goldfreien Einheiten fürs Endspiel fehlen.
 - [ ] Werte und Boni in AoE.Core: Speerkämpfer +15 gegen Kavallerie, Plänkler +3 gegen
       Bogenschützen, Ritter 100 LP / 10 Angriff / 2/2 Rüstung (Richtwerte der Spec)
 - [ ] Ausbildung: Kaserne Speerkämpfer (Feudal), Schießstand Plänkler (Feudal), Stall Ritter (Ritterzeit)
-- [ ] Bilder je Spielerfarbe und Zeitalter: Stand, Lauf, Schlag (Qwen-Image, `tools/bilder`, Seitenansicht)
+- [x] Bilder je Spielerfarbe und Zeitalter: Stand, Lauf, Schlag (Qwen-Image, `tools/bilder`, Seitenansicht)
+      — `Einheiten/speerkaempfer`, `plaenkler`, `ritter` (je Stand + 8 Lauf, Speer und Ritter + 8 Schlag);
+      ein Aussehen je Einheit wie bei Miliz und Bogenschütze, der Plänkler schießt aus dem Standbild.
+      Noch nicht in `SoldierSprites` eingetragen (Maßstab Ritter 1,4)
 - [ ] KI stellt ihre Wellen nach dem zusammen, was sie vom Gegner sieht
 - [ ] Abnahme: Kampfgruppen in `tools/spielablauf` - Speer schlägt Ritter, Plänkler schlägt Bogen,
       Miliz schlägt Speer

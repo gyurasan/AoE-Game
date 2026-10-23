@@ -221,10 +221,31 @@ def speer(name, cfg):
     schaft &= deckend & ~haende
     teil_speer = np.zeros_like(a)
     teil_speer[schaft] = a[schaft]
-    # Die Faust aus dem Bild ohne Speer - aus dem Standbild käme ein Stück Schaft im alten Winkel mit
+    # "schaft_fuellen": unter der Faust fehlt dem Schaft seine Textur - gleitet er weit durch die
+    # Hand (Speerkämpfer), wanderte die Lücke sichtbar mit. Jedes Pixel des Schafts (erste Linie)
+    # unter der Faust nimmt das nächste Schaftpixel dahinter, entgegen der Richtung zur Spitze -
+    # mit 14 Pixeln Abstand zur Faust, sonst käme ihr dunkler Umriss als Streifen in den Schaft
+    if cfg.get("schaft_fuellen"):
+        x1, y1, x2, y2, dicke = cfg["speer"][0]
+        offen = haende & (abstand_strecke(xx, yy, unten, spitze) < dicke / 2)
+        vorlage = schaft & ~ndimage.binary_dilation(haende, iterations=14)
+        for k in range(1, int(2 * max(max(rx, ry) for _, _, rx, ry in cfg["haende"])) + 30):
+            ys, xs = np.where(offen)
+            if not len(ys):
+                break
+            qy = np.clip(np.round(ys - k * u[1]).astype(int), 0, H - 1)
+            qx = np.clip(np.round(xs - k * u[0]).astype(int), 0, W - 1)
+            treffer = vorlage[qy, qx]
+            teil_speer[ys[treffer], xs[treffer]] = a[qy[treffer], qx[treffer]]
+            offen[ys[treffer], xs[treffer]] = False
+    # Die Faust aus dem Bild ohne Speer - aus dem Standbild käme ein Stück Schaft im alten Winkel mit.
+    # "faust_aus_standbild": doch aus dem Standbild, wenn das Bild ohne Speer keine Faust mehr zeigt
+    # (offene Hand); die Ellipse liegt dann eng um die Faust, die Schaftenden davor und dahinter
+    # bleiben draußen und gleiten mit dem Speer
+    quelle = a if cfg.get("faust_aus_standbild") else rumpf
     teil_haende = np.zeros_like(rumpf)
-    faust = haende & (rumpf[:, :, 3] > 8)
-    teil_haende[faust] = rumpf[faust]
+    faust = haende & (quelle[:, :, 3] > 8)
+    teil_haende[faust] = quelle[faust]
     ox0, oy0, ox1, oy1 = (v + RAND for v in cfg["oberkoerper"])
     huefte = verschoben(cfg["huefte"])
     griff = verschoben(cfg["griff"])

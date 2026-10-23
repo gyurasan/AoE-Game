@@ -499,11 +499,13 @@ public sealed class EconomyAi : IAi
     /// nicht direkt das Dorfzentrum angreifen, sondern das erste Gebäude, das er sieht"): das
     /// sichtbare feindliche Gebäude (IsBuilding), das der Truppe am nächsten steht -
     /// Chebyshev-Abstand zu soldiers[soldiers.Count / 2], bei Gleichstand das erste in
-    /// visible -, ohne Vorrang für das Stadtzentrum (IsTownCenter spielt keine Rolle). Nur wenn
-    /// kein Gebäude sichtbar ist, die nächste sichtbare Einheit, ebenso gemessen. Bis K9 ging
-    /// die Welle geradewegs auf ein sichtbares Stadtzentrum - und ohne eins auf (0, 0), weil
-    /// FirstOrDefault auf dem Struct EnemyInfo default statt null liefert: in die Ecke, wo das
-    /// Stadtzentrum des Spielers steht.
+    /// visible -, ohne Vorrang für das Stadtzentrum (IsTownCenter spielt keine Rolle).
+    /// Seit F1 meidet die Welle bewehrte Gebäude (IsArmed - Wachturm, Stadtzentrum, Burg):
+    /// sie zieht auf das nächste unbewehrte; erst wenn nur bewehrte sichtbar sind, auf das
+    /// nächste bewehrte. Nur wenn gar kein Gebäude sichtbar ist, die nächste sichtbare
+    /// Einheit, ebenso gemessen. Bis K9 ging die Welle geradewegs auf ein sichtbares
+    /// Stadtzentrum - und ohne eins auf (0, 0), weil FirstOrDefault auf dem Struct EnemyInfo
+    /// default statt null liefert: in die Ecke, wo das Stadtzentrum des Spielers steht.
     /// </summary>
     private void Raid(IWorldState state, IWorldActions actions, AiContext ctx)
     {
@@ -560,16 +562,29 @@ public sealed class EconomyAi : IAi
         // (IsBuilding), das der Truppe am nächsten steht — Chebyshev-Abstand
         // zu soldiers[soldiers.Count / 2], bei Gleichstand das erste in
         // visible. Ohne Vorrang für das Stadtzentrum (IsTownCenter spielt
-        // keine Rolle). Nur wenn kein Gebäude sichtbar ist, die nächste
-        // sichtbare Einheit, ebenso gemessen.
+        // keine Rolle). Seit F1 weicht die Welle schießenden Gebäuden aus
+        // (IsArmed — Wachturm, Stadtzentrum, Burg): erst, wenn sonst kein
+        // Gebäude sichtbar ist, zieht sie auf das nächste bewehrte. Nur wenn
+        // kein Gebäude sichtbar ist, die nächste sichtbare Einheit, ebenso
+        // gemessen.
         EnemyInfo? found = null;
         int raidBestDist = int.MaxValue;
         var raidBase = soldiers[soldiers.Count / 2];
         foreach (var e in visible)
         {
-            if (!e.IsBuilding) continue;
+            if (!e.IsBuilding || e.IsArmed) continue;
             int d = Math.Max(Math.Abs(e.X - raidBase.X), Math.Abs(e.Y - raidBase.Y));
             if (d < raidBestDist) { raidBestDist = d; found = e; }
+        }
+        if (found is null)
+        {
+            // nur noch bewehrte Gebäude sichtbar (F1): das nächste davon
+            foreach (var e in visible)
+            {
+                if (!e.IsBuilding) continue;
+                int d = Math.Max(Math.Abs(e.X - raidBase.X), Math.Abs(e.Y - raidBase.Y));
+                if (d < raidBestDist) { raidBestDist = d; found = e; }
+            }
         }
         if (found is null)
         {

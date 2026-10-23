@@ -52,4 +52,26 @@ public static class BuildingCombat
         target.CurrentHp = Math.Max(0, target.CurrentHp - DamagePerHit(attacker, target));
         return target.CurrentHp <= 0;
     }
+
+    // --- F1: Gebäude schießen zurück -----------------------------------------------------
+
+    /// <summary>Sekunden zwischen zwei Pfeilen eines schießenden Gebäudes
+    /// (Wachturm, Stadtzentrum, Burg) - wie der Schlagtakt der Einheiten.</summary>
+    public const float BOMBARD_SECONDS = 2f;
+
+    /// <summary>
+    /// Schießt dieses Gebäude selbst? VERTRAG: true, wenn Stats.BaseAttack größer 0
+    /// UND Stats.Range größer 0 - das trifft auf Wachturm (5/8), Stadtzentrum (5/6)
+    /// und Burg (11/8) zu, auf Häuser, Mauern, Werkstätten und Baustellen nie.
+    /// </summary>
+    public static bool Shoots(BuildingEntity building)
+        => building.Stats.BaseAttack > 0 && building.Stats.Range > 0;
+
+    /// <summary>
+    /// Schaden eines Gebäude-Pfeils gegen eine Einheit. VERTRAG: der allgemeine
+    /// <see cref="DamageCalculator"/> - der Angreifer hat Range größer 0, also zählt
+    /// Fernkampf gegen die Fernkampf-Rüstung des Ziels, mindestens 1.
+    /// </summary>
+    public static int DamageToUnit(BuildingEntity attacker, UnitEntity target)
+        => DamageCalculator.CalculateDamage(attacker, target);
 }

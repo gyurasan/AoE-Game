@@ -42,5 +42,51 @@
    {"name": "nachfedern", "winkel": -30, "schub": 110, "rumpf": 0},
    {"name": "zurueck2", "winkel": -15, "schub": 45, "rumpf": 0}
   ]
+ },
+ "speer": {
+  "modus": "speer",
+  "bild": "soldaten/speer_beine_4811.png",
+  "rumpf_bild": "soldaten/speer_ohne_speer_4862.png",
+  "figur": "speer",
+  "speer": [[31, 867, 978, 77, 26], [760, 259, 992, 62, 64], [22, 876, 70, 836, 36]],
+  "schaft_fuellen": true,
+  "faust_aus_standbild": true,
+  "haende": [[378, 568, 54, 50]],
+  "griff": [378, 577],
+  "oberkoerper": [0, 0, 1024, 640],
+  "huefte": [470, 640],
+  "phasen": [
+   {"name": "bereit", "winkel": -14, "schub": 0, "rumpf": 0},
+   {"name": "senken", "winkel": -24, "schub": -45, "rumpf": -1},
+   {"name": "ausgeholt", "winkel": -31, "schub": -90, "rumpf": -3},
+   {"name": "ausgeholt2", "winkel": -34, "schub": -105, "rumpf": -4},
+   {"name": "stoss", "winkel": -35, "schub": -20, "rumpf": 0},
+   {"name": "treffer", "winkel": -36, "schub": 115, "rumpf": 4},
+   {"name": "nachfedern", "winkel": -34, "schub": 85, "rumpf": 3},
+   {"name": "zurueck", "winkel": -22, "schub": 30, "rumpf": 1}
+  ]
+ },
+ "ritter": {
+  "bild": "soldaten/ritter_fleck_4871.png",
+  "rumpf_bild": "soldaten/ritter_ohne_arm_4887.png",
+  "figur": "ritter",
+  "arm": {"schulter": [395, 225], "ellbogen": [382, 294], "hand": [488, 293]},
+  "oberarm_breite": 30, "unterarm_breite": 22,
+  "waffe": [[500, 268, 698, 16, 26], [460, 242, 530, 271, 18]],
+  "nicht_arm": [],
+  "kopf": [458, 112, 64, 80],
+  "schulterkappe": [406, 212, 44, 36],
+  "schulter_schnitt": 244,
+  "huefte": [470, 340],
+  "phasen": [
+   {"name": "bereit", "oberarm": 0, "unterarm": 0, "rumpf": 0},
+   {"name": "ausholen", "oberarm": 0, "unterarm": 30, "rumpf": 0},
+   {"name": "oben", "oberarm": 0, "unterarm": 46, "rumpf": 0, "hinter_kopf": true},
+   {"name": "ueber_kopf", "oberarm": 0, "unterarm": 50, "rumpf": 0, "hinter_kopf": true},
+   {"name": "vor_kopf", "oberarm": 0, "unterarm": 12, "rumpf": 0},
+   {"name": "treffer", "oberarm": 0, "unterarm": -68, "rumpf": 0},
+   {"name": "durchziehen", "oberarm": 0, "unterarm": -85, "rumpf": 0},
+   {"name": "zurueck", "oberarm": 0, "unterarm": -40, "rumpf": 0}
+  ]
  }
 }

@@ -110,9 +110,10 @@ public interface IWorldState
 /// ob es ein Dorfzentrum ist (das primäre Raubziel, siehe
 /// <see cref="EconomyAi"/>). <see cref="IsAttackingUs"/>: die feindliche
 /// Einheit greift gerade eine eigene Einheit oder ein eigenes Gebäude an —
-/// egal wie weit vom Stadtzentrum.</summary>
+/// egal wie weit vom Stadtzentrum. <see cref="IsArmed"/> (F1): das fertige
+/// Gebäude schießt selbst zurück — Wachturm, Stadtzentrum, Burg.</summary>
 public readonly record struct EnemyInfo(int X, int Y, bool IsBuilding, int Health, bool IsTownCenter = false,
-                                        bool IsAttackingUs = false);
+                                        bool IsAttackingUs = false, bool IsArmed = false);
 
 /// <summary>Der vierstellige Ressourcenvektor (Nahrung, Holz, Gold, Stein).</summary>
 public readonly record struct ResourceVector(int Food, int Wood, int Gold, int Stone)

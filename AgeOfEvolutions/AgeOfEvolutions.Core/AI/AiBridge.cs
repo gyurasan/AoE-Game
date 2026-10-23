@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AoE.Core.Ai;
+using AoE.Core.Combat;
 using AoE.Core.Entities;
 using Microsoft.Xna.Framework;
 using AgeOfEvolutions.Core.Data;
@@ -139,9 +140,12 @@ public sealed class AiBridge : IWorldState, IWorldActions
                 for (int y = b.Y; y < b.Y + b.Height && !seen; y++)
                     if (_screen.tileMap.IsTileVisible(x, y, Owner)) seen = true;
             if (!seen) continue;
+            // IsArmed (F1): das fertige Gebäude schießt selbst zurück - die
+            // Welle weicht solchen Gebäuden aus, solange es andere gibt.
             visible.Add(new EnemyInfo(b.X + b.Width / 2, b.Y + b.Height / 2,
                                        IsBuilding: true, Health: b.Health,
-                                       IsTownCenter: b.Core.BuildingType == BuildingType.TownCenter));
+                                       IsTownCenter: b.Core.BuildingType == BuildingType.TownCenter,
+                                       IsArmed: b.IsComplete && BuildingCombat.Shoots(b.Core)));
         }
         return visible;
     }

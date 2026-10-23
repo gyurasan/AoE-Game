@@ -404,6 +404,9 @@ public static class TechEffects
     /// - Forging, Infanterie und Reiter (Militia, SpearMan, Scout, Knight, CamelRider):
     ///   Stats.BaseAttack +1.
     /// - Fletching, Bogenschützen (Archer, Skirmisher): Stats.BaseAttack +1, Stats.Range +1.
+    ///   Seit F1 auch schießende Gebäude (BuildingEntity mit Stats.Range größer 0 —
+    ///   Wachturm, Stadtzentrum, Burg): dieselben je +1. Häuser, Mauern und Werkstätten
+    ///   (Range 0) bleiben unberührt.
     /// - ScaleMailArmor, Infanterie (Militia, SpearMan): Stats.BaseArmor +1.
     /// - Masonry, Gebäude (BuildingEntity): Stats.HitPoints um ein Zehntel mehr, ganzzahlig
     ///   (HitPoints / 10 dazu, also 400 auf 440), CurrentHp um denselben Zuwachs,
@@ -432,8 +435,11 @@ public static class TechEffects
                 return true;
 
             case Tech.Fletching:
-                // Befiederte Pfeile: nur Bogenschützen schießen härter und weiter.
-                if (entity is not (Archer or Skirmisher))
+                // Befiederte Pfeile: Bogenschützen schießen härter und weiter -
+                // seit F1 auch die schießenden Gebäude (Wachturm, Stadtzentrum,
+                // Burg), Häuser und Mauern mit Range 0 bleiben unberührt.
+                if (entity is not (Archer or Skirmisher)
+                    && entity is not BuildingEntity { Stats.Range: > 0 })
                     return false;
                 entity.Stats.BaseAttack += 1;
                 entity.Stats.Range += 1;
