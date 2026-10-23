@@ -90,6 +90,10 @@ Spielbar sind Wirtschaft, Aufstieg durch die Zeitalter und Kampf gegen einen Com
 - Drei Kartengrößen, im Hauptmenü wählbar: Standard (90×90), Kontinent (128×128) und
   World (181×181, die doppelte Fläche einer Kontinent-Karte); die Karte nimmt das
   Seitenverhältnis des Fensters an
+- Spielstände: mehrere Plätze (Spielstand 1, 2, 3, …), im Hauptmenü laden, im Pausenmenü
+  speichern oder überschreiben; einen Platz löscht man in der Liste mit der Löschtaste
+  (Entf, am Gamepad Y) — einmal Ja/Nein bestätigen, und der Platz ist weg,
+  die Nummer wird beim nächsten Speichern wieder frei
 
 Noch nicht da sind Handel, Einheiten aus Belagerungswerkstatt, Kloster und Burg, schießende Türme
 und Schwierigkeitsgrade für die KI, siehe [TODO](TODO.md).
