@@ -46,6 +46,33 @@ class MenuEntry
         Selected?.Invoke(this, new PlayerIndexEventArgs(playerIndex));
     }
 
+    private bool deletable;
+    /// <summary>
+    /// Whether this menu option carries deletable content (a save slot). The
+    /// delete key (Entf / Y) on such an entry raises <see cref="DeleteSelected"/>
+    /// - the screen itself asks the player to confirm.
+    /// </summary>
+    public bool Deletable
+    {
+        get { return deletable; }
+        set { deletable = value; }
+    }
+
+    /// <summary>
+    /// Event raised when the player asks to delete this menu entry.
+    /// </summary>
+    public event EventHandler<PlayerIndexEventArgs> DeleteSelected;
+
+    /// <summary>
+    /// Method for raising the DeleteSelected event (only for deletable entries).
+    /// </summary>
+    /// <param name="playerIndex">The player index that asked to delete the entry.</param>
+    protected internal virtual void OnDeleteSelected(PlayerIndex playerIndex)
+    {
+        if (deletable)
+            DeleteSelected?.Invoke(this, new PlayerIndexEventArgs(playerIndex));
+    }
+
     /// <summary>
     /// Constructs a new menu entry with the specified text.
     /// </summary>

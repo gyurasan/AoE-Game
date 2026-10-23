@@ -6,11 +6,15 @@ using Microsoft.Xna.Framework;
 namespace AgeOfEvolutions.Screens;
 
 /// <summary>
-/// „Spiel laden" als Liste: ein Eintrag je Spielstand (neuester zuerst, Text ist
+/// „Spiel laden“ als Liste: ein Eintrag je Spielstand (neuester zuerst, Text ist
 /// <see cref="SaveSlot.Label"/> - Speicherzeit, Zeitalter, Spieldauer), darunter
-/// „Zurück". Wie das Pausenmenü eine Tafel im Stil des Hauptmenüs (<see cref="MenuScreen"/>).
+/// „Zurück“. Die Löschtaste (Entf / Y) auf einem Platz löst sein Löschen aus -
+/// nach Ja/Nein-Bestätigung (<see cref="SaveGameStore.DeleteSlot"/>), und die Liste
+/// baut sich frisch auf.
+/// Wie das Pausenmenü eine Tafel im Stil des Hauptmenüs (<see cref="MenuScreen"/>).
 /// Entstand für die Nutzeridee „ich will viele Spiele speichern und im Menü alle
-/// Ladeplätze sehen" (2026-10-22).
+/// Ladeplätze sehen“ (2026-10-22); das Löschen der Plätze kam mit
+/// „SV Spielstand-Plätze: Plätze löschen“ (2026-10-23).
 /// </summary>
 internal class LoadGameScreen : MenuScreen
 {
@@ -25,17 +29,77 @@ internal class LoadGameScreen : MenuScreen
     public LoadGameScreen()
         : base("Spiel laden")
     {
+        BaueEintraege();
+    }
+
+    /// <summary>
+    /// VERTRAG: die Listeninhalte in der Reihenfolge des
+    /// <see cref="LoadGameScreen"/>-Konstruktorvertrags. Läuft im Konstruktor und
+    /// nach jedem <see cref="NeuAufbauen"/>.
+    /// </summary>
+    private void BaueEintraege()
+    {
         // Ein Eintrag je Spielstand; ListSaves liefert schon den neuesten zuerst.
         foreach (var slot in SaveGameStore.ListSaves())
         {
-            var eintrag = new MenuEntry(slot.Label);
+            var eintrag = new MenuEntry(slot.Label) { Deletable = true };
             eintrag.Selected += (sender, e) => LoadSlot(slot.FilePath, e.PlayerIndex);
+            eintrag.DeleteSelected += (sender, e) => FragLoeschen(slot.Label, slot.FilePath, e.PlayerIndex);
             MenuEntries.Add(eintrag);
         }
 
         MenuEntry zurueck = new MenuEntry("Zurück");
         zurueck.Selected += OnCancel;
         MenuEntries.Add(zurueck);
+    }
+
+    /// <summary>
+    /// VERTRAG: nach gelöschtem Platz die Liste ersetzen - MenuEntries leeren,
+    /// mit BaueEintraege() füllen, die Auswahl in der neuen Liste
+    /// in Reichweite halten (ClampSelectedEntry).
+    /// </summary>
+    private void NeuAufbauen()
+    {
+        MenuEntries.Clear();
+        BaueEintraege();
+        ClampSelectedEntry();
+    }
+
+    /// <summary>
+    /// Fragt nach, ob der Spielstand gelöscht werden soll (Ja/Nein).
+    /// VERTRAG: ein MessageBoxScreen mit „Spielstand löschen?“, der Platz-Bezeichnung
+    /// und dem Hinweis, dass sich das nicht rückgängig machen lässt; sein
+    /// Accepted-Ereignis ruft LoeschePlatz(filePath, e.PlayerIndex) auf.
+    /// </summary>
+    private void FragLoeschen(string label, string filePath, PlayerIndex playerIndex)
+    {
+        MessageBoxScreen frag = new MessageBoxScreen(
+            "Spielstand löschen?\n" + label + "\nDies lässt sich nicht rückgängig machen.");
+        frag.Accepted += (sender, e) => LoeschePlatz(filePath, e.PlayerIndex);
+        ScreenManager.AddScreen(frag, playerIndex);
+    }
+
+    /// <summary>
+    /// Löscht die Platzei und aktualisiert die Liste.
+    /// VERTRAG: in einem try: SaveGameStore.DeleteSlot(filePath), NeuAufbauen() und
+    /// die Toast-Meldung „Spielstand gelöscht“ (MessageBoxScreen als Toast, 1,5 s).
+    /// Jede Ausnahme (catch Exception ex): die Liste bleibt, wie sie war, und der
+    /// Toast lautet „Löschen fehlgeschlagen: “ + ex.Message.
+    /// </summary>
+    private void LoeschePlatz(string filePath, PlayerIndex playerIndex)
+    {
+        try
+        {
+            SaveGameStore.DeleteSlot(filePath);
+            NeuAufbauen();
+            ScreenManager.AddScreen(new MessageBoxScreen("Spielstand gelöscht", false, TimeSpan.FromSeconds(1.5), true),
+                                    playerIndex);
+        }
+        catch (Exception ex)
+        {
+            ScreenManager.AddScreen(new MessageBoxScreen("Löschen fehlgeschlagen: " + ex.Message, false,
+                                                         TimeSpan.FromSeconds(3), true), playerIndex);
+        }
     }
 
     /// <summary>

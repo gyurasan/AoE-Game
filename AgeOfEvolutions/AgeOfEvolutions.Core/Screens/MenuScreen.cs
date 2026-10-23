@@ -161,6 +161,13 @@ abstract class MenuScreen : GameScreen
         {
             OnCancel(playerIndex);
         }
+
+        // Delete key (Entf) or Y on the pad: a deletable entry raises
+        // DeleteSelected - the screen itself confirms with the player.
+        if (inputState.IsMenuDelete(ControllingPlayer, out playerIndex))
+        {
+            menuEntries[selectedEntry].OnDeleteSelected(playerIndex);
+        }
     }
 
     /// <summary>Der wählbare Eintrag unter dem Fensterpunkt, oder -1.</summary>
@@ -200,6 +207,19 @@ abstract class MenuScreen : GameScreen
             if (selectedEntry >= menuEntries.Count)
                 selectedEntry = 0;
         }
+    }
+
+    /// <summary>
+    /// Clamps the current selection to the entry list after the list has
+    /// changed (e.g. a save slot was deleted), so navigation and activation
+    /// stay in range.
+    /// </summary>
+    protected void ClampSelectedEntry()
+    {
+        if (selectedEntry < 0)
+            selectedEntry = 0;
+        else if (selectedEntry >= menuEntries.Count)
+            selectedEntry = Math.Max(0, menuEntries.Count - 1);
     }
 
     /// <summary>

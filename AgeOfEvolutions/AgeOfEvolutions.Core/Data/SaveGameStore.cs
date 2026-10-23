@@ -291,6 +291,41 @@ public sealed class SaveGameStore
                 return pfad;
         }
     }
+
+    /// <summary>
+    /// Löscht einen Spielstand-Platz (die Datei spielstand.json bzw.
+    /// spielstand-&lt;n&gt;.json).
+    /// VERTRAG: <paramref name="filePath"/> muss eine Spielstandsdatei (SLOT_NAME)
+    /// in <see cref="SavesFolder"/> sein und dort existieren. Liegt sie außerhalb
+    /// des Spielstand-Ordners oder ist der Name kein Platz, eine ArgumentException
+    /// mit deutscher Meldung; fehlt die Datei, eine FileNotFoundException. Danach
+    /// ist die Datei weg, und die Nummer wird beim nächsten
+    /// <see cref="NextSavePath"/> wieder frei. Die Methode legt nichts an.
+    /// </summary>
+    public static void DeleteSlot(string filePath)
+    {
+        if (filePath is null)
+            throw new ArgumentNullException(nameof(filePath));
+
+        string full = Path.GetFullPath(filePath);
+        string folder = Path.GetDirectoryName(full);
+        if (folder is null
+            || !string.Equals(folder, Path.GetFullPath(SavesFolder), StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException(
+                "Das ist kein Spielstand-Platz (außerhalb " + SavesFolder + "): " + filePath,
+                nameof(filePath));
+
+        if (!SLOT_NAME.IsMatch(Path.GetFileName(full)))
+            throw new ArgumentException(
+                "Das ist keine Spielstandsdatei (erwartet „spielstand.json“ oder „spielstand-<Nummer>.json“): "
+                + Path.GetFileName(full),
+                nameof(filePath));
+
+        if (!File.Exists(full))
+            throw new FileNotFoundException("Der Spielstand existiert nicht mehr: " + filePath, filePath);
+
+        File.Delete(full);
+    }
 }
 
 /// <summary>

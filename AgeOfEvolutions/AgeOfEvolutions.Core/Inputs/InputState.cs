@@ -339,6 +339,21 @@ public class InputState
 
 
     /// <summary>
+    /// Checks for a "menu delete" input action - asking to delete the selected
+    /// entry (save slots: LoadGameScreen, SaveGameScreen).
+    /// </summary>
+    /// <param name="controllingPlayer">The player to read input for, or null for any player.</param>
+    /// <param name="playerIndex">Outputs which player triggered the action.</param>
+    /// <returns>True if the menu delete action occurred, false otherwise.</returns>
+    public bool IsMenuDelete(PlayerIndex? controllingPlayer,
+                             out PlayerIndex playerIndex)
+    {
+        return IsNewKeyPress(Keys.Delete, controllingPlayer, out playerIndex) ||
+               IsNewButtonPress(Buttons.Y, controllingPlayer, out playerIndex);
+    }
+
+
+    /// <summary>
     /// Checks for a "menu up" input action.
     /// </summary>
     /// <param name="controllingPlayer">The player to read input for, or null for any player.</param>

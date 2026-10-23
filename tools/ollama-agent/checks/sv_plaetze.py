@@ -45,25 +45,38 @@ if ordner is None:
 elif "NotImplementedException" in ordner.group(1):
     fehler.append("SaveGameStore.cs: SavesFolder ist noch leer (NotImplementedException)")
 enthaelt(speicher, "SaveGameStore.cs", "record SaveSlot", "public string Label")
+enthaelt(speicher, "SaveGameStore.cs", "public static void DeleteSlot", "SLOT_NAME.IsMatch",
+         "File.Delete(", "FileNotFoundException", "ArgumentException")
 if "NotImplementedException" in speicher:
     fehler.append("SaveGameStore.cs: es steht noch ein NotImplementedException darin")
 
-# --- LoadGameScreen: Liste laden, Fehler zeigen, zurück ---
+# --- LoadGameScreen: Liste laden, Fehler zeigen, zurück; Plätze löschen (SV7) ---
 laden = SCREENS / "LoadGameScreen.cs"
-liste = text_oder(laden, "LoadGameScreen")
-enthaelt(liste, "LoadGameScreen-Konstruktor", "ListSaves(", ".Label", "new MenuEntry(",
-         "MenuEntries.Add", "Zurück", "OnCancel", "Selected +=")
-enthaelt(liste, "LoadGameScreen-Konstruktor", "LoadSlot(")
+konstruktor = text_oder(laden, "LoadGameScreen")
+enthaelt(konstruktor, "LoadGameScreen-Konstruktor", "BaueEintraege(")
+ganze_laden = lies(laden)
+enthaelt(ganze_laden, "LoadGameScreen-Eintraege", "ListSaves(", ".Label", "new MenuEntry(",
+         "MenuEntries.Add", "Zurück", "OnCancel", "Selected +=", "Deletable = true",
+         "DeleteSelected +=")
+enthaelt(ganze_laden, "LoadGameScreen", "LoadSlot(", "BaueEintraege(", "NeuAufbauen(",
+         "ClampSelectedEntry(", "FragLoeschen(", "LoeschePlatz(", "SaveGameStore.DeleteSlot(",
+         "Spielstand löschen", "Spielstand gelöscht")
 slot = text_oder(laden, "LoadSlot")
 enthaelt(slot, "LoadGameScreen.LoadSlot", "new SaveGameStore(", ".Load(", "SaveGameMapper.Restore(",
          "LoadingScreen.Load(", "new RTSGameplayScreen(", "catch", "MessageBoxScreen(",
          "Spielstand nicht lesbar")
 
-# --- SaveGameScreen: neu oder überschreiben, Meldung, zurück ins Pausenmenü ---
+# --- SaveGameScreen: neu oder überschreiben, Plätze löschen, Meldung, zurück ---
 sp = SCREENS / "SaveGameScreen.cs"
-liste = text_oder(sp, "SaveGameScreen")
-enthaelt(liste, "SaveGameScreen-Konstruktor", "Neuer Spielstand", "ListSaves(", ".Label",
-         "new MenuEntry(", "MenuEntries.Add", "Zurück", "OnCancel", "SaveTo(")
+konstruktor = text_oder(sp, "SaveGameScreen")
+enthaelt(konstruktor, "SaveGameScreen-Konstruktor", "BaueEintraege(")
+ganze_sp = lies(sp)
+enthaelt(ganze_sp, "SaveGameScreen-Eintraege", "Neuer Spielstand", "ListSaves(", ".Label",
+         "new MenuEntry(", "MenuEntries.Add", "Zurück", "OnCancel", "SaveTo(",
+         "Deletable = true", "DeleteSelected +=")
+enthaelt(ganze_sp, "SaveGameScreen", "BaueEintraege(", "NeuAufbauen(",
+         "ClampSelectedEntry(", "FragLoeschen(", "LoeschePlatz(", "SaveGameStore.DeleteSlot(",
+         "Spielstand löschen", "Spielstand gelöscht")
 speichern = text_oder(sp, "SaveTo")
 enthaelt(speichern, "SaveGameScreen.SaveTo", "OfType<RTSGameplayScreen>", "LastOrDefault",
          "CaptureSave(", "NextSavePath(", ".Save(", "ShowToast(\"Spiel gespeichert\")",
@@ -73,5 +86,14 @@ enthaelt(speichern, "SaveGameScreen.SaveTo", "OfType<RTSGameplayScreen>", "LastO
 enthaelt(lies(SCREENS / "MainMenuScreen.cs"), "MainMenuScreen.cs", "new LoadGameScreen(", "ListSaves(")
 enthaelt(lies(SCREENS / "PauseScreen.cs"), "PauseScreen.cs", "new SaveGameScreen(")
 
-melde(fehler, "Platz-Menüs: Store-Statik gefüllt, LoadGameScreen lädt und zeigt Fehler, "
-              "SaveGameScreen speichert neu oder überschreibt, beide Menüs öffnen sie")
+# --- Lösch-Flow (SV7): Eintrag trägt die Kennung, die Tafel leitet, der Input kennt die Taste ---
+enthaelt(lies(SCREENS / "MenuEntry.cs"), "MenuEntry.cs", "Deletable", "DeleteSelected",
+         "OnDeleteSelected")
+enthaelt(lies(SCREENS / "MenuScreen.cs"), "MenuScreen.cs", "IsMenuDelete(",
+         "OnDeleteSelected", "ClampSelectedEntry(")
+enthaelt(lies(Path("AgeOfEvolutions/AgeOfEvolutions.Core/Inputs/InputState.cs")), "InputState.cs",
+         "IsMenuDelete", "Keys.Delete", "Buttons.Y")
+
+melde(fehler, "Platz-Menüs: Store-Statik gefüllt (mit DeleteSlot), LoadGameScreen lädt und "
+              "zeigt Fehler, SaveGameScreen speichert neu oder überschreibt, beide löschen "
+              "nach Ja/Nein, beide Menüs öffnen sie")

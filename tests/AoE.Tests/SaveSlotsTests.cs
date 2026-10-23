@@ -231,4 +231,88 @@ public class SaveSlotsTests
         Assert.Equal(Path.Combine(ordner.Pfad, "neu", SaveGameStore.FILE_NAME), pfad);
         Assert.False(Directory.Exists(Path.Combine(ordner.Pfad, "neu")));
     }
+
+    /// <summary>
+    /// Ein TempOrdner, der zusätzlich der Spielstand-Ordner wird (AOE_SPEICHER_ORDNER),
+    /// damit die Platz-Statik ohne den echten Ordner neben den Einstellungen läuft.
+    /// </summary>
+    private sealed class SpeicherOrdner : IDisposable
+    {
+        private readonly string alterWert;
+        public readonly string Pfad = Path.Combine(Path.GetTempPath(),
+            "aoe_loeschen_" + Guid.NewGuid().ToString("N"));
+
+        public SpeicherOrdner()
+        {
+            alterWert = Environment.GetEnvironmentVariable("AOE_SPEICHER_ORDNER");
+            Directory.CreateDirectory(Pfad);
+            Environment.SetEnvironmentVariable("AOE_SPEICHER_ORDNER", Pfad);
+        }
+
+        public string Datei(string name) => Path.Combine(Pfad, name);
+
+        public void Dispose()
+        {
+            Environment.SetEnvironmentVariable("AOE_SPEICHER_ORDNER", alterWert);
+            try { Directory.Delete(Pfad, recursive: true); } catch (IOException) { }
+        }
+    }
+
+    // --- DeleteSlot -------------------------------------------------------------
+
+    [Fact]
+    public void DeleteSlot_LoeschtDenPlatzUndDieNummerWirdFrei()
+    {
+        using var ordner = new SpeicherOrdner();
+        var erst = ordner.Datei(SaveGameStore.FILE_NAME);
+        var zweit = ordner.Datei("spielstand-2.json");
+        Schreibe(erst, Stand(new DateTime(2026, 10, 20, 10, 0, 0), 60, Age.Dark));
+        Schreibe(zweit, Stand(new DateTime(2026, 10, 21, 10, 0, 0), 60, Age.Dark));
+
+        SaveGameStore.DeleteSlot(zweit);
+
+        Assert.False(File.Exists(zweit));
+        Assert.Equal(new[] { erst }, SaveGameStore.ListSaves().Select(p => p.FilePath));
+        // Die gelöschte Nummer 2 ist die kleinste freie und wird wieder benutzt.
+        Assert.Equal(zweit, SaveGameStore.NextSavePath());
+    }
+
+    [Fact]
+    public void DeleteSlot_AusserhalbDesSpielstandOrdners_IstKeinPlatz()
+    {
+        using var ordner = new SpeicherOrdner();
+        // Auch eine Datei mit Platname, aber in einem fremden Ordner - sie bleibt heil.
+        var fremd = Path.Combine(Path.GetTempPath(), "aoe_fremd_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(fremd);
+        try
+        {
+            var pfad = Path.Combine(fremd, SaveGameStore.FILE_NAME);
+            Schreibe(pfad, Stand(new DateTime(2026, 10, 20, 10, 0, 0), 60, Age.Dark));
+
+            Assert.Throws<ArgumentException>(() => SaveGameStore.DeleteSlot(pfad));
+            Assert.True(File.Exists(pfad));
+        }
+        finally
+        {
+            Directory.Delete(fremd, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void DeleteSlot_FalscherName_IstKeinPlatz()
+    {
+        using var ordner = new SpeicherOrdner();
+        var pfad = ordner.Datei("einstellungen.json");
+        File.WriteAllText(pfad, "{}");
+
+        Assert.Throws<ArgumentException>(() => SaveGameStore.DeleteSlot(pfad));
+        Assert.True(File.Exists(pfad));
+    }
+
+    [Fact]
+    public void DeleteSlot_FehlendeDatei_IstFileNotFound()
+    {
+        using var ordner = new SpeicherOrdner();
+        Assert.Throws<FileNotFoundException>(() => SaveGameStore.DeleteSlot(ordner.Datei("spielstand-2.json")));
+    }
 }
