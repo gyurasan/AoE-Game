@@ -4,6 +4,8 @@
 
 ## Wiederaufnahme — hier weitermachen
 
+**Abgleich mit `docs/AgeOfEmpires.md` → neuer Block F** (2026-10-23) — Wunsch: „Kannst du AgeOfEmpires.md durchgehen und prüfen was fehlt. Dann die TODO liste auffühlen“. Jedes Kapitel gegen den Code geprüft; 19 Lücken als F1–F19 nach Priorität, dazu die bewussten Abweichungen (Draufsicht statt isometrisch, Linksklick = Befehl). Größte Lücken: kein Gebäude schießt (F1), nur vier ausbildbare Einheiten ohne Konter (F2), Markt, Kloster, Burg, Werkstatt und Wunder ohne Funktion (F8, F9, F15–F17), fremde Gebäude im Nebel werden live statt im letzten bekannten Zustand gezeichnet (F7). Dabei vier alte offene Haken nach Prüfung im Code als erledigt bzw. gegenstandslos markiert (C9, C10, C13 Ausbildungsplatz, C14 KI greift Gebäude an) und die C4-Notiz auf den Stand gebracht.
+
 **Menühintergrund: Dorfplatz auch hinter „Einstellungen“ und „Spiel laden“** (2026-10-23) — Wunsch: „Der Hintergrund in Einstellungen und Spiel laden muss noch Thematisch angepasst werden“. Hinter beiden Untermenüs lag noch `BackgroundScreen` mit `Layer0_2.png` (blaues Gebirge aus der Platformer-Vorlage, ins 800×480-Raster gestreckt, schwarze Ränder); nur das Hauptmenü verdeckte es mit seinem eigenen Bild. Jetzt zeichnet `BackgroundScreen` das Menübild (`Backgrounds/menu`, Dorfplatz) fensterfüllend in Fensterpixeln mit der Abdunklung 0,3, Pergament als Ersatz, falls das Bild fehlt; `MainMenuScreen` zeichnet kein eigenes Bild mehr, und statt der Schwarzblende über den ganzen Schirm blendet nur seine Tafel (`TransitionAlpha`) — sonst blitzte beim Wechsel Schwarz zwischen zwei gleichen Bildern auf. Ausblenden und Rückkehr des Hauptmenüs dauern wie bei den Untermenüs 0,25 s (der erste Start blendet weiter 1,5 s). Die `Layer*.png` sind damit unbenutzt (noch im mgcb). **Abnahme:** `dotnet build` DesktopGL 0 Fehler · `tools/spielablauf -- menue update` grün · Fotos aus Scratchpad-Kopie (DX, Patch `foto_menue_patch.ps1`): Hauptmenü, Überblendung zu Einstellungen (Dorf bleibt, kein Schwarz), Einstellungen, Spiel laden. **Nebenbefund:** Titel „Settings“, „Display Mode : Windowed“ und „Back“ kommen englisch aus `Resources`.
 
 **Schattenprobleme behoben: Baumschatten-Bänder lagen als Rechtecke am linken Bildrand** (2026-10-23) — `errors/Schattenprobleme.png` und `Schattenprobleme2.png`: türkise, achsgerade Rechtecke, Nutzer: „schein immer auf der Linken Seite zu sein“, „es ändert sich auch“. Ursache in `DrawSwayCastShadow` (seit 4d58f1d): `Draw(info.Tex, quelle, ziel, …)` – MonoGame nimmt bei zwei Rechtecken **erst das Ziel, dann die Quelle**. So landete jedes Band eines Baumschattens bei (0, Py0) in Maskengröße am linken Bildrand, und das Bildschirmrechteck wurde als Maskenausschnitt gelesen (riesig vergrößerte Kronenbögen, Dichte 0,85); die Bäume selbst hatten keinen Schatten an ihrem Platz. Jetzt `Draw(info.Tex, ziel, quelle, …)` in beiden Zweigen, Vertrag korrigiert, `checks/c7_schatten.py` verlangt die Reihenfolge. Diagnose: Spielstand 7 des Nutzers (Kopie) im Scratchpad geladen, Protokoll jedes Schattenzugs + Bild von `_shadowTarget` – kein protokolliertes Ziel lag im Rechteck, Abschalten der Bänder ließ es verschwinden. **Abnahme:** Builds GL + DX 0 Fehler · `checks/c7_schatten.py` grün · `tools/spielablauf -- schatten menue` grün · Fotos Spielstand 7 in GL und DX vorher (Rechtecke links) und nachher (keine; Baumschatten am Stamm nach rechts vorn).
@@ -1153,7 +1155,8 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
       (`AgeRules.RequiredAgeOf`, Baumenü und Tasten richten sich danach). Erstes
       Gebäude der Feudalzeit: **Wachturm** (Taste T, 50 Holz + 125 Stein, 80 s, sieht
       10 Kacheln weit) *(Agent C4c)*. Offen: weitere Gebäude und die Einheiten — die
-      brauchen die zurückgestellte Kampfschleife
+      brauchen die zurückgestellte Kampfschleife. Stand 2026-10-23: alle Gebäude stehen nach
+      Zeitalter im Baumenü (L2); offen sind die Einheiten - siehe F2, F14, F15
 - [x] Gebäude sehen in jedem Zeitalter anders aus: ein Bildsatz je Zeitalter unter
       `Content/Gebaeude/<zeitalter>/`, gezeichnet im Zeitalter des Besitzers *(Agent C4g)*
 - [x] Dorfbewohner kleiden sich nach dem Zeitalter ihres Besitzers: Stand- und Laufbilder je
@@ -1374,7 +1377,9 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
 - [x] Kamera an den Kartenrand geklemmt (`ClampCamera()`) — vorher zeigte der
       Startausschnitt überwiegend Fläche außerhalb der Karte, siehe Screenshot
       vom 2026-09-23 in `docs/`
-- [ ] **Offene Entwurfsfrage:** die Karte ist 64×64 Kacheln à 32 px = 2048 px,
+- [x] *Gegenstandslos seit C11r und den Kartengrößen vom 2026-10-23 (Standard 90×90 bis
+      World 181×181, im Seitenverhältnis des Bildschirms):*
+      **Offene Entwurfsfrage:** die Karte ist 64×64 Kacheln à 32 px = 2048 px,
       ein typisches Fenster ist breiter. Bei Zoom 1 passt die ganze Karte ins
       Bild und wird jetzt zentriert — links und rechts bleibt Rand. Entweder
       größere Karte, oder MIN_ZOOM dynamisch so setzen, dass die Karte das
@@ -1405,7 +1410,8 @@ Laut Spec Punkt 6: ohne das hat eine Partie kein natürliches Ende.
 
 ### C9 · Basis-KI [X]
 
-- [ ] Einheit sucht nächste Ressourcenquelle und sammelt
+- [x] Einheit sucht nächste Ressourcenquelle und sammelt - Dorfbewohner setzen selbst fort
+      (C1), die Wirtschafts-KI verteilt ihre Sammler (`EconomyAi`, K3-K9; geprüft 2026-10-23)
 
 ### C12 · Wege: Trampelpfade werden beim Zeitaufstieg besser [R]
 
@@ -1467,8 +1473,8 @@ und Einheiten laufen darauf 20 % schneller.
   Mauer ist danach für niemanden mehr eine Barriere. Abnahme in `tools/spielablauf`,
   Gruppe `mauern` (bauen, Feind läuft an → muss umlaufen; eigener Dorfbewohner
   reißt ein Stück ab → die Lücke ist für beide Seiten frei durchgängig)
-- [ ] Ausgebildete Dorfbewohner stehen **neben dem ausgebildeten Gebäude**, nicht auf
-  ihm
+- [x] Ausgebildete Dorfbewohner stehen **neben dem ausgebildeten Gebäude**, nicht auf
+  ihm - `SpawnCell` in `UpdateTraining` (geprüft 2026-10-23)
 - [ ] **Krieger** als neue Einheit, ab dem **Feudalzeitalter** in Dorfzentrums/Kern
   auszubildbar (Kaserne optional):
   - können nichts abbauen/sammeln (reine Kämpfer)
@@ -1495,7 +1501,8 @@ Gebäude, erste Soldaten, Forschungen; angreifen nur eigene Einheiten per Befehl
       (Holzfällerlager), Goldbergbau (Bergbaulager), Schmiedekunst, Befiederte Pfeile und
       Schuppenpanzer (Schmiede, Q W E), Maurerkunst (Universität); Regeln und Wirkung in
       AoE.Core (`Economy/Research.cs`), Tasten nach `Researches` *(Agent P2a, P2b)*
-- [ ] Die KI greift noch keine Gebäude an
+- [x] Die KI greift Gebäude an - ihre Welle zieht auf das nächste sichtbare feindliche
+      Gebäude (`EconomyAi.Raid`, K9; geprüft 2026-10-23)
 
 ### C15 · Reparatur: beschädigte Gebäude wiederherstellen [R]
 
@@ -1547,6 +1554,207 @@ in hoher Qualität; ab der zweiten Epoche führen von den Häusern automatisch W
   mitbenutzt (`ROAD_NEW_TILE_COST`), schräg auf das Zentrum zu; Stadtzentrum ohne Weg *(Agent W4)*
 - [x] Abnahme: 13 neue `FeldwegeTests`, Gruppe `gebaeudewege`, `checks/c16_wegbild.py`, Fotos
 - [ ] Sichtprüfung durch den Nutzer im echten Spiel (Maßstab der Steine, Helligkeit, Wegbreite)
+
+---
+
+# Block F — Lücken gegenüber `docs/AgeOfEmpires.md` (Abgleich 2026-10-23)
+
+Kapitel für Kapitel gegen den **Code** abgeglichen (nicht gegen frühere Doku): was die Spec
+beschreibt und im Spiel fehlt oder nur als Hülle existiert. Reihenfolge = Priorität fürs
+Spielgefühl - zuerst, was schon baubare Gebäude und vorhandene Tasten mit Sinn füllt.
+
+**Schon da und hier nicht aufgeführt:** Dorfbewohner-Loop mit Traglast, Abgabestellen und
+Leerlauf-Taste (`.`); vier Ressourcen, Gold und Stein endlich; Bevölkerungslimit mit Häusern
+(100/200/400 wählbar), Produktion stoppt am Limit; vier Zeitalter mit Kosten und Dauer nach
+AoE II; alle 19 Gebäudetypen baubar (L1/L2); Bauen mit abnehmendem Ertrag `(n + 2) / 3`;
+Reparatur; Schadensformel mit Angriffs- und Rüstungsklassen (`DamageCalculator`); Nebel mit
+drei Zuständen und Boden-Gedächtnis (G14); A*-Wegfindung, Verband verteilt sich ums Ziel;
+dreigeteiltes HUD mit Minimap; faire Startressourcen je Spieler (`PlaceStartResources`);
+Wirtschafts-KI mit Angriffswellen auf sichtbare Gebäude (K9).
+
+### F1 · Türme, Stadtzentrum und Burg schießen [X]
+
+Stand: Kein Gebäude schießt. Der Wachturm (50 Holz + 125 Stein) bringt nur Sicht, das
+Stadtzentrum ruft bei Angriff nur Soldaten herbei (K6, `DefendTownCenters`), die Burg tut nichts.
+
+- [ ] Pfeilangriff für Wachturm, Stadtzentrum und Burg: Reichweite, Takt, Schaden über
+      `DamageCalculator` (Fernkampf gegen Fernkampf-Rüstung), Ziel = nächster sichtbarer Feind
+- [ ] Pfeile mit der Flugbahn aus A3 (`MaybeLaunchArrow`) zeichnen, Geräusch wie beim Bogen
+- [ ] Befiederte Pfeile und Maurerkunst wirken mit; KI greift Türme gezielt an oder meidet sie
+- [ ] Abnahme: neue Gruppe in `tools/spielablauf` (Feind im Radius nimmt Schaden, außerhalb nicht)
+
+### F2 · Konter-Einheiten: Speerkämpfer, Plänkler, Ritter [X]
+
+Stand: ausbildbar sind nur Dorfbewohner, Miliz, Bogenschütze und Späher (`Products`).
+`UnitType` kennt SpearMan, Skirmisher, Cavalry, CamelRider, CavalryArcher u. a., aber ohne
+Ausbildung und ohne Bilder. Ohne sie läuft das Konter-Dreieck der Spec ins Leere, und die
+goldfreien Einheiten fürs Endspiel fehlen.
+
+- [ ] Werte und Boni in AoE.Core: Speerkämpfer +15 gegen Kavallerie, Plänkler +3 gegen
+      Bogenschützen, Ritter 100 LP / 10 Angriff / 2/2 Rüstung (Richtwerte der Spec)
+- [ ] Ausbildung: Kaserne Speerkämpfer (Feudal), Schießstand Plänkler (Feudal), Stall Ritter (Ritterzeit)
+- [ ] Bilder je Spielerfarbe und Zeitalter: Stand, Lauf, Schlag (Qwen-Image, `tools/bilder`, Seitenansicht)
+- [ ] KI stellt ihre Wellen nach dem zusammen, was sie vom Gegner sieht
+- [ ] Abnahme: Kampfgruppen in `tools/spielablauf` - Speer schlägt Ritter, Plänkler schlägt Bogen,
+      Miliz schlägt Speer
+
+### F3 · Aufstieg braucht zwei Gebäude des laufenden Zeitalters [R]
+
+Stand: der Aufstieg kostet nur Rohstoffe und Zeit (`AgeRules.CostOf`). AoE II verlangt dazu
+zwei fertige Gebäude des laufenden Zeitalters (Dunkle Zeit z. B. Mühle, Lager, Kaserne).
+
+- [ ] Regel in `AgeRules` (AoE.Core) mit Tests; welche Gebäude zählen, je Zeitalter
+- [ ] Taste A gesperrt mit Hinweis in der Leiste, was noch fehlt
+- [ ] KI (`EconomyAi`) baut die Voraussetzungen vor dem Aufstieg; Spielstände bleiben ladbar
+
+### F4 · Auswahl wie in AoE: Kontrollgruppen und Doppelklick [R]
+
+Stand: Rechteck-Auswahl und Leerlauf-Taste gibt es; Strg+Zahl und Doppelklick fehlen ganz.
+
+- [ ] Strg+1…9 legt eine Gruppe an, 1…9 wählt sie, zweimal drücken holt die Kamera hin
+- [ ] Doppelklick wählt alle sichtbaren eigenen Einheiten desselben Typs
+- [ ] Vorher prüfen, dass die Zifferntasten nirgends belegt sind (Baumenü nutzt Buchstaben)
+
+### F5 · Wirtschaftstechnologien vervollständigen [R]
+
+Stand: von den Wirtschaftsforschungen der Spec gibt es Webstuhl, Pferdekummet, Doppelaxt und
+Goldbergbau. Es fehlen Schubkarre und Handkarren (Stadtzentrum: schneller laufen und arbeiten,
+mehr tragen), Schwerer Pflug und Fruchtwechsel (Mühle, Farmertrag stufenweise), Bogensäge,
+Goldschacht sowie Steinbergbau. Die KI forscht gar nicht - `IWorldActions` hat keine Forschung.
+
+- [ ] `Tech`, `TechRules` (Kosten, Dauer, Zeitalter, Gebäude, Vorgänger) und `TechEffects` mit Tests
+- [ ] Tasten im jeweiligen Gebäude, Symbole (Qwen, wie die vorhandenen `Icons/`)
+- [ ] `IWorldActions.Research` und eine Forschungsreihenfolge in `EconomyAi`
+
+### F6 · Schmiede in drei Stufen und fünf Linien [R]
+
+Stand: je eine Stufe für Nahkampf-Angriff (Schmiedekunst), Fernkampf-Angriff (Befiederte
+Pfeile) und Infanterie-Rüstung (Schuppenpanzer). Es fehlen die Stufen 2 und 3 sowie die Linien
+Rüstung Kavallerie und Rüstung Fernkämpfer. Spec: +3 Rüstung nimmt 75 % des Schadens.
+
+- [ ] Ketten mit Vorgänger (Stufe 2 Ritterzeit, Stufe 3 Imperialzeit), Wirkung über die
+      vorhandenen Angriffs-/Rüstungsklassen, Tests
+- [ ] Tastenbelegung der Schmiede bei 15 Forschungen (zweite Reihe oder Blättern)
+
+### F7 · Fremde Gebäude im Nebel im letzten bekannten Zustand [R]
+
+Stand: der Boden zeigt im Nebel den zuletzt gesehenen Stand (G14), Gebäude nicht - alle
+Gebäude werden immer live gezeichnet. Ein Gegnerbau im erkundeten Nebel erscheint dadurch
+sofort, ein zerstörter verschwindet; genau die Unsicherheit der Spec fehlt, und es verrät Wissen.
+
+- [ ] Je Spieler eine Erinnerung an gesehene fremde Gebäude (Typ, Lage, Bauphase, Zeitalter,
+      Besitzer), gezeichnet statt des echten Gebäudes, solange keine Kachel davon sichtbar ist
+- [ ] Minimap und Auswahl folgen derselben Erinnerung; Spielstand speichert sie
+
+### F8 · Markt: Rohstoffe tauschen [R]
+
+Stand: Markt baubar (Feudalzeit), ohne Funktion. Spec: Tausch zu schlechtem Kurs, der sich
+je Handel in dieselbe Richtung verschlechtert - die Notlösung, wenn Gold oder Stein ausgeht.
+
+- [ ] Kurse in AoE.Core (Kauf/Verkauf je 100 gegen Gold, Kursänderung je Handel, langsame
+      Erholung) mit Tests
+- [ ] Tasten am ausgewählten Markt, Kurse in der Leiste; Spielstand speichert die Kurse
+- [ ] KI handelt, wenn ihr eine Ressource ausgeht
+- Handelskarren brauchen einen verbündeten Markt - erst mit Teams (F19)
+
+### F9 · Wunder-Sieg und Aufgeben [R]
+
+Stand: einzige Siegbedingung ist ein zerstörtes Stadtzentrum, für das kein neues mehr baubar
+ist (`DefeatRule`). Das Wunder ist ab der Imperialzeit baubar, hat aber keine Wirkung.
+
+- [ ] Fertiges Wunder startet eine für beide sichtbare Uhr; steht es bis zum Ablauf, ist das
+      Spiel gewonnen; die KI greift ein gegnerisches Wunder vorrangig an
+- [ ] „Aufgeben" im Pausenmenü
+- [ ] Entscheidung: bleibt „Stadtzentrum weg = verloren", oder wie in der Spec erst, wenn
+      keine Gebäude und Einheiten mehr stehen
+
+### F10 · Garnison [X]
+
+Stand: es gibt keine Garnison. Spec: Einheiten ziehen sich in Gebäude zurück, Türme und Burgen
+schießen mit mehr Pfeilen, je mehr drin sind; das Stadtzentrum schützt Dorfbewohner.
+
+- [ ] Befehl „betreten" für Stadtzentrum, Wachturm und Burg (Plätze je Gebäude), Taste zum Entlassen
+- [ ] Mehr Pfeile je Insasse (setzt F1 voraus), Insassen heilen langsam; Spielstand speichert sie
+- [ ] Alarm: alle Dorfbewohner in der Nähe gehen ins Stadtzentrum
+
+### F11 · Jagd wie in AoE: Hirsch flieht, Wildschwein wehrt sich, Fleisch verdirbt [R]
+
+Stand: Rehe und Wildschweine wandern, ein Dorfbewohner schlachtet sie ohne Gegenwehr, das
+Fleisch hält ewig. Bären und Wölfe greifen schon an (RT).
+
+- [ ] Reh flieht vor Dorfbewohnern und muss erst erlegt werden
+- [ ] Wildschwein greift den Jäger an (Raubtier-Logik aus RT) und lässt sich zum Stadtzentrum locken
+- [ ] Erlegtes Wild verliert langsam Nahrung (Spec: die Sammelmannschaft muss groß genug sein)
+
+### F12 · Haltungen, Formationen, gemeinsames Tempo [R]
+
+Stand: Gruppen verteilen sich ums Ziel (`FormationMovement`, Verbands-Abstand in den
+Einstellungen), untätige Soldaten greifen sichtbare Angreifer in der Nähe von selbst an.
+
+- [ ] Haltungen aggressiv / defensiv / Stellung halten / kein Angriff, Taste in der Leiste
+- [ ] Ein Verband läuft so schnell wie seine langsamste Einheit (der Späher läuft heute voraus)
+- [ ] Formationen Linie, Kasten, gestaffelt, Flanke: Nahkämpfer vorn, Fernkämpfer dahinter
+
+### F13 · HUD-Mitte: Angriff, Rüstung, Bild der Auswahl [R]
+
+Stand: für eine einzelne Einheit stehen Name und Lebenspunkte als Text in der Leiste. Spec:
+Name, Porträt, Lebensbalken, Angriff/Rüstung, bei Gebäuden die Warteschlange.
+
+- [ ] Porträt (das Standbild der Figur), Lebensbalken, Angriff und Rüstung (Nah/Fern) mit Boni
+- [ ] Bei Gruppen: kleine Bilder je Einheit statt nur der Anzahl
+
+### F14 · Elite-Upgrades [R]
+
+Miliz → Schwertkämpfer → Langschwertkämpfer, Bogenschütze → Armbrustschütze, Späher → Leichte
+Kavallerie; Forschung im Ausbildungsgebäude, hebt Werte und tauscht Bild und Namen aller schon
+vorhandenen Einheiten. Bilder je Stufe (Qwen). Weitere Linien nach F2.
+
+### F15 · Belagerung: Rammbock, Mangonel, Trebuchet [X]
+
+Stand: die Belagerungswerkstatt (Ritterzeit) ist baubar und bildet nichts aus.
+
+- [ ] Rammbock: +125 gegen Gebäude, gegen Einheiten fast nichts, hohe Fernkampf-Rüstung
+- [ ] Mangonel: Flächenschaden mit Mindestreichweite; Trebuchet (Imperialzeit, auch Burg):
+      auf- und abbauen, Reichweite 16, nur gegen Gebäude
+- [ ] Mehrere Bevölkerungsplätze, Reparatur durch Dorfbewohner, Bilder und Geschosse
+
+### F16 · Kloster: Mönche, Bekehrung, Reliquien [X]
+
+Spec zählt das zu „bewusst nicht nötig fürs Grundgerüst" - das Kloster ist aber schon baubar
+und tut nichts.
+
+- [ ] Mönch heilt eigene Einheiten und bekehrt fremde (Zeit, Zufall, Reichweite; Gebäude und
+      Belagerung immun); Forschung Glaube
+- [ ] Reliquien auf der Karte; ein Mönch trägt sie ins Kloster, jede bringt laufend Gold;
+      danach Reliquien-Sieg zu F9
+
+### F17 · Burg mit eigener Einheit [X]
+
+Stand: Burg baubar (650 Stein), nur Sicht. Ohne Zivilisationen eine feste Burg-Einheit
+(`UnitType.Longbowman` gibt es schon), dazu Pfeile aus F1 und Trebuchet aus F15.
+
+### F18 · Farm neu bestellen kostet Holz [R] - Entscheidung des Nutzers
+
+Stand: eine leere Farm wächst nach 100 s kostenlos nach (`FARM_REGROW_SECONDS`). Spec: eine
+Neubestellung kostet 60 Holz - das ist der Holzbedarf des späten Spiels. Optional die
+vorbestellte Warteschlange in der Mühle wie in AoE II DE.
+
+### F19 · Karte, Startaufstellung, Spielmodi [X]
+
+- [ ] Startaufstellung wie AoE II: 3 Dorfbewohner und 1 Späher (heute 4 Dorfbewohner, kein Späher)
+- [ ] Gelände: Schnee und Fels stehen in `TileType`, werden aber nie erzeugt; Untiefen
+      (begehbares Flachwasser) fehlen; Erhöhungen mit Angriffs- und Sichtvorteil fehlen
+- [ ] Kartentypen im Menü neben der Größe: offen (Arabia), Schwarzwald, Nomade; Inseln erst mit Schiffen
+- [ ] Spielmodi Todesmatch und Königsmord; mehr als zwei Spieler, Teams, Rohstoffe an Verbündete
+
+### Bewusste Abweichungen von der Spec - nur auf ausdrücklichen Wunsch ändern
+
+- **Isometrische Darstellung** (Spec, Relevanz Punkt 7): das Spiel bleibt in Draufsicht mit
+  Figuren in Seitenansicht (Nutzer 2026-10-05, keine Front-/Rückansichten). Ein Umstieg auf
+  Rauten berührt Karte, Shader, Wege, Schatten und jedes Gebäudebild.
+- **Maus:** Spec Rechtsklick = Befehl; hier Linksklick = Befehl, Rechtsklick = Auswahl (C8b).
+- **Zivilisationen, Seekampf (Hafen, Schiffe), Kampagnen:** laut Spec kein Teil des Grundgerüsts.
+- **Bären und Wölfe** (RT) gehen über die Spec hinaus.
 
 ---
 
@@ -1627,8 +1835,8 @@ Enthält reines Azure-Boilerplate ohne jeden Bezug zum Projekt.
   (`py run_tasks.py --list`). Die IDs sind dieselben. Sinnvoll für `[L]` und mit
   Sichtung für `[R]`; `[X]` gehört nicht dorthin.
 - Priorisierung folgt `docs/AgeOfEmpires.md`, Kap. „Relevanz für dieses Projekt" (Z. 672–715)
-- **Bekannter Engpass laut Spec:** es existiert *kein einziges AoE-taugliches Grafik-Asset*.
-  `RTSGameplayScreen` zeichnet prozedural erzeugte 32×32-Pixelart statt echter Grafiken. Alle Punkte außer C6/C7 und der
-  isometrischen Darstellung lassen sich damit trotzdem vollständig umsetzen und testen.
+- **Grafik-Engpass der Spec ist überholt** (Stand 2026-10-23): Gebäude je Zeitalter, Figuren,
+  Tiere, Bäume, Boden, Wege und Symbole kommen aus Qwen-Image (`tools/bilder`). Neue Einheiten
+  aus Block F brauchen je Stand-, Lauf- und Schlagbilder - das ist dort der eigentliche Aufwand.
 - **Bewusst nicht nötig** fürs Grundgerüst: Zivilisationsboni, Reliquien, Mönche, Handel,
   Seekampf, Formationen, Kampagnen.
