@@ -2957,8 +2957,142 @@ static void Schatten(List<string> verstoesse)
             verstoesse.Add($"{wer}: ShadowDest ergibt {d}, erwartet {{X:100 Y:50 Width:100 Height:80}}");
     }
 
+    // Wind (SwayShadowBands): die Bänder liegen auf den Streifen des Baums, decken die
+    // ganze Schattenmaske ab, und jede Bänderverschiebung ist die seines Baumstreifens
+    {
+        var baender = Statisch("SwayShadowBands");
+        (int Py0, int Py1, float Hoehenteil)[] Ist(byte[] a, int w, int h, int texH, int s)
+            => ((int Py0, int Py1, float Hoehenteil)[])baender.Invoke(null, new object[] { a, w, h, texH, s })!;
+
+        // Zweite Umsetzung des Vertrags von SwayShadowBands
+        (int Py0, int Py1, float Hoehenteil)[] Soll(byte[] a, int w, int h, int texH, int s)
+        {
+            int shadowH = h + (int)MathF.Ceiling(h * flat + w * depth / 2f) + 2 * soft;
+            bool deckt(int y)
+            {
+                for (int x = 0; x < w; x++)
+                    if (a[y * w + x] >= 128)
+                        return true;
+                return false;
+            }
+            int tief = -1;
+            for (int y = h - 1; y >= 0; y--)
+            {
+                if (deckt(y))
+                {
+                    tief = y;
+                    break;
+                }
+            }
+            int shStrip = texH / s;
+            var r = new (int Py0, int Py1, float Hoehenteil)[s];
+            for (int i = 0; i < s; i++)
+            {
+                int oben = i * shStrip, hoehe = i == s - 1 ? texH - oben : shStrip;
+                float hh = 1f - (oben + hoehe / 2f) / texH;
+                double lo = double.MaxValue, hi = double.MinValue;
+                for (int y = oben / 2; y < Math.Min(h, (oben + hoehe + 1) / 2) && y <= tief; y++)
+                {
+                    if (!deckt(y))
+                        continue;
+                    double l = -1, rr = -1;
+                    for (int x = 0; x < w; x++)
+                    {
+                        if (a[y * w + x] < 128)
+                            continue;
+                        if (l < 0) l = x;
+                        rr = x;
+                    }
+                    double cy = tief + 0.5 + (tief - y) * flat;
+                    double ry = Math.Max(0.5, (rr - l + 1) / 2.0 * depth);
+                    lo = Math.Min(lo, cy - ry);
+                    hi = Math.Max(hi, cy + ry);
+                }
+                if (lo > hi)
+                {
+                    r[i] = (0, 0, hh);
+                    continue;
+                }
+                r[i] = (Math.Max(0, (int)lo - soft), Math.Min(shadowH, (int)Math.Ceiling(hi) + soft), hh);
+            }
+            return r;
+        }
+
+        foreach (var (name, a, w, h) in formen)
+        {
+            int texH = 2 * h - 1;   // dann ist (texH + 1) / 2 = h
+            foreach (int s in new[] { 4, Wind.TREE_STRIPS })
+            {
+                var ist = Ist(a, w, h, texH, s);
+                var soll = Soll(a, w, h, texH, s);
+                if (ist.Length != s)
+                {
+                    verstoesse.Add($"{wer} ({name}, {s} Streifen): {ist.Length} Bänder, erwartet {s} - je Streifen eines");
+                    continue;
+                }
+                for (int i = 0; i < s; i++)
+                {
+                    if (ist[i].Py0 != soll[i].Py0 || ist[i].Py1 != soll[i].Py1 ||
+                        MathF.Abs(ist[i].Hoehenteil - soll[i].Hoehenteil) > 1e-5f)
+                        verstoesse.Add($"{wer} ({name}, {s} Streifen): Band {i} = ({ist[i].Py0}, {ist[i].Py1}, {ist[i].Hoehenteil:0.###}), Vertrag sagt ({soll[i].Py0}, {soll[i].Py1}, {soll[i].Hoehenteil:0.###})");
+                    if (ist[i].Py0 < 0 || ist[i].Py1 > h + (int)MathF.Ceiling(h * flat + w * depth / 2f) + 2 * soft || ist[i].Py0 > ist[i].Py1)
+                        verstoesse.Add($"{wer} ({name}, {s} Streifen): Band {i} = ({ist[i].Py0}, {ist[i].Py1}) - muss im Schattenbild liegen und nicht leer sein");
+                    if (i > 0 && ist[i].Hoehenteil >= ist[i - 1].Hoehenteil)
+                        verstoesse.Add($"{wer} ({name}, {s} Streifen): Hoehenteil sinkt nicht ({ist[i - 1].Hoehenteil:0.###} → {ist[i].Hoehenteil:0.###}) - oben muss höher sein als unten");
+                }
+                if (name == "leer")
+                {
+                    foreach (var b in ist)
+                        if (b.Py0 != b.Py1)
+                            verstoesse.Add($"{wer} (leer, {s} Streifen): {b}-Band ist nicht leer - ohne deckende Zeile darf es keinen Schatten geben");
+                }
+            }
+        }
+
+        // Die Bänder decken die ganze Schattenmaske ab (auch den weichen Rand).
+        {
+            var (name, a, w, h) = formen.First(f => f.Name == "breite Krone");
+            int texH = 2 * h - 1;
+            int s = Wind.TREE_STRIPS;
+            var (maske, _, mh) = Backen(a, w, h, false);
+            var ist = Ist(a, w, h, texH, s);
+            for (int py = 0; py < mh; py++)
+            {
+                bool inMaske = false;
+                for (int px = 0; px < 1000 && !inMaske; px++)
+                    if (px < maske.Length / mh && maske[py * maske.Length / mh + px] > 0)
+                        inMaske = true;
+                if (!inMaske)
+                    continue;
+                bool gedeckt = ist.Any(b => b.Py0 <= py && py <= b.Py1);
+                if (!gedeckt)
+                    verstoesse.Add($"{wer} ({name}): Maske-Zeile {py} liegt in keinem Band - die Bänder decken die Maske nicht ab");
+            }
+        }
+
+    // Jede Bänderverschiebung ist die des Baumstreifens: Wind.SwayStrips zieht das Bild um
+        // sway * Höhe * h^1,5 je Streifen, der Schatten zieht sein Band um genau dasselbe.
+        {
+            var (name, a, w, h) = formen.First(f => f.Name == "breite Krone");
+            int texW = 2 * w - 1, texH = 2 * h - 1;
+            var target = new Rectangle(100, 50, 48, texH);
+            float sway = 0.03f;
+            var ist = Ist(a, w, h, texH, Wind.TREE_STRIPS);
+            var streifen = Wind.SwayStrips(target, texW, texH, sway, Wind.TREE_STRIPS).ToList();
+            for (int i = 0; i < Wind.TREE_STRIPS; i++)
+            {
+                if (ist[i].Py0 >= ist[i].Py1)
+                    continue;
+                float baumVerschiebung = streifen[i].Position.X - target.X;
+                float schattenVerschiebung = sway * target.Height * MathF.Pow(ist[i].Hoehenteil, 1.5f);
+                if (MathF.Abs(baumVerschiebung - schattenVerschiebung) > 0.01f)
+                    verstoesse.Add($"{wer} ({name}): Band {i} rückt um {schattenVerschiebung:0.###}, der Baumstreifen um {baumVerschiebung:0.###} - der Schatten muss mit dem Baum wiegen");
+            }
+        }
+    }
+
     if (verstoesse.Count == vorher)
-        Console.WriteLine($"  ok  {wer}: Maske nach Vertrag ({formen.Count} Formen, Kontur und Körper), hängt am Fuß, fällt nach rechts vorn, HalfAlpha, ShadowDest");
+        Console.WriteLine($"  ok  {wer}: Maske nach Vertrag ({formen.Count} Formen, Kontur und Körper), hängt am Fuß, fällt nach rechts vorn, HalfAlpha, ShadowDest, Bänder wiegen mit dem Baum");
 }
 
 // Feuer und Rauch (A5): Rauchwolken, Flackern, Flammenzungen und Funken rechnen genau nach ihrem
@@ -5047,10 +5181,12 @@ static void Schlag(List<string> verstoesse)
         Console.WriteLine($"  ok  {wer}: {string.Join(",", folge)} je Takt, Hieb genau beim Treffer");
 }
 
-// Kartengrößen (C11): Standard 64, Groß 90, Maximal 128 Kacheln Seitenlänge;
+// Kartengrößen (C11): Standard 90, Kontinent 128, World 181 Kacheln Seitenlänge
+// (Umbau 2026-10-23: frühere Groß → Standard, frühere Maximal → Kontinent, World neu);
 // die Karte übernimmt das Seitenverhältnis des Bildschirms (bei jeder Größe
-// die gleiche Fläche wie die quadratische Referenz), beide Stadtzentren stehen
-// in ihren Ecken, und die Minimap zeigt die ganze Karte.
+// die gleiche Fläche wie die quadratische Referenz). Die Stadtzentren stehen
+// seit SZ1 zufällig: beide im Bereich 3..Breite-7 und mindestens halbe Kartenbreite
+// (euklidisch) voneinander entfernt. Die Minimap zeigt die ganze Karte.
 static void Kartengroessen(List<string> verstoesse)
 {
     const string wer = "Kartengrößen";
@@ -5062,7 +5198,7 @@ static void Kartengroessen(List<string> verstoesse)
     // NICHT in die Rechnung ein).
     int sw = 2406, sh = 1353;
     float aspect = (float)sw / sh;
-    var erwartet = new Dictionary<MapSize, int> { [MapSize.Standard] = 64, [MapSize.Large] = 90, [MapSize.Max] = 128 };
+    var erwartet = new Dictionary<MapSize, int> { [MapSize.Standard] = 90, [MapSize.Continent] = 128, [MapSize.World] = 181 };
     foreach (var (groesse, seite) in erwartet)
     {
         (int mw, int mh) = MapSizes.Dimensions(groesse, aspect);
@@ -5074,10 +5210,22 @@ static void Kartengroessen(List<string> verstoesse)
         // Die Fläche bleibt die der quadratischen Referenz (Rohstoffdichte).
         if (Math.Abs(w.Map.Width * w.Map.Height - seite * seite) > seite * seite / 100f)
             verstoesse.Add($"{wer}: {groesse}: Fläche {w.Map.Width * w.Map.Height} Kacheln weicht >1 % von {seite * seite} ab");
+        // SZ1: die Startplätze sind zufällig — beide innerhalb 3..Breite-7 /
+        // 3..Höhe-7 und mindestens halbe Kartenbreite voneinander entfernt.
         var zentren = w.Map.Buildings.Where(b => b.Type == "Stadtzentrum").Select(b => (b.X, b.Y)).OrderBy(p => p).ToList();
-        var soll = new List<(int, int)> { (3, 3), (mw - 4, mh - 4) };
-        if (!zentren.SequenceEqual(soll))
-            verstoesse.Add($"{wer}: {groesse}: Stadtzentren bei {string.Join(", ", zentren)} statt (3, 3) und ({mw - 4}, {mh - 4})");
+        if (zentren.Count != 2)
+        {
+            verstoesse.Add($"{wer}: {groesse}: Stadtzentren bei {string.Join(", ", zentren)} statt genau zwei");
+        }
+        else
+        {
+            bool imBereich((int X, int Y) z) => z.X >= 3 && z.Y >= 3 && z.X <= mw - 7 && z.Y <= mh - 7;
+            if (!imBereich(zentren[0]) || !imBereich(zentren[1]))
+                verstoesse.Add($"{wer}: {groesse}: Startplätze {zentren[0]} / {zentren[1]} außerhalb des Bereichs 3..{mw - 7} × 3..{mh - 7}");
+            double dist = Math.Sqrt(Math.Pow(zentren[1].X - zentren[0].X, 2) + Math.Pow(zentren[1].Y - zentren[0].Y, 2));
+            if (dist < mw / 2.0)
+                verstoesse.Add($"{wer}: {groesse}: Startplätze {zentren[0]} / {zentren[1]} sind {dist:0.#} Kacheln entfernt statt ≥ {mw / 2.0:0.#} (halbe Kartenbreite)");
+        }
         w.Set("screenBounds", new Rectangle(0, 0, sw, sh));
         var r = (Rectangle)w.Call("MinimapRect");
         // Die Minimap trägt das Seitenverhältnis der Karte und spannt sie.
@@ -5092,9 +5240,9 @@ static void Kartengroessen(List<string> verstoesse)
     if (verstoesse.Count == vorher)
     {
         var dims = MapSizes.Dimensions(MapSize.Standard, aspect);
-        var dimm = MapSizes.Dimensions(MapSize.Large, aspect);
-        var dimx = MapSizes.Dimensions(MapSize.Max, aspect);
-        Console.WriteLine($"  ok  {wer}: {dims} / {dimm} / {dimx} Kacheln im Bildformat, Stadtzentren in den Ecken");
+        var dimk = MapSizes.Dimensions(MapSize.Continent, aspect);
+        var dimw = MapSizes.Dimensions(MapSize.World, aspect);
+        Console.WriteLine($"  ok  {wer}: {dims} / {dimk} / {dimw} Kacheln im Bildformat, Startplätze ≥ halbe Kartenbreite voneinander");
     }
 }
 
@@ -5275,7 +5423,7 @@ static void Hauptmenue(List<string> verstoesse)
     if ((int)auswahl.GetValue(menue) != 1)
         verstoesse.Add($"{wer}: Pfeil nach oben von „Einstellungen“ landet auf {auswahl.GetValue(menue)}, erwartet 1");
 
-    // Der Karteneintrag nennt die Größe und wechselt Standard, Groß, Maximal im Kreis
+    // Der Karteneintrag nennt die Größe und wechselt Standard, Kontinent, World im Kreis
     var groesse = typ.GetField("mapSize", F)
         ?? throw new InvalidOperationException("Feld MainMenuScreen.mapSize nicht gefunden");
     var folge = new List<MapSize>();
@@ -5289,8 +5437,8 @@ static void Hauptmenue(List<string> verstoesse)
         folge.Add(jetzt);
         jetzt = (MapSize)Methode("NextMapSize").Invoke(null, new object[] { jetzt })!;
     }
-    if (!folge.SequenceEqual(new[] { MapSize.Standard, MapSize.Large, MapSize.Max, MapSize.Standard }))
-        verstoesse.Add($"{wer}: die Kartengröße wechselt {string.Join(" -> ", folge)} statt Standard -> Large -> Max -> Standard");
+    if (!folge.SequenceEqual(new[] { MapSize.Standard, MapSize.Continent, MapSize.World, MapSize.Standard }))
+        verstoesse.Add($"{wer}: die Kartengröße wechselt {string.Join(" -> ", folge)} statt Standard -> Kontinent -> World -> Standard");
     if ((string)Methode("EntryText").Invoke(menue, new object[] { 0 }) != "Neues Spiel")
         verstoesse.Add($"{wer}: der erste Eintrag heißt nicht mehr „Neues Spiel“");
 
@@ -7499,12 +7647,26 @@ class Welt
     readonly List<Unit> _units;
     double _zeit, _nebel;
 
-    public Welt(MapSize groesse = MapSize.Standard, float aspect = 1f)
+    /// <summary>
+    /// Die Referenzkarte aller Gruppen (64×64, unskalierte <see cref="MapSettings"/>) —
+    /// exakt die Karte, die vor dem Größen-Umbau (2026-10-23) „Standard“ hieß,
+    /// damit die Gruppen ihre ursprünglichen Karteninhalte weiter prüfen.
+    /// </summary>
+    public Welt(float aspect = 1f)
+        : this(MapSizes.Dimensions(MapSizes.BaseSide, aspect), MapSettings.Default) { }
+
+    /// <summary>
+    /// Eine Welt in der gewählten Größe (Standard 90², Kontinent 128², World 181²)
+    /// mit dem zum Format passenden Seitenverhältnis.
+    /// </summary>
+    public Welt(MapSize groesse, float aspect = 1f)
+        : this(MapSizes.Dimensions(groesse, aspect), MapSettings.ForSize(groesse)) { }
+
+    private Welt((int Width, int Height) dims, MapSettings settings)
     {
         P1 = new(0, "P1", "Briten");
         P2 = new(1, "P2", "Azteken");
-        var dims = MapSizes.Dimensions(groesse, aspect);
-        Map = new TileMap(dims.Width, dims.Height, 32, MapSettings.ForSize(groesse));
+        Map = new TileMap(dims.Width, dims.Height, 32, settings);
         // Bären und Wölfe der Kartenerzeugung (RT) beißen sonst zufällig in andere Abläufe -
         // etwa die Auto-Antwort in der Kartenmitte. Die Gruppe raubtiere stellt ihre eigenen auf.
         for (int x = 0; x < Map.Width; x++)

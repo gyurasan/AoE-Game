@@ -87,7 +87,8 @@ Spielbar sind Wirtschaft, Aufstieg durch die Zeitalter und Kampf gegen einen Com
 - Dorfbewohner, Soldaten, Schafe und Wild gehen natürlich: Schritte nach der gelaufenen Strecke,
   Anfahren und Abbremsen, gerade Wege über freies Land, Blick in Laufrichtung und zur Arbeit; die
   Miliz holt zum Schwertschlag aus, der Späher stößt mit dem Speer
-- Drei Kartengrößen, im Hauptmenü wählbar: Standard, Groß und Maximal; die Karte nimmt das
+- Drei Kartengrößen, im Hauptmenü wählbar: Standard (90×90), Kontinent (128×128) und
+  World (181×181, die doppelte Fläche einer Kontinent-Karte); die Karte nimmt das
   Seitenverhältnis des Fensters an
 
 Noch nicht da sind Handel, Einheiten aus Belagerungswerkstatt, Kloster und Burg, schießende Türme
@@ -194,7 +195,7 @@ Weitere Schalter, zusammen mit `--rts`:
 
 | Schalter | Wirkung |
 |---|---|
-| `--karte gross`, `--karte max` | Große bzw. maximale Karte |
+| `--karte standard` / `kontinent` / `world` | Die Kartengröße für `--rts` |
 | `--both` | Beide Seiten spielt die KI, KI gegen KI |
 | `--test` | Ganze Karte ohne Nebel, Gegner rot auf der Minimap |
 | `--api [port]` | Lokale HTTP-Schnittstelle für eine externe KI (Standard 8080) |

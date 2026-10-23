@@ -6978,8 +6978,9 @@ public partial class RTSGameplayScreen : GameScreen
                                  target.Width + treeHeight / 8, target.Height);
         if (!screenBounds.Intersects(cull)) return;
         float sway = Wind.TreeSway(foot / tileMap.TileSize, animationTime, look);
-        // Schlagschatten (C7): der Baum in Ruhe, der Schatten schwingt nicht mit
-        DrawCastShadow(spriteBatch, tex, target, SpriteEffects.None, false, 0, TREE_SHADOW_DENSITY);
+        // Schlagschatten (C7, Wind): der Schatten wiegt sich mit dem Baum - jedes Band
+        // rückt genau so, wie der Baumstreifen auf seiner Höhe
+        DrawSwayCastShadow(spriteBatch, tex, target, SpriteEffects.None, 0, TREE_SHADOW_DENSITY, sway);
         foreach (var strip in Wind.SwayStrips(target, tex.Width, tex.Height, sway))
         {
             spriteBatch.Draw(tex, strip.Position, strip.Source, Color.White, 0f, Vector2.Zero, strip.Scale, SpriteEffects.None, 0f);

@@ -44,7 +44,7 @@ public class MainMenuScreen : GameScreen
     };
     int selectedIndex = 0;
 
-    // Der Karteneintrag wechselt bei jeder Wahl die Größe (Standard, Groß, Maximal);
+    // Der Karteneintrag wechselt bei jeder Wahl die Größe (Standard, Kontinent, World);
     // die Wahl bleibt in den Einstellungen gespeichert
     private const int MAP_ENTRY = 1;
     MapSize mapSize = MapSize.Standard;
@@ -84,7 +84,21 @@ public class MainMenuScreen : GameScreen
         // Die zuletzt gewählte Kartengröße
         settingsManager = ScreenManager.Game.Services.GetService<SettingsManager<AgeOfEvolutionsSettings>>();
         if (settingsManager != null)
-            mapSize = (MapSize)Math.Clamp(settingsManager.Settings.MapSize, 0, 2);
+        {
+            int roh = Math.Clamp(settingsManager.Settings.MapSize, 0, 2);
+            // Einmalmigration (2026-10-23, Kartengrößen): in alten Dateien heißt 1
+            // „Groß“ und 2 „Maximal“ — das sind exakt die Karten, die heute Standard
+            // und Kontinent heißen, also rutschen beide um eine Stufe ab. Die frühere
+            // Standard (64×64) gibt es nicht mehr; ihre Datei wird neue Standard.
+            // (Ohne Schreibzugriff: die Version wird beim nächsten Größenwechsel
+            // mitgespeichert — hier soll keine Einstellungsdatei berührt werden.)
+            if (settingsManager.Settings.MapSizeVersion < 1)
+            {
+                roh = roh switch { 1 => 0, 2 => 1, _ => roh };
+                settingsManager.Settings.MapSizeVersion = 1;
+            }
+            mapSize = (MapSize)roh;
+        }
 
         // „Spiel laden" nur, wenn es einen Spielstand gibt
         RefreshLoadEntry();
@@ -224,7 +238,7 @@ public class MainMenuScreen : GameScreen
     private string EntryText(int index)
         => index == MAP_ENTRY ? $"Karte: {MapSizes.Name(mapSize)}" : menuOptions[index].Text;
 
-    /// <summary>Die nächste Kartengröße im Wechsel Standard, Groß, Maximal.</summary>
+    /// <summary>Die nächste Kartengröße im Wechsel Standard, Kontinent, World.</summary>
     private static MapSize NextMapSize(MapSize size) => (MapSize)(((int)size + 1) % 3);
 
     /// <summary>Platte eines Eintrags im Fenster - dieselbe zum Zeichnen und Klicken.</summary>

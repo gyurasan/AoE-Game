@@ -22,16 +22,19 @@ ablauf = lies(Path("tools/spielablauf/Program.cs"))
 pruef = lies(Path("tools/kartenpruefung/Program.cs"))
 fehler = []
 
-if not re.search(r"enum\s+MapSize\s*\{\s*Standard\s*,\s*Large\s*,\s*Max\s*\}", settings):
-    fehler.append("enum MapSize { Standard, Large, Max } fehlt")
-for zahl in ("64", "90", "128"):
+if not re.search(r"enum\s+MapSize\s*\{\s*Standard\s*,\s*Continent\s*,\s*World\s*,\s*Test\s*\}", settings):
+    fehler.append("enum MapSize { Standard, Continent, World, Test } fehlt")
+if "BaseSide" not in settings:
+    fehler.append("MapSizes.BaseSide (Dichte-Referenz 64) fehlt")
+for zahl in ("90", "128", "181"):
     if not re.search(rf"=>\s*{zahl}\s*,", methode(settings, "Side") or ""):
         fehler.append(f"MapSizes.Side kennt die Seitenlänge {zahl} nicht")
 if methode(settings, "ForSize") is None:
     fehler.append("MapSettings.ForSize fehlt")
 laden = methode(screen, "LoadContent") or ""
-if not re.search(r"new\s+TileMap\s*\(\s*side\s*,\s*side\s*,\s*32\s*,\s*MapSettings\.ForSize\s*\(\s*_mapSize\s*\)\s*\)", laden):
-    fehler.append("RTSGameplayScreen baut die Karte nicht in der gewählten Größe (MapSizes.Side, MapSettings.ForSize)")
+if not re.search(r"MapSizes\.Dimensions\s*\(\s*_mapSize\s*,\s*aspect\s*\)", laden) \
+   or not re.search(r"new\s+TileMap\s*\(\s*mapDims\.Width\s*,\s*mapDims\.Height\s*,\s*32\s*,\s*MapSettings\.ForSize\s*\(\s*_mapSize\s*\)\s*\)", laden):
+    fehler.append("RTSGameplayScreen baut die Karte nicht in der gewählten Größe (MapSizes.Dimensions, MapSettings.ForSize)")
 if "new TileMap(64, 64" in screen:
     fehler.append("RTSGameplayScreen baut noch fest eine 64x64-Karte")
 waehlen = methode(menue, "HandleMenuSelect") or ""

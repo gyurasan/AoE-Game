@@ -102,6 +102,13 @@ public sealed class SaveGameStore
         if (string.IsNullOrEmpty(json))
             throw new InvalidDataException("Der Spielstand ist leer oder fehlt.");
 
+        // Kompatibilität (2026-10-23): alte Spielstände kennen die früheren
+        // Größen-Namen — „Groß“ heißt heute Standard, „Maximal“ Kontinent.
+        // Ohne Zuordnung liefe die Aufzählung ins Leere und der Spielstand wäre
+        // scheinbar kaputt.
+        json = json.Replace("\"MapSize\":\"Large\"", "\"MapSize\":\"Standard\"")
+                   .Replace("\"MapSize\":\"Max\"", "\"MapSize\":\"Continent\"");
+
         SaveGame game;
         try
         {

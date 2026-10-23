@@ -149,6 +149,26 @@ public class SaveGameTests
     }
 
     [Fact]
+    public void Deserialize_MigriertDieAltenGroessenNamen()
+    {
+        // Spielstände aus der Zeit vor dem Größen-Umbau (2026-10-23) serialisieren
+        // die Größe als Namen — „Large“ und „Max“ müssen zu den heutigen Namen
+        // Standard bzw. Kontinent werden, andernfalls wäre der Stand unlesbar.
+        var frueherGross = SaveGameStore.Deserialize("{\"MapSize\":\"Large\"}");
+        Assert.Equal(MapSize.Standard, frueherGross.MapSize);
+
+        var frueherMaximal = SaveGameStore.Deserialize("{\"MapSize\":\"Max\"}");
+        Assert.Equal(MapSize.Continent, frueherMaximal.MapSize);
+
+        // Heutige Namen bleiben unverändert; ohne Feld greift der Default Standard.
+        var neu = SaveGameStore.Deserialize("{\"MapSize\":\"World\"}");
+        Assert.Equal(MapSize.World, neu.MapSize);
+
+        var ohne = SaveGameStore.Deserialize("{}");
+        Assert.Equal(MapSize.Standard, ohne.MapSize);
+    }
+
+    [Fact]
     public void Capture_HaeltDieWeltFest()
     {
         var welt = new Welt();

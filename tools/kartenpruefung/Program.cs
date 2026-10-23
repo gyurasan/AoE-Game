@@ -225,7 +225,10 @@ if (gruppen.Contains("groessen"))
         Console.WriteLine($"  {MapSizes.Name(groesse),-8} {seite,3}x{seite,-3} je 1000 Kacheln: " +
                           string.Join(", ", arten.Select((art, a) => $"{art.Name} {summe[a] * 1000:0}")));
     }
-    foreach (var groesse in Enum.GetValues<MapSize>().Where(g => g != MapSize.Standard))
+    // Die Testkarte (32×32) ist kein Produktformat — ihre festen Startvorräte
+    // dominieren ihre Fläche, und das gehört dazu (sie ist für KI-vs-KI-Läufe).
+    // Verglichen werden deshalb nur die drei Karten, die das Menü anbietet.
+    foreach (var groesse in Enum.GetValues<MapSize>().Where(g => g != MapSize.Standard && g != MapSize.Test))
         for (int a = 0; a < arten.Length; a++)
         {
             double relativ = dichte[groesse][a] / dichte[MapSize.Standard][a];

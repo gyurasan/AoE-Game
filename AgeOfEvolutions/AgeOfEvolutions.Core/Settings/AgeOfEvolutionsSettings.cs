@@ -22,6 +22,7 @@ public class AgeOfEvolutionsSettings : INotifyPropertyChanged
     private int language = 2; // Default to English for now
     private ParticleEffectType particleEffect;
     private int mapSize;
+    private int mapSizeVersion;
     private int soundVolume = 60;
     private int aiDifficulty = 1;
     private int startingCapital = 1;
@@ -53,7 +54,8 @@ public class AgeOfEvolutionsSettings : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// Die im Hauptmenü gewählte Kartengröße: 0 Standard, 1 Groß, 2 Maximal.
+    /// Die im Hauptmenü gewählte Kartengröße (Bedeutung je <see cref="MapSizeVersion"/>):
+    /// neu: 0 Standard (90×90), 1 Kontinent (128×128), 2 World (181×181).
     /// </summary>
     public int MapSize
     {
@@ -63,6 +65,25 @@ public class AgeOfEvolutionsSettings : INotifyPropertyChanged
             if (mapSize != value)
             {
                 mapSize = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Bedeutung von <see cref="MapSize"/>: 0 = Datei von vor dem Größen-Umbau
+    /// (2026-10-23; 0 Standard 64×64, 1 Groß 90×90, 2 Maximal 128×128),
+    /// 1 = neu (0 Standard 90×90, 1 Kontinent 128×128, 2 World 181×181).
+    /// Das Hauptmenü migriert alte Dateien genau einmal.
+    /// </summary>
+    public int MapSizeVersion
+    {
+        get => mapSizeVersion;
+        set
+        {
+            if (mapSizeVersion != value)
+            {
+                mapSizeVersion = value;
                 OnPropertyChanged();
             }
         }

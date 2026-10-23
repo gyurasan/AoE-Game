@@ -14,6 +14,6 @@
          -p:Version=<Tag-o-v> als globale Eigenschaft, die diesen Wert überschreibt
          (verifiziert: v0.4.3-Zips haben FileVersion 0.4.3.0). Beim nächsten Release
          (z. B. 0.4.4) hier mitschreiben, falls lokal Dev-Builds laufen sollen. -->
-    <Version>0.4.7</Version>
+    <Version>0.4.8</Version>
   </PropertyGroup>
 </Project>

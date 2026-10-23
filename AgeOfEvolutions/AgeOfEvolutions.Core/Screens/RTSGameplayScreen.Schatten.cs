@@ -344,39 +344,57 @@ public partial class RTSGameplayScreen
                              target.Height * maskHeight * 2 / texHeight);
     }
 
-    // Schattenmasken je Bild, Spiegelung, verdeckter Oberkante (Bauphasen) und Bodenkontakt
-    private readonly Dictionary<(Texture2D Tex, bool Flip, int HiddenTop, bool Contour), Texture2D> _shadowMasks = new();
+    // Schattenmasken je Bild, Spiegelung, verdeckter Oberkante (Bauphasen) und Bodenkontakt;
+    // zu jeder Maske die Bänder fürs Wiegen im Wind (Bäume) - bei Konturen (Gebäude, Haufen)
+    // bleiben sie null, die stehen starr.
+    private struct ShadowInfo
+    {
+        public Texture2D Tex;
+        public (int Py0, int Py1, float Hoehenteil)[]? SwayBands;
+    }
+    private readonly Dictionary<(Texture2D Tex, bool Flip, int HiddenTop, bool Contour), ShadowInfo> _shadowMasks = new();
 
     /// <summary>
-    /// Die Schattenmaske eines Bilds als Textur, einmal gerechnet und dann gemerkt.
+    /// Die Schattenmaske eines Bilds als Textur, einmal gerechnet und dann gemerkt; zu ihr
+    /// die Bänder fürs Wiegen im Wind (Bäume) mit <see cref="Wind.TREE_STRIPS"/> Streifen.
     /// VERTRAG: Schlüssel (tex, flip, hiddenTop, contour) in _shadowMasks - vorhanden, so
     /// zurückgeben. Sonst: tex.GetData in ein Color-Feld der Größe tex.Width * tex.Height;
     /// alpha = HalfAlpha(Feld, tex.Width, tex.Height, flip, hiddenTop); h2 = (tex.Height + 1) / 2;
     /// mask = BakeShadowMask(alpha, (tex.Width + 1) / 2, h2, contour, out int sw, out int sh);
     /// daraus new Texture2D(graphicsDevice, sw, sh) mit SetData von new Color(mask[i], mask[i],
-    /// mask[i], mask[i]) je Punkt (vormultipliziertes Weiß). Merken, zurückgeben.
+    /// mask[i], mask[i]) je Punkt (vormultipliziertes Weiß). SwayBands = bei Kontur null,
+    /// sonst SwayShadowBands(alpha, (tex.Width + 1) / 2, h2, tex.Height, Wind.TREE_STRIPS).
+    /// Merken (Tex, SwayBands), zurückgeben.
     /// </summary>
-    private Texture2D ShadowMaskFor(Texture2D tex, bool flip, int hiddenTop, bool contour)
+    private ShadowInfo ShadowMaskFor(Texture2D tex, bool flip, int hiddenTop, bool contour)
     {
         // Gemerkt? Dann wiederverwenden.
         var key = (tex, flip, hiddenTop, contour);
-        if (_shadowMasks.TryGetValue(key, out Texture2D cached))
-            return cached;
+        if (_shadowMasks.TryGetValue(key, out ShadowInfo info))
+            return info;
 
         // Deckkraft in halber Auflösung, daraus die Maske, daraus die Textur.
         Color[] pixels = new Color[tex.Width * tex.Height];
         tex.GetData(pixels, 0, pixels.Length);
         byte[] alpha = HalfAlpha(pixels, tex.Width, tex.Height, flip, hiddenTop);
         int h2 = (tex.Height + 1) / 2;
-        byte[] mask = BakeShadowMask(alpha, (tex.Width + 1) / 2, h2, contour, out int sw, out int sh);
+        int w2 = (tex.Width + 1) / 2;
+        byte[] mask = BakeShadowMask(alpha, w2, h2, contour, out int sw, out int sh);
 
         Texture2D result = new Texture2D(graphicsDevice, sw, sh);
         Color[] colors = new Color[sw * sh];
         for (int i = 0; i < sw * sh; i++)
             colors[i] = new Color(mask[i], mask[i], mask[i], mask[i]);
         result.SetData(colors);
-        _shadowMasks[key] = result;
-        return result;
+
+        // Wind (Bäume): die Bänder des Schattens für die Streifen des Baums.
+        info = new ShadowInfo
+        {
+            Tex = result,
+            SwayBands = contour ? null : SwayShadowBands(alpha, w2, h2, tex.Height, Wind.TREE_STRIPS),
+        };
+        _shadowMasks[key] = info;
+        return info;
     }
 
     // Die Masken sammeln sich in einem eigenen Batch, solange DrawTileMap und DrawUnits
@@ -450,8 +468,8 @@ public partial class RTSGameplayScreen
     /// von oben stehen noch nicht (Bauphasen); <paramref name="density"/>: Anteil des Lichts,
     /// den das Objekt abhält (Laub: TREE_SHADOW_DENSITY).
     /// VERTRAG: mask = ShadowMaskFor(tex, (effects &amp; SpriteEffects.FlipHorizontally) != 0,
-    /// hiddenTop, contour); dest = ShadowDest(target, tex.Width, tex.Height, mask.Width,
-    /// mask.Height). Ist _castShadowsOpen: genau ein _castShadowBatch.Draw(mask, dest,
+    /// hiddenTop, contour); dest = ShadowDest(target, tex.Width, tex.Height, mask.Tex.Width,
+    /// mask.Tex.Height). Ist _castShadowsOpen: genau ein _castShadowBatch.Draw(mask, dest,
     /// Color.White * density); sonst (außerhalb des Schattendurchgangs) genau ein
     /// spriteBatch.Draw(mask, dest, SHADOW_TINT * density).
     /// </summary>
@@ -459,14 +477,172 @@ public partial class RTSGameplayScreen
                                 bool contour, int hiddenTop = 0, float density = 1f)
     {
         // Maske und Zielrechteck wie das Bild selbst, nur in der Form des Schattens.
-        Texture2D mask = ShadowMaskFor(tex, (effects & SpriteEffects.FlipHorizontally) != 0, hiddenTop, contour);
-        Rectangle dest = ShadowDest(target, tex.Width, tex.Height, mask.Width, mask.Height);
+        var mask = ShadowMaskFor(tex, (effects & SpriteEffects.FlipHorizontally) != 0, hiddenTop, contour);
+        Rectangle dest = ShadowDest(target, tex.Width, tex.Height, mask.Tex.Width, mask.Tex.Height);
 
         // Im Schattendurchgang sammeln (Maximum-Blend), sonst direkt über den Boden legen.
         if (_castShadowsOpen)
-            _castShadowBatch.Draw(mask, dest, Color.White * density);
+            _castShadowBatch.Draw(mask.Tex, dest, Color.White * density);
         else
-            spriteBatch.Draw(mask, dest, SHADOW_TINT * density);
+            spriteBatch.Draw(mask.Tex, dest, SHADOW_TINT * density);
+    }
+
+    /// <summary>
+    /// Die Bänder des Schlagschattens für den Winder (Bäume): die Körper-Schattenregion
+    /// (selbe Rechnung wie BakeShadowMask mit demselben alpha-Array) wird in so viele
+    /// waagerechte Bänder geschnitten wie der Baum Streifen hat (Wind.SwayStrips, gleiche
+    /// <paramref name="strips"/> und <paramref name="texHeight"/>), und jedes Band trägt
+    /// den gleichen Hoehenteil wie der Streifen des Baums, der es wirft. Zeichnet man
+    /// das Band dann um sway * target.Height * Hoehenteil^1,5 nach der Seite, bewegt es
+    /// sich genau so wie der Baumstreifen auf gleicher Höhe - der Schatten wiegt sich
+    /// wie der Baum.
+    /// VERTRAG:
+    /// - Eingaben: dasselbe alpha-Array (width × height) wie BakeShadowMask, die volle
+    ///   Bildhöhe <paramref name="texHeight"/>, die Streifenanzahl <paramref name="strips"/>.
+    /// - Streifen i = 0 … strips-1: Streifenhöhe stripHeight = texHeight / strips,
+    ///   oben = i * stripHeight, höhe = texHeight - oben beim letzten Streifen, sonst
+    ///   stripHeight (die genaue Geometrie von Wind.SwayStrips); Hoehenteil = 1 -
+    ///   (oben + höhe / 2) / texHeight. Streifen i gehört zu den alpha-Zeilen y0 bis
+    ///   y1 - 1, y0 = oben / 2, y1 = (oben + höhe + 1) / 2, abgeschnitten auf 0 … height.
+    /// - Eine alpha-Zeile deckt, wenn sie einen Bildpunkt mit alpha ≥ 128 hat; lowest =
+    ///   unterste deckende Zeile. Ist keine Zeile gedeckt, alle Bänder leer (Py0 == Py1).
+    /// - Deckt eine alpha-Zeile y im Streifen, ist ihr Schattenband von cy - ry bis
+    ///   cy + ry, cy = lowest + 0,5 + (lowest - y) * SHADOW_FLATTEN und ry wie die
+    ///   Halbachse der Zeile in BakeShadowMask (ry = max(0,5, rx * SHADOW_DEPTH)).
+    /// - Band i = die Vereinigung der Zeilenbänder seiner deckenden Zeilen, beidseitig
+    ///   um SHADOW_SOFT erweitert (der weiche Rand) und abgeschnitten auf das Schattenbild
+    ///   (shadowHeight = die Rechnung des BakeShadowMask-Vertrags); leerer Streifen =
+    ///   Py0 == Py1.
+    /// - Ergebnis: (Py0, Py1, Hoehenteil) je Streifen, in Streifenreihenfolge.
+    /// Reine Rechnung ohne Grafik - tools/spielablauf (Gruppe schatten) prüft sie.
+    /// </summary>
+    internal static (int Py0, int Py1, float Hoehenteil)[] SwayShadowBands(
+        byte[] alpha, int width, int height, int texHeight, int strips)
+    {
+        var baender = new (int Py0, int Py1, float Hoehenteil)[strips];
+        int shadowHeight = height + (int)MathF.Ceiling(height * SHADOW_FLATTEN + width * SHADOW_DEPTH / 2f)
+                              + 2 * SHADOW_SOFT;
+        int stripHeight = texHeight / strips;
+
+        // Unterste deckende Zeile (Stammfuß).
+        int lowest = -1;
+        for (int y = height - 1; y >= 0; y--)
+        {
+            bool any = false;
+            for (int x = 0; x < width; x++)
+            {
+                if (alpha[y * width + x] >= 128)
+                {
+                    any = true;
+                    break;
+                }
+            }
+            if (any)
+            {
+                lowest = y;
+                break;
+            }
+        }
+
+        for (int i = 0; i < strips; i++)
+        {
+            int oben = i * stripHeight;
+            int hoehe = i == strips - 1 ? texHeight - oben : stripHeight;
+            float hoehenteil = 1f - (oben + hoehe / 2f) / texHeight;
+            int y0 = oben / 2;
+            int y1 = (oben + hoehe + 1) / 2;
+            if (y0 < 0) y0 = 0;
+            if (y1 > height) y1 = height;
+
+            float pyLo = float.MaxValue, pyHi = float.MinValue;
+            for (int y = y0; y < y1; y++)
+            {
+                if (y > lowest)
+                    break;
+                int left = -1, right = -1;
+                for (int x = 0; x < width; x++)
+                {
+                    if (alpha[y * width + x] >= 128)
+                    {
+                        if (left < 0)
+                            left = x;
+                        right = x;
+                    }
+                }
+                if (left < 0)
+                    continue;
+                float cy = lowest + 0.5f + (lowest - y) * SHADOW_FLATTEN;
+                float ry = Math.Max(0.5f, (right - left + 1) / 2f * SHADOW_DEPTH);
+                if (cy - ry < pyLo)
+                    pyLo = cy - ry;
+                if (cy + ry > pyHi)
+                    pyHi = cy + ry;
+            }
+            if (pyLo > pyHi)
+            {
+                baender[i] = (0, 0, hoehenteil);
+                continue;
+            }
+            int py0 = Math.Max(0, (int)MathF.Floor(pyLo) - SHADOW_SOFT);
+            int py1 = Math.Min(shadowHeight, (int)MathF.Ceiling(pyHi) + SHADOW_SOFT);
+            baender[i] = (py0, py1, hoehenteil);
+        }
+        return baender;
+    }
+
+    /// <summary>
+    /// Der schwingende Schlagschatten eines Bilds (Bäume): statt einer ganzen Maske wird
+    /// dieselbe Maske in den Bändern des Baums gezeichnet - jedes Band rückt so zur
+    /// Seite wie der Baumstreifen auf seiner Höhe (Wind.SwayStrips, gleicher
+    /// <paramref name="sway"/>), weil Hoehenteil und Verschiebung die des Streifens sind.
+    /// Die Bänder überlappen um den weichen Rand (SHADOW_SOFT) - im Schattendurchgang
+    /// summiert sich das nicht (Maximum-Blend). <paramref name="hiddenTop"/>: so viele
+    /// Bildzeilen von oben stehen noch nicht; <paramref name="density"/>: Anteil des
+    /// Lichts, den das Objekt abhält.
+    /// VERTRAG: info = ShadowMaskFor(tex, (effects &amp; SpriteEffects.FlipHorizontally) != 0,
+    /// hiddenTop, false). Ist info.SwayBands null oder <paramref name="sway"/> 0: genau
+    /// wie DrawCastShadow (ganze Maske, kein Schwingen). Sonst Zeilenhöhe = target.Height
+    /// * 2 / tex.Height (ein Maskenpunkt ist zwei Bildpunkte, wie ShadowDest); für jedes
+    /// Band i mit Py0 &lt; Py1: Quelle = (0, Py0, Maske.Breite, Py1 - Py0),
+    /// Verschiebung = sway * target.Height * Hoehenteil^1,5, Ziel = (int)(target.X +
+    /// Verschiebung) und (int)(target.Y + Py0 * Zeilenhöhe) mit Breite (int)(Maske.Breite
+    /// * 2 * target.Width / tex.Width) und Höhe (int)((Py1 - Py0) * Zeilenhöhe). Ist
+    /// _castShadowsOpen: genau ein _castShadowBatch.Draw(Maske, Quelle, Ziel, Color.White
+    /// * density); sonst genau ein spriteBatch.Draw(Maske, Quelle, Ziel, SHADOW_TINT *
+    /// density).
+    /// </summary>
+    private void DrawSwayCastShadow(SpriteBatch spriteBatch, Texture2D tex, Rectangle target, SpriteEffects effects,
+                                    int hiddenTop, float density, float sway)
+    {
+        var info = ShadowMaskFor(tex, (effects & SpriteEffects.FlipHorizontally) != 0, hiddenTop, false);
+        var baender = info.SwayBands;
+        if (baender == null)
+        {
+            // Keine Bänder (Kontur) - wie die ganze Maske.
+            var dest = ShadowDest(target, tex.Width, tex.Height, info.Tex.Width, info.Tex.Height);
+            if (_castShadowsOpen)
+                _castShadowBatch.Draw(info.Tex, dest, Color.White * density);
+            else
+                spriteBatch.Draw(info.Tex, dest, SHADOW_TINT * density);
+            return;
+        }
+
+        float zeile = target.Height * 2f / tex.Height;
+        float breite = info.Tex.Width * 2f * target.Width / tex.Width;
+        for (int i = 0; i < baender.Length; i++)
+        {
+            var (py0, py1, hoehenteil) = baender[i];
+            if (py0 >= py1)
+                continue;
+            float verschiebung = sway * target.Height * MathF.Pow(hoehenteil, 1.5f);
+            var quelle = new Rectangle(0, py0, info.Tex.Width, py1 - py0);
+            var ziel = new Rectangle((int)(target.X + verschiebung), (int)(target.Y + py0 * zeile),
+                                     (int)breite, (int)((py1 - py0) * zeile));
+            if (_castShadowsOpen)
+                _castShadowBatch.Draw(info.Tex, quelle, ziel, Color.White * density);
+            else
+                spriteBatch.Draw(info.Tex, quelle, ziel, SHADOW_TINT * density);
+        }
     }
 
 }

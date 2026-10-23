@@ -73,11 +73,13 @@ braucht("HalfAlpha", teil, ["(width + 1) / 2", "(height + 1) / 2", "hiddenTop", 
 braucht("BakeShadowMask", teil, ["MathF.Ceiling(height * SHADOW_SKEW)", "height * SHADOW_FLATTEN + width * SHADOW_DEPTH / 2f", ">= 128",
                                  "SHADOW_DEPTH", "SHADOW_SOFT", "MathF.Sqrt"])
 braucht("ShadowDest", teil, ["target.Width * maskWidth * 2 / texWidth", "target.Height * maskHeight * 2 / texHeight"])
+braucht("SwayShadowBands", teil, ["texHeight", "strips", "Hoehenteil", "SHADOW_FLATTEN", "SHADOW_DEPTH", "SHADOW_SOFT",
+                                  "1f - (oben + hoehe / 2f) / texHeight"])
 
 # --- teil2: Grafikrümpfe ---------------------------------------------------------------
 if bis >= 1:
     braucht("ShadowMaskFor", teil, ["_shadowMasks", "GetData", "HalfAlpha(", "BakeShadowMask(", "out int sh", "SetData",
-                                    "new Texture2D(graphicsDevice"])
+                                    "new Texture2D(graphicsDevice", "SwayBands"])
     braucht("BeginCastShadows", teil, ["new SpriteBatch(graphicsDevice)", "SpriteSortMode.Deferred, ShadowUnion",
                                        "_castShadowsOpen = true"])
     ende = braucht("EndCastShadows", teil, ["_castShadowsOpen = false", "BackBufferWidth", "BackBufferHeight",
@@ -89,6 +91,9 @@ if bis >= 1:
         "erst die Masken ins Render-Target, dann zurück")
     braucht("DrawCastShadow", teil, ["ShadowMaskFor(", "ShadowDest(", "SpriteEffects.FlipHorizontally",
                                      "Color.White * density", "SHADOW_TINT * density"])
+    braucht("DrawSwayCastShadow", teil, ["ShadowMaskFor(", "SwayBands", "MathF.Pow(hoehenteil, 1.5f)",
+                                         "target.Height * 2f / tex.Height", "Color.White * density",
+                                         "SHADOW_TINT * density", "_castShadowsOpen"])
 
 # --- einbau1: Draw, Bildpuffer, Gebäude -------------------------------------------------
 if bis >= 2:
@@ -124,8 +129,9 @@ if bis >= 3:
     bau = braucht("DrawConstructionStages", anim, ["DrawCastShadow(spriteBatch, sprite, area, SpriteEffects.None, true, source.Y)"])
     vor("DrawConstructionStages", bau, "DrawCastShadow(", "spriteBatch.Draw(sprite, new Rectangle(area.X, area.Bottom - shown",
         "der Schatten vor dem Bild")
-    baum = braucht("DrawTree", haupt, ["DrawCastShadow(spriteBatch, tex, target, SpriteEffects.None, false, 0, TREE_SHADOW_DENSITY)"])
-    vor("DrawTree", baum, "DrawCastShadow(", "Wind.SwayStrips(", "der Schatten vor dem Baum")
+    baum = braucht("DrawTree", haupt, ["DrawSwayCastShadow(spriteBatch, tex, target, SpriteEffects.None, 0, TREE_SHADOW_DENSITY, sway)"])
+    vor("DrawTree", baum, "Wind.TreeSway(", "DrawSwayCastShadow(", "sway muss vor dem Schatten da sein")
+    vor("DrawTree", baum, "DrawSwayCastShadow(", "Wind.SwayStrips(", "der Schatten vor dem Baum")
     busch = braucht("DrawBerryBush", haupt, ["DrawCastShadow(spriteBatch, tex, target, effekt, false, 0, TREE_SHADOW_DENSITY)"])
     vor("DrawBerryBush", busch, "DrawCastShadow(", "spriteBatch.Draw(tex, target, null", "der Schatten vor dem Busch")
 

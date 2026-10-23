@@ -185,14 +185,16 @@ public class MapSettings
     public static MapSettings Default => new();
 
     /// <summary>
-    /// Die Standardausstattung für eine Karte der Größe size: Wälder, Steinbrüche,
-    /// Goldadern, Seen, Herden und Gruppen werden mit der Fläche mehr, damit eine
-    /// große Karte genauso dicht besetzt ist wie die Standardkarte. Radien, Tiere je
-    /// Herde und die Startausstattung bleiben, wie sie sind.
+    /// Die Ausstattung für eine Karte der Größe size: Wälder, Steinbrüche,
+    /// Goldadern, Seen, Herden und Gruppen wachsen mit der Fläche relativ zur
+    /// <see cref="MapSizes.BaseSide"/>-Referenz (64 Kacheln), damit jede
+    /// Größenstufe genau den Inhalt behält, den sie hatte — Standard ist die alte
+    /// Groß-Karte, Kontinent die alte Maximal-Karte, World deren doppelte Fläche.
+    /// Radien, Tiere je Herde und die Startausstattung bleiben, wie sie sind.
     /// </summary>
     public static MapSettings ForSize(MapSize size)
     {
-        int side = MapSizes.Side(size), standard = MapSizes.Side(MapSize.Standard);
+        int side = MapSizes.Side(size), standard = MapSizes.BaseSide;
         float flaeche = side * side / (float)(standard * standard);
         int Mehr(int n) => Math.Max(1, (int)Math.Round(n * flaeche));
         var s = new MapSettings();
@@ -220,40 +222,47 @@ public class MapSettings
     }
 }
 
-/// <summary>Die Kartengrößen, die das Hauptmenü anbietet. <c>Test</c> ist
-/// die halbe Standard-Karte — für schnelle KI-vs-KI-Tests (tools/ai-pruefung).</summary>
-public enum MapSize { Standard, Large, Max, Test }
+/// <summary>
+/// Die Kartengrößen, die das Hauptmenü anbietet (Umbau 2026-10-23: die frühere
+/// Standard 64 ist entfernt). Standard (90) ist die frühere Groß-Karte,
+/// Kontinent (128) die frühere Maximal-Karte, World (181) die größte —
+/// doppelte Fläche einer Kontinent-Karte. <c>Test</c> ist die halbe 64er
+/// Referenz — für schnelle KI-vs-KI-Tests (tools/ai-pruefung), nicht im Menü.
+/// </summary>
+public enum MapSize { Standard, Continent, World, Test }
 
 /// <summary>Seitenlänge und Name der Kartengrößen.</summary>
 public static class MapSizes
 {
     /// <summary>
-    /// Seitenlänge der quadratischen Referenzkarte: Standard 64, Groß 90 (fast
-    /// die doppelte Fläche), Maximal 128 (die vierfache), Test 32 (die halbe
-    /// Kantenlänge — ein Viertel der Fläche, für kurze Testläufe).
+    /// Dichte-Referenz (festgeschrieben 2026-10-23): die frühere Standardkarte
+    /// (64 Kacheln). So behält jede Größenstufe genau den Inhalt, den sie hatte —
+    /// Standard (90) ist die frühere Groß-Karte, Kontinent (128) die frühere
+    /// Maximal-Karte, World (181) die doppelte Fläche einer Kontinent-Karte.
+    /// </summary>
+    public static readonly int BaseSide = 64;
+
+    /// <summary>
+    /// Seitenlänge der quadratischen Referenzkarte: Standard 90 (doppelte Fläche
+    /// der 64er Referenz), Kontinent 128 (vierfache), World 181 (acht-fache),
+    /// Test 32 (ein Viertel der Referenzfläche, für kurze Testläufe).
     /// </summary>
     public static int Side(MapSize size) => size switch
     {
-        MapSize.Large => 90,
-        MapSize.Max => 128,
+        MapSize.Continent => 128,
+        MapSize.World => 181,
         MapSize.Test => 32,
-        _ => 64,
+        _ => 90,
     };
 
     /// <summary>
-    /// Kartenabmessungen (Kacheln, Breite × Höhe) in einem gegebenen Seitenverhältnis
-    /// <paramref name="aspect"/> (Breite/Höhe, z. B. das Bildschirmformat 16/9):
-    /// Standard 64, Groß 90, Maximal 128 Kacheln je Seite.
-    ///
-    /// Die Fläche bleibt exakt Side(size)² Kacheln, nur das Seitenverhältnis
-    /// passt sich dem Bild an. So bleibt die Rohstoffdichte je Stufe identisch
-    /// (MapSettings.ForSize rechnet über die Fläche), während die Karte wie der
-    /// Bildschirm breit statt quadratisch ist.
+    /// Seitenlänge bei willkürlicher Referenzseite (z. B. <see cref="BaseSide"/>) —
+    /// dieselbe Rechnung wie <see cref="Dimensions(MapSize, float)"/>.
     /// </summary>
-    public static (int Width, int Height) Dimensions(MapSize size, float aspect)
+    public static (int Width, int Height) Dimensions(int seite, float aspect)
     {
-        float area = Side(size);
-        area *= Side(size);
+        float area = seite;
+        area *= seite;
         if (aspect <= 0f)
             aspect = 1f;
         int w = Math.Max(1, (int)Math.Round(Math.Sqrt(area * aspect)));
@@ -261,11 +270,24 @@ public static class MapSizes
         return (w, h);
     }
 
+    /// <summary>
+    /// Kartenabmessungen (Kacheln, Breite × Höhe) in einem gegebenen Seitenverhältnis
+    /// <paramref name="aspect"/> (Breite/Höhe, z. B. das Bildschirmformat 16/9):
+    /// Standard 90, Kontinent 128, World 181 Kacheln je Seite.
+    ///
+    /// Die Fläche bleibt exakt Side(size)² Kacheln, nur das Seitenverhältnis
+    /// passt sich dem Bild an. So bleibt die Rohstoffdichte je Stufe identisch
+    /// (MapSettings.ForSize rechnet über die Fläche), während die Karte wie der
+    /// Bildschirm breit statt quadratisch ist.
+    /// </summary>
+    public static (int Width, int Height) Dimensions(MapSize size, float aspect)
+        => Dimensions(Side(size), aspect);
+
     /// <summary>Name der Größe im Hauptmenü.</summary>
     public static string Name(MapSize size) => size switch
     {
-        MapSize.Large => "Groß",
-        MapSize.Max => "Maximal",
+        MapSize.Continent => "Kontinent",
+        MapSize.World => "World",
         _ => "Standard",
     };
 }

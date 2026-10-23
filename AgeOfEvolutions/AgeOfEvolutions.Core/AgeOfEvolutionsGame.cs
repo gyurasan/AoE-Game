@@ -287,10 +287,16 @@ namespace AgeOfEvolutions.Core
             }
             else if (args.Contains("--rts"))
             {
-                // --karte gross bzw. --karte max startet auf einer größeren Karte
+                // --karte standard|kontinent|world startet auf der gewählten Karte;
+                // die alten Namen (gross, max) meinen dieselben Karten wie heute
                 int k = Array.IndexOf(args, "--karte");
                 var size = k >= 0 && k + 1 < args.Length
-                    ? args[k + 1] switch { "gross" => Data.MapSize.Large, "max" => Data.MapSize.Max, _ => Data.MapSize.Standard }
+                    ? args[k + 1] switch
+                    {
+                        "kontinent" or "max" => Data.MapSize.Continent,
+                        "world" => Data.MapSize.World,
+                        _ => Data.MapSize.Standard,
+                    }
                     : Data.MapSize.Standard;
                 var rts = new RTSGameplayScreen(size)
                 {
