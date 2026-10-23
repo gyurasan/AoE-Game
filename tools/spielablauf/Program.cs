@@ -21,7 +21,11 @@
 // GitHub-Release, Download, Ersetzen der laufenden Installation, Neustart), update dazu
 // den Eintrag „Update“ im Hauptmenü und die Versionszeile. Die Geräusche
 // (tools/klang) prüfen klangbrett (Drossel des SoundBoard), arbeitsklang (Werkzeugschläge im
-// Takt, Hörweite und Lage) und kampfklang (Hieb, Klinge, Bogen, Tod, Einsturz).
+// Takt, Hörweite und Lage) und kampfklang (Hieb, Klinge, Bogen, Tod, Einsturz). hover (C17) prüft
+// die Mauszeiger-Hervorhebung: HoverUnder trifft dieselbe Stelle wie der Linksklick - Figur,
+// Gegner (nur mit Auswahl), Gebäude, Reparatur, Baum (nur mit Dorfbewohner), Raubtier, und
+// HandleRtsInput pflegt das Feld _hover. Bären und
+// Wölfe prüft raubtiere (Raubtiere.cs: zuschlagen, nicht verfolgen, Gegenwehr, Jagd, Abstand).
 //
 // Jede genannte Gruppe läuft auf drei frisch erzeugten Karten. Die Spielschleife
 // läuft Bild für Bild (60 je Sekunde) mit denselben Methoden, die Update() im Spiel
@@ -225,6 +229,12 @@ for (int karte = 1; karte <= KARTEN; karte++)
     // Türweg (T16): die Straße läuft unter dem Gebäude bis an die Tür
     if (gruppen.Contains("tuerweg"))
         Pruefe($"Karte {karte}, Türweg", () => Tuerweg(karte, verstoesse));
+    // Raubtiere (RT): Bären und Wölfe greifen an, wer zu nahe kommt, und meiden Gebäude
+    if (gruppen.Contains("raubtiere"))
+        Pruefe($"Karte {karte}, Raubtiere", () => Raubtiere.Pruefen(karte, verstoesse));
+    // Mauszeiger-Hervorhebung (C17): was der Linksklick unter dem Zeiger täte, wird leicht heller gezeichnet
+    if (gruppen.Contains("hover"))
+        Pruefe($"Karte {karte}, Hover", () => Hover.Pruefen(karte, verstoesse));
 }
 
 if (verstoesse.Count > 0)
@@ -7495,6 +7505,18 @@ class Welt
         P2 = new(1, "P2", "Azteken");
         var dims = MapSizes.Dimensions(groesse, aspect);
         Map = new TileMap(dims.Width, dims.Height, 32, MapSettings.ForSize(groesse));
+        // Bären und Wölfe der Kartenerzeugung (RT) beißen sonst zufällig in andere Abläufe -
+        // etwa die Auto-Antwort in der Kartenmitte. Die Gruppe raubtiere stellt ihre eigenen auf.
+        for (int x = 0; x < Map.Width; x++)
+            for (int y = 0; y < Map.Height; y++)
+                if (Map.GetTile(x, y) is { } t && t.Food.IsPredator())
+                {
+                    t.Food = FoodSource.None;
+                    t.Animal = null;
+                    t.ResourceType = null;
+                    t.ResourceAmount = 0;
+                }
+        // (die Listen der Raubtiere räumt UpdatePredators beim ersten Bild selbst auf)
         _units = Map.Units;
         foreach (var u in _units)
             (u.OwnerId == 0 ? P1 : P2).AddUnit(u);

@@ -126,6 +126,12 @@ public class Unit
     /// <summary>Die feindliche EinHEIT, die die Einheit auf Befehl angreift, oder null.</summary>
     public Unit UnitTarget { get; set; }
 
+    /// <summary>
+    /// Das Raubtier (Bär, Wolf - RT), das die Einheit auf Befehl oder aus Gegenwehr angreift,
+    /// oder null. Das Tier zieht mit seiner Kachel um, TileMap.LocatePredator findet es.
+    /// </summary>
+    public WildAnimal PreyTarget { get; set; }
+
     /// <summary>Sekunden seit dem letzten Schlag; ein Schlag alle BuildingCombat.RELOAD_SECONDS.</summary>
     public float AttackTimer { get; set; }
     

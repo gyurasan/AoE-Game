@@ -135,6 +135,52 @@ public class MapSettings
     public float BoarWanderSecondsMax { get; set; } = 5.0f;
     public int BoarWanderRadius { get; set; } = 1;
 
+    // --- Raubtiere: Bären und Wölfe (RT) --------------------------------
+    /// <summary>Bären auf der Karte - Einzelgänger - und Bären je Gruppe (Min/Max, inclusive).</summary>
+    public int BearGroupsMin { get; set; } = 2;
+    public int BearGroupsMax { get; set; } = 3;
+    public int BearsPerGroupMin { get; set; } = 1;
+    public int BearsPerGroupMax { get; set; } = 1;
+    /// <summary>Wolfsrudel auf der Karte und Wölfe je Rudel (Min/Max, inclusive).</summary>
+    public int WolfPacksMin { get; set; } = 2;
+    public int WolfPacksMax { get; set; } = 3;
+    public int WolvesPerPackMin { get; set; } = 2;
+    public int WolvesPerPackMax { get; set; } = 3;
+    /// <summary>Nahrung eines erlegten Bären. Ein erlegter Wolf gibt keine Nahrung, er verschwindet.</summary>
+    public int BearFood { get; set; } = 400;
+    /// <summary>Lebenspunkte, Schaden je Schlag und Sekunden zwischen zwei Schlägen des Bären.</summary>
+    public int BearHealth { get; set; } = 80;
+    public int BearDamage { get; set; } = 6;
+    public float BearReloadSeconds { get; set; } = 2.0f;
+    /// <summary>Lebenspunkte, Schaden je Biss und Sekunden zwischen zwei Bissen des Wolfs.</summary>
+    public int WolfHealth { get; set; } = 20;
+    public int WolfDamage { get; set; } = 3;
+    public float WolfReloadSeconds { get; set; } = 1.5f;
+    /// <summary>Sekunden bis ein Raubtier weiterzieht (Min/Max) - seltener als die Wildschweine.</summary>
+    public float BearWanderSecondsMin { get; set; } = 6.0f;
+    public float BearWanderSecondsMax { get; set; } = 12.0f;
+    public float WolfWanderSecondsMin { get; set; } = 4.0f;
+    public float WolfWanderSecondsMax { get; set; } = 9.0f;
+    /// <summary>
+    /// Kacheln, die ein Raubtier mindestens von jedem Gebäude entfernt bleibt: Chebyshev-Abstand
+    /// seiner Kachel zur nächsten Kachel eines Gebäudes (auch Baustellen, beide Spieler).
+    /// Wunsch des Nutzers: „mindestens 4-5 Kacheln".
+    /// </summary>
+    public int PredatorBuildingDistance { get; set; } = 5;
+    /// <summary>
+    /// Abstand der Raubtiere zu beiden Startplätzen beim Aufstellen, gemessen wie
+    /// TooCloseToStart: die Mitte einer Gruppe waagerecht plus senkrecht mindestens das Doppelte
+    /// von der Ecke des Stadtzentrums - weiter als die Start-Rehe (12 bis 20), damit die erste
+    /// Jagd nicht im Rudel endet.
+    /// </summary>
+    public int PredatorStartDistance { get; set; } = 12;
+    /// <summary>
+    /// Wie nah eine Einheit einem Raubtier kommen darf, bevor es zuschlägt: Kacheln, euklidisch
+    /// von der Mitte seiner Kachel bis zur Position der Einheit. Wer weiter weg ist, bleibt
+    /// unbehelligt - Raubtiere verfolgen niemanden.
+    /// </summary>
+    public float PredatorReachTiles { get; set; } = 1.25f;
+
     /// <summary>Die reichere Standardausstattung.</summary>
     public static MapSettings Default => new();
 
@@ -166,6 +212,10 @@ public class MapSettings
         s.RabbitGroupsMax = Mehr(s.RabbitGroupsMax);
         s.BoarGroupsMin = Mehr(s.BoarGroupsMin);
         s.BoarGroupsMax = Mehr(s.BoarGroupsMax);
+        s.BearGroupsMin = Mehr(s.BearGroupsMin);
+        s.BearGroupsMax = Mehr(s.BearGroupsMax);
+        s.WolfPacksMin = Mehr(s.WolfPacksMin);
+        s.WolfPacksMax = Mehr(s.WolfPacksMax);
         return s;
     }
 }

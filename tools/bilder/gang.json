@@ -65,5 +65,47 @@
    {"huefte": [255, 570], "knie": [235, 760], "knoechel": [245, 810], "zehe": [275, 836], "knick": "hinten", "saum": 585, "versatz": 0.0, "ferse_x": -10},
    {"huefte": [555, 660], "knie": [545, 805], "knoechel": [552, 940], "zehe": [585, 985], "saum": 675, "versatz": 0.25, "ferse_x": -12}
   ]
+ },
+ "baer": {
+  "bild": "tiere/baer_9721.png",
+  "saum": 640, "breite": 85, "schritt": 95,
+  "gang": {"stand": 0.65, "ferse_ende": 0.08, "zehe_anfang": 0.4, "ferse_grad": 4.0, "zehe_grad": -24.0, "schwung_hub": 0.10, "mitte_ruhe": true},
+  "beine": [
+   {"huefte": [720, 640], "knie": [735, 775], "knoechel": [760, 795], "zehe": [830, 822], "saum": 630, "versatz": 0.25, "ferse_x": -25},
+   {"huefte": [185, 560], "knie": [170, 650], "knoechel": [185, 690], "zehe": [265, 715], "knick": "hinten", "saum": 560, "versatz": 0.5, "ferse_x": -45},
+   {"huefte": [480, 650], "knie": [495, 820], "knoechel": [525, 850], "zehe": [625, 900], "saum": 640, "versatz": 0.75, "ferse_x": -30}
+  ]
+ },
+ "baer2": {
+  "bild": "tiere/baer2_9731.png",
+  "saum": 690, "breite": 85, "schritt": 95,
+  "gang": {"stand": 0.65, "ferse_ende": 0.08, "zehe_anfang": 0.4, "ferse_grad": 4.0, "zehe_grad": -24.0, "schwung_hub": 0.10, "mitte_ruhe": true},
+  "beine": [
+   {"huefte": [650, 680], "knie": [680, 790], "knoechel": [705, 810], "zehe": [770, 840], "saum": 680, "versatz": 0.25, "ferse_x": -25},
+   {"huefte": [170, 610], "knie": [150, 700], "knoechel": [165, 740], "zehe": [250, 775], "knick": "hinten", "saum": 605, "versatz": 0.5, "ferse_x": -45},
+   {"huefte": [470, 690], "knie": [490, 840], "knoechel": [520, 865], "zehe": [610, 905], "saum": 690, "versatz": 0.75, "ferse_x": -30}
+  ]
+ },
+ "wolf": {
+  "bild": "tiere/wolf_9741.png",
+  "saum": 600, "breite": 45, "schritt": 120,
+  "gang": {"stand": 0.5, "ferse_ende": 0.08, "zehe_anfang": 0.3, "ferse_grad": 6.0, "zehe_grad": -30.0, "schwung_hub": 0.14, "mitte_ruhe": true},
+  "beine": [
+   {"huefte": [390, 495], "knie": [405, 570], "knoechel": [440, 615], "zehe": [478, 640], "knick": "hinten", "saum": 495, "versatz": 0.5, "ferse_x": -15},
+   {"huefte": [705, 600], "knie": [712, 790], "knoechel": [730, 815], "zehe": [795, 845], "saum": 600, "versatz": 0.0, "ferse_x": -15},
+   {"huefte": [225, 505], "knie": [208, 595], "knoechel": [215, 655], "zehe": [262, 697], "knick": "hinten", "saum": 505, "versatz": 0.0, "ferse_x": -15},
+   {"huefte": [565, 610], "knie": [588, 800], "knoechel": [602, 840], "zehe": [650, 885], "saum": 605, "versatz": 0.5, "ferse_x": -15}
+  ]
+ },
+ "wolf2": {
+  "bild": "tiere/wolf2_9753.png",
+  "saum": 600, "breite": 45, "schritt": 120,
+  "gang": {"stand": 0.5, "ferse_ende": 0.08, "zehe_anfang": 0.3, "ferse_grad": 6.0, "zehe_grad": -30.0, "schwung_hub": 0.14, "mitte_ruhe": true},
+  "beine": [
+   {"huefte": [345, 470], "knie": [375, 555], "knoechel": [410, 592], "zehe": [462, 612], "knick": "hinten", "saum": 470, "versatz": 0.5, "ferse_x": -15},
+   {"huefte": [715, 625], "knie": [785, 790], "knoechel": [808, 812], "zehe": [878, 842], "saum": 620, "versatz": 0.0, "ferse_x": -15},
+   {"huefte": [185, 500], "knie": [163, 585], "knoechel": [172, 650], "zehe": [228, 690], "knick": "hinten", "saum": 500, "versatz": 0.0, "ferse_x": -15},
+   {"huefte": [535, 620], "knie": [650, 860], "knoechel": [672, 890], "zehe": [738, 935], "saum": 615, "versatz": 0.5, "ferse_x": -15}
+  ]
  }
 }

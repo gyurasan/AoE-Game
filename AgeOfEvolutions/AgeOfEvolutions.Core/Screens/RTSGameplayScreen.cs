@@ -1053,6 +1053,8 @@ public partial class RTSGameplayScreen : GameScreen
                 && LoadOptional(asset + "_lauf2") is { } lauf2)
                 _animalWalk[stand] = new[] { lauf1, stand, lauf2, stand };
         }
+        // Bären und Wölfe: Stand-, Lauf- und Angriffsbilder, das Fleisch des Bären (RT)
+        LoadPredatorSprites();
 
         // Gebäude-Sprites je Zeitalter und Spielerfarbe. Fehlt das Bild eines
         // Zeitalters, gilt das des Zeitalters davor, zuletzt das zeitlose unter
@@ -2146,6 +2148,13 @@ public partial class RTSGameplayScreen : GameScreen
         var mouseGridPos = WorldToGrid(ScreenToWorld(mousePos));
         mouseGridCell = mouseGridPos;
 
+        // C17: Was der Linksklick unter dem Zeiger täte - dieselbe Prüfung, nur ohne
+        // zu handeln. Die Zeichenschicht hellt das Ziel dadurch leicht auf. Über der
+        // Leiste und im Setzmodus hebt der Zeiger nichts.
+        _hover = placing != null || IsOverHud(mouse.Position)
+            ? default
+            : HoverUnder(ScreenToWorld(mousePos));
+
         // Beim Setzen eines Gebäudes bricht ein Rechtsklick ab, statt zu markieren
         if (placing != null && mouse.RightButton == ButtonState.Pressed
             && previousMouse.RightButton == ButtonState.Released)
@@ -2688,6 +2697,7 @@ public partial class RTSGameplayScreen : GameScreen
             unit.Job = null;
             unit.BuildSite = null;
             unit.AttackTarget = target;
+            unit.PreyTarget = null;       // Raubtier-Angriff endet (RT)
             unit.AttackTimer = 0f;
 
             // Standplatz am Gebäude; gibt es keinen, bleibt die Einheit stehen
@@ -2877,6 +2887,7 @@ public partial class RTSGameplayScreen : GameScreen
             a.Job = null;
             a.BuildSite = null;
             a.AttackTarget = null;     // Gebäude-Angriff endet
+            a.PreyTarget = null;       // Raubtier-Angriff endet (RT)
             a.UnitTarget = target;
             a.AttackTimer = 0f;
             a.TargetPosition = target.Position;
@@ -3241,11 +3252,19 @@ public partial class RTSGameplayScreen : GameScreen
             return;
         }
 
+        // Klick auf ein lebendes, sichtbares Raubtier: die Auswahl greift es an (RT)
+        if (PredatorAt(gridPos, ownerId) is { } beast)
+        {
+            AttackAnimal(selectedUnits, beast.X, beast.Y);
+            return;
+        }
+
         // Jeder andere Befehl bricht einen laufenden Angriff ab
         foreach (var unit in selectedUnits)
         {
             unit.AttackTarget = null;
             unit.UnitTarget = null;
+            unit.PreyTarget = null;
         }
 
         var tile = tileMap.GetTile((int)gridPos.X, (int)gridPos.Y);
@@ -5032,6 +5051,10 @@ public partial class RTSGameplayScreen : GameScreen
         // Sichtbare, angreifende Feinde beantworten die nahen Soldaten (2026-10-18)
         AutoRespond(dt);
 
+        // Bären und Wölfe schlagen zu, wer ihnen zu nahe kommt; Soldaten wehren sich (RT)
+        UpdatePredators(dt);
+        UpdateFallen(dt);
+
         // Pfeile fliegen, Einstürze und Trümmer altern (A2, A3)
         UpdateEffects(dt);
 
@@ -5053,6 +5076,14 @@ public partial class RTSGameplayScreen : GameScreen
                         else if (unit.UnitTarget is { } ut0 && ut0.State != UnitState.Dead
                                  && unit.AttackPower > 0)
                             unit.State = UnitState.Attacking;   // am Einheiten-Ziel angekommen
+                        else if (unit.PreyTarget != null && unit.AttackPower > 0)
+                        {
+                            // am Raubtier angekommen (RT) - oder es ist inzwischen erlegt
+                            if (LivePrey(unit) != null)
+                                unit.State = UnitState.Attacking;
+                            else
+                                PreyDone(unit);
+                        }
                         else if (unit.BuildSite != null && (!unit.BuildSite.IsComplete || unit.BuildSite.Repair != null))
                             unit.State = UnitState.Building;   // am Bauplatz angekommen (oder zur Reparatur)
                         else
@@ -5090,6 +5121,11 @@ public partial class RTSGameplayScreen : GameScreen
                         // Einheiten-Angriff: Ziel läuft weiter, Reichweite
                         // prüfen, Schlagtakt, Schaden.
                         HandleAttack(unit, dt);
+                    }
+                    else if (unit.PreyTarget != null)
+                    {
+                        // Raubtier-Angriff: heranlaufen, Schlagtakt, Treffer (RT)
+                        HandleAnimalAttack(unit, dt);
                     }
                     else
                     {
@@ -5587,6 +5623,9 @@ public partial class RTSGameplayScreen : GameScreen
 
         // Draw tilemap (Boden, Nahrungskacheln, Felder)
         DrawTileMap(spriteBatch);
+
+        // Erlegte Wölfe sinken zu Boden und verblassen (RT)
+        DrawFallen(spriteBatch);
 
         // Tiefenschicht: Bäume, lebende Tiere, Gebäude und Figuren in einem
         // sortierten Zug - wessen Sohle weiter unten im Bild steht, überdeckt,
@@ -6376,7 +6415,7 @@ public partial class RTSGameplayScreen : GameScreen
     /// Ein Beerenbusch als Sprite (B2): so breit wie BERRY_WIDTH der Kachel, Höhe im
     /// Seitenverhältnis, Fuß unten in der Mitte (BerryFoot). Cullt selbst.
     /// </summary>
-    private void DrawBerryBush(SpriteBatch spriteBatch, int x, int y)
+    private void DrawBerryBush(SpriteBatch spriteBatch, int x, int y, bool hover = false)
     {
         int h = unchecked(x * 73856093 ^ y * 19349663 ^ 0x2545F491) & 0x7FFFFFFF;
         var tex = _berrySprites[(h >> 5) % _berrySprites.Length];
@@ -6390,6 +6429,9 @@ public partial class RTSGameplayScreen : GameScreen
         // Schlagschatten (C7)
         DrawCastShadow(spriteBatch, tex, target, effekt, false, 0, TREE_SHADOW_DENSITY);
         spriteBatch.Draw(tex, target, null, Color.White, 0f, Vector2.Zero, effekt, 0f);
+        // C17: hover - dasselbe Bild additiv darüber (Alpha 0)
+        if (hover)
+            spriteBatch.Draw(tex, target, null, HoverLift, 0f, Vector2.Zero, effekt, 0f);
     }
 
     private void DrawTileMap(SpriteBatch spriteBatch)
@@ -6422,6 +6464,9 @@ public partial class RTSGameplayScreen : GameScreen
                     continue;
                 // Schafe und Rehe mit Bild stehen in der Zeilenschicht (DrawAnimal)
                 if (AnimalSprites(tile.Food).Length > 0)
+                    continue;
+                // Ein Raubtier ohne Bild wird nicht als Beerenbusch gezeichnet (RT)
+                if (tile.Food.IsPredator())
                     continue;
                 // Beerenbüsche mit Bild stehen in der Tiefenschicht (DrawBerryBush)
                 if (tile.Food == FoodSource.Berries && _berrySprites.Length > 0)
@@ -6475,13 +6520,13 @@ public partial class RTSGameplayScreen : GameScreen
                 if (tile == null) continue;
                 if (PileSprites(tile.Type).Length > 0)
                 {
-                    DrawPile(spriteBatch, x, y, PileSprites(tile.Type));
+                    DrawPile(spriteBatch, x, y, PileSprites(tile.Type), HoverWantsTile(x, y));
                 }
                 else if (MeatOnGround(tile, x, y))
                 {
                     // Das Fleisch liegt am Boden (DrawAnimal zeichnet es ruhig
                     // an der Stelle, Schatten inklusive)
-                    DrawAnimal(spriteBatch, tile, x, y, AnimalSprites(tile.Food));
+                    DrawAnimal(spriteBatch, tile, x, y, AnimalSprites(tile.Food), HoverWantsTile(x, y));
                 }
             }
         }
@@ -6629,7 +6674,7 @@ public partial class RTSGameplayScreen : GameScreen
     /// Bild, Größe und Versatz kommen fest aus dem Ortshash der Kachel, sonst
     /// zappelten die Haufen.
     /// </summary>
-    private void DrawPile(SpriteBatch spriteBatch, int x, int y, Texture2D[] sprites)
+    private void DrawPile(SpriteBatch spriteBatch, int x, int y, Texture2D[] sprites, bool hover = false)
     {
         var tileRect = TileScreenRect(x, y);
         int hash = unchecked(x * 73856093 ^ y * 19349663) & 0x7FFFFFFF;
@@ -6645,6 +6690,9 @@ public partial class RTSGameplayScreen : GameScreen
             // Schlagschatten (C7): von jedem Steinfuß aus
             DrawCastShadow(spriteBatch, tex, target, SpriteEffects.None, true);
             spriteBatch.Draw(tex, target, Color.White);
+            // C17: hover - derselbe Haufen additiv darüber (Alpha 0)
+            if (hover)
+                spriteBatch.Draw(tex, target, HoverLift);
         }
     }
 
@@ -6660,6 +6708,8 @@ public partial class RTSGameplayScreen : GameScreen
                          : _deerFallback ??= new[] { BuildDeerTextureCached() },
         FoodSource.Rabbit => _rabbitSprites,
         FoodSource.Boar => _boarSprites,
+        FoodSource.Bear => _bearSprites,
+        FoodSource.Wolf => _wolfSprites,
         _ => Array.Empty<Texture2D>(),
     };
 
@@ -6708,7 +6758,7 @@ public partial class RTSGameplayScreen : GameScreen
     /// leicht. Ein weicher Schatten verankert es auf dem Gras. Ein
     /// geschlachtetes Tier (WildAnimal.Slaughtered) zeigt nur noch sein Fleisch.
     /// </summary>
-    private void DrawAnimal(SpriteBatch spriteBatch, Data.Tile tile, int x, int y, Texture2D[] sprites)
+    private void DrawAnimal(SpriteBatch spriteBatch, Data.Tile tile, int x, int y, Texture2D[] sprites, bool hover = false)
     {
         var tier = tile.Animal ?? new Data.WildAnimal();
         var tileRect = TileScreenRect(x, y);
@@ -6718,10 +6768,14 @@ public partial class RTSGameplayScreen : GameScreen
             FoodSource.Deer => _deerMeat,
             FoodSource.Rabbit => _rabbitMeat,
             FoodSource.Boar => _boarMeat,
+            FoodSource.Bear => _bearMeat,
             _ => _sheepMeat,
         };
         bool butchered = tier.Slaughtered && meat != null;
         var tex = butchered ? meat : sprites[tier.Look % sprites.Length];
+        // Ein Raubtier, das eben zuschlägt, zeigt sein Angriffsbild (RT)
+        if (!butchered && tier.Strike > 0f && _animalStrike.TryGetValue(tex, out var strike))
+            tex = strike;
         int phase = butchered ? -1 : WalkPhase(tier.Glide);
         if (phase >= 0 && _animalWalk.TryGetValue(tex, out var walk))
             tex = walk[phase];
@@ -6730,6 +6784,8 @@ public partial class RTSGameplayScreen : GameScreen
             FoodSource.Deer => DEER_WIDTH,
             FoodSource.Rabbit => RABBIT_WIDTH,
             FoodSource.Boar => BOAR_WIDTH,
+            FoodSource.Bear => BEAR_WIDTH,
+            FoodSource.Wolf => WOLF_WIDTH,
             _ => SHEEP_WIDTH,
         });
         int height = width * tex.Height / tex.Width;
@@ -6749,6 +6805,12 @@ public partial class RTSGameplayScreen : GameScreen
                        tier.FacingLeft ? SpriteEffects.FlipHorizontally : SpriteEffects.None, false);
         spriteBatch.Draw(tex, target, null, Color.White, 0f, Vector2.Zero,
                          tier.FacingLeft ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 0f);
+        // C17: hover - dasselbe Bild additiv darüber (Alpha 0)
+        if (hover)
+            spriteBatch.Draw(tex, target, null, HoverLift, 0f, Vector2.Zero,
+                             tier.FacingLeft ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 0f);
+        // Lebensbalken eines verwundeten Raubtiers (RT)
+        DrawPredatorHealth(spriteBatch, tile, target);
     }
 
     /// <summary>
@@ -6902,7 +6964,7 @@ public partial class RTSGameplayScreen : GameScreen
     /// der Höhe zur Seite). Wiegt sich im Wind, in Streifen gezeichnet
     /// (Wind.TreeSway, Wind.SwayStrips).
     /// </summary>
-    private void DrawTree(SpriteBatch spriteBatch, int x, int y, int k)
+    private void DrawTree(SpriteBatch spriteBatch, int x, int y, int k, bool hover = false)
     {
         var (foot, sprite, look) = TreeSpot(x, y, k);
         var (tex, height, _) = _treeSprites[sprite];
@@ -6921,6 +6983,9 @@ public partial class RTSGameplayScreen : GameScreen
         foreach (var strip in Wind.SwayStrips(target, tex.Width, tex.Height, sway))
         {
             spriteBatch.Draw(tex, strip.Position, strip.Source, Color.White, 0f, Vector2.Zero, strip.Scale, SpriteEffects.None, 0f);
+            // C17: hover - derselbe Streifen noch einmal additiv (Alpha 0) dar
+            if (hover)
+                spriteBatch.Draw(tex, strip.Position, strip.Source, HoverLift, 0f, Vector2.Zero, strip.Scale, SpriteEffects.None, 0f);
         }
     }
 
@@ -7017,7 +7082,7 @@ public partial class RTSGameplayScreen : GameScreen
         return tile != null && tile.Type != TileType.Water;
     }
 
-    private void DrawBuilding(SpriteBatch spriteBatch, Data.Building b)
+    private void DrawBuilding(SpriteBatch spriteBatch, Data.Building b, bool hover = false)
     {
         // Nur Gebäude mit bekanntem Typ zeichnen (erstmal: Stadtzentrum)
         Rectangle rect = TileScreenRect(b.X, b.Y, b.Width, b.Height);
@@ -7061,6 +7126,10 @@ public partial class RTSGameplayScreen : GameScreen
                 DrawWavingFlag(spriteBatch, sprite, area, cloth, phase);
             else
                 spriteBatch.Draw(sprite, area, Color.White);
+            // C17: hover - das Gebäudebild additiv darüber (Alpha 0); die wehende
+            // Fahne steht dabei still, bei 40/255 Aufhellung unsichtbar anders
+            if (hover)
+                spriteBatch.Draw(sprite, area, HoverLift);
             if (windmill)
                 DrawMillSails(spriteBatch, area, phase, _millHubs[bare]);
             // Feuer der Schmiede und Rauch aus den Kaminen (A5)
@@ -7591,7 +7660,7 @@ public partial class RTSGameplayScreen : GameScreen
                 case 1: // ein Baum
                 {
                     // DrawTree cullt selbst
-                    DrawTree(spriteBatch, obj.X, obj.Y, obj.Spot);
+                    DrawTree(spriteBatch, obj.X, obj.Y, obj.Spot, HoverWantsTile(obj.X, obj.Y));
                     break;
                 }
                 case 5: // Grasbüschel
@@ -7601,12 +7670,13 @@ public partial class RTSGameplayScreen : GameScreen
                 }
                 case 6: // Beerenbusch
                 {
-                    DrawBerryBush(spriteBatch, obj.X, obj.Y);
+                    DrawBerryBush(spriteBatch, obj.X, obj.Y, HoverWantsTile(obj.X, obj.Y));
                     break;
                 }
                 case 2: // Tier
                 {
-                    DrawAnimal(spriteBatch, obj.Tile, obj.X, obj.Y, AnimalSprites(obj.Tile.Food));
+                    DrawAnimal(spriteBatch, obj.Tile, obj.X, obj.Y, AnimalSprites(obj.Tile.Food),
+                               HoverWantsTile(obj.X, obj.Y));
                     break;
                 }
                 case 7: // Einsturz und Trümmer (A2)
@@ -7616,7 +7686,7 @@ public partial class RTSGameplayScreen : GameScreen
                 }
                 case 3: // Gebäude
                 {
-                    DrawBuilding(spriteBatch, obj.Building);
+                    DrawBuilding(spriteBatch, obj.Building, HoverWantsBuilding(obj.Building));
                     break;
                 }
                 case 4: // Figur
@@ -7629,21 +7699,24 @@ public partial class RTSGameplayScreen : GameScreen
 
                     var tex = unitTex.GetValueOrDefault(unit.Type);
                     var tint = unit.OwnerId == 0 ? Color.White : new Color(255, 180, 180);
+                    bool unitHover = _hover.Kind == HoverKind.Unit && ReferenceEquals(_hover.Unit, unit);
                     if (unit.Type == UnitType.Villager
                         && _villagerSprites.TryGetValue((AgeOf(unit.OwnerId), unit.OwnerId), out var figure))
                     {
-                        DrawVillager(spriteBatch, unit, figure, screenPos, size);
+                        DrawVillager(spriteBatch, unit, figure, screenPos, size, unitHover);
                     }
                     else if (_unitSprites.TryGetValue((unit.Type, unit.OwnerId), out var soldierFigure))
                     {
                         // Soldaten (P1): wie Dorfbewohner gezeichnet, mit ihrem Bild
                         // und ihrer Größe aus SoldierSprites (der Späher zu Pferd)
                         var scale = SoldierSprites.First(s => s.Unit == unit.Type).Scale;
-                        DrawVillager(spriteBatch, unit, soldierFigure, screenPos, (int)(size * scale));
+                        DrawVillager(spriteBatch, unit, soldierFigure, screenPos, (int)(size * scale), unitHover);
                     }
                     else if (tex != null)
                     {
                         spriteBatch.Draw(tex, screenPos - new Vector2(size / 2, size), null, tint, 0f, Vector2.Zero, cameraZoom, SpriteEffects.None, 0f);
+                        if (unitHover)
+                            spriteBatch.Draw(tex, screenPos - new Vector2(size / 2, size), null, HoverLift, 0f, Vector2.Zero, cameraZoom, SpriteEffects.None, 0f);
                     }
                     else
                     {
@@ -7745,6 +7818,11 @@ public partial class RTSGameplayScreen : GameScreen
                 // Blickrichtung zum angegriffenen Gegner (K7)
                 toward = foe.Position - unit.Position;
             }
+            else if (unit.State == UnitState.Attacking && LivePrey(unit) is { } prey)
+            {
+                // Blickrichtung zum angegriffenen Raubtier (RT)
+                toward = PreyCenter(prey.X, prey.Y) - unit.Position;
+            }
             else if (unit.State == UnitState.Building && unit.BuildSite is { } site)
             {
                 var center = new Vector2((site.X + site.Width / 2f) * tileMap.TileSize,
@@ -7764,7 +7842,7 @@ public partial class RTSGameplayScreen : GameScreen
     /// screenPos und ist size Pixel groß wie die Auswahl- und Trefferfläche.
     /// Was er trägt, zeigt ein Bündel in der Farbe des Rohstoffs auf dem Rücken.
     /// </summary>
-    private void DrawVillager(SpriteBatch spriteBatch, Unit unit, Texture2D figure, Vector2 screenPos, int size)
+    private void DrawVillager(SpriteBatch spriteBatch, Unit unit, Texture2D figure, Vector2 screenPos, int size, bool hover = false)
     {
         var motion = _unitMotion.GetValueOrDefault(unit);
         bool moving = motion.MovingFor > 0f;
@@ -7848,6 +7926,13 @@ public partial class RTSGameplayScreen : GameScreen
                          new Vector2(figure.Width / 2f, figure.Height),
                          new Vector2(scale, scale * stretch),
                          motion.FacingLeft ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 0f);
+        // C17: hover - dieselbe Figur in derselben Lage noch einmal additiv (Alpha 0)
+        if (hover)
+            spriteBatch.Draw(figure, screenPos - new Vector2(0, bob), null, HoverLift,
+                             motion.FacingLeft ? -tilt : tilt,
+                             new Vector2(figure.Width / 2f, figure.Height),
+                             new Vector2(scale, scale * stretch),
+                             motion.FacingLeft ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 0f);
 
         if (unit.CarryingResource is { } carried)
         {
@@ -7874,13 +7959,15 @@ public partial class RTSGameplayScreen : GameScreen
     /// Soldat, wenn er einen gegnerischen Dorfbewohner angreift, anstatt wie bei einem Gebäude
     /// die Waffe zu schwingen"). Bis K7 zählte nur ein Gebäude als Ziel.
     /// VERTRAG: true, wenn unit.State Attacking ist und die Einheit ein Ziel hat: ein Gebäude
-    /// (AttackTarget nicht null) oder eine Einheit (UnitTarget nicht null und deren State nicht
-    /// Dead); sonst false. Ob sie gerade läuft und ob es Schlagbilder gibt, prüft DrawVillager.
+    /// (AttackTarget nicht null), eine Einheit (UnitTarget nicht null und deren State nicht
+    /// Dead) oder ein lebendes Raubtier (LivePrey(unit) nicht null, RT); sonst false. Ob sie gerade
+    /// läuft und ob es Schlagbilder gibt, prüft DrawVillager.
     /// </summary>
     internal bool IsStriking(Unit unit)
         => unit.State == UnitState.Attacking
            && (unit.AttackTarget != null
-               || (unit.UnitTarget is { } foe && foe.State != UnitState.Dead));
+               || (unit.UnitTarget is { } foe && foe.State != UnitState.Dead)
+               || LivePrey(unit) != null);
 
     /// <summary>
     /// Welches Laufbild eine Figur zeigt, die walked Welteinheiten gegangen ist:

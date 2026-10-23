@@ -67,6 +67,12 @@ Spielbar sind Wirtschaft, Aufstieg durch die Zeitalter und Kampf gegen einen Com
   und verteidigt ihr Dorf. Wird die eigene Seite getroffen, glüht die obere Leiste rot und ein
   Warnton erklingt. Wie sie im Vergleich zum Original arbeitet, steht in
   [Der Computergegner](docs/AoE-Computergegner.md)
+- Wilde Tiere: Schafe, Rehe, Kaninchen und Wildschweine zum Jagen, dazu Bären und Wolfsrudel. Wer
+  ihnen zu nahe kommt - Dorfbewohner wie Soldaten -, wird angegriffen; wer weggeht, ist sicher, sie
+  verfolgen niemanden. Von Gebäuden halten sie fünf Kacheln Abstand und ziehen sich vor neuen
+  zurück. Getroffene Soldaten wehren sich, ein Klick setzt die Auswahl auf ein Raubtier an -
+  Bogenschützen schießen aus sicherer Entfernung. Ein erlegter Bär liefert Fleisch, die Jäger
+  zerlegen ihn gleich
 - Niederlage: wer weder Dorfbewohner noch Stadtzentrum hat, verliert; ein Endbildschirm nennt den
   Sieger
 - Geräusche: Axt, Spitzhacke, Hacke, Sichel und Hammer klingen im Takt der Arbeit, dazu Schwerter,
@@ -211,12 +217,12 @@ dotnet run --project tools/kartenpruefung -- wild rohstoffe start    # Kartengen
 
 Programmsymbol, Menübild, Tastensymbole, Leisten, Rohstoffsymbole, Gebäude, Dorfbewohner und
 Soldaten je Zeitalter, Boden, Gras, Felder, Bäume, Beerenbüsche, Stein, Gold, Schafe, Rehe,
-Kaninchen und Wildschweine sind mit Qwen-Image erzeugt, lokal über ComfyUI. Prompts, Seeds und die
-Werkzeuge dafür liegen in `tools/bilder`, jedes Bild lässt sich damit genau so wieder erzeugen;
-Einzelheiten in der [Projektstruktur](docs/PROJEKT_STRUKTUR.md#grafik). Gras, Sand und Wasser setzt
-ein Shader (`Content/Effects/Boden.fx`) aus diesen Bildern zusammen - das Gras aus fünf Sorten, die
-er nach Halmhöhe ineinander blendet, der Weizen wiegt sich in `Content/Effects/Weizen.fx`; Gehen,
-Schlagen, Wind und Fische rechnet das Spiel selbst.
+Kaninchen, Wildschweine, Bären und Wölfe sind mit Qwen-Image erzeugt, lokal über ComfyUI. Prompts,
+Seeds und die Werkzeuge dafür liegen in `tools/bilder`, jedes Bild lässt sich damit genau so wieder
+erzeugen; Einzelheiten in der [Projektstruktur](docs/PROJEKT_STRUKTUR.md#grafik). Gras, Sand und
+Wasser setzt ein Shader (`Content/Effects/Boden.fx`) aus diesen Bildern zusammen - das Gras aus fünf
+Sorten, die er nach Halmhöhe ineinander blendet, der Weizen wiegt sich in
+`Content/Effects/Weizen.fx`; Gehen, Schlagen, Wind und Fische rechnet das Spiel selbst.
 
 Die Geräusche sind echte Aufnahmen von [Freesound](https://freesound.org), alle unter CC0
 (gemeinfrei): eine Axt im Stamm eines Baums, eine Spitzhacke auf Stein, ein Hammer auf Nagel und

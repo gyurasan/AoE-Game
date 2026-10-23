@@ -470,7 +470,8 @@ public partial class RTSGameplayScreen
     /// Wohin ein Schütze zielt: auf die Brust einer Figur oder in die Mitte eines Gebäudes.
     /// VERTRAG: unit.UnitTarget nicht null: dessen Position + Vector2(0, -10). Sonst unit.AttackTarget
     /// b nicht null: Vector2((b.X + b.Width / 2f) * tileMap.TileSize, (b.Y + b.Height / 2f) *
-    /// tileMap.TileSize - tileMap.TileSize * 0.4f). Sonst unit.Position.
+    /// tileMap.TileSize - tileMap.TileSize * 0.4f). Sonst LivePrey(unit) p nicht null (RT):
+    /// PreyCenter(p.X, p.Y) + Vector2(0, -8). Sonst unit.Position.
     /// </summary>
     private Vector2 ArrowTarget(Unit unit)
     {
@@ -480,6 +481,9 @@ public partial class RTSGameplayScreen
         // in die Mitte eines Gebäudes
         if (unit.AttackTarget is { } b)
             return new Vector2((b.X + b.Width / 2f) * tileMap.TileSize, (b.Y + b.Height / 2f) * tileMap.TileSize - tileMap.TileSize * 0.4f);
+        // auf ein Raubtier: in den Rumpf über der Mitte seiner Kachel (RT)
+        if (LivePrey(unit) is { } prey)
+            return PreyCenter(prey.X, prey.Y) + new Vector2(0, -8);
         // sonst die eigene Position
         return unit.Position;
     }

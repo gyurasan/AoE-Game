@@ -13,7 +13,7 @@ using UnitEntity = AoE.Core.Entities.UnitEntity;
 using BuildingEntity = AoE.Core.Entities.BuildingEntity;
 
 namespace AgeOfEvolutions.Core.Data;
-public class TileMap
+public partial class TileMap
 {
     public int Width { get; set; }
     public int Height { get; set; }
@@ -100,10 +100,10 @@ public class TileMap
 
     /// <summary>
     /// Baut die Wander-Bestände der Tiere aus den Kacheln neu auf (nach dem Laden eines Spielstands).
-    /// VERTRAG: leert _sheepCoords, _deerCoords, _rabbitCoords, _boarCoords und _claimed; geht dann
-    /// alle Kacheln durch (x außen, y innen, je aufsteigend) und trägt jede Kachel mit
-    /// Food Sheep in _sheepCoords, Deer in _deerCoords, Rabbit in _rabbitCoords und Boar in
-    /// _boarCoords ein. Andere Kacheln bleiben außen vor.
+    /// VERTRAG: leert _sheepCoords, _deerCoords, _rabbitCoords, _boarCoords, _bearCoords, _wolfCoords
+    /// und _claimed; geht dann alle Kacheln durch (x außen, y innen, je aufsteigend) und trägt jede
+    /// Kachel mit Food Sheep in _sheepCoords, Deer in _deerCoords, Rabbit in _rabbitCoords, Boar in
+    /// _boarCoords, Bear in _bearCoords und Wolf in _wolfCoords ein (RT). Andere Kacheln bleiben außen vor.
     /// </summary>
     public void RebuildWildAnimals()
     {
@@ -112,6 +112,8 @@ public class TileMap
         _deerCoords.Clear();
         _rabbitCoords.Clear();
         _boarCoords.Clear();
+        _bearCoords.Clear();
+        _wolfCoords.Clear();
         _claimed.Clear();
 
         for (int x = 0; x < Width; x++)
@@ -132,6 +134,12 @@ public class TileMap
                         break;
                     case FoodSource.Boar:
                         _boarCoords.Add((x, y));
+                        break;
+                    case FoodSource.Bear:
+                        _bearCoords.Add((x, y));
+                        break;
+                    case FoodSource.Wolf:
+                        _wolfCoords.Add((x, y));
                         break;
                 }
             }
@@ -161,6 +169,10 @@ public class TileMap
 
         // Place starting positions
         PlaceStartingPositions();
+
+        // Bären und Wölfe zuletzt: dann stehen die Stadtzentren, und die Raubtiere halten
+        // auch von ihnen Abstand (RT)
+        PlacePredators();
     }
     
     private TileType GetRandomTileType(int x, int y)
@@ -1664,6 +1676,8 @@ public class TileMap
         _deerCoords.Remove((x, y));
         _rabbitCoords.Remove((x, y));
         _boarCoords.Remove((x, y));
+        _bearCoords.Remove((x, y));
+        _wolfCoords.Remove((x, y));
     }
 
     /// <summary>Zufallszahl in [min, max) mit gegebenem Generator.</summary>

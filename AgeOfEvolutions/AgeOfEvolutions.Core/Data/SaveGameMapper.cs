@@ -30,7 +30,8 @@ public static class SaveGameMapper
     ///   Type, GroundType (G15), Walkable, Buildable, ResourceType, ResourceAmount, Food, Wear,
     ///   Farm, FarmRegrow, FarmFood, FarmCol, FarmRow, FarmSize, RoadLevel und
     ///   Animal: null, wenn tile.Animal null ist,
-    ///   sonst ein AnimalSave mit allen sieben Werten des Tiers.
+    ///   sonst ein AnimalSave mit allen neun Werten des Tiers (Look, FacingLeft, WanderTimer,
+    ///   FromX, FromY, Glide, Slaughtered, Health, AttackCooldown - nicht Strike).
     /// - Buildings: je Gebäude aus map.Buildings in dieser Reihenfolge: X, Y, Type,
     ///   Size = Width, OwnerId, Health, Construction = building.Construction?.ToState(),
     ///   Training = building.Training.ToState(), Research = building.Research.ToState().
@@ -113,6 +114,8 @@ public static class SaveGameMapper
                         FromY = tile.Animal.FromY,
                         Glide = tile.Animal.Glide,
                         Slaughtered = tile.Animal.Slaughtered,
+                        Health = tile.Animal.Health,
+                        AttackCooldown = tile.Animal.AttackCooldown,
                     },
                     Wear = tile.Wear,
                     Farm = tile.Farm,
@@ -180,8 +183,8 @@ public static class SaveGameMapper
     ///    save.Tiles nicht genau Width · Height.
     /// 2. map = TileMap.CreateBlank(Width, Height, TileSize, MapSettings.ForSize(save.MapSize)).
     /// 3. Kacheln: jede Kachel map.GetTile(x, y) bekommt alle Werte ihres TileSave (Index
-    ///    y · Width + x); Animal null bleibt null, sonst ein neues WildAnimal mit den sieben
-    ///    Werten. GroundType = ts.GroundType ?? ts.Type (ältere Spielstände ohne den Boden
+    ///    y · Width + x); Animal null bleibt null, sonst ein neues WildAnimal mit den neun
+    ///    Werten (Strike bleibt 0). GroundType = ts.GroundType ?? ts.Type (ältere Spielstände ohne den Boden
     ///    der Kartenerzeugung, G15). Building bleibt null - das setzt Schritt 5.
     /// 4. Spieler: je PlayerSave new Player(Id, Name, Civilization); danach steht jeder der vier
     ///    Rohstoffe GENAU auf dem gespeicherten Wert (player.Resources.Add(r, gespeichert -
@@ -245,6 +248,8 @@ public static class SaveGameMapper
                     FromY = ts.Animal.FromY,
                     Glide = ts.Animal.Glide,
                     Slaughtered = ts.Animal.Slaughtered,
+                    Health = ts.Animal.Health,
+                    AttackCooldown = ts.Animal.AttackCooldown,
                 };
                 tile.Wear = ts.Wear;
                 tile.Farm = ts.Farm;

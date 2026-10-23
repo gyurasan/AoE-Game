@@ -125,7 +125,8 @@ public sealed class TileSave
     public int RoadLevel { get; set; }
 }
 
-/// <summary>Ein Tier (<see cref="WildAnimal"/>) mit Takt, Blick und Schritt.</summary>
+/// <summary>Ein Tier (<see cref="WildAnimal"/>) mit Takt, Blick und Schritt, ein Raubtier dazu mit
+/// Lebenspunkten und Schlagtakt. Das Angriffsbild (Strike) zählt nicht - es ist nach einem Bild vorbei.</summary>
 public sealed class AnimalSave
 {
     public int Look { get; set; }
@@ -135,6 +136,9 @@ public sealed class AnimalSave
     public int FromY { get; set; }
     public float Glide { get; set; }
     public bool Slaughtered { get; set; }
+    /// <summary>Lebenspunkte und Schlagtakt eines Raubtiers (RT); 0 bei allem anderen Wild.</summary>
+    public int Health { get; set; }
+    public float AttackCooldown { get; set; }
 }
 
 /// <summary>Ein Gebäude: Lage, Besitzer, Lebenspunkte, Baustelle, Ausbildung und Forschung.</summary>

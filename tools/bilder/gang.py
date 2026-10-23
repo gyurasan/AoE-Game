@@ -84,6 +84,7 @@ class Bein:
         self.g = gang
         self.saum = c.get("saum", saum)
         self.knick_hinten = c.get("knick") == "hinten"
+        self.traegt = c.get("traegt", True)
         if "boden" in c:
             self.boden = c["boden"]
         else:
@@ -98,6 +99,12 @@ class Bein:
         # Größte Hüft-Knöchel-Strecke im Stand: so hoch wie im Standbild, wenn der Fuß flach
         # unter der Hüfte steht - so liegt die Hüfte mitten im Stand jedes Beins gleich hoch
         self.lmax = min((self.boden - self.ferse[1]) - self.h[1], gang["streckung"] * (self.l1 + self.l2))
+        # Schräg gestellte Tierbeine ("mitte_ruhe", Bär und Wolf): mitten im Stand steht der Fuß
+        # dort, wo ihn das Standbild zeigt, statt unter der Hüfte - und die Hüfte so hoch wie dort
+        self.mitte = 0.0
+        if c.get("mitte_ruhe", gang.get("mitte_ruhe", False)):
+            self.mitte = (self.a[0] - self.h[0]) + self.ferse[0]
+            self.lmax = min(math.dist(self.h, self.a), gang["streckung"] * (self.l1 + self.l2))
 
     def steht(self, phi):
         return phi < self.g["stand"]
@@ -106,7 +113,7 @@ class Bein:
         """(Knöchel relativ zur Hüfte in x, Knöchel absolut in y, Fußneigung) bei Phase phi."""
         g = self.g
         weg = 2 * self.L                             # Körperweg je Periode
-        ferse_x0 = g["stand"] * weg / 2              # Ferse beim Aufsetzen, vor der Hüfte
+        ferse_x0 = g["stand"] * weg / 2 + self.mitte  # Ferse beim Aufsetzen, vor der Hüfte
 
         def stand(p):
             # Der Fuß ruht; seine Bodenpunkte wandern relativ zur Hüfte mit -weg * p
@@ -257,9 +264,11 @@ def figur(name, cfg):
     for p in range(phasen):
         phis = [(p / phasen + versatz[i]) % 1.0 for i in range(len(beine))]
         lagen = [b.fusslage(phis[i]) for i, b in enumerate(beine)]
-        # Körper so hoch, wie die Standbeine es fast gestreckt erlauben (gemeinsamer Hub dy)
-        dy = max(y - math.sqrt(max(b.lmax ** 2 - x ** 2, 1.0)) - b.h[1]
-                 for b, (x, y, _), phi in zip(beine, lagen, phis) if b.steht(phi))
+        # Körper so hoch, wie die Standbeine es fast gestreckt erlauben (gemeinsamer Hub dy). Ein
+        # Bein mit "traegt": false zählt dabei nicht - etwa ein Hinterbein, das im Standbild
+        # angewinkelt ist und sonst den ganzen Körper absenken würde
+        dy = max((y - math.sqrt(max(b.lmax ** 2 - x ** 2, 1.0)) - b.h[1]
+                  for b, (x, y, _), phi in zip(beine, lagen, phis) if b.steht(phi) and b.traegt), default=0.0)
         bildp = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         punkte = []
         for i, b in enumerate(beine):

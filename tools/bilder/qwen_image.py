@@ -21,7 +21,10 @@ Bilds neu (Inpainting), etwa um der Figur ihr Werkzeug abzunehmen: "vorlage" ist
 eine Datei im Ausgabeordner der Gruppe, "maske" beschreibt die neu zu malende
 Fläche als Linien [x1, y1, x2, y2, Dicke], Ellipsen [x, y, rx, ry] und
 Rechtecke [x, y, Breite, Höhe] in Pixeln der Vorlage. Alles außerhalb der Maske
-bleibt Pixel für Pixel erhalten. "staerke" (0 bis 1, sonst 1) entrauscht die
+bleibt Pixel für Pixel erhalten; "weich": r in der Maske lässt ihre Ränder über rund r
+Pixel auslaufen - für Masken, deren Ränder durch die Figur laufen (Beine neu malen).
+Beinmasken reichen bis zum unteren Bildrand: neu gemalte Beine stehen oft tiefer
+und würden an einer Maskenkante abgeschnitten. "staerke" (0 bis 1, sonst 1) entrauscht die
 Maske nur teilweise: Aufbau und Linien der Vorlage bleiben, Stoff und Farbe
 ändern sich - so wird aus dem reifen Feld dasselbe Feld nach der Ernte.
 
@@ -119,6 +122,25 @@ def ausbesser_graph(prompt: str, negativ: str, vorlage: str, maske: str, seed: i
     return graph
 
 
+def weichzeichnen(pixel: bytearray, breite: int, hoehe: int, radius: int) -> bytearray:
+    """Dreimal Kastenfilter mit dem halben Radius, waagerecht und senkrecht - nähert eine
+    Gaußglocke an. Reines Python über laufende Summen, je Durchgang rund eine Sekunde."""
+    r = max(1, radius // 2)
+    werte = list(pixel)
+    for _ in range(3):
+        for laenge, schritt, anzahl, abstand in ((breite, 1, hoehe, breite), (hoehe, breite, breite, 1)):
+            for k in range(anzahl):
+                start = k * abstand
+                zeile = werte[start:start + laenge * schritt:schritt]
+                summe = [0] * (laenge + 1)
+                for i, v in enumerate(zeile):
+                    summe[i + 1] = summe[i] + v
+                for i in range(laenge):
+                    a, b = max(0, i - r), min(laenge, i + r + 1)
+                    werte[start + i * schritt] = (summe[b] - summe[a]) // (b - a)
+    return bytearray(werte)
+
+
 def maske_zeichnen(form: dict, breite: int, hoehe: int, ziel: Path) -> Path:
     """Zeichnet die Inpainting-Maske als Graustufen-PNG: weiß wird neu gemalt.
 
@@ -150,6 +172,10 @@ def maske_zeichnen(form: dict, breite: int, hoehe: int, ziel: Path) -> Path:
                 lambda x, y, cx=cx, cy=cy, rx=rx, ry=ry: ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1)
     for x, y, b, h in form.get("rechtecke", []):
         fuellen(x, y, x + b - 1, y + h - 1, lambda x, y: True)
+    # "weich": Ränder über so viele Pixel weich auslaufen lassen - sonst bleibt eine harte
+    # Naht, wo ein Rechteck durch den Körper läuft und das neu Gemalte nicht genau anschließt
+    if form.get("weich"):
+        pixel = weichzeichnen(pixel, breite, hoehe, int(form["weich"]))
 
     def abschnitt(art: bytes, daten: bytes) -> bytes:
         return (len(daten).to_bytes(4, "big") + art + daten

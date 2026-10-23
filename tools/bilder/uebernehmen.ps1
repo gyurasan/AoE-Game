@@ -31,6 +31,8 @@
 #   loecher       true    weiße Löcher im freigestellten Bild (zwischen Ästen und
 #                         Blattbüscheln) durchsichtig machen, ohne weißen Saum - für
 #                         Bäume mit offener Krone; false je Eintrag bei weißer Rinde
+#   entgruenen    true    Grünstich vom Green-Screen entfernen (Grün höchstens wie Rot oder
+#                         Blau) - nur für Motive ohne eigenes Grün, etwa Bär und Wolf
 #   figur         name    alle Einträge mit derselben Figur, auch aus anderen Gruppen,
 #                         auf dasselbe Rechteck beschneiden: die Vereinigung ihrer
 #                         sichtbaren Flächen. So bleiben die Laufbilder eines Tiers
@@ -292,6 +294,23 @@ public static class Nachbearbeitung
 
     /// Kräftiges Blau (Farbton 190-260 Grad, Sättigung ab saettigung) wird Rot:
     /// der Bereich wird um 225 Grad verschoben und gestaucht, Helligkeit bleibt.
+    /// Grünstich vom Green-Screen entfernen ("Despill"): Grün höchstens so stark wie das
+    /// stärkere von Rot und Blau. Nur für Motive ohne eigenes Grün (Tiere, Fleisch) - dort
+    /// bleibt an Fell und Rändern sonst ein grüner Saum, besonders nach weichem Ausbessern.
+    public static Bitmap Entgruenen(Bitmap quelle)
+    {
+        var b = new Bitmap(quelle);
+        BitmapData d; var px = Lesen(b, out d);
+        for (int i = 0; i < px.Length; i += 4)
+        {
+            if (px[i + 3] == 0) continue;
+            byte grenze = Math.Max(px[i], px[i + 2]);
+            if (px[i + 1] > grenze) px[i + 1] = grenze;
+        }
+        Schreiben(b, d, px);
+        return b;
+    }
+
     public static Bitmap BlauZuRot(Bitmap quelle, double saettigung)
     {
         var b = new Bitmap(quelle);
@@ -516,6 +535,9 @@ foreach ($g in $katalog.PSObject.Properties) {
             }
             if (Wert $e $g.Value "loecher") {
                 $neu = [Nachbearbeitung]::WeisseLoecher($bild, 3); $bild.Dispose(); $bild = $neu
+            }
+            if (Wert $e $g.Value "entgruenen") {
+                $neu = [Nachbearbeitung]::Entgruenen($bild); $bild.Dispose(); $bild = $neu
             }
             if ($e.figur -and $figuren.ContainsKey($e.figur)) {
                 $neu = [Nachbearbeitung]::Ausschnitt($bild, $figuren[$e.figur]); $bild.Dispose(); $bild = $neu

@@ -2597,6 +2597,46 @@
     "ziel": "Tiere/wildschwein2.png",
     "figur": "wildschwein2",
     "prompt": "A sturdy wild boar with coarse dark brown bristly fur, a ridge of bristles along its back and small curved white tusks, facing right, rooting in the ground with its snout lowered, on all four short legs."
+   },
+   {
+    "name": "baer",
+    "seed": 9721,
+    "ziel": "Tiere/baer.png",
+    "figur": "baer",
+    "zielbreite": 256,
+    "entgruenen": true,
+    "prompt": "A huge powerful brown bear with thick shaggy dark brown fur, lighter golden-brown tips on its back, a muscular shoulder hump, a broad head with small round ears and a dark snout, big paws with pale claws, facing right, standing calmly on all four legs with its head up.",
+    "negativ": "polar bear, panda, teddy bear, cartoon, cute, standing upright, two legs"
+   },
+   {
+    "name": "baer2",
+    "seed": 9731,
+    "ziel": "Tiere/baer2.png",
+    "figur": "baer2",
+    "zielbreite": 256,
+    "entgruenen": true,
+    "prompt": "A huge powerful brown bear with thick shaggy dark brown fur, lighter golden-brown tips on its back, a muscular shoulder hump, a broad head with small round ears and a dark snout, big paws with pale claws, facing right, on all four legs, its head lowered sniffing the ground.",
+    "negativ": "polar bear, panda, teddy bear, cartoon, cute, standing upright, two legs"
+   },
+   {
+    "name": "wolf",
+    "seed": 9741,
+    "ziel": "Tiere/wolf.png",
+    "figur": "wolf",
+    "zielbreite": 256,
+    "entgruenen": true,
+    "prompt": "A lean wild grey wolf with thick grey fur, tawny flanks, a cream-white chest, throat and belly, pointed upright ears, amber eyes, long legs and a long bushy tail, facing right, standing alert on all four legs with its head up and its tail hanging down.",
+    "negativ": "dog, husky, collar, leash, cartoon, cute, puppy, fox"
+   },
+   {
+    "name": "wolf2",
+    "seed": 9753,
+    "ziel": "Tiere/wolf2.png",
+    "figur": "wolf2",
+    "zielbreite": 256,
+    "entgruenen": true,
+    "prompt": "A lean wild dark grey wolf with thick charcoal and silver-grey fur, a pale grey chest and belly, pointed upright ears, amber eyes, long legs and a long bushy tail, facing right, prowling on all four legs with its head held low and its tail hanging down.",
+    "negativ": "dog, husky, collar, leash, cartoon, cute, puppy, fox"
    }
   ]
  },
@@ -3008,6 +3048,309 @@
      ]
     },
     "prompt": "A sturdy wild boar with coarse dark brown bristly fur and small curved white tusks, facing right, its snout lowered, trotting slowly to the right. Its short legs pass each other under the body: one front leg is lifted with the hoof bent, one hind leg swings forward."
+   },
+   {
+    "name": "baer_lauf1",
+    "seed": 9881,
+    "ziel": "Tiere/baer_lauf1.png",
+    "figur": "baer",
+    "zielbreite": 256,
+    "entgruenen": true,
+    "vorlage": "../tiere/baer_9721_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       90,
+       520,
+       330,
+       250
+      ],
+      [
+       400,
+       590,
+       460,
+       360
+      ]
+     ]
+    },
+    "prompt": "A huge powerful brown bear with thick shaggy dark brown fur, lighter golden-brown tips on its back, a muscular shoulder hump, a broad head with small round ears and a dark snout, big paws with pale claws, facing right, walking slowly to the right with a heavy lumbering gait. Its legs are in mid-stride: the front legs spread apart, one big paw reaching forward, the hind legs spread the other way."
+   },
+   {
+    "name": "baer_lauf2",
+    "seed": 9883,
+    "ziel": "Tiere/baer_lauf2.png",
+    "figur": "baer",
+    "zielbreite": 256,
+    "entgruenen": true,
+    "vorlage": "../tiere/baer_9721_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       90,
+       520,
+       330,
+       250
+      ],
+      [
+       400,
+       590,
+       460,
+       360
+      ]
+     ]
+    },
+    "prompt": "A huge powerful brown bear with thick shaggy dark brown fur, lighter golden-brown tips on its back, a muscular shoulder hump, a broad head with small round ears and a dark snout, big paws with pale claws, facing right, walking slowly to the right with a heavy lumbering gait. Its legs pass each other under the body: one front paw is lifted off the ground, one hind leg swings forward."
+   },
+   {
+    "name": "baer2_lauf1",
+    "seed": 9886,
+    "ziel": "Tiere/baer2_lauf1.png",
+    "figur": "baer2",
+    "zielbreite": 256,
+    "entgruenen": true,
+    "vorlage": "../tiere/baer2_9731_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       50,
+       560,
+       640,
+       464
+      ],
+      [
+       690,
+       800,
+       280,
+       224
+      ]
+     ],
+     "weich": 16
+    },
+    "prompt": "A huge powerful brown bear with thick shaggy dark brown fur, lighter golden-brown tips on its back, a muscular shoulder hump, a broad head with small round ears and a dark snout, big paws with pale claws, facing right, its head lowered, walking slowly to the right with a heavy lumbering gait. Its legs are in mid-stride: the front legs spread apart, one big paw reaching forward, the hind legs spread the other way."
+   },
+   {
+    "name": "baer2_lauf2",
+    "seed": 9887,
+    "ziel": "Tiere/baer2_lauf2.png",
+    "figur": "baer2",
+    "zielbreite": 256,
+    "entgruenen": true,
+    "vorlage": "../tiere/baer2_9731_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       50,
+       560,
+       640,
+       464
+      ],
+      [
+       690,
+       800,
+       280,
+       224
+      ]
+     ],
+     "weich": 16
+    },
+    "prompt": "A huge powerful brown bear with thick shaggy dark brown fur, lighter golden-brown tips on its back, a muscular shoulder hump, a broad head with small round ears and a dark snout, big paws with pale claws, facing right, its head lowered, walking slowly to the right with a heavy lumbering gait. Its legs pass each other under the body: one front paw is lifted off the ground, one hind leg swings forward."
+   },
+   {
+    "name": "wolf_lauf1",
+    "seed": 9890,
+    "ziel": "Tiere/wolf_lauf1.png",
+    "figur": "wolf",
+    "zielbreite": 256,
+    "entgruenen": true,
+    "vorlage": "../tiere/wolf_9741_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       110,
+       480,
+       790,
+       544
+      ]
+     ],
+     "weich": 16
+    },
+    "prompt": "A lean wild grey wolf with thick grey fur, tawny flanks, a cream-white chest, throat and belly, pointed upright ears, amber eyes, long legs and a long bushy tail, facing right, trotting to the right. Its long legs are in mid-stride: the front legs spread apart, one paw reaching forward, the hind legs spread the other way."
+   },
+   {
+    "name": "wolf_lauf2",
+    "seed": 9893,
+    "ziel": "Tiere/wolf_lauf2.png",
+    "figur": "wolf",
+    "zielbreite": 256,
+    "entgruenen": true,
+    "vorlage": "../tiere/wolf_9741_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       110,
+       480,
+       790,
+       544
+      ]
+     ],
+     "weich": 16
+    },
+    "prompt": "A lean wild grey wolf with thick grey fur, tawny flanks, a cream-white chest, throat and belly, pointed upright ears, amber eyes, long legs and a long bushy tail, facing right, trotting to the right. Its long legs pass each other under the body: one front paw is lifted with the wrist bent, one hind leg swings forward."
+   },
+   {
+    "name": "wolf2_lauf1",
+    "seed": 9913,
+    "ziel": "Tiere/wolf2_lauf1.png",
+    "figur": "wolf2",
+    "zielbreite": 256,
+    "entgruenen": true,
+    "vorlage": "../tiere/wolf2_9753_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       80,
+       430,
+       670,
+       594
+      ],
+      [
+       750,
+       670,
+       240,
+       354
+      ]
+     ],
+     "weich": 32
+    },
+    "prompt": "A lean wild dark grey wolf with thick charcoal and silver-grey fur, a pale grey chest and belly, pointed upright ears, amber eyes, long legs and a long bushy tail, facing right, its head held low, trotting to the right. Its long legs are in mid-stride: the front legs spread apart, one paw reaching forward, the hind legs spread the other way."
+   },
+   {
+    "name": "wolf2_lauf2",
+    "seed": 9915,
+    "ziel": "Tiere/wolf2_lauf2.png",
+    "figur": "wolf2",
+    "zielbreite": 256,
+    "entgruenen": true,
+    "vorlage": "../tiere/wolf2_9753_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       80,
+       430,
+       670,
+       594
+      ],
+      [
+       750,
+       670,
+       240,
+       354
+      ]
+     ],
+     "weich": 32
+    },
+    "prompt": "A lean wild dark grey wolf with thick charcoal and silver-grey fur, a pale grey chest and belly, pointed upright ears, amber eyes, long legs and a long bushy tail, facing right, its head held low, trotting to the right. Its long legs pass each other under the body: one front paw is lifted with the wrist bent, one hind leg swings forward."
+   },
+   {
+    "name": "baer_angriff",
+    "seed": 9901,
+    "ziel": "Tiere/baer_angriff.png",
+    "figur": "baer",
+    "zielbreite": 256,
+    "entgruenen": true,
+    "vorlage": "../tiere/baer_9721_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       560,
+       140,
+       464,
+       830
+      ],
+      [
+       400,
+       590,
+       200,
+       370
+      ]
+     ]
+    },
+    "stil": "Game sprite for a top-down 2D strategy game, seen from above at a three-quarter angle from the south, the body shown from the side, detailed 16-bit pixel art, crisp pixels, warm natural colors, soft light from the upper left. One single wild animal attacking, centered and fully visible, isolated on a plain flat solid green background like a green screen, no ground, no grass, no shadow, no text.",
+    "negativ": "calm, closed mouth, sitting, standing upright, two legs, blood, gore",
+    "prompt": "A huge powerful brown bear with thick shaggy dark brown fur, lighter golden-brown tips on its back, a muscular shoulder hump, a broad head with small round ears and a dark snout, big paws with pale claws, facing right, attacking: it lunges forward roaring with its jaws wide open, baring its teeth, one front paw raised high with the claws spread out."
+   },
+   {
+    "name": "baer2_angriff",
+    "seed": 9904,
+    "ziel": "Tiere/baer2_angriff.png",
+    "figur": "baer2",
+    "zielbreite": 256,
+    "entgruenen": true,
+    "vorlage": "../tiere/baer2_9731_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       560,
+       380,
+       464,
+       590
+      ],
+      [
+       370,
+       560,
+       230,
+       380
+      ]
+     ]
+    },
+    "stil": "Game sprite for a top-down 2D strategy game, seen from above at a three-quarter angle from the south, the body shown from the side, detailed 16-bit pixel art, crisp pixels, warm natural colors, soft light from the upper left. One single wild animal attacking, centered and fully visible, isolated on a plain flat solid green background like a green screen, no ground, no grass, no shadow, no text.",
+    "negativ": "calm, closed mouth, sitting, standing upright, two legs, blood, gore",
+    "prompt": "A huge powerful brown bear with thick shaggy dark brown fur, lighter golden-brown tips on its back, a muscular shoulder hump, a broad head with small round ears and a dark snout, big paws with pale claws, facing right, its head lowered, attacking: it lunges forward roaring with its jaws wide open, baring its teeth, one front paw raised high with the claws spread out."
+   },
+   {
+    "name": "wolf_angriff",
+    "seed": 9905,
+    "ziel": "Tiere/wolf_angriff.png",
+    "figur": "wolf",
+    "zielbreite": 256,
+    "entgruenen": true,
+    "vorlage": "../tiere/wolf_9741_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       480,
+       140,
+       544,
+       800
+      ]
+     ]
+    },
+    "stil": "Game sprite for a top-down 2D strategy game, seen from above at a three-quarter angle from the south, the body shown from the side, detailed 16-bit pixel art, crisp pixels, warm natural colors, soft light from the upper left. One single wild animal attacking, centered and fully visible, isolated on a plain flat solid green background like a green screen, no ground, no grass, no shadow, no text.",
+    "negativ": "calm, closed mouth, sitting, standing upright, two legs, blood, gore",
+    "prompt": "A lean wild grey wolf with thick grey fur, tawny flanks, a cream-white chest, throat and belly, pointed upright ears, amber eyes, long legs and a long bushy tail, facing right, attacking: it lunges forward snarling with its jaws wide open, baring sharp white fangs, ears laid back, low on its front legs."
+   },
+   {
+    "name": "wolf2_angriff",
+    "seed": 9909,
+    "ziel": "Tiere/wolf2_angriff.png",
+    "figur": "wolf2",
+    "zielbreite": 256,
+    "entgruenen": true,
+    "vorlage": "../tiere/wolf2_9753_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       470,
+       300,
+       554,
+       724
+      ]
+     ],
+     "weich": 16
+    },
+    "stil": "Game sprite for a top-down 2D strategy game, seen from above at a three-quarter angle from the south, the body shown from the side, detailed 16-bit pixel art, crisp pixels, warm natural colors, soft light from the upper left. One single wild animal attacking, centered and fully visible, isolated on a plain flat solid green background like a green screen, no ground, no grass, no shadow, no text.",
+    "negativ": "calm, closed mouth, sitting, standing upright, two legs, blood, gore",
+    "prompt": "A lean wild dark grey wolf with thick charcoal and silver-grey fur, a pale grey chest and belly, pointed upright ears, amber eyes, long legs and a long bushy tail, facing right, its head held low, attacking: it lunges forward snarling with its jaws wide open, baring sharp white fangs, ears laid back, low on its front legs."
    }
   ]
  },
@@ -3048,6 +3391,14 @@
     "seed": 9913,
     "ziel": "Tiere/fleisch_wildschwein.png",
     "prompt": "Butchered wild boar meat: a small neat pile of fresh raw dark pink pork - a big ham, a rack of pork ribs and two thick steaks with a rim of white fat - lying directly on the ground, nothing underneath."
+   },
+   {
+    "name": "fleisch_baer",
+    "seed": 9932,
+    "ziel": "Tiere/fleisch_baer.png",
+    "zielbreite": 256,
+    "entgruenen": true,
+    "prompt": "Butchered bear meat: a neat pile of fresh raw dark red meat - a big haunch, a rack of thick ribs and two dark steaks with a little white fat - lying directly on the ground, nothing underneath."
    }
   ]
  },

@@ -23,14 +23,23 @@ public enum TileType
 /// <summary>
 /// Art der Nahrungsquelle auf einer Kachel – bestimmt, wie sie gezeichnet wird
 /// </summary>
-public enum FoodSource { None, Sheep, Berries, Fish, Farm, Deer, Rabbit, Boar }
+public enum FoodSource { None, Sheep, Berries, Fish, Farm, Deer, Rabbit, Boar, Bear, Wolf }
 
 /// <summary>Hilfen zu den Nahrungsquellen.</summary>
 public static class FoodSources
 {
     /// <summary>Ob die Quelle ein Tier ist, das wandert, gejagt und geschlachtet wird.</summary>
     public static bool IsWild(this FoodSource food)
-        => food is FoodSource.Sheep or FoodSource.Deer or FoodSource.Rabbit or FoodSource.Boar;
+        => food is FoodSource.Sheep or FoodSource.Deer or FoodSource.Rabbit or FoodSource.Boar
+                or FoodSource.Bear or FoodSource.Wolf;
+
+    /// <summary>
+    /// Ob das Tier ein Raubtier ist (RT): Bär oder Wolf. Es greift an, wer ihm zu nahe kommt,
+    /// verfolgt aber niemanden, und hält Abstand zu Gebäuden (TileMap.UpdatePredators).
+    /// Lebend trägt seine Kachel keine Nahrung (ResourceType null) - man muss es erst erlegen;
+    /// ein erlegter Bär liegt als Fleisch da, ein erlegter Wolf verschwindet.
+    /// </summary>
+    public static bool IsPredator(this FoodSource food) => food is FoodSource.Bear or FoodSource.Wolf;
 }
 
 /// <summary>
@@ -206,6 +215,24 @@ public class WildAnimal
     /// liegt es als Fleisch an seiner Stelle und wandert nie mehr weiter.
     /// </summary>
     public bool Slaughtered { get; set; }
+
+    /// <summary>
+    /// Lebenspunkte eines Raubtiers (Bär, Wolf - RT); 0 bei allen anderen Tieren. Fällt
+    /// sie auf 0, ist das Raubtier erlegt (TileMap.DamagePredator).
+    /// </summary>
+    public int Health { get; set; }
+
+    /// <summary>
+    /// Sekunden, bis das Raubtier wieder zuschlagen kann; 0 heißt bereit. Nach jedem
+    /// Schlag die Nachladezeit seiner Art (MapSettings.BearReloadSeconds, WolfReloadSeconds).
+    /// </summary>
+    public float AttackCooldown { get; set; }
+
+    /// <summary>
+    /// Sekunden, die das Raubtier noch sein Angriffsbild zeigt; nach jedem Schlag
+    /// TileMap.PREDATOR_STRIKE_SECONDS. Nur für das Bild, nicht im Spielstand.
+    /// </summary>
+    public float Strike { get; set; }
 }
 
 /// <summary>
