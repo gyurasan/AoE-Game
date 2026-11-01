@@ -40,7 +40,7 @@ public static class SaveGameMapper
     ///   PointSave(p.X, p.Y), Pace, State, Health, AttackTimer, Job = unit.Job?.ToState();
     ///   BuildSite und AttackTarget = Index des Gebäudes in map.Buildings (IndexOf), UnitTarget =
     ///   Index der Einheit in map.Units - jeweils null, wenn kein Ziel gesetzt ist oder es nicht
-    ///   (mehr) in der Liste steht.
+    ///   (mehr) in der Liste steht; AutoTarget.
     /// </summary>
     /// <exception cref="ArgumentNullException">map, player1 oder player2 ist null.</exception>
     public static SaveGame Capture(TileMap map, Player player1, Player player2, MapSize mapSize)
@@ -168,6 +168,7 @@ public static class SaveGameMapper
                 BuildSite = IndexOf(map.Buildings, unit.BuildSite),
                 AttackTarget = IndexOf(map.Buildings, unit.AttackTarget),
                 UnitTarget = IndexOf(map.Units, unit.UnitTarget),
+                AutoTarget = unit.AutoTarget,
             });
         }
 
@@ -203,7 +204,7 @@ public static class SaveGameMapper
     ///    player.Units (das macht der Spielbildschirm wie beim neuen Spiel).
     /// 7. Querverweise, erst wenn alle Gebäude und Einheiten stehen: BuildSite und
     ///    AttackTarget = map.Buildings[Index], UnitTarget = map.Units[Index]; null, wenn der
-    ///    Index null ist oder außerhalb der Liste liegt.
+    ///    Index null ist oder außerhalb der Liste liegt. AutoTarget nur mit UnitTarget.
     /// 8. map.RebuildWildAnimals(); map.RestoreExplored(Id, Explored) je Spieler;
     ///    map.InvalidateNavigation().
     /// Rückgabe: die Karte und die beiden Spieler in der gespeicherten Reihenfolge.
@@ -327,6 +328,7 @@ public static class SaveGameMapper
                 ? null : map.Buildings[us.AttackTarget.Value];
             unit.UnitTarget = us.UnitTarget is null || us.UnitTarget < 0 || us.UnitTarget >= map.Units.Count
                 ? null : map.Units[us.UnitTarget.Value];
+            unit.AutoTarget = unit.UnitTarget != null && us.AutoTarget;
         }
 
         // 8. Tiere, Erkundung und Navigation.

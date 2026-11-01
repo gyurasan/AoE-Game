@@ -2889,6 +2889,7 @@ public partial class RTSGameplayScreen : GameScreen
             a.AttackTarget = null;     // Gebäude-Angriff endet
             a.PreyTarget = null;       // Raubtier-Angriff endet (RT)
             a.UnitTarget = target;
+            a.AutoTarget = false;      // ein Befehl verfolgt bis zum Ende; AutoRespond setzt es danach selbst
             a.AttackTimer = 0f;
             a.TargetPosition = target.Position;
             // Vollständige Karte statt FindPathKnown: das Ziel ist
@@ -2906,14 +2907,14 @@ public partial class RTSGameplayScreen : GameScreen
             // (maximal bis direkt am Kantenrand), sonst könnte die Einheit
             // auf einer nicht-reichen Distanz stehen bleiben.
             var stand = AttackStandPoint(a, target);
-            a.Path = tileMap.FindPath(a.Position, stand);
+            a.Path = PathToStand(a, stand);
             while (a.Path.Count == 0 && Vector2.Distance(stand, target.Position) > tileMap.TileSize * 0.6f)
             {
                 var g = tileMap.WorldToGrid(stand);
                 if (tileMap.IsWalkable((int)g.X, (int)g.Y))
                     break;                              // Kachel frei, Weg fehlt aber — nicht weiter
                 stand = stand + (target.Position - stand) * 0.5f;   // Näher, bis die Kachel frei wird
-                a.Path = tileMap.FindPath(a.Position, stand);
+                a.Path = PathToStand(a, stand);
             }
             if (a.Path.Count > 0)
                 a.State = UnitState.Moving;
@@ -3066,6 +3067,21 @@ public partial class RTSGameplayScreen : GameScreen
     }
 
     /// <summary>
+    /// Weg zum Standpunkt eines Angriffs. FindPath liefert innerhalb derselben Kachel einen
+    /// leeren Weg - liegt der Standpunkt in der eigenen Kachel, dann ein einziger Schritt
+    /// direkt dorthin. Sonst blieb ein Angreifer 1-2 Kacheln vor dem Gegner untätig stehen
+    /// (AttackUnit: kein Weg, nicht in Reichweite) oder lief auf der Stelle (2026-11-01).
+    /// </summary>
+    private List<Vector2> PathToStand(Unit unit, Vector2 stand)
+    {
+        var path = tileMap.FindPath(unit.Position, stand);
+        if (path.Count == 0 && tileMap.WorldToGrid(unit.Position) == tileMap.WorldToGrid(stand)
+            && Vector2.Distance(unit.Position, stand) >= 2f)
+            path.Add(stand);
+        return path;
+    }
+
+    /// <summary>
     /// Der nächstgelegene lebende Feind einer <paramref name="unit"/> innerhalb
     /// von <paramref name="maxRange"/> Weltpixeln, oder null. Feind heißt:
     /// anderer <c>OwnerId</c>, nicht tot. Dient zum Weiterkämpfen nach dem Tod
@@ -3126,7 +3142,7 @@ public partial class RTSGameplayScreen : GameScreen
                 unit.UnitTarget = next;
                 unit.AttackTimer = 0f;
                 unit.TargetPosition = next.Position;
-                unit.Path = tileMap.FindPath(unit.Position, AttackStandPoint(unit, next));
+                unit.Path = PathToStand(unit, AttackStandPoint(unit, next));
                 if (unit.Path.Count > 0) unit.State = UnitState.Moving;
                 else if (InAttackRange(unit, next)) unit.State = UnitState.Attacking;
                 else { unit.UnitTarget = null; unit.State = UnitState.Idle; }
@@ -3300,30 +3316,47 @@ public partial class RTSGameplayScreen : GameScreen
         bool isMove = site == null && !isSource;
         bool spread = isMove && selectedUnits.Count > 1;
         var assigned = new List<Vector2>(selectedUnits.Count);   // bereits vergebene Standplätze
+        bool fieldFull = false;
 
         foreach (var unit in selectedUnits)
         {
             unit.BuildSite = null;
+            // Auf einem Feld bekommt jeder Bauer seine eigene Kachel (je Feldkachel einer,
+            // Nutzer 2026-11-01): die angeklickte, sonst die nächste freie desselben Felds,
+            // sonst eines Felds in der Nähe. Ist keine frei, wartet er neben dem Feld.
+            CorePosition? cell = null;
+            if (isSource && unit.Core is CoreVillager)
+            {
+                if (!tile.Farm)
+                    cell = new CorePosition((int)gridPos.X, (int)gridPos.Y);
+                else if (tileMap.FreeFarmTile((int)gridPos.X, (int)gridPos.Y, unit, GatherJob.SEARCH_RADIUS) is { } free)
+                    cell = new CorePosition(free.X, free.Y);
+                else
+                    fieldFull = true;
+            }
+
             if (site != null && unit.Core is CoreVillager)
             {
                 AssignBuilder(unit, site);
             }
-            else if (isSource && unit.Core is CoreVillager)
+            else if (cell is { } source)
             {
                 // Gleiche Ressource: die Traglast kommt mit, wie in AoE
                 int carrying = unit.Job != null && unit.Job.Resource == tile.ResourceType.Value
                     ? unit.Job.Carrying : 0;
-                unit.Job = new GatherJob(unit.OwnerId, tile.ResourceType.Value,
-                                         new CorePosition((int)gridPos.X, (int)gridPos.Y), carrying);
+                unit.Job = new GatherJob(unit.OwnerId, tile.ResourceType.Value, source, carrying);
                 FollowJob(unit);
             }
             else
             {
+                // Laufbefehl - auch für den Bauern, für den das Feld voll ist: er stellt
+                // sich daneben wie bei einem Gruppen-Laufbefehl
+                bool spreadThis = spread || (isSource && unit.Core is CoreVillager);
                 unit.Job = null;
-                unit.TargetPosition = spread
+                unit.TargetPosition = spreadThis
                     ? MoveStandPoint(gridPos, assigned.Count, assigned)
                     : GridToWorld(gridPos);
-                if (spread)
+                if (spreadThis)
                     assigned.Add(unit.TargetPosition);
                 // geplant nur mit dem Wissen des Spielers, damit ein Klick ins Schwarze nicht verrät, was darunter liegt
                 unit.Path = tileMap.FindPathKnown(unit.OwnerId, unit.Position, unit.TargetPosition);
@@ -3334,7 +3367,13 @@ public partial class RTSGameplayScreen : GameScreen
                     unit.State = UnitState.Moving;
             }
         }
+
+        if (fieldFull && ownerId == 0)
+            ShowHudMessage(FIELD_FULL_MESSAGE);
     }
+
+    /// <summary>Meldung, wenn für einen Bauern keine Feldkachel mehr frei ist.</summary>
+    internal const string FIELD_FULL_MESSAGE = "Feld voll - je Feldkachel arbeitet ein Bauer";
 
     /// <summary>
     /// Der Lauf-Standplatz für <paramref name="unit"/> bei einem Mehrheits-
@@ -4504,23 +4543,33 @@ public partial class RTSGameplayScreen : GameScreen
     }
 
     /// <summary>
-    /// Schickt die ausgewählten Dorfbewohner an das frisch angelegte Feld: sie
-    /// ernten die Getreidekachel in der Mitte (garantiert 175 voller Vorrat) und
-    /// nehmen danach — über den üblichen Sammelauftrag — die nächste volle Kachel,
-    /// bis das Feld leer ist. Wie bei jeder anderen Nahrungsquelle bleibt die von
-    /// ihnen mitgebrachte Traglast erhalten.
+    /// Schickt die ausgewählten Dorfbewohner an das frisch angelegte Feld: jeder
+    /// bekommt seine eigene Kachel (je Feldkachel ein Bauer, Nutzer 2026-11-01),
+    /// die Mitte zuerst, dann die ihr nächsten; danach nimmt er - über den üblichen
+    /// Sammelauftrag - die nächste freie volle Kachel. Wie bei jeder anderen
+    /// Nahrungsquelle bleibt die mitgebrachte Traglast erhalten. Wer keine Kachel
+    /// mehr bekommt, geht wie bei einem Klick aufs volle Feld (IssueCommand).
     /// </summary>
     private void HarvestFarm(int x, int y, List<Unit> villagers)
     {
-        var source = new CorePosition(x + 1, y + 1);   // Mitte des 3×3-Fields, garantiert Getreide
+        var rest = new List<Unit>();
         foreach (var v in villagers)
         {
+            // Mitte des Felds zuerst, garantiert Getreide
+            if (tileMap.FreeFarmTile(x + 1, y + 1, v, GatherJob.SEARCH_RADIUS) is not { } free)
+            {
+                rest.Add(v);
+                continue;
+            }
+            var source = new CorePosition(free.X, free.Y);
             if (v.Job != null && v.Job.Resource == Resource.Food)
                 v.Job = new GatherJob(v.OwnerId, Resource.Food, source, v.Job.Carrying);
             else
                 v.Job = new GatherJob(v.OwnerId, Resource.Food, source);
             FollowJob(v);
         }
+        if (rest.Count > 0)
+            IssueCommand(rest[0].OwnerId, rest, new Vector2(x + 1, y + 1));
     }
 
     /// <summary>Name eines Gebäudetyps aus dem Baumenü, etwa „Mühle".</summary>
@@ -4661,13 +4710,18 @@ public partial class RTSGameplayScreen : GameScreen
         }
 
         var nextSite = source == null ? NearestUnfinishedSite(site) : null;
+        bool onField = source is { } s && tileMap.GetTile(s.X, s.Y) is { Farm: true };
         foreach (var unit in units.Where(u => u.BuildSite == site).ToList())
         {
             unit.BuildSite = null;
             unit.Path.Clear();
-            if (source != null)
+            // Auf einem Feld bekommt jeder Erbauer seine eigene Kachel (je Feldkachel ein Bauer)
+            var mine = !onField ? source
+                : tileMap.FreeFarmTile(source.Value.X, source.Value.Y, unit, GatherJob.SEARCH_RADIUS) is { } free
+                    ? new CorePosition(free.X, free.Y) : null;
+            if (mine != null)
             {
-                unit.Job = new GatherJob(unit.OwnerId, resource, source.Value);
+                unit.Job = new GatherJob(unit.OwnerId, resource, mine.Value);
                 FollowJob(unit);
             }
             else if (nextSite != null)
@@ -4968,6 +5022,10 @@ public partial class RTSGameplayScreen : GameScreen
     /// angreifen, nicht nur die, die angegriffen werden“): greift ein sichtbarer
     /// Feind eine eigene Einheit ODER ein eigenes Gebäude an, steigen die
     /// untätigen eigenen Soldaten in der Nähe von selbst in den Kampf ein.
+    /// Dazu der Sichtkontakt (Nutzer 2026-11-01: „läuft ein Gegnerischer Soldat
+    /// zu einem eigenen Soldate, muss er angegriffen werden“): ein feindlicher
+    /// Soldat, der einem untätigen Soldaten in die Sichtweite kommt, wird
+    /// angegriffen - auch wenn er erst anrückt oder nur vorbeiläuft.
     /// Symmetrisch für beide Spieler; UpdateUnits ruft es zu Beginn jedes
     /// Bilds auf, wie <see cref="DefendTownCenters"/> (K6 bleibt zusätzlich
     /// bestehen: dort ist das Ziel das Stadtzentrum, hier jedes eigene Ziel).
@@ -4976,17 +5034,24 @@ public partial class RTSGameplayScreen : GameScreen
     ///   wie K6): _autoResponseTimer um dt verringern, über 0 = nichts,
     ///   sonst Takt setzen und suchen.
     /// - Angreifer: Einheit mit State Attacking, deren Ziel (Einheit ODER
-    ///   Gebäude) zum anderen Besitzer gehört und noch lebt/hält.
+    ///   Gebäude) zum anderen Besitzer gehört und noch lebt/hält; zählt bis
+    ///   AUTO_RESPONSE_RADIUS_TILES Luftlinie vom Verteidiger.
+    /// - Eindringling: jeder lebende feindliche Soldat (AttackPower größer 0,
+    ///   kein Dorfbewohner), gleich in welchem Zustand; zählt bis zur Sichtweite
+    ///   des Verteidigers (Core.Stats.VisionRange Kacheln Luftlinie). Feindliche
+    ///   Dorfbewohner, die nur vorbeigehen, bleiben unbehelligt.
     /// - Verteidiger: untätiger Soldat des Besitzers — KEINE Dorfbewohner
     ///   (K6-Regel), ohne Einheit-, Gebäude-, Sammel- und Bau-Ziel
     ///   (Befehle des Spielers haben Vorrang, kein Ping-Pong: wer schon ein
     ///   Ziel hat, wird nicht neu befehligt).
     /// - Der Feind muss für den Besitzer SICHTBAR sein (IsTileVisible) — nur
     ///   auf Bekanntem agieren.
-    /// - Jeder Verteidiger greift seinen nächsten sichtbaren Angreifer an
-    ///   (max. AUTO_RESPONSE_RADIUS_TILES Luftlinie) über AttackUnit — der
-    ///   einzige saubere Angriffskanal; UnitTarget wird gesetzt, der
-    ///   Schlagtakt läuft.
+    /// - Jeder Verteidiger greift den nächsten sichtbaren Feind an, der als
+    ///   Angreifer oder Eindringling in seiner Reichweite steht, über AttackUnit
+    ///   — der einzige saubere Angriffskanal; UnitTarget wird gesetzt, der
+    ///   Schlagtakt läuft. Danach AutoTarget = true: verliert der Besitzer das
+    ///   Ziel aus der Sicht, gibt der Verteidiger auf (HandleAttack), statt einem
+    ///   schnellen Späher quer über die Karte nachzulaufen.
     /// </summary>
     private void AutoRespond(float dt)
     {
@@ -5003,8 +5068,15 @@ public partial class RTSGameplayScreen : GameScreen
                     && u.State == UnitState.Attacking
                     && (u.UnitTarget is { } ut && ut.State != UnitState.Dead && ut.OwnerId == owner
                         || u.AttackTarget is { } at && at.OwnerId == owner && tileMap.Buildings.Contains(at)))
+                .ToHashSet();
+            // Feindliche Soldaten überhaupt - im Anmarsch, im Vorbeigehen, im Kampf.
+            var intruders = units
+                .Where(u => u.OwnerId != owner
+                    && u.State != UnitState.Dead
+                    && u.AttackPower > 0
+                    && u.Core is not CoreVillager)
                 .ToList();
-            if (attackers.Count == 0)
+            if (attackers.Count == 0 && intruders.Count == 0)
                 continue;
 
             // Untätige Soldaten ohne Auftrag — wie bei K6, nur ohne TC-Ring.
@@ -5021,22 +5093,29 @@ public partial class RTSGameplayScreen : GameScreen
 
             foreach (var d in defenders)
             {
+                // Angreifer zählen bis AUTO_RESPONSE_RADIUS_TILES, jeder andere
+                // feindliche Soldat erst in der Sichtweite des Verteidigers.
+                float respond = AUTO_RESPONSE_RADIUS_TILES * tileMap.TileSize;
+                float sight = d.Core.Stats.VisionRange * tileMap.TileSize;
                 Unit nearest = null;
-                float best = AUTO_RESPONSE_RADIUS_TILES * tileMap.TileSize;
-                foreach (var a in attackers)
+                float best = float.MaxValue;
+                foreach (var a in attackers.Concat(intruders))
                 {
+                    float dist = Vector2.Distance(d.Position, a.Position);
+                    if (dist > (attackers.Contains(a) ? Math.Max(respond, sight) : sight) || dist >= best)
+                        continue;
                     var g = tileMap.WorldToGrid(a.Position);
                     if (!tileMap.IsTileVisible((int)g.X, (int)g.Y, owner))
                         continue;                        // nicht sichtbar: kein Angriff
-                    float dist = Vector2.Distance(d.Position, a.Position);
-                    if (dist <= best)
-                    {
-                        best = dist;
-                        nearest = a;
-                    }
+                    best = dist;
+                    nearest = a;
                 }
-                if (nearest != null)
-                    AttackUnit(new List<Unit> { d }, nearest);
+                if (nearest == null)
+                    continue;
+                AttackUnit(new List<Unit> { d }, nearest);
+                // Von selbst gewählt: außer Sicht gibt er auf (HandleAttack)
+                if (d.UnitTarget == nearest)
+                    d.AutoTarget = true;
             }
         }
     }
@@ -5211,10 +5290,22 @@ public partial class RTSGameplayScreen : GameScreen
         bool inRange = InAttackRange(unit, target);
         if (!inRange)
         {
+            // Von selbst gewähltes Ziel (AutoRespond) außer Sicht des Besitzers:
+            // Verfolgung aufgeben, statt ihm in den Nebel nachzulaufen (2026-11-01)
+            var seen = tileMap.WorldToGrid(target.Position);
+            if (unit.AutoTarget && !tileMap.IsTileVisible((int)seen.X, (int)seen.Y, unit.OwnerId))
+            {
+                unit.UnitTarget = null;
+                unit.AutoTarget = false;
+                unit.Path.Clear();
+                unit.State = UnitState.Idle;
+                return;
+            }
+
             // Zum STANDPUNKT laufen (Abstand zum Gegner, Platz im Verband),
             // nicht auf das Ziel — sonst stapeln sich alle aufeinander,
             // und Bogenschützen ginge die Bogenvorlage verloren.
-            unit.Path = tileMap.FindPath(unit.Position, AttackStandPoint(unit, target));
+            unit.Path = PathToStand(unit, AttackStandPoint(unit, target));
             unit.State = UnitState.Moving;
             return;
         }
@@ -5521,7 +5612,7 @@ public partial class RTSGameplayScreen : GameScreen
             // (Nahkampf) bzw. Bogenvorlage (Fernkampf) — und läuft nicht
             // auf das Ziel auf, das längst weg ist.
             Vector2 desired = AttackStandPoint(unit, uTarget);
-            var desiredPath = tileMap.FindPath(unit.Position, desired);
+            var desiredPath = PathToStand(unit, desired);
             if (desiredPath.Count > 0
                 && (unit.Path.Count == 0
                     || Vector2.Distance(unit.Position, uTarget.Position)

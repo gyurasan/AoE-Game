@@ -12,8 +12,11 @@
 // bauphasen, einsturz und pfeile (Animationen A1-A3: Bauphasen, Einsturz-Liste, Pfeile landen beim Treffer),
 // feuer (A5: Schmiedefeuer, Funken und Kaminrauch nach Vertrag, je Haus und Schmiede genau ein Kamin),
 // wegkarte (was der Wege-Shader als Weg zeichnet, schräge Lücken aufgefüllt),
+// feldbauern (je Feldkachel arbeitet ein Bauer, Überzählige warten mit Meldung),
 // zielen (Gegner an der ganzen Figur anklicken), verteidigung (Soldaten verteidigen das
-// Stadtzentrum) und kampfbild (Schlagbilder und Blick gegen Einheiten). Eine gemischte
+// Stadtzentrum), sichtkontakt (untätige Soldaten greifen feindliche Soldaten in ihrer
+// Sichtweite an, auch im Anmarsch und im Vorbeigehen) und kampfbild (Schlagbilder und Blick
+// gegen Einheiten). Eine gemischte
 // Auswahl filtert typauswahl: in der Leiste steht in einer eigenen Reihe eine Taste je
 // Einheitenart, ein Klick wählt in der Auswahl nur diese Art. Update: updatehilfen prüft
 // die Bausteine (Zip der laufenden Variante, Entpacken, Ersetzen an Ort und Stelle samt
@@ -88,6 +91,8 @@ for (int karte = 1; karte <= KARTEN; karte++)
         Pruefe($"Karte {karte}, Farm", () => FarmAnlegen(karte, verstoesse));
         Pruefe($"Karte {karte}, Farm-Ernte", () => FarmErnte(karte, verstoesse));
     }
+    if (gruppen.Contains("feldbauern"))
+        Pruefe($"Karte {karte}, Feldbauern", () => Feldbauern(karte, verstoesse));
     if (gruppen.Contains("schafe"))
     {
         Pruefe($"Karte {karte}, Schaf-Reservierung", () => SchafReservierung(karte, verstoesse));
@@ -216,6 +221,8 @@ for (int karte = 1; karte <= KARTEN; karte++)
         Pruefe("Kampfbild", () => Kampfbild(verstoesse));
     if (gruppen.Contains("autoantwort"))
         Pruefe($"Karte {karte}, Auto-Antwort", () => AutoAntwort(karte, verstoesse));
+    if (gruppen.Contains("sichtkontakt"))
+        Pruefe($"Karte {karte}, Sichtkontakt", () => Sichtkontakt(karte, verstoesse));
     if (gruppen.Contains("zielwechsel"))
         Pruefe($"Karte {karte}, Zielwechsel", () => Zielwechsel(karte, verstoesse));
     // Die Drossel und die reinen Rechnungen hängen nicht von der Karte ab
@@ -520,6 +527,190 @@ static void FarmErnte(int karte, List<string> verstoesse)
         verstoesse.Add($"{wer}: nach {t:0} s Nahrung {nahrungVor} → {nach} (erwartete > {nahrungVor})");
     else
         Console.WriteLine($"  ok  {wer}: +{nach - nahrungVor} Nahrung nach {t:0} s, Kachel vor={vor} nach={kachel.ResourceAmount}");
+}
+
+// Feldbauern (Nutzer 2026-11-01: "Felder können aktuell von fast unbegrenzter Anzahl an
+// dorfbewohner bearbeitet werden. Eigentlich sollte nur so viele Dorfbewohner wie Anzahl
+// Kacheln das Feld darstellen bearbeitet werden können"): je Feldkachel arbeitet ein Bauer.
+// Zwölf auf ein 3×3-Feld geschickt: neun bekommen je eine eigene Kachel, drei keinen Auftrag
+// und eine Meldung; beim Ernten teilen sich nie zwei eine Kachel; wer seine Kachel abgeerntet
+// hat, geht auf eine freie; ein neues Feld mit zehn Erbauern und eine fertige Mühle neben
+// einem Feld verteilen ebenso; die Quellensuche (auch die der KI) überspringt belegte Kacheln.
+static void Feldbauern(int karte, List<string> verstoesse)
+{
+    string wer = $"Karte {karte}, Feldbauern";
+    int vorher = verstoesse.Count;
+    Welt w = null;
+    List<Unit> dorf = null;
+
+    void Aufbau()
+    {
+        w = new Welt();
+        dorf = w.Dorfbewohner().ToList();
+        foreach (var d in dorf)
+        {
+            d.Job = null;
+            d.BuildSite = null;
+            d.Path.Clear();
+            d.State = UnitState.Idle;
+        }
+    }
+    // So viele untätige Dorfbewohner, aufgefüllt mit neuen beim Dorf
+    List<Unit> Bauern(int anzahl)
+    {
+        while (dorf.Count < anzahl)
+        {
+            var c = w.FreieKachel(dorf[0], 3);
+            var u = w.Map.AddUnit(UnitType.Villager, (int)c.X, (int)c.Y, 0);
+            w.P1.AddUnit(u);
+            dorf.Add(u);
+        }
+        return dorf.Take(anzahl).ToList();
+    }
+    bool ImFeld(Unit u, Vector2 feld) => u.Job is { } j && j.Phase != AoE.Core.Economy.GatherPhase.Done
+        && j.Source.X >= feld.X && j.Source.X < feld.X + 3 && j.Source.Y >= feld.Y && j.Source.Y < feld.Y + 3;
+    int Kacheln(IEnumerable<Unit> bauern) => bauern.Select(u => (u.Job.Source.X, u.Job.Source.Y)).Distinct().Count();
+    // Eine Feldkachel mit zwei laufenden Nahrungsaufträgen, oder null
+    string Doppelt() => w.Map.Units
+        .Where(u => u.Job is { } j && j.Phase != AoE.Core.Economy.GatherPhase.Done && j.Resource == Resource.Food
+                    && w.Map.GetTile(j.Source.X, j.Source.Y) is { Farm: true })
+        .GroupBy(u => (u.Job.Source.X, u.Job.Source.Y))
+        .Where(g => g.Count() > 1)
+        .Select(g => $"({g.Key.X},{g.Key.Y}) mit {g.Count()}")
+        .FirstOrDefault();
+    string Meldung() => w.Get("hudMessage") as string ?? "";
+
+    // Ohne Nebel - im erkundeten Startgebiet ist kaum Platz für 3×3-Felder
+    TileMap.TestNoFog = true;
+    try
+    {
+    // 1. Zwölf Dorfbewohner werden auf die Mitte eines 3×3-Felds geschickt
+    Aufbau();
+    var feld = w.Bauplatz(BuildingType.Farm, dorf[0], 5);
+    w.Map.PlantCrop((int)feld.X, (int)feld.Y, 3);
+    var mitte = feld + new Vector2(1, 1);
+    var zwoelf = Bauern(12);
+    w.Set("hudMessage", null);
+    w.Waehle(zwoelf);
+    w.Call("IssueCommand", mitte);
+    var imFeld = zwoelf.Where(u => ImFeld(u, feld)).ToList();
+    var ohne = zwoelf.Where(u => !ImFeld(u, feld)).ToList();
+    if (imFeld.Count != 9 || Kacheln(imFeld) != 9)
+        verstoesse.Add($"{wer}: zwölf Dorfbewohner aufs 3×3-Feld geschickt - {imFeld.Count} bearbeiten es, auf {(imFeld.Count > 0 ? Kacheln(imFeld) : 0)} Kacheln; erwartet neun auf neun Kacheln");
+    if (ohne.Any(u => u.Job != null))
+        verstoesse.Add($"{wer}: die überzähligen Dorfbewohner haben trotzdem einen Sammelauftrag ({ohne.Count(u => u.Job != null)} von {ohne.Count})");
+    if (!Meldung().Contains("voll"))
+        verstoesse.Add($"{wer}: für die überzähligen Dorfbewohner keine Meldung (Leiste: '{Meldung()}')");
+    if (!imFeld.Any(u => u.Job.Source.X == (int)mitte.X && u.Job.Source.Y == (int)mitte.Y))
+        verstoesse.Add($"{wer}: die angeklickte Kachel bearbeitet keiner");
+
+    // Die Quellensuche (Kachel leer, Mühle fertig, KI) findet auf dem vollen Feld nichts
+    var gw = (TileMapGatherWorld)w.Get("gatherWorld");
+    if (gw.FindNearestSource(new AoE.Core.Entities.Position((int)mitte.X, (int)mitte.Y), Resource.Food, 1) is { } quelle
+        && w.Map.GetTile(quelle.X, quelle.Y) is { Farm: true })
+        verstoesse.Add($"{wer}: die Quellensuche liefert auf dem vollen Feld die belegte Kachel ({quelle.X},{quelle.Y})");
+
+    // Wer seine Kachel bearbeitet und noch einmal draufgeschickt wird, behält sie
+    if (imFeld.Count > 0)
+    {
+        var einer = imFeld[0];
+        var seine = einer.Job.Source;
+        w.Waehle(new List<Unit> { einer });
+        w.Call("IssueCommand", new Vector2(seine.X, seine.Y));
+        if (einer.Job == null || einer.Job.Source.X != seine.X || einer.Job.Source.Y != seine.Y)
+            verstoesse.Add($"{wer}: ein Bauer, noch einmal auf seine eigene Kachel geschickt, verliert sie ({(einer.Job == null ? "kein Auftrag" : $"jetzt ({einer.Job.Source.X},{einer.Job.Source.Y})")})");
+    }
+
+    // 60 s Ernte: nie zwei auf einer Kachel, und die Nahrung kommt an
+    int nahrungVor = w.P1.Resources[Resource.Food];
+    string doppelt = null;
+    w.LaufeBis(() =>
+    {
+        doppelt ??= Doppelt();
+        return false;
+    }, 60f);
+    if (doppelt != null)
+        verstoesse.Add($"{wer}: beim Ernten arbeiten zwei auf derselben Feldkachel: {doppelt}");
+    if (w.P1.Resources[Resource.Food] <= nahrungVor)
+        verstoesse.Add($"{wer}: nach 60 s Ernte keine Nahrung abgeliefert ({nahrungVor} → {w.P1.Resources[Resource.Food]})");
+
+    // 2. Wer seine Kachel abgeerntet hat, nimmt eine freie desselben Felds - keine belegte
+    Aufbau();
+    var feld2 = w.Bauplatz(BuildingType.Farm, dorf[0], 5);
+    w.Map.PlantCrop((int)feld2.X, (int)feld2.Y, 3);
+    var drei = Bauern(3);
+    w.Waehle(drei);
+    w.Call("IssueCommand", feld2 + new Vector2(1, 1));
+    var a = drei[0];
+    w.LaufeBis(() => a.State == UnitState.Gathering, 40f);
+    if (a.State != UnitState.Gathering || !ImFeld(a, feld2))
+        verstoesse.Add($"{wer}: Testaufbau - der Bauer erntet nicht ({a.State})");
+    else
+    {
+        var alt = a.Job.Source;
+        w.Map.GetTile(alt.X, alt.Y).ResourceAmount = 1;    // gleich abgeerntet
+        doppelt = null;
+        w.LaufeBis(() =>
+        {
+            doppelt ??= Doppelt();
+            return a.Job == null || a.Job.Source.X != alt.X || a.Job.Source.Y != alt.Y;
+        }, 15f);
+        var andere = drei.Skip(1).Where(u => u.Job != null).Select(u => (u.Job.Source.X, u.Job.Source.Y)).ToList();
+        if (a.Job == null || (a.Job.Source.X == alt.X && a.Job.Source.Y == alt.Y))
+            verstoesse.Add($"{wer}: Kachel abgeerntet - der Bauer zieht nicht weiter ({a.State})");
+        else if (!ImFeld(a, feld2))
+            verstoesse.Add($"{wer}: Kachel abgeerntet - der Bauer verlässt das Feld, obwohl dort Kacheln frei sind (jetzt ({a.Job.Source.X},{a.Job.Source.Y}))");
+        else if (andere.Contains((a.Job.Source.X, a.Job.Source.Y)))
+            verstoesse.Add($"{wer}: Kachel abgeerntet - der Bauer geht auf die Kachel eines anderen ({a.Job.Source.X},{a.Job.Source.Y})");
+        if (doppelt != null)
+            verstoesse.Add($"{wer}: nach dem Abernten arbeiten zwei auf derselben Feldkachel: {doppelt}");
+    }
+
+    // 3. Ein neues Feld, angelegt mit zehn Erbauern: neun Kacheln, neun Bauern
+    Aufbau();
+    var zehn = Bauern(10);
+    var feld3 = w.Bauplatz(BuildingType.Farm, dorf[0], 5);
+    w.Set("hudMessage", null);
+    if (!(bool)w.Call("PlaceBuildingFor", 0, BuildingType.Farm, feld3, zehn))
+        verstoesse.Add($"{wer}: Testaufbau - das Feld bei ({feld3.X},{feld3.Y}) lässt sich nicht anlegen");
+    else
+    {
+        var neun = zehn.Where(u => ImFeld(u, feld3)).ToList();
+        if (neun.Count != 9 || Kacheln(neun) != 9)
+            verstoesse.Add($"{wer}: neues Feld mit zehn Erbauern - {neun.Count} bearbeiten es, auf {(neun.Count > 0 ? Kacheln(neun) : 0)} Kacheln; erwartet neun auf neun");
+        if (zehn.Count(u => u.Job != null) != 9)
+            verstoesse.Add($"{wer}: neues Feld mit zehn Erbauern - {zehn.Count(u => u.Job != null)} haben einen Sammelauftrag, erwartet neun");
+        if (!Meldung().Contains("voll"))
+            verstoesse.Add($"{wer}: neues Feld mit zehn Erbauern - keine Meldung für den zehnten (Leiste: '{Meldung()}')");
+    }
+
+    // 4. Eine Mühle neben einem Feld wird fertig: ihre vier Erbauer ernten je eine eigene Kachel
+    Aufbau();
+    var vier = Bauern(4);
+    var feld4 = w.Bauplatz(BuildingType.Farm, dorf[0], 5);
+    w.Map.PlantCrop((int)feld4.X, (int)feld4.Y, 3);
+    var muehlePlatz = w.Bauplatz(BuildingType.Mill, dorf[0], 5, nahAn: feld4 + new Vector2(1, 1), hoechstens: 3.5f);
+    if (!(bool)w.Call("PlaceBuildingFor", 0, BuildingType.Mill, muehlePlatz, vier))
+        verstoesse.Add($"{wer}: Testaufbau - die Mühle bei ({muehlePlatz.X},{muehlePlatz.Y}) lässt sich nicht setzen");
+    else
+    {
+        var muehle = w.Map.Buildings.Last(b => b.Core.BuildingType == BuildingType.Mill);
+        w.Call("FinishConstruction", muehle);
+        var aufFeld = vier.Where(u => u.Job is { } j && w.Map.GetTile(j.Source.X, j.Source.Y) is { Farm: true }).ToList();
+        if (aufFeld.Count == 0)
+            Console.WriteLine($"  --  {wer}: nächste Nahrung der Mühle ist kein Feld (Beeren oder Tiere näher) - Fall übersprungen");
+        else if (Kacheln(aufFeld) != aufFeld.Count)
+            verstoesse.Add($"{wer}: Mühle fertig - {aufFeld.Count} Erbauer ernten auf nur {Kacheln(aufFeld)} Feldkacheln; erwartet je eine eigene");
+    }
+
+    }
+    finally
+    {
+        TileMap.TestNoFog = false;
+    }
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: zwölf aufs Feld - neun auf neun Kacheln, drei ohne Auftrag mit Meldung; eigene Kachel bleibt; 60 s nie zwei auf einer Kachel; abgeerntet - freie Kachel desselben Felds; neues Feld mit zehn - neun Bauern; Mühle verteilt; Quellensuche überspringt Belegtes");
 }
 
 // Eines der Schafe auf der Karte: Dorfbewohner befehligt es zu ernten. Während
@@ -4849,9 +5040,11 @@ static void Forschung(int karte, List<string> verstoesse)
         var platz = w.Bauplatz(typ, dorf[0], abstand);
         return w.Map.AddBuilding((int)platz.X, (int)platz.Y, name, 0, AoE.Core.Economy.BuildingRules.SizeOf(typ));
     }
+    // Fremde Einheiten sind hier nur Wertträger (Schaden, Rüstung): sie stehen beim gegnerischen
+    // Dorf, außer Sicht - sonst griffen die eigenen Soldaten sie an (Sichtkontakt, 2026-11-01)
     Unit Neu(UnitType typ, int besitzer)
     {
-        var c = w.FreieKachel(dorf[0], 4);
+        var c = w.FreieKachel(besitzer == 0 ? dorf[0] : w.Map.Units.FirstOrDefault(u => u.OwnerId == 1) ?? dorf[0], 4);
         var u = w.Map.AddUnit(typ, (int)c.X, (int)c.Y, besitzer);
         (besitzer == 0 ? w.P1 : w.P2).AddUnit(u);
         return u;
@@ -6513,11 +6706,16 @@ static void Verteidigung(int karte, List<string> verstoesse)
 
     w.Call("AttackBuilding", new List<Unit> { feind }, tc);
     // Verteidigt wird erst, wenn der Gegner zuschlägt - nicht schon, während er anrückt;
-    // sonst liefen die Wachen jedem entgegen, der irgendwo aufs Stadtzentrum zuhält
+    // sonst liefen die Wachen jedem entgegen, der irgendwo aufs Stadtzentrum zuhält.
+    // Ausnahme Sichtkontakt (2026-11-01): wem er in die Sichtweite kam, der greift ihn an.
+    var gesehen = new HashSet<Unit>();
     bool zuFrueh = false;
     w.LaufeBis(() =>
     {
-        if (feind.State != UnitState.Attacking && wachen.Any(u => u.UnitTarget == feind))
+        foreach (var u in wachen)
+            if (Vector2.Distance(u.Position, feind.Position) <= (u.Core.Stats.VisionRange + 0.5f) * T)
+                gesehen.Add(u);
+        if (feind.State != UnitState.Attacking && wachen.Any(u => u.UnitTarget == feind && !gesehen.Contains(u)))
             zuFrueh = true;
         return feind.State == UnitState.Attacking;
     }, 40f);
@@ -6527,7 +6725,7 @@ static void Verteidigung(int karte, List<string> verstoesse)
         return;
     }
     if (zuFrueh)
-        verstoesse.Add($"{wer}: die Wachen greifen an, während der Gegner noch zum Stadtzentrum läuft - erst, wenn er zuschlägt");
+        verstoesse.Add($"{wer}: Wachen, die ihn nie in Sichtweite hatten, greifen an, während der Gegner noch zum Stadtzentrum läuft - erst, wenn er zuschlägt");
 
     // Ein Soldat mit Laufbefehl bleibt dabei
     w.Waehle(new List<Unit> { laeufer });
@@ -6602,7 +6800,8 @@ static void Verteidigung(int karte, List<string> verstoesse)
 // nur die, die angegriffen werden"): ein Feind, der eine EIGENE EINHEIT angreift
 // (nicht das Stadtzentrum — das wäre K6), wird von den untätigen Soldaten in der
 // Nähe von selbst beantwortet. Nur die NÄHEN (6 Kacheln): ein Soldat 12 Kacheln
-// entfernt bleibt untätig. Er antwortet erst, wenn der Feind wirklich zuschlägt.
+// entfernt bleibt untätig. Der nahe Soldat steht außerhalb der eigenen Sichtweite (Miliz
+// 4 Kacheln) - sonst griffe ihn schon der Sichtkontakt (Gruppe sichtkontakt).
 static void AutoAntwort(int karte, List<string> verstoesse)
 {
     string wer = $"Karte {karte}, Auto-Antwort";
@@ -6627,43 +6826,43 @@ static void AutoAntwort(int karte, List<string> verstoesse)
         .OrderBy(c => Math.Abs(Vector2.Distance(w.Map.GridToWorld(c), punkt) / T - abstand))
         .First();
 
-    // In der Kartenmitte: weit genug draußen (> 15 Kacheln von beiden
-    // Stadtzentren), dass K6s TC-Verteidigung nicht mitmischt — nur die
-    // Auto-Antwort kann hier Soldaten befehlen.
-    var mitte = new Vector2(w.Map.Width * T / 2f, w.Map.Height * T / 2f);
-    var tc0 = w.Map.Buildings.First(b => b.OwnerId == 0 && b.Core.BuildingType == BuildingType.TownCenter);
-    if (Vector2.Distance(mitte, new Vector2((tc0.X + tc0.Width / 2f) * T, (tc0.Y + tc0.Height / 2f) * T)) < 16f * T)
+    // Weit weg von beiden Stadtzentren (Freiraum), dass K6s TC-Verteidigung
+    // nicht mitmischt — nur die Auto-Antwort kann hier Soldaten befehlen.
+    if (Freiraum(w, 12f) is not { } mitte)
     {
-        verstoesse.Add($"{wer}: Testaufbau - Karte zu klein für die Mitte ({w.Map.Width})");
+        verstoesse.Add($"{wer}: Testaufbau - kein Platz 12 Kacheln von beiden Stadtzentren ({w.Map.Width})");
         return;
     }
 
     var opfer = Neu(UnitType.Militia, 0, Kachel(mitte, 0));            // eigene Einheit
-    var angreifer = Neu(UnitType.Militia, 1, Kachel(opfer.Position, 3));   // feindlich, 3 Kacheln
-    var neben = Neu(UnitType.Militia, 0, Kachel(angreifer.Position, 3));  // nah: muss antworten
+    var angreifer = Neu(UnitType.Militia, 1, Kachel(opfer.Position, 1));   // feindlich, gleich daneben
     var fern = Neu(UnitType.Militia, 0, Kachel(angreifer.Position, 12));  // fern: muss still bleiben
 
     // Der Feind greift die EIGENE EINHEIT an (kein Stadtzentrum)
     w.Call("AttackUnit", new List<Unit> { angreifer }, opfer);
-    bool zuFrueh = false;
-    w.LaufeBis(() =>
-    {
-        if (angreifer.State != UnitState.Attacking && neben.UnitTarget == angreifer)
-            zuFrueh = true;      // schon während des Anmarsches?
-        return angreifer.State == UnitState.Attacking;
-    }, 40f);
+    w.LaufeBis(() => angreifer.State == UnitState.Attacking, 40f);
     if (angreifer.State != UnitState.Attacking)
     {
         verstoesse.Add($"{wer}: Testaufbau - der Angreifer kommt nicht an ({angreifer.State})");
         return;
     }
-    if (zuFrueh)
-        verstoesse.Add($"{wer}: der nahe Soldat greift an, während der Feind noch anrückt - erst, wenn er zuschlägt");
 
-    // Nahe Soldat (3 Kacheln): greift den Angreifer von selbst an
+    // Nahe Soldat (5 Kacheln, außer Sicht): erst jetzt aufgestellt, wo der Kampf steht -
+    // so liegt er sicher zwischen Sichtweite (4) und Antwortradius (6) und greift den
+    // Angreifer nur über die Auto-Antwort an
+    // (mit kurzem Weg zum Kampf - nicht in einer abgeschlossenen Lichtung)
+    var nebenKachel = Enumerable.Range(0, w.Map.Width)
+        .SelectMany(x => Enumerable.Range(0, w.Map.Height).Select(y => new Vector2(x, y)))
+        .Where(c => Frei((int)c.X, (int)c.Y))
+        .OrderBy(c => Math.Abs(Vector2.Distance(w.Map.GridToWorld(c), angreifer.Position) / T - 5f))
+        .Take(40)
+        .FirstOrDefault(c => w.Map.FindPath(w.Map.GridToWorld(c), angreifer.Position).Count is > 0 and <= 10,
+                        Kachel(angreifer.Position, 5));
+    var neben = Neu(UnitType.Militia, 0, nebenKachel);
+    float abstand = Vector2.Distance(neben.Position, angreifer.Position) / T;
     float zeit = w.LaufeBis(() => neben.UnitTarget == angreifer, 6f);
     if (neben.UnitTarget != angreifer)
-        verstoesse.Add($"{wer}: {zeit:0.0} s nach dem Angriff des Feindes auf die eigene Einheit hat der nahe, untätige Soldat (3 Kacheln) kein Ziel (Ziel={neben.UnitTarget?.Name}, {neben.State}); erwartet: den Angreifer");
+        verstoesse.Add($"{wer}: {zeit:0.0} s nach dem Angriff des Feindes auf die eigene Einheit hat der nahe, untätige Soldat ({abstand:0.0} Kacheln) kein Ziel (Ziel={neben.UnitTarget?.Name}, {neben.State}; jetzt {Vector2.Distance(neben.Position, angreifer.Position) / T:0.0} Kacheln, Angreifer {angreifer.State}); erwartet: den Angreifer");
 
     // Ferner Soldat (12 Kacheln): bleibt ohne Ziel
     w.LaufeBis(() => neben.State == UnitState.Attacking, 10f);
@@ -6676,7 +6875,337 @@ static void AutoAntwort(int karte, List<string> verstoesse)
         verstoesse.Add($"{wer}: nach Beginn des Kampfes hat der nahe Soldat nicht getroffen (Angreifer {angreifer.Health}/{angreifer.MaxHealth} LP) - die Auto-Antwort zeigt keine Wirkung");
 
     if (verstoesse.Count == vorher)
-        Console.WriteLine($"  ok  {wer}: naher untätiger Soldat (3 Kacheln) greift den angreifenden Feind im Kampf um die eigene Einheit von selbst an, trifft auch; 12 Kacheln fern bleibt er ohne Ziel; erst nach dem ersten Schlag");
+        Console.WriteLine($"  ok  {wer}: naher untätiger Soldat ({abstand:0.0} Kacheln, außer Sicht) greift den angreifenden Feind im Kampf um die eigene Einheit von selbst an, trifft auch; 12 Kacheln fern bleibt er ohne Ziel");
+}
+
+// Ein Platz (Weltpixel) mindestens 9 Kacheln vom Kartenrand, der von allen Stadtzentren so
+// weit wie möglich weg liegt - oder null, wenn er keinem mindestens abstand Kacheln fern ist.
+// Auf der 64er-Karte liegt die Mitte nicht immer weit genug von den Startdörfern.
+static Vector2? Freiraum(Welt w, float abstand)
+{
+    int T = w.Map.TileSize;
+    var zentren = w.Map.Buildings.Where(b => b.Core.BuildingType == BuildingType.TownCenter)
+        .Select(b => new Vector2((b.X + b.Width / 2f) * T, (b.Y + b.Height / 2f) * T)).ToList();
+    var best = Enumerable.Range(9, Math.Max(1, w.Map.Width - 18))
+        .SelectMany(x => Enumerable.Range(9, Math.Max(1, w.Map.Height - 18)).Select(y => w.Map.GridToWorld(new Vector2(x, y))))
+        .MaxBy(p => zentren.Min(z => Vector2.Distance(p, z)));
+    return zentren.Min(z => Vector2.Distance(best, z)) >= abstand * T ? best : null;
+}
+
+// Sichtkontakt (Nutzer 2026-11-01: "läuft ein Gegnerischer Soldat zu einem eigenen Soldate,
+// muss er angegriffen werden. Aktuell scheinen meine Soldaten nichts zu machen und der
+// Gegnerisch Soldat läuft einfach vorbei"): ein untätiger Soldat greift jeden feindlichen
+// Soldaten an, der ihm in die Sichtweite kommt - im Anmarsch und im Vorbeigehen, nicht erst,
+// wenn der zuschlägt. Weiter draußen bleibt er stehen, Dorfbewohner greifen nicht von selbst
+// an, ein vorbeigehender feindlicher Dorfbewohner bleibt unbehelligt, einem schnellen Späher
+// läuft er nur nach, solange er ihn sieht - und auf der Gegenseite gilt dasselbe.
+// Jeder Teil spielt in einer eigenen Welt; passt die Karte nicht (kein offener Platz, kein
+// Weg vorbei), wird neu gewürfelt statt rot gemeldet.
+static void Sichtkontakt(int karte, List<string> verstoesse)
+{
+    string wer = $"Karte {karte}, Sichtkontakt";
+    int vorher = verstoesse.Count;
+    Welt w = null;
+    int T = 0;
+    Vector2 mitte = Vector2.Zero, weg = Vector2.UnitX;
+
+    bool Frei(int x, int y) => w.Map.GetTile(x, y) is { } t && w.Map.IsWalkable(x, y) && t.ResourceType == null
+        && string.IsNullOrEmpty(t.Building) && !w.Map.Units.Any(u => w.Map.WorldToGrid(u.Position) == new Vector2(x, y));
+    Unit Neu(UnitType typ, int besitzer, Vector2 kachel)
+    {
+        var u = w.Map.AddUnit(typ, (int)kachel.X, (int)kachel.Y, besitzer);
+        (besitzer == 0 ? w.P1 : w.P2).AddUnit(u);
+        return u;
+    }
+    IEnumerable<Vector2> FreieKacheln() => Enumerable.Range(0, w.Map.Width)
+        .SelectMany(x => Enumerable.Range(0, w.Map.Height).Select(y => new Vector2(x, y)))
+        .Where(c => Frei((int)c.X, (int)c.Y));
+    // Die freie Kachel, die dem Wunschpunkt (Weltpixel) am nächsten liegt
+    Vector2 Naechste(Vector2 wunsch) => FreieKacheln()
+        .OrderBy(c => Vector2.Distance(w.Map.GridToWorld(c), wunsch)).First();
+    float Kacheln(Unit a, Unit b) => Vector2.Distance(a.Position, b.Position) / T;
+    float Weg(Vector2 von, Vector2 nach) => w.Map.FindPath(von, nach).Count;
+
+    // Frische Welt; gespielt wird weit weg von beiden Stadtzentren (Freiraum), damit
+    // weder K6 noch die Sicht der Startdörfer mitmischen. weg zeigt von Stadtzentrum 0
+    // über den Platz hinaus.
+    bool Aufbau()
+    {
+        w = new Welt();
+        w.Set("cameraZoom", 1f);
+        w.Set("cameraPosition", Vector2.Zero);
+        T = w.Map.TileSize;
+        if (Freiraum(w, 12f) is not { } platz)
+            return false;
+        mitte = platz;
+        var tc0 = w.Map.Buildings.First(b => b.OwnerId == 0 && b.Core.BuildingType == BuildingType.TownCenter);
+        weg = Vector2.Normalize(mitte - new Vector2((tc0.X + tc0.Width / 2f) * T, (tc0.Y + tc0.Height / 2f) * T));
+        return true;
+    }
+    // Eine freie Kachel höchstens 10 Kacheln vom Platz, um die herum 2 Kacheln weit alles frei
+    // ist und von der aus ein Weg 6 Kacheln weit hinausführt (keine abgeschlossene Lichtung) -
+    // dort findet jeder Angreifer einen Standpunkt und jeder Läufer einen Weg vorbei
+    Vector2? Offen() => FreieKacheln()
+        .Where(c => Vector2.Distance(w.Map.GridToWorld(c), mitte) <= 10f * T)
+        .Where(c => Enumerable.Range(-2, 5).All(dx => Enumerable.Range(-2, 5)
+            .All(dy => w.Map.GetTile((int)c.X + dx, (int)c.Y + dy) is { ResourceType: null } t
+                && w.Map.IsWalkable((int)c.X + dx, (int)c.Y + dy) && string.IsNullOrEmpty(t.Building))))
+        .OrderBy(c => Vector2.Distance(w.Map.GridToWorld(c), mitte))
+        .Take(10)
+        .Where(c => FreieKacheln()
+            .Where(f => Vector2.Distance(f, c) is >= 6f and <= 7f)
+            .Take(8)
+            .Any(f => Weg(w.Map.GridToWorld(c), w.Map.GridToWorld(f)) > 0))
+        .Select(c => (Vector2?)c)
+        .FirstOrDefault();
+    // Eine freie Kachel etwa abstand Kacheln vom Punkt, von der aus ein kurzer Weg zu ihm
+    // führt (Manhattan, die Wegsuche geht nur in vier Richtungen) - oder null
+    Vector2? Erreichbar(Vector2 punkt, float abstand) => FreieKacheln()
+        .OrderBy(c => Math.Abs(Vector2.Distance(w.Map.GridToWorld(c), punkt) / T - abstand))
+        .Take(40)
+        .Where(c => Weg(w.Map.GridToWorld(c), punkt) is > 0 and var n && n <= abstand * 2f + 2f)
+        .Select(c => (Vector2?)c)
+        .FirstOrDefault();
+    // Ein Laufweg am posten vorbei: 7 Kacheln vor ihm bis 7 Kacheln hinter ihm, seitlich
+    // versetzt. Von den vier Richtungen und beiden Seiten der erste, der ihm am nächsten
+    // zwischen 1,5 und 3 Kacheln kommt und nicht ausufert (Hindernisse) - sonst null.
+    (Vector2 Start, Vector2 Ziel)? Vorbei(Unit posten)
+    {
+        foreach (var (dx, dy, s) in new[] { (1f, 0f, 1f), (0f, 1f, 1f), (-1f, 0f, 1f), (0f, -1f, 1f),
+                                            (1f, 0f, -1f), (0f, 1f, -1f), (-1f, 0f, -1f), (0f, -1f, -1f) })
+        {
+            var richtung = new Vector2(dx, dy);
+            var seite = new Vector2(-dy, dx) * 2f * s * T;
+            var start = Naechste(posten.Position - richtung * 7f * T + seite);
+            var ziel = Naechste(posten.Position + richtung * 7f * T + seite);
+            var pfad = w.Map.FindPath(w.Map.GridToWorld(start), w.Map.GridToWorld(ziel));
+            if (pfad.Count == 0 || pfad.Count > 26)
+                continue;
+            float naechst = pfad.Min(p => Vector2.Distance(p, posten.Position)) / T;
+            if (naechst >= 1.5f && naechst <= 3f)
+                return (start, ziel);
+        }
+        return null;
+    }
+    // Laufbefehl ohne Angriff, wie ihn die KI gibt: bricht Angriffe ab, merkt sich das Ziel
+    void Laufe(Unit u, Vector2 kachel)
+    {
+        u.UnitTarget = null;
+        u.AttackTarget = null;
+        u.TargetPosition = w.Map.GridToWorld(kachel);
+        u.Path = w.Map.FindPath(u.Position, u.TargetPosition);
+        u.State = UnitState.Moving;
+    }
+    // Wie LaufeBis, rechnet aber auch die Sicht von Spieler 1 (wie das Spiel) - sonst hält der
+    // Gegner unerkundete Bäume für begehbar, schneidet Ecken ab und verhakt sich
+    float Lauf(Func<bool> bedingung, float sekunden) => w.LaufeBis(() =>
+    {
+        w.Map.UpdateFogOfWarForPlayer(1, w.Map.Units);
+        return bedingung();
+    }, sekunden);
+    // Ein Teil in bis zu acht frischen Welten: false aus dem Ablauf heißt "Karte passt nicht",
+    // den Grund nennt Passt
+    var gruende = new List<string>();
+    bool Passt(string grund)
+    {
+        gruende.Add(grund);
+        return false;
+    }
+    void Teil(string name, Func<bool> ablauf)
+    {
+        gruende.Clear();
+        for (int versuch = 0; versuch < 8; versuch++)
+            if ((Aufbau() || Passt("kein Freiraum")) && ablauf())
+                return;
+        verstoesse.Add($"{wer}: Testaufbau - {name}: in acht Welten kein passender Platz ({string.Join(", ", gruende)})");
+    }
+
+    // 1. Anmarsch: ein Feind läuft aus 9 Kacheln auf den untätigen Soldaten zu
+    float abstand = -1f;
+    Teil("Anmarsch", () =>
+    {
+        if (Offen() is not { } platz)
+            return Passt("kein offener Platz");
+        var wache = Neu(UnitType.Militia, 0, platz);
+        if (Erreichbar(wache.Position, 9) is not { } von)
+            return Passt("kein Anmarschweg");
+        var feind = Neu(UnitType.Militia, 1, von);
+        float sicht = wache.Core.Stats.VisionRange;
+        w.Call("AttackUnit", new List<Unit> { feind }, wache);
+        if (feind.UnitTarget != wache)
+            return Passt("Angriff ohne Weg");
+        bool schonGeschlagen = false;
+        Lauf(() =>
+        {
+            if (wache.UnitTarget == feind && abstand < 0f)
+            {
+                abstand = Kacheln(wache, feind);
+                schonGeschlagen = feind.State == UnitState.Attacking || wache.Health < wache.MaxHealth;
+            }
+            return abstand >= 0f || wache.Health < wache.MaxHealth;
+        }, 40f);
+        if (abstand < 0f)
+            verstoesse.Add($"{wer}: ein Feind läuft aus 9 Kacheln auf den untätigen Soldaten zu - der hat kein Ziel ({wache.State}, Feind {feind.State}, {Kacheln(wache, feind):0.0} Kacheln)");
+        else if (schonGeschlagen)
+            verstoesse.Add($"{wer}: der untätige Soldat greift den anrückenden Feind erst an, als der schon zuschlägt - erwartet, sobald er ihn sieht ({sicht} Kacheln)");
+        else if (abstand > sicht + 0.75f)
+            verstoesse.Add($"{wer}: der untätige Soldat greift den Feind schon aus {abstand:0.0} Kacheln an - erst in der eigenen Sichtweite ({sicht} Kacheln)");
+        Lauf(() => feind.Health < feind.MaxHealth, 15f);
+        if (feind.Health >= feind.MaxHealth)
+            verstoesse.Add($"{wer}: der anrückende Feind wird nicht getroffen ({feind.Health}/{feind.MaxHealth} LP)");
+        return true;
+    });
+
+    // 2. Vorbeilaufen: ein Feind geht auf einem Laufbefehl 2 Kacheln neben dem Soldaten vorbei.
+    // Ein Soldat 14 Kacheln weiter bleibt stehen, ein Dorfbewohner daneben greift nicht an.
+    Teil("Vorbeilaufen", () =>
+    {
+        if (Offen() is not { } platz)
+            return Passt("kein offener Platz");
+        var posten = Neu(UnitType.Militia, 0, platz);
+        if (Vorbei(posten) is not { } lauf)
+            return Passt("kein Weg vorbei");
+        var fern = Neu(UnitType.Militia, 0, FreieKacheln()
+            .Where(c => Vector2.Distance(w.Map.GridToWorld(c), posten.Position) >= 14f * T)
+            .OrderBy(c => Vector2.Distance(w.Map.GridToWorld(c), posten.Position)).First());
+        var bauer = Neu(UnitType.Villager, 0, Naechste(posten.Position + new Vector2(T, 0)));
+        bauer.Job = null;
+        bauer.Path.Clear();
+        bauer.State = UnitState.Idle;
+        var gast = Neu(UnitType.Militia, 1, lauf.Start);
+        Laufe(gast, lauf.Ziel);
+        bool imVorbeigehen = false;
+        float naechst = float.MaxValue;
+        float zeit = Lauf(() =>
+        {
+            naechst = Math.Min(naechst, Kacheln(posten, gast));
+            if (posten.UnitTarget == gast)
+                imVorbeigehen = gast.UnitTarget == null && gast.State == UnitState.Moving;
+            return posten.UnitTarget == gast;
+        }, 25f);
+        if (posten.UnitTarget != gast)
+            verstoesse.Add($"{wer}: ein Feind läuft 2 Kacheln neben dem untätigen Soldaten vorbei - der greift nicht an ({posten.State}, nach {zeit:0.0} s, Feind {gast.State}, am nächsten {naechst:0.0} Kacheln)");
+        else if (!imVorbeigehen)
+            verstoesse.Add($"{wer}: der Soldat greift den vorbeigehenden Feind erst an, als der schon kämpft ({gast.State}) - erwartet im Vorbeigehen");
+        if (bauer.UnitTarget != null)
+            verstoesse.Add($"{wer}: ein untätiger Dorfbewohner greift den vorbeigehenden Feind von selbst an - nur Soldaten sollen es");
+        float treffer = Lauf(() => gast.Health < gast.MaxHealth, 30f);
+        if (gast.Health >= gast.MaxHealth)
+            verstoesse.Add($"{wer}: der vorbeigehende Feind wird nach {treffer:0} s nicht getroffen ({gast.Health}/{gast.MaxHealth} LP; Soldat {posten.State}, Ziel {posten.UnitTarget?.Name ?? "keins"}, {Kacheln(posten, gast):0.0} Kacheln; Feind {gast.State})");
+        if (fern.UnitTarget != null)
+            verstoesse.Add($"{wer}: ein Soldat 14 Kacheln vom Laufweg greift den Feind an - nur, wer ihn in der eigenen Sichtweite hat");
+        return true;
+    });
+
+    // 3. Ein feindlicher Dorfbewohner, der nur vorbeigeht, bleibt unbehelligt
+    Teil("Dorfbewohner vorbei", () =>
+    {
+        if (Offen() is not { } platz)
+            return Passt("kein offener Platz");
+        var posten = Neu(UnitType.Militia, 0, platz);
+        if (Vorbei(posten) is not { } lauf)
+            return Passt("kein Weg vorbei");
+        var wanderer = Neu(UnitType.Villager, 1, lauf.Start);
+        wanderer.Job = null;
+        Laufe(wanderer, lauf.Ziel);
+        float naechst = float.MaxValue;
+        Lauf(() =>
+        {
+            naechst = Math.Min(naechst, Kacheln(posten, wanderer));
+            return posten.UnitTarget != null || wanderer.State != UnitState.Moving;
+        }, 25f);
+        if (naechst > posten.Core.Stats.VisionRange)
+            return Passt("nie in Sicht");
+        if (posten.UnitTarget == wanderer)
+            verstoesse.Add($"{wer}: der Soldat greift einen feindlichen Dorfbewohner an, der nur vorbeigeht - nur Soldaten lösen den Sichtkontakt aus");
+        return true;
+    });
+
+    // 4. Verfolgung: ein Späher (schneller als die Miliz) kommt in Sicht und flieht dann.
+    // Der Soldat läuft ihm nach, gibt aber auf, sobald er ihn nicht mehr sieht.
+    float aufgabe = 0f;
+    Teil("Verfolgung", () =>
+    {
+        if (Offen() is not { } platz)
+            return Passt("kein offener Platz");
+        var jaeger = Neu(UnitType.Militia, 0, platz);
+        var start = jaeger.Position;
+        var spaeher = Neu(UnitType.Scout, 1, Naechste(jaeger.Position + weg * 3f * T));
+        // Fluchtpunkt 16 bis 24 Kacheln weit, möglichst in Richtung weg: dort sieht der Späher
+        // (Sichtweite 7) den Soldaten nicht mehr und kehrt nicht von selbst zurück
+        var flucht = FreieKacheln()
+            .Where(c => Vector2.Distance(w.Map.GridToWorld(c), jaeger.Position) / T is >= 16f and <= 24f)
+            .OrderByDescending(c => Vector2.Dot(Vector2.Normalize(w.Map.GridToWorld(c) - jaeger.Position), weg))
+            .Take(30)
+            .Where(c => Weg(spaeher.Position, w.Map.GridToWorld(c)) > 0)
+            .Select(c => (Vector2?)c)
+            .FirstOrDefault();
+        if (flucht is not { } ziel)
+            return Passt("kein Fluchtweg");
+        Lauf(() => jaeger.UnitTarget == spaeher, 2f);
+        if (jaeger.UnitTarget != spaeher)
+        {
+            verstoesse.Add($"{wer}: ein feindlicher Späher steht {Kacheln(jaeger, spaeher):0.0} Kacheln vor dem untätigen Soldaten - der greift nicht an ({jaeger.State})");
+            return true;
+        }
+        Laufe(spaeher, ziel);
+        aufgabe = Lauf(() => jaeger.UnitTarget == null, 12f);
+        if (jaeger.UnitTarget != null)
+            verstoesse.Add($"{wer}: der Soldat verfolgt den geflohenen Späher nach {aufgabe:0} s noch ({Kacheln(jaeger, spaeher):0.0} Kacheln zwischen beiden) - außer Sicht soll er aufgeben");
+        else
+        {
+            Lauf(() => false, 3f);
+            if (jaeger.UnitTarget != null || jaeger.State != UnitState.Idle)
+                verstoesse.Add($"{wer}: nach dem Aufgeben nimmt der Soldat die Verfolgung wieder auf ({jaeger.State}, Späher {Kacheln(jaeger, spaeher):0.0} Kacheln entfernt)");
+            float gelaufen = Vector2.Distance(start, jaeger.Position) / T;
+            if (gelaufen > 10f)
+                verstoesse.Add($"{wer}: der Soldat ist dem Späher {gelaufen:0} Kacheln weit nachgelaufen, bevor er aufgab");
+        }
+        return true;
+    });
+
+    // 5. Gegenseite: ein untätiger Soldat des Gegners greift einen vorbeigehenden eigenen an
+    // (dafür rechnet Lauf auch die Sicht von Spieler 1)
+    Teil("Gegenseite", () =>
+    {
+        if (Offen() is not { } platz)
+            return Passt("kein offener Platz");
+        var wache = Neu(UnitType.Militia, 1, platz);
+        if (Vorbei(wache) is not { } lauf)
+            return Passt("kein Weg vorbei");
+        var eigener = Neu(UnitType.Militia, 0, lauf.Start);
+        Laufe(eigener, lauf.Ziel);
+        float naechst = float.MaxValue;
+        Lauf(() =>
+        {
+            naechst = Math.Min(naechst, Kacheln(wache, eigener));
+            return wache.UnitTarget == eigener;
+        }, 25f);
+        if (wache.UnitTarget != eigener)
+            verstoesse.Add($"{wer}: ein eigener Soldat läuft am untätigen Soldaten des Gegners vorbei - der greift nicht an ({wache.State}; am nächsten {naechst:0.0} Kacheln, Läufer {eigener.State})");
+        return true;
+    });
+
+    // 6. Dicht daneben: der Feind steht 40 px rechts vom Soldaten, der am linken Rand seiner
+    // Kachel steht. Nahkampf reicht 32 px, der Standpunkt (16 px vor dem Feind) liegt in der
+    // EIGENEN Kachel - FindPath liefert dort einen leeren Weg, früher blieb der Soldat untätig
+    // stehen. Ohne Sicht von Spieler 1 (LaufeBis), damit der Feind nicht selbst herankommt.
+    Teil("Dicht daneben", () =>
+    {
+        if (Offen() is not { } platz)
+            return Passt("kein offener Platz");
+        var soldat = Neu(UnitType.Militia, 0, platz);
+        var feind = Neu(UnitType.Militia, 1, platz + new Vector2(1, 0));
+        soldat.Position = new Vector2(platz.X * T + 1, platz.Y * T + T / 2f);
+        feind.Position = soldat.Position + new Vector2(40, 0);
+        float dauer = w.LaufeBis(() => feind.Health < feind.MaxHealth, 5f);
+        if (feind.Health >= feind.MaxHealth)
+            verstoesse.Add($"{wer}: ein Feind steht 40 px neben dem untätigen Soldaten (Standpunkt in dessen eigener Kachel) - nach {dauer:0} s kein Treffer ({soldat.State}, Ziel {soldat.UnitTarget?.Name ?? "keins"}, {Vector2.Distance(soldat.Position, feind.Position):0} px)");
+        return true;
+    });
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: anrückender Feind aus {abstand:0.0} Kacheln angegriffen, vorbeigehender im Vorbeigehen; ferner Soldat, Dorfbewohner und vorbeigehender feindlicher Dorfbewohner bleiben unberührt; Späher-Verfolgung nach {aufgabe:0.0} s aufgegeben; Gegenseite ebenso; dicht daneben getroffen");
 }
 
 // Kampfbild (K7, Nutzer 2026-10-11: "wieso wippt der Soldat, wenn er einen gegnerischen

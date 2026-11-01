@@ -1526,6 +1526,61 @@ public partial class TileMap
     public bool IsClaimed(int x, int y) => _claimed.Contains((x, y));
 
     /// <summary>
+    /// Bearbeitet schon ein anderer Dorfbewohner als <paramref name="except"/> die Feldkachel
+    /// (x, y)? Je Feldkachel arbeitet höchstens einer - ein Feld trägt so viele Bauern, wie es
+    /// Kacheln hat (Nutzer 2026-11-01). Die Kachel gehört ihm, solange sie die Quelle seines
+    /// laufenden Nahrungsauftrags ist (Phase nicht Done), auch auf dem Weg zur Abgabe und zurück.
+    /// Aus den Aufträgen gerechnet, nicht gespeichert - so stimmt es auch nach dem Laden.
+    /// </summary>
+    public bool IsFarmTaken(int x, int y, Unit except = null)
+    {
+        foreach (var u in Units)
+        {
+            if (ReferenceEquals(u, except) || u.State == AoE.Core.Entities.UnitState.Dead)
+                continue;
+            if (u.Job is { } job && job.Phase != AoE.Core.Economy.GatherPhase.Done
+                && job.Resource == Resource.Food && job.Source.X == x && job.Source.Y == y)
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Die Feldkachel, die <paramref name="farmer"/> bearbeiten darf, möglichst nah an (x, y):
+    /// eine Feldkachel mit Vorrat, die kein anderer bearbeitet (<see cref="IsFarmTaken"/>).
+    /// VERTRAG: zuerst die Kacheln desselben Felds wie (x, y) - (x, y) selbst, wenn frei -,
+    /// dann die jedes anderen Felds höchstens <paramref name="maxDistance"/> Kacheln
+    /// (Chebyshev) von (x, y); je nach Luftlinie zu (x, y). Keine frei: null.
+    /// </summary>
+    public (int X, int Y)? FreeFarmTile(int x, int y, Unit farmer, int maxDistance)
+    {
+        // Ein Feld erkennt man an seiner linken oberen Ecke
+        var start = GetTile(x, y);
+        (int, int)? field = start is { Farm: true } ? (x - start.FarmCol, y - start.FarmRow) : null;
+
+        (int X, int Y)? best = null;
+        (int, long) bestKey = (int.MaxValue, long.MaxValue);
+        for (int cx = x - maxDistance; cx <= x + maxDistance; cx++)
+        {
+            for (int cy = y - maxDistance; cy <= y + maxDistance; cy++)
+            {
+                var t = GetTile(cx, cy);
+                if (t is not { Farm: true } || t.ResourceType != Resource.Food || t.ResourceAmount <= 0
+                    || !IsWalkable(cx, cy))
+                    continue;
+                // Desselbe Feld vor jedem anderen, darin nach Abstand
+                var key = (field == (cx - t.FarmCol, cy - t.FarmRow) ? 0 : 1,
+                           (long)(cx - x) * (cx - x) + (long)(cy - y) * (cy - y));
+                if (key.CompareTo(bestKey) >= 0 || IsFarmTaken(cx, cy, farmer))
+                    continue;
+                best = (cx, cy);
+                bestKey = key;
+            }
+        }
+        return best;
+    }
+
+    /// <summary>
     /// Synchronisiert die Reservierungen mit der Realität: <paramref name="aktiv"/>
     /// sind die Schaf- und Reh-Kacheln, die gerade ein Dorfbewohner erntet bzw.
     /// jagt (Phase Gathering). Genau die bleiben stehen; alle anderen

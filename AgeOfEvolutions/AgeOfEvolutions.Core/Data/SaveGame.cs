@@ -200,4 +200,7 @@ public sealed class UnitSave
 
     /// <summary>Index der angegriffenen Einheit in <see cref="SaveGame.Units"/>, oder null.</summary>
     public int? UnitTarget { get; set; }
+
+    /// <summary>Die Einheit hat UnitTarget von selbst gewählt (Unit.AutoTarget); fehlt in alten Ständen = false.</summary>
+    public bool AutoTarget { get; set; }
 }

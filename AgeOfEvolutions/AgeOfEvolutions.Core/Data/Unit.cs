@@ -127,6 +127,13 @@ public class Unit
     public Unit UnitTarget { get; set; }
 
     /// <summary>
+    /// Das UnitTarget hat die Einheit von selbst gewählt (Auto-Antwort, Sichtkontakt -
+    /// Nutzer 2026-11-01), nicht auf Befehl: verliert ihr Besitzer das Ziel aus der Sicht,
+    /// gibt sie die Verfolgung auf. Jeder Angriffsbefehl (AttackUnit) setzt es zurück.
+    /// </summary>
+    public bool AutoTarget { get; set; }
+
+    /// <summary>
     /// Das Raubtier (Bär, Wolf - RT), das die Einheit auf Befehl oder aus Gegenwehr angreift,
     /// oder null. Das Tier zieht mit seiner Kachel um, TileMap.LocatePredator findet es.
     /// </summary>

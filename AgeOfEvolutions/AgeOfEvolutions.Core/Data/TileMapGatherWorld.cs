@@ -59,7 +59,9 @@ public sealed class TileMapGatherWorld : IGatherWorld
     /// Nächste Kachel mit dieser Ressource nach Luftlinie, an der ein
     /// Dorfbewohner arbeiten kann (<see cref="IsWorkable"/>). Reserviertes
     /// Wild (Schaf oder Reh — ein anderer Dörfler erntet bzw. jagt es gerade)
-    /// wird übersprungen — sonst laufen zwei Dörfler auf dasselbe Tier.
+    /// wird übersprungen — sonst laufen zwei Dörfler auf dasselbe Tier. Ebenso
+    /// Feldkacheln, die schon jemand bearbeitet (TileMap.IsFarmTaken): je
+    /// Feldkachel ein Bauer.
     /// </summary>
     public CorePosition? FindNearestSource(CorePosition from, Resource resource, int maxDistance)
     {
@@ -80,6 +82,10 @@ public sealed class TileMapGatherWorld : IGatherWorld
                 var food = _map.GetTile(x, y)?.Food;
                 if (resource == Resource.Food && food is { } wild && wild.IsWild()
                     && _map.IsClaimed(x, y))
+                    continue;
+                // Bearbeitete Feldkachel überspringen — je Kachel ein Bauer
+                if (resource == Resource.Food && _map.GetTile(x, y) is { Farm: true }
+                    && _map.IsFarmTaken(x, y))
                     continue;
 
                 best = cell;
