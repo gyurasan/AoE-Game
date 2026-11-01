@@ -1,4 +1,5 @@
 using AoE.Core.Entities;
+using MarketPrices = AoE.Core.Economy.MarketPrices;
 using Age = AoE.Core.Economy.Age;
 
 namespace AoE.Core.Ai;
@@ -103,6 +104,14 @@ public interface IWorldState
     /// sofort zurück.
     /// </summary>
     double LastDamageAt { get; }
+
+    /// <summary>Was ein Los (100 Stück) von <paramref name="good"/> am Markt gerade
+    /// kostet, in Gold (<see cref="MarketPrices.BuyCost"/>, F8).</summary>
+    int MarketBuyCost(Resource good);
+
+    /// <summary>Was ein Los (100 Stück) von <paramref name="good"/> am Markt gerade
+    /// einbringt, in Gold (<see cref="MarketPrices.SellGain"/>, F8).</summary>
+    int MarketSellGain(Resource good);
 }
 
 /// <summary>Ein sichtbarer Feind aus Sicht der KI: Kachelkoordinaten,

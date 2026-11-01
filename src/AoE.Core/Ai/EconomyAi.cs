@@ -38,6 +38,8 @@ namespace AoE.Core.Ai;
 ///   <li>Verteidigung: untätige Dorfbewohner im Radius springen mit ein,
 ///      große Scharen decken die Soldaten.</li>
 ///   <li>Zeitalter aufsteigen, sobald Rohstoffe ausreichen (AdvanceAge).</li>
+///   <li>Markt (F8): ab der Feudalzeit baut die KI einen; geht ihr Gold aus, verkauft sie
+///      Überschuss, gehen Nahrung oder Holz aus, kauft sie mit übrigem Gold zu (Trade).</li>
 /// </ol>
 /// </summary>
 public sealed class EconomyAi : IAi
@@ -105,6 +107,24 @@ public sealed class EconomyAi : IAi
     /// Dörfer das gegenseitige Nicht-Näherkommen vertragen, ohne dass die
     /// „unter Angriff"-Klausel permanent zuschlagen bleibt.</summary>
     public const int ThreatRadius = 8;
+
+    /// <summary>Höchstens ein Handel am Markt in so vielen Sekunden (F8): der Kurs soll sich
+    /// zwischen zwei Losen nicht gleich ausverkaufen.</summary>
+    public const double TradeIntervalSeconds = 5d;
+
+    /// <summary>Unter so viel Gold ist es der KI ausgegangen - dann verkauft sie Überschuss.</summary>
+    public const int TradeGoldLow = 150;
+
+    /// <summary>Unter so viel Nahrung bzw. Holz ist es der KI ausgegangen - dann kauft sie zu.</summary>
+    public const int TradeStockLow = 100;
+
+    /// <summary>So viel eines Guts behält die KI über den Bedarf des nächsten Zeitalters hinaus,
+    /// bevor sie davon verkauft (Häuser, Felder, Ausbildung).</summary>
+    public const int TradeKeep = 300;
+
+    /// <summary>So viel Gold muss nach einem Kauf über dem Goldbedarf des nächsten Zeitalters
+    /// übrig bleiben - Gold ist der KI wertvoller als Nahrung und Holz.</summary>
+    public const int TradeGoldKeep = 200;
 
     // ---------------------------------------------------------------------
     // Schwierigkeitsgrad — Stellschrauben, nicht Regelwerk: dieselbe
@@ -225,7 +245,11 @@ public sealed class EconomyAi : IAi
             Defense(state, actions, ctx);
         }
 
-        // 6) Zeitalter — immer am Ende, damit die Aufstiegs-Kosten
+        // 6) Markt (F8): Notlösung, wenn eine Ressource ausgeht - vor dem
+        //    Aufstieg, damit verkauftes Gold noch im selben Takt zählt.
+        TradeAtMarket(state, actions, ctx);
+
+        // 7) Zeitalter — immer am Ende, damit die Aufstiegs-Kosten
         //    nicht im selben Takt wie die Armee ausgebucht werden.
         AgeUpIfPossible(state, actions, ctx);
     }
@@ -323,6 +347,99 @@ public sealed class EconomyAi : IAi
         {
             TryBuildNear(state, actions, workers, BuildingType.ArcheryRange,
                          workersFor: 1, allowPool: true, anchor: null);
+            return;
+        }
+
+        // 6. Markt (F8) — ab der Feudalzeit, nach dem Schießstand: er tauscht,
+        //    wenn eine Ressource ausgeht (TradeAtMarket). Kosten: 175 Holz.
+        if (AgeRules.IsUnlocked(BuildingType.Market, state.Age)
+            && state.Resources.Wood >= 175
+            && state.Buildings.Any(b => b.Type == BuildingType.ArcheryRange)
+            && !state.Buildings.Any(b => b.Type == BuildingType.Market))
+        {
+            TryBuildNear(state, actions, workers, BuildingType.Market,
+                         workersFor: 1, allowPool: true, anchor: null);
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Schritt 6: Markt (F8)
+    // ---------------------------------------------------------------------
+    private double _lastTradeTime = -1e9;
+
+    /// <summary>
+    /// Handel am eigenen Markt, wenn eine Ressource ausgeht (F8).
+    /// VERTRAG:
+    /// - Nichts ohne eigenen fertigen Markt (Buildings, Type Market, IsComplete) und nichts,
+    ///   solange seit dem letzten Handel weniger als TradeIntervalSeconds (ctx.Time) vergangen
+    ///   sind. Je Aufruf höchstens ein Los (actions.Trade).
+    /// - Bedarf(r) = was das nächste Zeitalter von r kostet (AgeRules.CostOf), 0 in der
+    ///   Imperialzeit.
+    /// - Verkaufen zuerst: ist Gold unter dem Größeren von TradeGoldLow und Bedarf(Gold),
+    ///   verkauft die KI das Gut (Nahrung, Holz, Stein), von dem nach dem Verkauf am meisten
+    ///   über Bedarf + TradeKeep übrig bleibt - nur, wenn danach noch mindestens so viel da ist
+    ///   (Vorrat - 100 &gt;= Bedarf + TradeKeep). Bei Gleichstand gilt die Reihenfolge Nahrung,
+    ///   Holz, Stein.
+    /// - Sonst kaufen: ist Nahrung oder Holz unter TradeStockLow (Nahrung zuerst) und bleibt
+    ///   nach dem Kauf (state.MarketBuyCost) mindestens Bedarf(Gold) + TradeGoldKeep Gold, kauft
+    ///   sie ein Los davon. Stein kauft sie nicht - sie braucht ihn für nichts.
+    /// - Nach einem Handel gilt ctx.Time als Zeit des letzten Handels.
+    /// </summary>
+    private void TradeAtMarket(IWorldState state, IWorldActions actions, AiContext ctx)
+    {
+        if (!state.Buildings.Any(b => b.Type == BuildingType.Market && b.IsComplete))
+            return;
+        if (ctx.Time - _lastTradeTime < TradeIntervalSeconds)
+            return;
+
+        var need = state.Age < Age.Imperial
+            ? AgeRules.CostOf((Age)((int)state.Age + 1))
+            : new Dictionary<Resource, int>();
+        int Need(Resource r) => need.TryGetValue(r, out int n) ? n : 0;
+        var res = state.Resources;
+        int Stock(Resource r) => r switch
+        {
+            Resource.Food => res.Food,
+            Resource.Wood => res.Wood,
+            Resource.Gold => res.Gold,
+            Resource.Stone => res.Stone,
+            _ => 0,
+        };
+
+        // Gold geht aus: das Gut mit dem größten Überschuss verkaufen
+        if (res.Gold < Math.Max(TradeGoldLow, Need(Resource.Gold)))
+        {
+            Resource? best = null;
+            int bestLeft = -1;
+            foreach (var good in MarketPrices.Goods)
+            {
+                int left = Stock(good) - MarketPrices.LOT - (Need(good) + TradeKeep);
+                if (left >= 0 && left > bestLeft)
+                {
+                    best = good;
+                    bestLeft = left;
+                }
+            }
+            if (best is { } sell)
+            {
+                actions.Trade(sell, buy: false);
+                _lastTradeTime = ctx.Time;
+                ctx.Log?.Invoke($"markt: verkauft 100 {sell}");
+                return;
+            }
+        }
+
+        // Nahrung oder Holz gehen aus: mit übrigem Gold zukaufen
+        foreach (var good in new[] { Resource.Food, Resource.Wood })
+        {
+            if (Stock(good) >= TradeStockLow)
+                continue;
+            if (res.Gold - state.MarketBuyCost(good) < Need(Resource.Gold) + TradeGoldKeep)
+                continue;
+            actions.Trade(good, buy: true);
+            _lastTradeTime = ctx.Time;
+            ctx.Log?.Invoke($"markt: gekauft 100 {good}");
+            return;
         }
     }
 

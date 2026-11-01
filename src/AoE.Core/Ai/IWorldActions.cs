@@ -1,3 +1,4 @@
+using AoE.Core.Economy;
 using AoE.Core.Entities;
 
 namespace AoE.Core.Ai;
@@ -64,4 +65,13 @@ public interface IWorldActions
     /// forscht oder das Zeitalter noch zu früh ist.
     /// </summary>
     void TrainSoldier(BuildingType building, UnitKind soldier);
+
+    /// <summary>
+    /// Handelt am eigenen fertigen Markt ein Los (<see cref="MarketPrices.LOT"/> Stück) des
+    /// Guts <paramref name="good"/> gegen Gold (F8): <paramref name="buy"/> kauft, sonst
+    /// verkauft er - zum gemeinsamen Kurs, der sich dadurch verschiebt. Wird abgelehnt, wenn
+    /// kein eigener fertiger Markt steht, <paramref name="good"/> nicht Nahrung, Holz oder
+    /// Stein ist, oder das Gold bzw. die 100 Stück fehlen.
+    /// </summary>
+    void Trade(Resource good, bool buy);
 }

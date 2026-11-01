@@ -24,6 +24,7 @@ using AgeRules = AoE.Core.Economy.AgeRules;
 using Tech = AoE.Core.Economy.Tech;
 using TechRules = AoE.Core.Economy.TechRules;
 using TechEffects = AoE.Core.Economy.TechEffects;
+using MarketPrices = AoE.Core.Economy.MarketPrices;
 
 namespace AgeOfEvolutions.Core.Screens;
 
@@ -375,6 +376,10 @@ public partial class RTSGameplayScreen : GameScreen
             public Action Action;
         public Action<int> RightAction; // Rechtsklick mit Anzahl (1, mit Shift CANCEL_BATCH), oder null
         public Texture2D Icon;     // Symbol aus Content/Icons, oder null
+        public Action<int> BatchAction; // Linksklick mit Anzahl (1, mit Shift TRADE_BATCH) statt Action, oder null
+        public Func<string> LiveHint;   // Hinweis, der sich laufend ändert (Kurse am Markt) statt Hint, oder null
+        public int TradeArrow;          // Markttasten (F8): 1 kaufen (Pfeil hoch), -1 verkaufen (Pfeil runter), sonst 0
+        public bool IconOnDark;         // Symbol ohne eigenen Hintergrund (Rohstoffsymbol): dunkles Feld dahinter
     }
 
     /// <summary>
@@ -391,6 +396,17 @@ public partial class RTSGameplayScreen : GameScreen
     private const int QUEUE_SLOT_GAP = 4;
     // So viele Ausbildungen bricht Shift+Klick auf einmal ab (wie AoE II)
     private const int CANCEL_BATCH = 5;
+
+    // Markt (F8): so viele Lose handelt Shift+Klick oder Shift+Taste auf einmal - 500 Stück wie AoE II
+    private const int TRADE_BATCH = 5;
+    // Markttasten je Gut, in der Reihenfolge von MarketPrices.Goods: die obere Reihe kauft
+    // (Q, W, E), die Reihe darunter verkauft (Y, X, C). A bleibt dem Zeitalter
+    private static readonly (Resource Good, Keys Buy, Keys Sell)[] MarketKeys =
+    {
+        (Resource.Food, Keys.Q, Keys.Y),
+        (Resource.Wood, Keys.W, Keys.X),
+        (Resource.Stone, Keys.E, Keys.C),
+    };
 
     // Symbol je Befehlstaste - erzeugt mit Qwen-Image (tools/bilder/bilder.json,
     // Gruppe icons), verkleinert auf 128 px in Content/Icons
@@ -1226,6 +1242,7 @@ public partial class RTSGameplayScreen : GameScreen
         UpdateRepair((float)gameTime.ElapsedGameTime.TotalSeconds);
         tileMap.RegrowCrop((float)gameTime.ElapsedGameTime.TotalSeconds);
         tileMap.RegrowGrass((float)gameTime.ElapsedGameTime.TotalSeconds);
+        tileMap.Market.Update((float)gameTime.ElapsedGameTime.TotalSeconds);   // Kurse kehren langsam zurück (F8)
         UpdateSheepClaims();    // Reservierung = der einzige Dorfbewohner, der gerade erntet
         tileMap.UpdateSheep((float)gameTime.ElapsedGameTime.TotalSeconds);
         tileMap.UpdateDeer((float)gameTime.ElapsedGameTime.TotalSeconds);
@@ -2142,6 +2159,20 @@ public partial class RTSGameplayScreen : GameScreen
                 Research(selectedBuilding, tech);
         }
 
+        // Markt (F8): mit ausgewähltem Markt kaufen Q, W, E je 100 Nahrung, Holz, Stein,
+        // Y, X, C verkaufen sie; mit Shift TRADE_BATCH Lose auf einmal
+        if (selectedBuilding is { Core.BuildingType: BuildingType.Market })
+        {
+            int lots = keyboard.IsKeyDown(Keys.LeftShift) || keyboard.IsKeyDown(Keys.RightShift) ? TRADE_BATCH : 1;
+            foreach (var (good, buyKey, sellKey) in MarketKeys)
+            {
+                if (keyboard.IsKeyDown(buyKey) && previousKeyboard.IsKeyUp(buyKey))
+                    TradeAtMarket(selectedBuilding, good, true, lots);
+                if (keyboard.IsKeyDown(sellKey) && previousKeyboard.IsKeyUp(sellKey))
+                    TradeAtMarket(selectedBuilding, good, false, lots);
+            }
+        }
+
         // A: Aufstieg ins nächste Zeitalter, ebenfalls im Stadtzentrum
         if (keyboard.IsKeyDown(Keys.A) && previousKeyboard.IsKeyUp(Keys.A))
             AdvanceAge();
@@ -2548,6 +2579,15 @@ public partial class RTSGameplayScreen : GameScreen
                 if (b.Training.Count > 1)
                     text += $"   +{b.Training.Count - 1} in der Warteschlange";
             }
+        }
+
+        // Fertiger Markt (F8): die Kurse, die für alle gelten - was 100 Stück kosten und bringen
+        if (b.Core.BuildingType == BuildingType.Market)
+        {
+            var m = tileMap.Market;
+            text += "   je 100 kaufen/verkaufen:";
+            foreach (var good in MarketPrices.Goods)
+                text += $"   {ResourceName(good)} {m.BuyCost(good)}/{m.SellGain(good)} Gold";
         }
         return text;
     }
@@ -4311,6 +4351,48 @@ public partial class RTSGameplayScreen : GameScreen
         if (b.Training.Count >= AoE.Core.Economy.TrainingQueue<UnitType>.MAX_LENGTH)
             return false;
         return b.Training.Enqueue(unit, entry.Cost, entry.Seconds, owner.Resources);
+    }
+
+    /// <summary>
+    /// Handelt am Markt <paramref name="b"/> für Spieler 0 (F8): Tasten und Tastenkürzel des
+    /// ausgewählten Markts.
+    /// VERTRAG:
+    /// - Nur an einem fertigen eigenen Markt (b nicht null, OwnerId 0, IsComplete, BuildingType
+    ///   Market), nur für Nahrung, Holz, Stein (MarketPrices.IsGood) und mit
+    ///   <paramref name="lots"/> &gt; 0; sonst 0, ohne Meldung, nichts ändert sich.
+    /// - Sonst tileMap.Market.Trade(good, buy, lots, player1.Resources): bis zu lots Lose zu je
+    ///   MarketPrices.LOT, jedes zum dann gültigen Kurs. Kam kein Los zustande:
+    ///   ShowHudMessage - beim Kauf $"Nicht genug Gold ({BuyCost} Gold für 100 {Gut})", beim
+    ///   Verkauf $"Nicht genug {Gut} (100 zum Verkaufen)".
+    /// - Rückgabe: die Zahl der gehandelten Lose.
+    /// </summary>
+    internal int TradeAtMarket(Data.Building b, Resource good, bool buy, int lots)
+    {
+        if (b == null || b.OwnerId != 0 || !b.IsComplete || b.Core.BuildingType != BuildingType.Market
+            || !MarketPrices.IsGood(good) || lots <= 0)
+            return 0;
+        var market = tileMap.Market;
+        int cost = market.BuyCost(good);
+        int done = market.Trade(good, buy, lots, player1.Resources);
+        if (done == 0)
+            ShowHudMessage(buy ? $"Nicht genug Gold ({cost} Gold für 100 {ResourceName(good)})"
+                               : $"Nicht genug {ResourceName(good)} (100 zum Verkaufen)");
+        return done;
+    }
+
+    /// <summary>
+    /// Owner-generic Version des Markthandels — die KI-Schnittstelle (F8). Ein Los von
+    /// <paramref name="good"/> kaufen oder verkaufen, wenn <paramref name="ownerId"/> einen
+    /// fertigen Markt hat; false, wenn der Handel abgelehnt wurde (ohne HUD-Meldung).
+    /// </summary>
+    internal bool TradeForOwner(int ownerId, Resource good, bool buy)
+    {
+        if (!tileMap.Buildings.Any(b => b.OwnerId == ownerId && b.IsComplete
+                                        && b.Core.BuildingType == BuildingType.Market))
+            return false;
+        var owner = ownerId == 0 ? player1 : player2;
+        return buy ? tileMap.Market.TryBuy(good, owner.Resources)
+                   : tileMap.Market.TrySell(good, owner.Resources);
     }
 
     /// <summary>
@@ -8495,7 +8577,7 @@ public partial class RTSGameplayScreen : GameScreen
                      + $"   Klick bricht eine Ausbildung ab   Shift+Klick {CANCEL_BATCH}   die Kosten kommen voll zurück";
         }
         else if (hovered.Name != null)
-            infoLine = $"{hovered.Name} ({hovered.Label}): {hovered.Hint}";
+            infoLine = $"{hovered.Name} ({hovered.Label}): {hovered.LiveHint?.Invoke() ?? hovered.Hint}";
         else if (selectedBuilding != null && selectedUnits.Count == 0)
             infoLine = BuildingStatus(selectedBuilding);
         else if (selectedUnits.Count > 1)
@@ -8649,6 +8731,16 @@ public partial class RTSGameplayScreen : GameScreen
                           $"{CostText(TechRules.CostOf(tech))}, {(int)TechRules.SecondsOf(tech)} s   {TechRules.EffectOf(tech)}",
                           () => Research(b, tech));
             }
+            // Markt (F8): je Gut oben die Kaufen-, direkt darunter die Verkaufen-Taste
+            if (building.Core.BuildingType == BuildingType.Market)
+            {
+                int xSell = x;
+                foreach (var (good, buyKey, sellKey) in MarketKeys)
+                {
+                    AddMarketButton(ref x, size, gap, y, building, good, true, buyKey);
+                    AddMarketButton(ref xSell, size, gap, y + size + gap, building, good, false, sellKey);
+                }
+            }
         }
         // A (Zeitalter) gibt es nur mit ausgewähltem eigenem Stadtzentrum und
         // solange ein nächstes Zeitalter folgt
@@ -8724,6 +8816,77 @@ public partial class RTSGameplayScreen : GameScreen
         x += width + gap;
     }
 
+    /// <summary>
+    /// Eine Markttaste (F8) für das Gut <paramref name="good"/>: kaufen oder verkaufen. Ein Klick
+    /// handelt ein Los, Shift+Klick TRADE_BATCH (BatchAction); der Hinweis nennt den Kurs, wie
+    /// er gerade steht (LiveHint). Symbol ist das Rohstoffsymbol der oberen Leiste.
+    /// </summary>
+    private void AddMarketButton(ref int x, int size, int gap, int y, Data.Building market,
+                                 Resource good, bool buy, Keys key)
+    {
+        string name = $"{ResourceName(good)} {(buy ? "kaufen" : "verkaufen")}";
+        var icon = ResourceIconOf(good);
+        int width = icon != null
+            ? size
+            : Math.Max(size, (int)(ScreenManager?.Font?.MeasureString(name).X ?? 0f) + 8);
+        Action<int> trade = lots => TradeAtMarket(market, good, buy, lots);
+        _buttons.Add(new CommandButton
+        {
+            Rect = new Rectangle(x, y, width, size),
+            Label = key.ToString(), Name = name, Hint = "",
+            LiveHint = () => MarketHint(good, buy),
+            Action = () => trade(1), BatchAction = trade,
+            Icon = icon, IconOnDark = true, TradeArrow = buy ? 1 : -1,
+        });
+        x += width + gap;
+    }
+
+    /// <summary>Hinweis einer Markttaste (F8) mit dem gerade gültigen Preis eines Loses.</summary>
+    private string MarketHint(Resource good, bool buy)
+    {
+        var m = tileMap.Market;
+        int batch = TRADE_BATCH * MarketPrices.LOT;
+        return buy
+            ? $"100 {ResourceName(good)} für {m.BuyCost(good)} Gold   Shift: {batch}   jeder Kauf macht {ResourceName(good)} teurer"
+            : $"100 {ResourceName(good)} für {m.SellGain(good)} Gold   Shift: {batch}   jeder Verkauf macht {ResourceName(good)} billiger";
+    }
+
+    /// <summary>Das Rohstoffsymbol der oberen Leiste, oder null, wenn das Bild fehlt.</summary>
+    private Texture2D ResourceIconOf(Resource resource)
+    {
+        int i = Array.FindIndex(ResourceIcons, e => e.Res == resource);
+        return i >= 0 ? _resourceIconTex[i] : null;
+    }
+
+    /// <summary>
+    /// Pfeil unten rechts auf einer Markttaste (F8): grün nach oben fürs Kaufen, rot nach unten
+    /// fürs Verkaufen - ein Dreieck aus waagrechten Linien auf einem Schaft, schwarz umrandet.
+    /// </summary>
+    private void DrawTradeArrow(SpriteBatch sb, Rectangle r, bool up)
+    {
+        int h = Math.Max(5, r.Height / 7);          // Höhe der Spitze, bei 60 px Taste 8
+        int stem = Math.Max(3, h * 3 / 4);          // Höhe des Schafts
+        int stemW = Math.Max(3, h * 3 / 4);
+        int right = r.Right - 5, bottom = r.Bottom - 5;
+        int cx = right - h;                         // Mitte des Pfeils
+        int top = bottom - h - stem;
+        var fill = up ? new Color(96, 226, 96) : new Color(238, 84, 64);
+        void Shape(int dx, int dy, Color c)
+        {
+            for (int i = 0; i < h; i++)
+            {
+                int half = up ? i : h - 1 - i;
+                int rowY = up ? top + i : top + stem + i;
+                sb.Draw(px, new Rectangle(cx - half + dx, rowY + dy, 2 * half + 1, 1), c);
+            }
+            int stemY = up ? top + h : top;
+            sb.Draw(px, new Rectangle(cx - stemW / 2 + dx, stemY + dy, stemW, stem), c);
+        }
+        foreach (var (dx, dy) in new[] { (-1, 0), (1, 0), (0, -1), (0, 1) })
+            Shape(dx, dy, Color.Black);
+        Shape(0, 0, fill);
+    }
+
     private void DrawCommandButton(SpriteBatch sb, CommandButton b, Point cursor)
     {
         var r = b.Rect;
@@ -8742,13 +8905,26 @@ public partial class RTSGameplayScreen : GameScreen
         {
             // Symbol bis auf einen schmalen Rand; beim Zeigen heller, gedrückt dunkler
             var inner = new Rectangle(r.Left + 3, r.Top + 3, r.Width - 6, r.Height - 6);
-            sb.Draw(b.Icon, inner, pressed ? new Color(170, 170, 170)
-                                 : hover || active ? Color.White
-                                                   : new Color(222, 222, 222));
+            var tint = pressed ? new Color(170, 170, 170)
+                     : hover || active ? Color.White
+                                       : new Color(222, 222, 222);
+            if (b.IconOnDark)
+            {
+                // Rohstoffsymbol (F8): dunkles Feld wie bei den gemalten Symbolen, das Bild darin
+                // mittig mit seinem Seitenverhältnis, nicht auf das Quadrat gestreckt
+                sb.Draw(px, inner, new Color(46, 32, 22));
+                float scale = Math.Min(inner.Width / (float)b.Icon.Width, inner.Height / (float)b.Icon.Height) * 0.84f;
+                int w = (int)(b.Icon.Width * scale), h = (int)(b.Icon.Height * scale);
+                sb.Draw(b.Icon, new Rectangle(inner.Center.X - w / 2, inner.Center.Y - h / 2, w, h), tint);
+            }
+            else
+                sb.Draw(b.Icon, inner, tint);
             // Tastenbuchstabe oben links, mit Schatten lesbar auf dem Bild
             var at = new Vector2(r.Left + 5, r.Top + 2);
             sb.DrawString(ScreenManager.Font, b.Label, at + new Vector2(1, 1), Color.Black);
             sb.DrawString(ScreenManager.Font, b.Label, at, active ? new Color(255, 228, 120) : Color.White);
+            if (b.TradeArrow != 0)
+                DrawTradeArrow(sb, r, b.TradeArrow > 0);
             if (active)
             {
                 // Setzmodus: goldener Rahmen um die Taste
@@ -8783,7 +8959,11 @@ public partial class RTSGameplayScreen : GameScreen
         foreach (var b in _buttons)
             if (b.Rect.Contains(cursor))
             {
-                b.Action();
+                // Markttasten (F8) handeln mit Shift TRADE_BATCH Lose
+                if (b.BatchAction != null)
+                    b.BatchAction(shift ? TRADE_BATCH : 1);
+                else
+                    b.Action();
                 return;
             }
         if (_minimapRect != Rectangle.Empty && _minimapRect.Contains(cursor))

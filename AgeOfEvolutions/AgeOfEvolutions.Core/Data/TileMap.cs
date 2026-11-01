@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Xna.Framework;
 using Resource = AoE.Core.Entities.Resource;
+using MarketPrices = AoE.Core.Economy.MarketPrices;
 using MapGrid = AoE.Core.Map.MapGrid;
 using Age = AoE.Core.Economy.Age;
 using CorePosition = AoE.Core.Entities.Position;
@@ -1234,6 +1235,12 @@ public partial class TileMap
     /// sie bei jedem Zeitaufstieg auf das neue Niveau.
     /// </summary>
     public int CurrentRoadLevel { get; set; }
+
+    /// <summary>
+    /// Die Kurse am Markt (F8) - wie in AoE II einer für alle Spieler: wer kauft, macht das
+    /// Gut für beide teurer. Der Spielbildschirm lässt sie je Bild zurückkehren (Update).
+    /// </summary>
+    public MarketPrices Market { get; } = new();
 
     /// <summary>
     /// So ausgetreten muss eine Kachel sein, damit aus dem Trampelpfad ein Weg wird (C16): sechs

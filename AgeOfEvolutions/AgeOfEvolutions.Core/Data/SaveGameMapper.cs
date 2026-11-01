@@ -42,6 +42,7 @@ public static class SaveGameMapper
     ///   BuildSite und AttackTarget = Index des Gebäudes in map.Buildings (IndexOf), UnitTarget =
     ///   Index der Einheit in map.Units - jeweils null, wenn kein Ziel gesetzt ist oder es nicht
     ///   (mehr) in der Liste steht; AutoTarget.
+    /// - Market = map.Market.ToState() (F8).
     /// </summary>
     /// <exception cref="ArgumentNullException">map, player1 oder player2 ist null.</exception>
     public static SaveGame Capture(TileMap map, Player player1, Player player2, MapSize mapSize)
@@ -61,6 +62,7 @@ public static class SaveGameMapper
             Width = map.Width,
             Height = map.Height,
             TileSize = map.TileSize,
+            Market = map.Market.ToState(),
         };
 
         // Spieler in fester Reihenfolge: erst player1, dann player2.
@@ -197,6 +199,7 @@ public static class SaveGameMapper
     ///    Ages.Restore(Ages) und Techs.Restore(Techs), soweit nicht null. Danach (C16)
     ///    map.CurrentRoadLevel = das größere von TileMap.LevelOfAge(Ages.Current) der beiden
     ///    Spieler - sonst entstünden nach dem Laden in der Feudalzeit keine neuen Wege.
+    ///    map.Market.Restore(save.Market), soweit nicht null (F8; sonst bleiben die Startkurse).
     /// 5. Gebäude in Listenreihenfolge: map.AddBuilding(X, Y, Type, OwnerId, Size); dann
     ///    TechEffects.ApplyAll(Besitzer.Techs, building.Core) (Besitzer = Spieler mit dieser Id);
     ///    erst danach Health; Construction = Construction.FromState(...) oder null;
@@ -295,6 +298,9 @@ public static class SaveGameMapper
         }
         // Die erreichte Weg-Stufe (C16): das größere der beiden Zeitalter.
         map.CurrentRoadLevel = Math.Max(TileMap.LevelOfAge(player1.Ages.Current), TileMap.LevelOfAge(player2.Ages.Current));
+        // Die Kurse am Markt (F8); ältere Spielstände behalten die Startkurse.
+        if (save.Market is not null)
+            map.Market.Restore(save.Market);
 
         // 5. Gebäude in Listenreihenfolge.
         foreach (BuildingSave bs in save.Buildings)

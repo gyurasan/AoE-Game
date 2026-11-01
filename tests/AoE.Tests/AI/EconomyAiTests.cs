@@ -90,6 +90,13 @@ public sealed class FakeWorld : IWorldState, IWorldActions
     public void AssignBuilder(int unitId, int buildingId) => Log.Add($"assign({unitId}@{buildingId})");
     public void Attack(int unitId, int x, int y) => Log.Add($"attack({unitId},{x},{y})");
     public void TrainSoldier(BuildingType b, UnitKind s) => Log.Add($"soldier({b},{s})");
+    public void Trade(Resource good, bool buy) => Log.Add($"{(buy ? "buy" : "sell")}({good})");
+
+    // Kurse am Markt (F8): im Fake je Gut frei wählbar, sonst die Startkurse 130 / 70
+    public Dictionary<Resource, int> BuyCosts { get; } = new();
+    public Dictionary<Resource, int> SellGains { get; } = new();
+    public int MarketBuyCost(Resource good) => BuyCosts.TryGetValue(good, out int c) ? c : 130;
+    public int MarketSellGain(Resource good) => SellGains.TryGetValue(good, out int g) ? g : 70;
 
     // --- Factory-Helfer
     private int _next = 1;

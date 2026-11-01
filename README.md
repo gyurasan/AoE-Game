@@ -54,6 +54,10 @@ Spielbar sind Wirtschaft, Aufstieg durch die Zeitalter und Kampf gegen einen Com
 - Forschungen: Webstuhl im Stadtzentrum, Pferdekummet in der Mühle, Doppelaxt im Holzfällerlager,
   Goldbergbau im Bergbaulager, Schmiedekunst, Befiederte Pfeile und Schuppenpanzer in der Schmiede,
   Maurerkunst in der Universität
+- Markt (ab der Feudalzeit): Nahrung, Holz und Stein je 100 gegen Gold kaufen und verkaufen, mit
+  Shift 500. Der Kurs gilt für beide Spieler, wird mit jedem Handel in dieselbe Richtung
+  ungünstiger und erholt sich ohne Handel langsam; die Leiste nennt ihn. Auch der Computergegner
+  baut einen Markt und tauscht, wenn ihm Gold, Nahrung oder Holz ausgeht
 - Zeitalter: Feudal-, Ritter- und Imperialzeit, je mit Kosten und Forschungszeit; Gebäude,
   Dorfbewohner und Leisten sehen in jedem Zeitalter anders aus
 - Kampf: ein Linksklick auf einen Gegner oder ein fremdes Gebäude schickt die Auswahl hin. Nahkämpfer
@@ -97,7 +101,7 @@ Spielbar sind Wirtschaft, Aufstieg durch die Zeitalter und Kampf gegen einen Com
   (Entf, am Gamepad Y) — einmal Ja/Nein bestätigen, und der Platz ist weg,
   die Nummer wird beim nächsten Speichern wieder frei
 
-Noch nicht da sind Handel, Einheiten aus Belagerungswerkstatt, Kloster und Burg, schießende Türme
+Noch nicht da sind Handelskarren, Einheiten aus Belagerungswerkstatt, Kloster und Burg, schießende Türme
 und Schwierigkeitsgrade für die KI, siehe [TODO](TODO.md).
 
 ## Steuerung
@@ -113,6 +117,7 @@ und Schwierigkeitsgrade für die KI, siehe [TODO](TODO.md).
 | `Q` | Im ausgewählten Gebäude ausbilden oder forschen; ohne Auswahl Dorfbewohner im Stadtzentrum |
 | `W` `E` | Weitere Forschungen: Webstuhl im Stadtzentrum, Befiederte Pfeile und Schuppenpanzer in der Schmiede |
 | `A` | Aufstieg ins nächste Zeitalter |
+| `Q` `W` `E` / `Y` `X` `C` | Am ausgewählten Markt: 100 Nahrung, Holz, Stein kaufen / verkaufen, mit `Shift` 500 |
 | `H` `M` `F` `B` `G` `T` | Haus, Mühle, Holzfällerlager, Bergbaulager, Farm, Wachturm |
 | `K` `P` `S` `L` `E` `R` `W` | Zweite Tastenreihe: Kaserne, Palisadenmauer, Schießstand, Stall, Schmiede, Markt, Steinmauer |
 | `Z` `X` `U` `O` `C` `N` | Stadtzentrum, Belagerungswerkstatt, Universität, Kloster, Burg, Wunder |

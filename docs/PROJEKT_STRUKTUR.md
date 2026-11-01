@@ -16,6 +16,7 @@ src/AoE.Core/ - net10.0, MonoGame-unabhängige Spiellogik:
     Economy/Construction.cs (107) - Bauregeln und Baustelle mit abnehmendem Ertrag
     Economy/Ages.cs (176) - Zeitalter: Kosten, Dauer, Freischaltung und der Aufstieg
     Economy/Research.cs (443) - Forschungen: Regeln, Ablauf je Gebäude und Wirkung
+    Economy/Market.cs (164) - Kurse am Markt: Nahrung, Holz, Stein gegen Gold (F8)
     Entities/Buildings.cs (339), UnitEntity.cs (238), UnitTypes.cs (379), UnitClass.cs (57), Resource.cs (32)
     Map/VisibilitySystem.cs (412) - enthält AUCH die Klasse MapGrid; es gibt keine eigene MapGrid.cs
     Pathfinding/Pathfinding.cs (316) - A-Stern und Formationsbewegung
@@ -45,6 +46,7 @@ tools/spielablauf/ - lässt die Spielschleife ohne Grafik laufen und prüft Abl�
 | Construction.cs | src/AoE.Core/Economy/Construction.cs | 131 Zeilen, `BuildingRules` (Kosten, Bauzeit und Größe jedes Gebäudetyps, abnehmender Ertrag) und `Construction` (Baustelle) |
 | Ages.cs | src/AoE.Core/Economy/Ages.cs | 176 Zeilen, `Age`, `AgeRules` (Kosten, Dauer, ab welchem Zeitalter ein Gebäude baubar ist) und `AgeProgress` (der Aufstieg eines Spielers) |
 | Research.cs | src/AoE.Core/Economy/Research.cs | 443 Zeilen, Forschungen (P2): `Tech`, `TechRules` (Kosten, Dauer, Gebäude, Zeitalter, Name, Wirkungstext nach AoE II), `TechProgress` (Forschungsstand eines Spielers), `ResearchSlot` (die Forschung in einem Gebäude, eine zur Zeit) und `TechEffects` (Wirkung auf Einheiten und Gebäude, Sammelfaktor, Feldvorrat) |
+| Market.cs | src/AoE.Core/Economy/Market.cs | 164 Zeilen, Markt (F8): `MarketPrices` (Kurs je Gut, Kauf mit 30 % Aufschlag, Verkauf mit 30 % Abschlag, ±3 je Los, Erholung 0,1 je Sekunde, ein Kurs für alle Spieler) und `MarketPricesState` (Spielstand) |
 | GatherJob.cs | src/AoE.Core/Economy/GatherJob.cs | 264 Zeilen, Sammelauftrag: hinlaufen, sammeln bis Traglast 10, abliefern, zurück; Schnittstelle IGatherWorld |
 | Buildings.cs | src/AoE.Core/Entities/Buildings.cs | 339 Zeilen, Gebäudetypen und Fabriken; Holzfäller- und Bergbaulager seit C5, Wachturm seit C4c; Baustellen ohne Sicht seit C7b; `Create` für jeden Typ mit Werten nach AoE II seit L1; der alte, nie benutzte `TechTree` ist seit P2 durch Research.cs ersetzt |
 | UnitEntity.cs | src/AoE.Core/Entities/UnitEntity.cs | 238 Zeilen |

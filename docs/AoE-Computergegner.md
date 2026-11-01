@@ -340,6 +340,7 @@ abarbeitet; die Engine (`IWorldActions`) führt Wege und Sammeln aus.
 | Strategie-Persönlichkeiten | eine feste Strategie | fehlt |
 | Schwierigkeitsgrade | — | fehlt |
 | Rückzug bei Unterlegenheit | — | fehlt |
+| Markt als Notlösung, wenn ein Rohstoff fehlt | Markt ab der Feudalzeit; höchstens alle 5 s ein Los: Überschuss gegen Gold, wenn das Gold ausgeht, Nahrung/Holz zukaufen, wenn sie ausgehen (`TradeAtMarket`, F8) | vorhanden (ohne Handelskarren) |
 | Aufgabe bei aussichtsloser Lage | Niederlage beendet das Spiel | vorhanden (Niederlage, keine aktive Aufgabe) |
 
 ### Naheliegende nächste Schritte

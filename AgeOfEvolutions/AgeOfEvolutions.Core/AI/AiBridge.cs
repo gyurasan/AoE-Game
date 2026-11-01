@@ -163,6 +163,10 @@ public sealed class AiBridge : IWorldState, IWorldActions
     /// Treffers berechnen kann.</summary>
     public double WorldTime => _screen.GameSeconds;
 
+    // Kurse am Markt (F8) - einer für alle Spieler, auf der Karte
+    public int MarketBuyCost(Resource good) => _screen.tileMap.Market.BuyCost(good);
+    public int MarketSellGain(Resource good) => _screen.tileMap.Market.SellGain(good);
+
     // ------------------- IWorldActions -------------------
 
     public void Gather(int unitId, int x, int y)
@@ -257,6 +261,9 @@ public sealed class AiBridge : IWorldState, IWorldActions
         if (b is null) return;
         _screen.TrainSoldierForOwner(Owner, b, unitType.Value);
     }
+
+    /// <summary>Ein Los am eigenen fertigen Markt handeln (F8); ohne Markt bleibt es still.</summary>
+    public void Trade(Resource good, bool buy) => _screen.TradeForOwner(Owner, good, buy);
 
     // ------------------- Snapshots -------------------
 

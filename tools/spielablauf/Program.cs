@@ -6,7 +6,8 @@
 // auswahl (Gebäude auswählen), angriff (Gebäude angreifen), soldaten
 // (Ausbildung in Kaserne, Schießstand und Stall), warteschlange (Ausbildung abbrechen: Klick
 // aufs Feld der Warteschlange, Shift+Klick fünf, Rechtsklick auf die Ausbildungstaste),
-// forschung (Forschungen und ihre Wirkung),
+// forschung (Forschungen und ihre Wirkung), markt (F8: am eigenen Markt Nahrung, Holz und Stein
+// gegen Gold kaufen und verkaufen, Kurse in der Leiste und im Spielstand, KI handelt),
 // strassen (Wege: Trampelpfade werden beim Zeitaufstieg zu Feldwegen und besser, laufen 20 % schneller),
 // gebaeudewege (ab der Feudalzeit führt von jedem fertigen Gebäude ein Weg bis ans Stadtzentrum),
 // nebelboden (Gras und Pfade im Nebel bleiben, wie man sie zuletzt gesehen hat),
@@ -182,6 +183,9 @@ for (int karte = 1; karte <= KARTEN; karte++)
         Pruefe($"Karte {karte}, Warteschlange", () => Warteschlange(karte, verstoesse));
     if (gruppen.Contains("forschung"))
         Pruefe($"Karte {karte}, Forschung", () => Forschung(karte, verstoesse));
+    // Markt (F8): Tasten und Kürzel, Kurse, Meldungen, Spielstand, KI über die Brücke
+    if (gruppen.Contains("markt"))
+        Pruefe($"Karte {karte}, Markt", () => Markt(karte, verstoesse));
     if (gruppen.Contains("schlag") && karte == 1)
         Pruefe("Schlag", () => Schlag(verstoesse));
     if (gruppen.Contains("fenster") && karte == 1)
@@ -4997,6 +5001,212 @@ static void Soldaten(int karte, List<string> verstoesse)
     }
 }
 
+// Markt (F8): am ausgewählten eigenen fertigen Markt kaufen Q, W, E je 100 Nahrung, Holz, Stein
+// gegen Gold, Y, X, C verkaufen sie - als Tasten in der Leiste (Kaufen oben, Verkaufen direkt
+// darunter) und als Tastenkürzel, mit Shift fünf Lose. Jeder Handel verschiebt den Kurs, der
+// für beide Spieler gilt; die Leiste nennt ihn (BuildingStatus, Hinweis der Taste). Ohne Gold
+// oder Ware kommt eine Meldung, fremde und unfertige Märkte handeln nicht. Ohne Handel kehrt
+// der Kurs zurück, der Spielstand behält ihn, und die KI handelt über ihre Brücke.
+// Ohne Nebel: der Markt (4x4) braucht Platz im Startgebiet.
+static void Markt(int karte, List<string> verstoesse)
+{
+    TileMap.TestNoFog = true;
+    try
+    {
+        MarktAblauf(karte, verstoesse);
+    }
+    finally
+    {
+        TileMap.TestNoFog = false;
+    }
+}
+
+static void MarktAblauf(int karte, List<string> verstoesse)
+{
+    const int bw = 2406, bh = 1353;
+    string wer = $"Karte {karte}, Markt";
+    var w = new Welt();
+    w.Set("screenBounds", new Rectangle(0, 0, bw, bh));
+    w.Set("cameraZoom", 1f);
+    w.Set("cameraPosition", Vector2.Zero);
+    var dorf = w.Dorfbewohner().ToList();
+    var gt = new GameTime(TimeSpan.Zero, TimeSpan.FromSeconds(1.0 / 60));
+    var kurs = w.Map.Market;
+    int Vorrat(Resource r) => w.P1.Resources[r];
+    void Setze(Player p, Resource r, int menge) => p.Resources.Add(r, menge - p.Resources[r]);
+    string Meldung() => w.Get("hudMessage") as string ?? "";
+    string Status(Building b) => (string)w.Call("BuildingStatus", b);
+
+    // Klick wie im Spiel (ein Bild gedrückt, eines losgelassen), mit oder ohne Shift
+    void Maus(Point p, bool shift = false)
+    {
+        var k = shift ? new KeyboardState(Keys.LeftShift) : new KeyboardState();
+        foreach (var taste in new[] { ButtonState.Pressed, ButtonState.Released })
+            w.Call("HandleRtsInput", gt, k,
+                   new MouseState(p.X, p.Y, 0, taste, ButtonState.Released, ButtonState.Released,
+                                  ButtonState.Released, ButtonState.Released));
+    }
+    // Tastendruck: ein Bild gedrückt, eines losgelassen
+    void Taste(Keys key, bool shift = false)
+    {
+        var maus = new MouseState(bw / 2, bh / 3, 0, ButtonState.Released, ButtonState.Released,
+                                  ButtonState.Released, ButtonState.Released, ButtonState.Released);
+        w.Call("HandleRtsInput", gt, shift ? new KeyboardState(Keys.LeftShift, key) : new KeyboardState(key), maus);
+        w.Call("HandleRtsInput", gt, new KeyboardState(), maus);
+    }
+    Dictionary<string, Rectangle> Leiste()
+    {
+        w.Call("LayoutButtons");
+        return w.Tasten().GroupBy(t => t.Label).ToDictionary(g => g.Key, g => g.First().Rect);
+    }
+    string Hinweis(string label)
+    {
+        w.Call("LayoutButtons");
+        var b = ((System.Collections.IEnumerable)w.Get("_buttons")).Cast<object>()
+            .FirstOrDefault(b => (string)b.GetType().GetField("Label").GetValue(b) == label);
+        return b?.GetType().GetField("LiveHint").GetValue(b) is Func<string> f ? f() : "";
+    }
+
+    // Ein fertiger Markt für Spieler 0, Kurse frisch
+    var platz = w.Bauplatz(BuildingType.Market, dorf[0], 8);
+    var markt = w.Map.AddBuilding((int)platz.X, (int)platz.Y, "Markt", 0, 4);
+    if (markt.Core.BuildingType != BuildingType.Market || !markt.IsComplete)
+    {
+        verstoesse.Add($"{wer}: der Markt steht nicht fertig ({markt.Core.BuildingType}, fertig {markt.IsComplete})");
+        return;
+    }
+    Setze(w.P1, Resource.Gold, 1000);
+    Setze(w.P1, Resource.Stone, 1000);
+    Setze(w.P1, Resource.Food, 600);
+    w.Call("SelectBuilding", markt);
+
+    // Sechs Tasten: Kaufen oben (Q W E), Verkaufen genau darunter (Y X C)
+    var tasten = Leiste();
+    var paare = new[] { ("Q", "Y"), ("W", "X"), ("E", "C") };
+    foreach (var (kauf, verkauf) in paare)
+    {
+        if (!tasten.TryGetValue(kauf, out var k) || !tasten.TryGetValue(verkauf, out var v))
+        {
+            verstoesse.Add($"{wer}: am Markt fehlen die Tasten {kauf}/{verkauf} (da: {string.Join(" ", tasten.Keys)})");
+            return;
+        }
+        if (v.X != k.X || v.Top <= k.Bottom || v.Top - k.Bottom > 12)
+            verstoesse.Add($"{wer}: Verkaufen {verkauf} {v} liegt nicht direkt unter Kaufen {kauf} {k}");
+    }
+    int leisteOben = bh - (int)Welt.Konstante("HUD_BOTTOM_HEIGHT");
+    if (tasten.Values.Any(r => r.Top < leisteOben || r.Bottom > bh))
+        verstoesse.Add($"{wer}: Markttasten ragen aus der Leiste (ab y {leisteOben}): {string.Join(" ", tasten.Values)}");
+    if (tasten.ContainsKey("A"))
+        verstoesse.Add($"{wer}: am Markt steht die Zeitalter-Taste A");
+
+    // Die Leiste nennt die Kurse: 130 / 70 Gold je 100
+    string status = Status(markt);
+    foreach (var gut in new[] { "Nahrung", "Holz", "Stein" })
+        if (!status.Contains($"{gut} 130/70 Gold"))
+            verstoesse.Add($"{wer}: die Leiste nennt den Startkurs für {gut} nicht: '{status}'");
+    if (!Hinweis("W").Contains("130 Gold"))
+        verstoesse.Add($"{wer}: Hinweis der Taste W nennt den Preis nicht: '{Hinweis("W")}'");
+
+    // Klick auf W: 100 Holz für 130 Gold, danach kostet Holz mehr - für beide
+    int holz0 = Vorrat(Resource.Wood), gold0 = Vorrat(Resource.Gold);
+    Maus(tasten["W"].Center);
+    if (Vorrat(Resource.Wood) != holz0 + 100 || Vorrat(Resource.Gold) != gold0 - 130)
+        verstoesse.Add($"{wer}: Klick auf W - Holz {holz0} -> {Vorrat(Resource.Wood)}, Gold {gold0} -> {Vorrat(Resource.Gold)}, erwartet +100 / -130");
+    if (kurs.BuyCost(Resource.Wood) != 134 || !Status(markt).Contains("Holz 134/72 Gold") || !Hinweis("W").Contains("134 Gold"))
+        verstoesse.Add($"{wer}: nach dem Kauf kostet Holz {kurs.BuyCost(Resource.Wood)} (Leiste '{Status(markt)}', Hinweis '{Hinweis("W")}'), erwartet 134");
+    if (!ReferenceEquals(w.Get("selectedBuilding"), markt))
+        verstoesse.Add($"{wer}: der Klick auf W hebt die Auswahl des Markts auf");
+
+    // Shift+Klick auf C: fünf Lose Stein, jedes zum dann gültigen Kurs (70+68+66+64+62)
+    int stein0 = Vorrat(Resource.Stone);
+    gold0 = Vorrat(Resource.Gold);
+    Maus(tasten["C"].Center, shift: true);
+    if (Vorrat(Resource.Stone) != stein0 - 500 || Vorrat(Resource.Gold) != gold0 + 330)
+        verstoesse.Add($"{wer}: Shift+Klick auf C - Stein {stein0} -> {Vorrat(Resource.Stone)}, Gold {gold0} -> {Vorrat(Resource.Gold)}, erwartet -500 / +330");
+
+    // Tastenkürzel: Q kauft Nahrung, Shift+Y verkauft fünf Lose Nahrung
+    int nahrung0 = Vorrat(Resource.Food);
+    Taste(Keys.Q);
+    if (Vorrat(Resource.Food) != nahrung0 + 100)
+        verstoesse.Add($"{wer}: Taste Q am Markt - Nahrung {nahrung0} -> {Vorrat(Resource.Food)}, erwartet +100");
+    nahrung0 = Vorrat(Resource.Food);
+    Taste(Keys.Y, shift: true);
+    if (Vorrat(Resource.Food) != nahrung0 - 500)
+        verstoesse.Add($"{wer}: Shift+Y am Markt - Nahrung {nahrung0} -> {Vorrat(Resource.Food)}, erwartet -500");
+
+    // Ohne Gold: nichts ändert sich, eine Meldung nennt den Preis
+    Setze(w.P1, Resource.Gold, 50);
+    w.Set("hudMessage", null);
+    float kursNahrung = kurs.PriceOf(Resource.Food);
+    nahrung0 = Vorrat(Resource.Food);
+    Maus(tasten["Q"].Center);
+    if (Vorrat(Resource.Food) != nahrung0 || Vorrat(Resource.Gold) != 50 || kurs.PriceOf(Resource.Food) != kursNahrung)
+        verstoesse.Add($"{wer}: Kauf ohne Gold ändert Nahrung/Gold/Kurs");
+    if (!Meldung().StartsWith("Nicht genug Gold"))
+        verstoesse.Add($"{wer}: Kauf ohne Gold meldet '{Meldung()}'");
+    // Ohne Ware ebenso
+    Setze(w.P1, Resource.Stone, 99);
+    w.Set("hudMessage", null);
+    Maus(tasten["C"].Center);
+    if (Vorrat(Resource.Stone) != 99 || !Meldung().StartsWith("Nicht genug Stein"))
+        verstoesse.Add($"{wer}: Verkauf ohne Stein - Stein {Vorrat(Resource.Stone)}, Meldung '{Meldung()}'");
+    // Mit ausgewähltem Markt gehört A nicht dem Zeitalter-Aufstieg an diesem Gebäude:
+    // A meldet wie überall außerhalb des Stadtzentrums, dass erst das Stadtzentrum dran ist
+    w.Set("hudMessage", null);
+    Taste(Keys.A);
+    if (Meldung() != "Erst das Stadtzentrum auswählen")
+        verstoesse.Add($"{wer}: A am Markt meldet '{Meldung()}'");
+
+    // Ohne Handel kehren die Kurse zurück (die Spielschleife ruft Market.Update)
+    float holzKurs = kurs.PriceOf(Resource.Wood), steinKurs = kurs.PriceOf(Resource.Stone);
+    w.LaufeBis(() => false, 20f);
+    if (!(kurs.PriceOf(Resource.Wood) < holzKurs && kurs.PriceOf(Resource.Stone) > steinKurs))
+        verstoesse.Add($"{wer}: nach 20 s ohne Handel Holz {holzKurs:0.0} -> {kurs.PriceOf(Resource.Wood):0.0}, Stein {steinKurs:0.0} -> {kurs.PriceOf(Resource.Stone):0.0} - die Kurse kehren nicht zurück");
+
+    // Spielstand: die Kurse kommen genau so zurück
+    var stand = (SaveGame)w.Call("CaptureSave");
+    var geladen = new Welt(SaveGameStore.Deserialize(SaveGameStore.Serialize(stand)));
+    foreach (var gut in AoE.Core.Economy.MarketPrices.Goods)
+        if (geladen.Map.Market.PriceOf(gut) != kurs.PriceOf(gut))
+            verstoesse.Add($"{wer}: nach dem Laden kostet {gut} {geladen.Map.Market.PriceOf(gut)} statt {kurs.PriceOf(gut)}");
+
+    // Unfertiger Markt: keine Markttasten
+    var bau = w.Bauplatz(BuildingType.Market, dorf[0], 14);
+    var baustelle = w.Map.AddBuilding((int)bau.X, (int)bau.Y, "Markt", 0, 4);
+    baustelle.Construction = new AoE.Core.Economy.Construction(600f);   // bleibt unvollendet
+    w.Call("SelectBuilding", baustelle);
+    if (baustelle.IsComplete || Leiste().ContainsKey("W"))
+        verstoesse.Add($"{wer}: ein unfertiger Markt zeigt Markttasten (fertig {baustelle.IsComplete})");
+
+    // KI über die Brücke: ohne eigenen fertigen Markt bleibt Trade still
+    var bruecke = w.KiBruecke(1);
+    Setze(w.P2, Resource.Gold, 0);
+    Setze(w.P2, Resource.Stone, 1000);
+    bruecke.Trade(Resource.Stone, false);
+    if (w.P2.Resources[Resource.Stone] != 1000 || w.P2.Resources[Resource.Gold] != 0)
+        verstoesse.Add($"{wer}: die KI handelt ohne Markt");
+
+    // Fremder Markt (Spieler 1): keine Markttasten, Spieler 0 handelt dort nicht
+    var gegner = w.Map.Units.First(u => u.OwnerId == 1 && u.Core is CoreVillager);
+    var fremdPlatz = w.Bauplatz(BuildingType.Market, gegner, 8);
+    var fremd = w.Map.AddBuilding((int)fremdPlatz.X, (int)fremdPlatz.Y, "Markt", 1, 4);
+    w.Call("SelectBuilding", fremd);
+    Setze(w.P1, Resource.Gold, 1000);
+    if (Leiste().ContainsKey("W") || (int)w.Call("TradeAtMarket", fremd, Resource.Wood, true, 1) != 0 || Vorrat(Resource.Gold) != 1000)
+        verstoesse.Add($"{wer}: am fremden Markt lässt sich handeln");
+
+    // Mit eigenem Markt nennt die Brücke den Kurs, und die eingebaute KI verkauft Stein,
+    // wenn ihr das Gold ausgeht
+    if (bruecke.MarketSellGain(Resource.Stone) != kurs.SellGain(Resource.Stone)
+        || bruecke.MarketBuyCost(Resource.Wood) != kurs.BuyCost(Resource.Wood))
+        verstoesse.Add($"{wer}: die Brücke nennt andere Kurse als der Markt");
+    int erloes = kurs.SellGain(Resource.Stone);
+    var ki = new AoE.Core.Ai.EconomyAi();
+    ki.Tick(bruecke, bruecke, 0.1f, new AoE.Core.Ai.AiContext(1));
+    if (w.P2.Resources[Resource.Stone] != 900 || w.P2.Resources[Resource.Gold] != erloes)
+        verstoesse.Add($"{wer}: KI ohne Gold mit Markt - Stein 1000 -> {w.P2.Resources[Resource.Stone]}, Gold 0 -> {w.P2.Resources[Resource.Gold]}, erwartet 900 / {erloes}");
+}
+
 // Warteschlange abbrechen (wie AoE II): ein Klick auf ein Feld der Warteschlange - unten im
 // Infofeld der Leiste, je Lauf gleicher Einheiten eines - nimmt eine Ausbildung heraus,
 // Shift+Klick fünf, ein Rechtsklick auf die Ausbildungstaste die zuletzt eingereihte. Die
@@ -8697,6 +8907,9 @@ class Welt
 
     public IEnumerable<Unit> Dorfbewohner() => _units.Where(u => u.OwnerId == 0 && u.Core is CoreVillager);
 
+    /// <summary>Die KI-Brücke des Spiels für <paramref name="owner"/> - wie AiAgent sie anlegt (F8).</summary>
+    public AgeOfEvolutions.Core.AI.AiBridge KiBruecke(int owner) => new(_screen) { Owner = owner };
+
     public List<Unit> Auswahl() => (List<Unit>)Feld("selectedUnits").GetValue(_screen);
 
     public void Waehle(List<Unit> auswahl)
@@ -8795,6 +9008,7 @@ class Welt
             Map.UpdateDeer(dt);
             Map.UpdateRabbits(dt);
             Map.UpdateBoars(dt);
+            Map.Market.Update(dt);   // Kurse am Markt kehren zurück (F8)
             _nebel -= dt;
             if (_nebel <= 0)
             {

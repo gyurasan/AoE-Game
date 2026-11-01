@@ -66,6 +66,12 @@ public sealed class SaveGame
 
     /// <summary>Die Einheiten in der Reihenfolge von TileMap.Units.</summary>
     public List<UnitSave> Units { get; set; } = new();
+
+    /// <summary>
+    /// Die Kurse am Markt (TileMap.Market, F8); null in Spielständen von vor dem Markthandel -
+    /// dann gelten die Startkurse.
+    /// </summary>
+    public MarketPricesState Market { get; set; }
 }
 
 /// <summary>Ein Spieler: Rohstoffe, Zeitalter, Forschungen und was er von der Karte kennt.</summary>

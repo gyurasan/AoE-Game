@@ -4,6 +4,8 @@
 
 ## Wiederaufnahme — hier weitermachen
 
+**Markt: Rohstoffe tauschen (F8)** (2026-11-01) — Wunsch: „Ja, setzen wir den Tausch um“ (auf die Frage, wie weit die Marktfunktionen sind: der Markt war nur baubar, ohne jede Funktion). **Kern:** neues `src/AoE.Core/Economy/Market.cs` mit `MarketPrices` – Nahrung, Holz und Stein in Losen zu 100 gegen Gold; Kurs = Goldwert von 100 Stück, anfangs 100; Kaufen kostet Kurs + 30 % (anfangs 130), Verkaufen bringt Kurs − 30 % (anfangs 70); jedes Los verschiebt den Kurs um 3 in die Handelsrichtung (Grenzen 20 bis 1000), ohne Handel kehrt er mit 0,1 je Sekunde zurück (ein Los in 30 s). Ein Kurs für beide Spieler wie in AoE II (`TileMap.Market`), die Spielschleife ruft `Market.Update`. **Spiel:** am ausgewählten eigenen fertigen Markt oben Q/W/E „Nahrung/Holz/Stein kaufen“, direkt darunter Y/X/C „… verkaufen“ (Rohstoffsymbol der oberen Leiste auf dunklem Feld, grüner Pfeil hoch / roter Pfeil runter), gleiche Tastenkürzel; Klick oder Taste ein Los, mit Shift fünf (`TRADE_BATCH`, 500 Stück). Der Hinweis der Taste nennt den aktuellen Preis (`CommandButton.LiveHint`), `BuildingStatus` die Kurse aller drei Güter („je 100 kaufen/verkaufen: Nahrung 130/70 Gold …“). Ohne Gold oder Ware: Meldung „Nicht genug Gold (… Gold für 100 Holz)“ bzw. „Nicht genug Stein (100 zum Verkaufen)“. A bleibt dem Zeitalter (am Markt die übliche Meldung „Erst das Stadtzentrum auswählen“). **Spielstand:** `SaveGame.Market` (`MarketPricesState`), ältere Stände ohne Feld beginnen mit den Startkursen. **KI:** `IWorldActions.Trade(good, buy)`, `IWorldState.MarketBuyCost/MarketSellGain`; `EconomyAi` baut ab der Feudalzeit nach dem Schießstand einen Markt und handelt höchstens alle 5 s ein Los (`TradeAtMarket`): Gold unter max(150, Goldbedarf des nächsten Zeitalters) → verkauft das Gut mit dem größten Überschuss über Bedarf + 300; Nahrung oder Holz unter 100 → kauft, wenn danach noch Goldbedarf + 200 bleibt; Stein kauft sie nie. **Abnahme:** 27 neue Unit-Tests (`MarktTests.cs`, `AI/MarktKiTests.cs`), 531/531 grün; neue Spielablauf-Gruppe `markt` (Tasten und Lage, Kürzel, Shift ×5 mit 70+68+66+64+62 Gold, Meldungen, fremder/unfertiger Markt, Erholung in der Spielschleife, Spielstand, KI über die echte `AiBridge`) auf 3 Karten grün, Gegenprobe mit falscher Erwartung rot; Regression leiste, auswahl, warteschlange, forschung, soldaten, speichern, typauswahl, hover, autoantwort, verteidigung, sichtkontakt, niederlage, neubauten, zeitalter grün; keine Strukturprüfung neu rot. DX-Foto aus der Scratchpad-Kopie: Tasten, Pfeile, Kurse und Live-Hinweis lesbar. **Offen:** Handelskarren (brauchen Teams, F19), Marktforschungen (Gilden).
+
 **Stein- und Goldhaufen werden beim Abbau sichtbar kleiner (R2)** (2026-11-01) — Wunsch: „Resourcen wie gold oder steine müssten sichtbar abnehmen wenn abgebaut wird … ein bild für 75% ein Bild für 50% und eins für 25% wäre vermutlich am besten. Dann sieht man wie es immer weniger wird. Bilder kannst du ja auf der lokalen AI generieren.“ Bisher zeigte jede Stein- und Goldkachel bis zum letzten Stück den vollen Haufen und verschwand dann.
 **Bilder:** je Haufenbild (`stein`, `stein2`, `gold`, `gold2`) drei Stufen `_75`, `_50`, `_25` in `Content/Rohstoffe` samt mgcb-Einträgen (12 PNG, 160 px breit wie das volle Bild). Jede Stufe entsteht aus dem vollen Haufen, damit die unteren Steine dieselben bleiben: neues `tools/bilder/abbau.py` (Feld `"abbau": {"von", "ellipse"}`) macht im Rohbild alles außerhalb einer kleineren Hügel-Ellipse weiß und schreibt das als `vorlage`; Qwen-Image malt dann nur den Schnittrand neu (neue Maskenform `"boegen"` in `qwen_image.py`, Dicke 100, `weich` 12). Ellipsen: halbe Breite 92/80/64 %, Höhe 74/52/32 % des vollen Haufens, Unterkante gleich. Volles Bild und Stufen tragen dieselbe `figur` – gleicher Zuschnitt, die vier alten PNG sind byte-gleich geblieben. Je Stufe 2 Seeds, gewählt nach Prüfbogen: Stein 7202/7204/7206, Stein2 7212/7214/7216, Gold 7303/7305/7307 (Seed A hatte grelle Goldflecken oben), Gold2 7312/7314/7316. Anleitung in `docs/Bilder-erzeugen.md`.
 **Spiel:** `Tile.ResourceStart` (Startvorrat, gesetzt in `TileMap.StampResource` und im Kachel-Konstruktor), `Tile.PileStage` = das angebrochene Viertel (0 voll bis 3 ein Viertel; bei 100 Start: 76 voll, 75 drei Viertel, 50 halb, 25 ein Viertel; ohne Startvorrat voll). `DrawPile` wählt das Stufenbild, Größe und Lage nach dem vollen Bild – der Haufen schrumpft an seinem Platz, der Schlagschatten folgt dem Stufenbild. Fehlt ein Stufenbild, steht das volle (`LoadPileSprites`). Spielstand: `TileSave.ResourceStart` (int?); ältere Stände ohne den Wert nehmen für Stein `STONE_AMOUNT·5/4` = 100, für Gold `GOLD_AMOUNT·5/4` = 75 (neue Konstanten in `TileMap`, die Erzeugung nutzt sie) – frische Haufen zeigen sich damit voll, angebrochene ungefähr richtig.
@@ -771,7 +773,7 @@ benennt jemand eine Methode um, meldet es das, statt still falsch zu prüfen.
 | Projekt | Framework | Build | Bemerkung |
 |---|---|---|---|
 | `src/AoE.Core` | net10.0 | OK, 0 Fehler | Reine Logik, keine MonoGame-Abhängigkeit |
-| `tests/AoE.Tests` | net10.0 | **394/394 grün** (2026-10-16) | Einheiten und Ressourcen (15), Sammelauftrag (21), Ausbildung und Bevölkerung (22), Bauen (74), Zeitalter (46), Forschungen (43), Konter-Dreieck (5), Gebäudekampf (9), Wegfindung (3), Nebel (8), Wirtschafts-KI (20), Fehlersuche (1) - so weit Stand 267; seither u. a. Einstellungen, Spielstand, Reparatur (11) und Wege (20) |
+| `tests/AoE.Tests` | net10.0 | **531/531 grün** (2026-11-01) | Einheiten und Ressourcen (15), Sammelauftrag (21), Ausbildung und Bevölkerung (22), Bauen (74), Zeitalter (46), Forschungen (43), Konter-Dreieck (5), Gebäudekampf (9), Wegfindung (3), Nebel (8), Wirtschafts-KI (20), Fehlersuche (1) - so weit Stand 267; seither u. a. Einstellungen, Spielstand, Reparatur (11), Wege (20), Abbaustufen (14) und Markt (27) |
 | `demo/DemoApp` | net10.0 | OK | referenziert AoE.Core |
 | `AgeOfEvolutions.Core` | net10.0 | OK, 0 Fehler | Dateiname seit H2 kanonisch |
 | `AgeOfEvolutions.DesktopGL` | net10.0 | OK, 0 Fehler / 0 Warnungen | startbar |
@@ -1688,13 +1690,15 @@ sofort, ein zerstörter verschwindet; genau die Unsicherheit der Spec fehlt, und
 
 ### F8 · Markt: Rohstoffe tauschen [R]
 
-Stand: Markt baubar (Feudalzeit), ohne Funktion. Spec: Tausch zu schlechtem Kurs, der sich
+Stand (2026-11-01): Tausch fertig, siehe Wiederaufnahme. Spec: Tausch zu schlechtem Kurs, der sich
 je Handel in dieselbe Richtung verschlechtert - die Notlösung, wenn Gold oder Stein ausgeht.
 
-- [ ] Kurse in AoE.Core (Kauf/Verkauf je 100 gegen Gold, Kursänderung je Handel, langsame
-      Erholung) mit Tests
-- [ ] Tasten am ausgewählten Markt, Kurse in der Leiste; Spielstand speichert die Kurse
-- [ ] KI handelt, wenn ihr eine Ressource ausgeht
+- [x] Kurse in AoE.Core (Kauf/Verkauf je 100 gegen Gold, Kursänderung je Handel, langsame
+      Erholung) mit Tests *(2026-11-01: `Economy/Market.cs`, `MarktTests.cs`)*
+- [x] Tasten am ausgewählten Markt, Kurse in der Leiste; Spielstand speichert die Kurse
+      *(Q/W/E kaufen, Y/X/C verkaufen, Shift fünf Lose; `SaveGame.Market`)*
+- [x] KI handelt, wenn ihr eine Ressource ausgeht *(baut ab Feudalzeit einen Markt;
+      `EconomyAi.TradeAtMarket`, `AI/MarktKiTests.cs`, Spielablauf `markt`)*
 - Handelskarren brauchen einen verbündeten Markt - erst mit Teams (F19)
 
 ### F9 · Wunder-Sieg und Aufgeben [R]
@@ -1849,7 +1853,7 @@ Enthält reines Azure-Boilerplate ohne jeden Bezug zum Projekt.
 - [x] .NET-10-Migration: AoE.Core, Tests, Demo, Spiel-Core, DesktopGL, WindowsDX
 - [x] Build läuft fehlerfrei durch (AoE.Core + DesktopGL, 0 Warnungen)
 - [x] AoE.Core als Projektverweis eingebunden *(seit Block B im Spiel genutzt)*
-- [x] 394 Unit-Tests grün (2026-10-16)
+- [x] 531 Unit-Tests grün (2026-11-01)
 - [x] Kartengenerierung `TileMap.cs`: Seen mit Falloff, Beeren, Schafe, Wildschweine,
       Stein/Gold, PvP-Startpositionen
 - [x] Wasser-Animation
