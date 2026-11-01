@@ -76,7 +76,7 @@ public sealed class TrainingQueue<T> where T : notnull
     ///
     /// Gibt false zurück und ändert nichts, wenn die Warteschlange schon
     /// <see cref="MAX_LENGTH"/> Einheiten hat oder das Guthaben nicht reicht.
-    /// Die Kosten werden kopiert gespeichert — <see cref="CancelLast"/> erstattet
+    /// Die Kosten werden kopiert gespeichert — <see cref="CancelLast"/> und <see cref="CancelAt"/> erstatten
     /// genau sie, auch wenn der Aufrufer sein Wörterbuch später ändert.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">
@@ -139,15 +139,25 @@ public sealed class TrainingQueue<T> where T : notnull
     /// der Fortschritt wieder bei 0; sonst bleibt der Fortschritt der
     /// vordersten Einheit erhalten. Rückgabe false bei leerer Warteschlange.
     /// </summary>
-    public bool CancelLast(ResourcePool pool)
+    public bool CancelLast(ResourcePool pool) => CancelAt(_entries.Count - 1, pool);
+
+    /// <summary>
+    /// Nimmt die Einheit an Stelle <paramref name="index"/> (0 = die gerade
+    /// ausgebildete) aus der Warteschlange und erstattet ihre Kosten voll an
+    /// <paramref name="pool"/>. War es die vorderste, beginnt die nächste bei 0 -
+    /// der Fortschritt der abgebrochenen verfällt; sonst bleibt der Fortschritt
+    /// der vordersten erhalten. Rückgabe false, wenn <paramref name="index"/>
+    /// außerhalb der Warteschlange liegt (auch bei leerer); dann ändert sich nichts.
+    /// </summary>
+    public bool CancelAt(int index, ResourcePool pool)
     {
-        if (_entries.Count == 0)
+        if (index < 0 || index >= _entries.Count)
             return false;
-        var (_, cost, _) = _entries[^1];
-        _entries.RemoveAt(_entries.Count - 1);
+        var (_, cost, _) = _entries[index];
+        _entries.RemoveAt(index);
         foreach (var (resource, amount) in cost)
             pool.Add(resource, amount);
-        if (_entries.Count == 0)
+        if (index == 0)
             _elapsed = 0;
         return true;
     }

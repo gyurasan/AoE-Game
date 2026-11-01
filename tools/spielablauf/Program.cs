@@ -4,7 +4,9 @@
 //
 // Dazu neubauten (Gebäude der zweiten Tastenreihe), tuer (Abliefern vor der Tür) und
 // auswahl (Gebäude auswählen), angriff (Gebäude angreifen), soldaten
-// (Ausbildung in Kaserne, Schießstand und Stall), forschung (Forschungen und ihre Wirkung),
+// (Ausbildung in Kaserne, Schießstand und Stall), warteschlange (Ausbildung abbrechen: Klick
+// aufs Feld der Warteschlange, Shift+Klick fünf, Rechtsklick auf die Ausbildungstaste),
+// forschung (Forschungen und ihre Wirkung),
 // strassen (Wege: Trampelpfade werden beim Zeitaufstieg zu Feldwegen und besser, laufen 20 % schneller),
 // gebaeudewege (ab der Feudalzeit führt von jedem fertigen Gebäude ein Weg bis ans Stadtzentrum),
 // nebelboden (Gras und Pfade im Nebel bleiben, wie man sie zuletzt gesehen hat),
@@ -175,6 +177,9 @@ for (int karte = 1; karte <= KARTEN; karte++)
         Pruefe($"Karte {karte}, Angriff", () => Angriff(karte, verstoesse));
     if (gruppen.Contains("soldaten"))
         Pruefe($"Karte {karte}, Soldaten", () => Soldaten(karte, verstoesse));
+    // Warteschlange abbrechen: Klick aufs Feld, Shift+Klick fünf, Rechtsklick auf die Ausbildungstaste
+    if (gruppen.Contains("warteschlange"))
+        Pruefe($"Karte {karte}, Warteschlange", () => Warteschlange(karte, verstoesse));
     if (gruppen.Contains("forschung"))
         Pruefe($"Karte {karte}, Forschung", () => Forschung(karte, verstoesse));
     if (gruppen.Contains("schlag") && karte == 1)
@@ -4990,6 +4995,218 @@ static void Soldaten(int karte, List<string> verstoesse)
     {
         TileMap.TestNoFog = false;
     }
+}
+
+// Warteschlange abbrechen (wie AoE II): ein Klick auf ein Feld der Warteschlange - unten im
+// Infofeld der Leiste, je Lauf gleicher Einheiten eines - nimmt eine Ausbildung heraus,
+// Shift+Klick fünf, ein Rechtsklick auf die Ausbildungstaste die zuletzt eingereihte. Die
+// Kosten kommen voll zurück, von hinten nach vorn, die gerade ausgebildete zuletzt; erst ihr
+// Abbruch kostet den Fortschritt. Ein Feld bricht nur in seinem Lauf ab. Rechtsklicks auf die
+// Leiste wählen nichts ab, fremde Gebäude zeigen keine Felder und lassen sich nicht abbrechen.
+// Ohne Nebel wie soldaten: im erkundeten Startgebiet fehlt neben vier Häusern oft der Platz
+// für die Kaserne.
+static void Warteschlange(int karte, List<string> verstoesse)
+{
+    TileMap.TestNoFog = true;
+    try
+    {
+        WarteschlangeAblauf(karte, verstoesse);
+    }
+    finally
+    {
+        TileMap.TestNoFog = false;
+    }
+}
+
+static void WarteschlangeAblauf(int karte, List<string> verstoesse)
+{
+    const int bw = 2406, bh = 1353;
+    string wer = $"Karte {karte}, Warteschlange";
+    int vorher = verstoesse.Count;
+    var w = new Welt();
+    w.Set("screenBounds", new Rectangle(0, 0, bw, bh));
+    w.Set("cameraZoom", 1f);
+    w.Set("cameraPosition", Vector2.Zero);
+    w.P1.Resources.Add(Resource.Food, 5000);
+    w.P1.Resources.Add(Resource.Gold, 5000);
+    var dorf = w.Dorfbewohner().ToList();
+    var gt = new GameTime(TimeSpan.Zero, TimeSpan.FromSeconds(1.0 / 60));
+    int Nahrung() => w.P1.Resources[Resource.Food];
+    int Gold() => w.P1.Resources[Resource.Gold];
+
+    // Ein Klick wie im Spiel: ein Bild gedrückt, eines losgelassen, links oder rechts, mit oder ohne Shift
+    void Maus(Point p, bool rechts = false, bool shift = false)
+    {
+        var k = shift ? new KeyboardState(Keys.LeftShift) : new KeyboardState();
+        foreach (var taste in new[] { ButtonState.Pressed, ButtonState.Released })
+            w.Call("HandleRtsInput", gt, k,
+                   new MouseState(p.X, p.Y, 0, rechts ? ButtonState.Released : taste, ButtonState.Released,
+                                  rechts ? taste : ButtonState.Released, ButtonState.Released, ButtonState.Released));
+    }
+    List<(Rectangle Rect, UnitType Unit, int First, int Last)> Felder()
+        => ((System.Collections.IEnumerable)w.Call("QueueSlots")).Cast<object>()
+            .Select(s => ((Rectangle)s.GetType().GetProperty("Rect").GetValue(s),
+                          (UnitType)s.GetType().GetProperty("Unit").GetValue(s),
+                          (int)s.GetType().GetProperty("First").GetValue(s),
+                          (int)s.GetType().GetProperty("Last").GetValue(s)))
+            .ToList();
+    string Liste(IEnumerable<(Rectangle Rect, UnitType Unit, int First, int Last)> felder)
+        => string.Join(" ", felder.Select(f => $"{f.Unit}[{f.First}-{f.Last}]"));
+    Point Taste(string label)
+    {
+        w.Call("LayoutButtons");
+        var t = w.Tasten().FirstOrDefault(t => t.Label == label);
+        if (t.Label == null)
+            throw new InvalidOperationException($"keine Taste {label} in der Leiste");
+        return t.Rect.Center;
+    }
+    string Hinweis(string label)
+        => ((System.Collections.IEnumerable)w.Get("_buttons")).Cast<object>()
+            .Where(b => (string)b.GetType().GetField("Label").GetValue(b) == label)
+            .Select(b => (string)b.GetType().GetField("Hint").GetValue(b)).FirstOrDefault() ?? "";
+
+    // Platz in der Bevölkerung: vier Häuser, damit die Ausbildung läuft
+    for (int i = 0; i < 4; i++)
+    {
+        var h = w.Bauplatz(BuildingType.House, dorf[0], 9 + i * 2);
+        w.Map.AddBuilding((int)h.X, (int)h.Y, "Haus", 0, 2);
+    }
+    var tc = w.Map.Buildings.First(b => b.OwnerId == 0 && b.Core.BuildingType == BuildingType.TownCenter);
+    w.Call("SelectBuilding", tc);
+    var q = Taste("Q");
+    if (!Hinweis("Q").Contains("Rechtsklick"))
+        verstoesse.Add($"{wer}: der Hinweis der Taste Q nennt den Rechtsklick nicht ('{Hinweis("Q")}')");
+    if (Felder().Count != 0)
+        verstoesse.Add($"{wer}: ohne Ausbildung schon Felder in der Leiste: {Liste(Felder())}");
+
+    // Zwölf Dorfbewohner über die Taste Q
+    int nahrung0 = Nahrung();
+    for (int i = 0; i < 12; i++)
+        Maus(q);
+    int ausgegeben = nahrung0 - Nahrung();
+    if (tc.Training.Count != 12 || ausgegeben <= 0 || ausgegeben % 12 != 0)
+    {
+        verstoesse.Add($"{wer}: zwölf Klicks auf Q - {tc.Training.Count} eingereiht, {ausgegeben} Nahrung ausgegeben");
+        return;
+    }
+    int preis = ausgegeben / 12;
+    w.LaufeBis(() => false, 5f);
+    float fortschritt = tc.Training.Progress;
+    if (fortschritt <= 0f || tc.Training.Count != 12)
+        verstoesse.Add($"{wer}: nach 5 s Fortschritt {fortschritt:0.00}, {tc.Training.Count} eingereiht - die Ausbildung läuft nicht");
+
+    // Ein Feld für den ganzen Lauf, unten im Infofeld: nicht unter einer Taste, nicht an der Minimap
+    var felder = Felder();
+    if (felder.Count != 1 || felder[0].Unit != UnitType.Villager || felder[0].First != 0 || felder[0].Last != 11)
+    {
+        verstoesse.Add($"{wer}: Felder {Liste(felder)}, erwartet ein Feld Villager[0-11]");
+        return;
+    }
+    var feld = felder[0].Rect;
+    int leisteOben = bh - (int)Welt.Konstante("HUD_BOTTOM_HEIGHT");
+    var minimap = (Rectangle)w.Call("MinimapPanel");
+    var unter = w.Tasten().Where(t => t.Rect.Intersects(feld)).Select(t => t.Label).ToList();
+    if (feld.Top < leisteOben || feld.Bottom > bh || feld.Width < 16 || feld.Width != feld.Height)
+        verstoesse.Add($"{wer}: Feld {feld} liegt nicht quadratisch in der Leiste (ab y {leisteOben})");
+    if (unter.Count > 0)
+        verstoesse.Add($"{wer}: Feld {feld} überdeckt die Tasten {string.Join(" ", unter)}");
+    if (feld.Intersects(minimap))
+        verstoesse.Add($"{wer}: Feld {feld} ragt in die Minimap {minimap}");
+
+    // Shift+Klick fünf, noch einmal fünf, Klick einen: von hinten, der Fortschritt bleibt
+    var schritte = new (bool Shift, int Uebrig)[] { (true, 7), (true, 2), (false, 1) };
+    foreach (var (shift, rest) in schritte)
+    {
+        int vor = tc.Training.Count;
+        Maus(feld.Center, shift: shift);
+        if (tc.Training.Count != rest)
+            verstoesse.Add($"{wer}: {(shift ? "Shift+Klick" : "Klick")} aufs Feld - {vor} -> {tc.Training.Count}, erwartet {rest}");
+        if (Nahrung() != nahrung0 - rest * preis)
+            verstoesse.Add($"{wer}: nach dem Abbruch auf {rest} - Nahrung {Nahrung()}, erwartet {nahrung0 - rest * preis}");
+        if (Math.Abs(tc.Training.Progress - fortschritt) > 1e-4f)
+            verstoesse.Add($"{wer}: Abbruch auf {rest} ändert den Fortschritt der vordersten ({fortschritt:0.00} -> {tc.Training.Progress:0.00})");
+    }
+
+    // Rechtsklick ins Infofeld über den Feldern: nichts geschieht, das Stadtzentrum bleibt gewählt
+    Maus(new Point(feld.Left + 4, leisteOben + 30), rechts: true);
+    if (tc.Training.Count != 1 || !ReferenceEquals(w.Get("selectedBuilding"), tc) || w.Get("selectionStart") != null)
+        verstoesse.Add($"{wer}: Rechtsklick ins Infofeld - {tc.Training.Count} eingereiht, Auswahl {(w.Get("selectedBuilding") as Building)?.Type ?? "keine"}");
+
+    // Rechtsklick auf Q nimmt die letzte heraus - die gerade ausgebildete: Fortschritt weg, alles zurück
+    Maus(q, rechts: true);
+    if (tc.Training.Count != 0 || Nahrung() != nahrung0 || tc.Training.Progress != 0f)
+        verstoesse.Add($"{wer}: Rechtsklick auf Q - {tc.Training.Count} eingereiht, Nahrung {Nahrung()} statt {nahrung0}, Fortschritt {tc.Training.Progress:0.00}");
+    if (!ReferenceEquals(w.Get("selectedBuilding"), tc))
+        verstoesse.Add($"{wer}: Rechtsklick auf Q hebt die Auswahl des Stadtzentrums auf");
+    if (Felder().Count != 0)
+        verstoesse.Add($"{wer}: leere Warteschlange, aber Felder {Liste(Felder())}");
+    Maus(q, rechts: true);   // nichts mehr da - darf nichts tun
+    if (tc.Training.Count != 0 || Nahrung() != nahrung0)
+        verstoesse.Add($"{wer}: Rechtsklick auf Q bei leerer Warteschlange ändert etwas ({tc.Training.Count}, Nahrung {Nahrung()})");
+
+    // Shift+Rechtsklick auf Q: drei eingereiht, alle drei weg
+    for (int i = 0; i < 3; i++)
+        Maus(q);
+    Maus(q, rechts: true, shift: true);
+    if (tc.Training.Count != 0 || Nahrung() != nahrung0)
+        verstoesse.Add($"{wer}: Shift+Rechtsklick auf Q bei drei eingereihten - {tc.Training.Count} übrig, Nahrung {Nahrung()} statt {nahrung0}");
+
+    // Abgebrochen heißt abgebrochen: kein Dorfbewohner kommt mehr
+    int dorfbewohner = w.Dorfbewohner().Count();
+    w.LaufeBis(() => false, 30f);
+    if (w.Dorfbewohner().Count() != dorfbewohner)
+        verstoesse.Add($"{wer}: nach dem Abbruch aller kommen noch Dorfbewohner ({dorfbewohner} -> {w.Dorfbewohner().Count()})");
+
+    // Gemischte Läufe (Kaserne, direkt eingereiht): Miliz, Miliz, Späher, Miliz - drei Felder;
+    // Shift+Klick aufs erste nimmt nur dessen zwei, der Rechtsklick auf Q die letzte Miliz
+    var kp = w.Bauplatz(BuildingType.Barracks, dorf[0], 6);
+    var kaserne = w.Map.AddBuilding((int)kp.X, (int)kp.Y, "Kaserne", 0, BuildingRules.SizeOf(BuildingType.Barracks));
+    w.Call("SelectBuilding", kaserne);
+    int nahrungK = Nahrung(), goldK = Gold();
+    var miliz = new Dictionary<Resource, int> { [Resource.Food] = 60, [Resource.Gold] = 20 };
+    var spaeher = new Dictionary<Resource, int> { [Resource.Food] = 80 };
+    foreach (var (einheit, kosten) in new[] { (UnitType.Militia, miliz), (UnitType.Militia, miliz), (UnitType.Scout, spaeher), (UnitType.Militia, miliz) })
+        kaserne.Training.Enqueue(einheit, kosten, 20f, w.P1.Resources);
+    var qk = Taste("Q");
+    felder = Felder();
+    string erwartet = "Militia[0-1] Scout[2-2] Militia[3-3]";
+    if (Liste(felder) != erwartet)
+        verstoesse.Add($"{wer}: Kaserne - Felder {Liste(felder)}, erwartet {erwartet}");
+    else
+    {
+        Maus(felder[0].Rect.Center, shift: true);
+        string rest = string.Join(" ", kaserne.Training.Units);
+        if (rest != "Scout Militia")
+            verstoesse.Add($"{wer}: Shift+Klick aufs erste Kasernenfeld - übrig '{rest}', erwartet 'Scout Militia'");
+        Maus(qk, rechts: true);
+        rest = string.Join(" ", kaserne.Training.Units);
+        if (rest != "Scout")
+            verstoesse.Add($"{wer}: Rechtsklick auf Q (Miliz) - übrig '{rest}', erwartet 'Scout'");
+        var spaeherFeld = Felder().FirstOrDefault();
+        Maus(spaeherFeld.Rect.Center);
+        if (kaserne.Training.Count != 0 || Nahrung() != nahrungK || Gold() != goldK)
+            verstoesse.Add($"{wer}: Kaserne leer geklickt - {kaserne.Training.Count} übrig, Nahrung {Nahrung()}/{nahrungK}, Gold {Gold()}/{goldK}");
+    }
+
+    // Ein fremdes Stadtzentrum: keine Felder, kein Abbruch
+    var fremd = w.Map.Buildings.FirstOrDefault(b => b.OwnerId == 1 && b.Core.BuildingType == BuildingType.TownCenter);
+    if (fremd != null && (bool)w.Call("TrainVillager", 1))
+    {
+        int fremdVor = fremd.Training.Count, nahrungP2 = w.P2.Resources[Resource.Food];
+        w.Call("SelectBuilding", fremd);
+        if (Felder().Count != 0)
+            verstoesse.Add($"{wer}: fremdes Stadtzentrum zeigt Felder {Liste(Felder())}");
+        int ab = (int)w.Call("CancelTraining", fremd, UnitType.Villager, 5, 0, int.MaxValue);
+        if (ab != 0 || fremd.Training.Count != fremdVor || w.P2.Resources[Resource.Food] != nahrungP2)
+            verstoesse.Add($"{wer}: im fremden Stadtzentrum {ab} abgebrochen ({fremdVor} -> {fremd.Training.Count})");
+    }
+    else
+    {
+        verstoesse.Add($"{wer}: kein fremdes Stadtzentrum, das ausbilden kann - Prüfung fehlt");
+    }
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: 12 eingereiht, Shift+Klick/Shift+Klick/Klick -> 7/2/1, Rechtsklick auf Q -> 0, je {preis} Nahrung zurück; Kaserne mit drei Läufen; fremdes Gebäude unberührt");
 }
 
 // Forschungen (P2): ein ausgewähltes eigenes Gebäude forscht mit Q, W oder E, bezahlt beim

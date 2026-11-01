@@ -243,4 +243,54 @@ public class TrainingTests
     {
         Assert.False(new TrainingQueue<string>().CancelLast(new ResourcePool()));
     }
+
+    [Fact]
+    public void AbbrechenAn_Mitte_ErstattetSieUndLaesstDenFortschritt()
+    {
+        var (queue, pool) = MitEinem();
+        queue.Enqueue("Zweiter", Nahrung(30), Ausbildung, pool);
+        queue.Enqueue("Dritter", Nahrung(40), Ausbildung, pool);
+        queue.Update(10f, 4, 10, out _);
+        Assert.Equal(105, pool[Resource.Food]);
+
+        Assert.True(queue.CancelAt(1, pool));
+
+        Assert.Equal(135, pool[Resource.Food]);
+        Assert.Equal(new[] { Dorfbewohner, "Dritter" }, queue.Units);
+        Assert.Equal(0.4f, queue.Progress, 3);
+    }
+
+    [Fact]
+    public void AbbrechenAn_Vorderste_DieNaechsteBeginntBeiNull()
+    {
+        var (queue, pool) = MitEinem();
+        queue.Enqueue("Zweiter", Nahrung(30), Ausbildung, pool);
+        queue.Update(10f, 4, 10, out _);
+
+        Assert.True(queue.CancelAt(0, pool));
+
+        Assert.Equal(170, pool[Resource.Food]);
+        Assert.Equal(new[] { "Zweiter" }, queue.Units);
+        Assert.Equal(0f, queue.Progress);
+        // Die nächste braucht wieder die volle Zeit
+        Assert.False(queue.Update(Ausbildung - 1f, 4, 10, out _));
+        Assert.True(queue.Update(1f, 4, 10, out var fertig));
+        Assert.Equal("Zweiter", fertig);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(1)]
+    [InlineData(5)]
+    public void AbbrechenAn_AusserhalbDerWarteschlange_GibtFalseUndAendertNichts(int index)
+    {
+        var (queue, pool) = MitEinem();
+        queue.Update(10f, 4, 10, out _);
+
+        Assert.False(queue.CancelAt(index, pool));
+
+        Assert.Equal(175, pool[Resource.Food]);
+        Assert.Equal(new[] { Dorfbewohner }, queue.Units);
+        Assert.Equal(0.4f, queue.Progress, 3);
+    }
 }

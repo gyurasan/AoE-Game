@@ -107,6 +107,7 @@ public partial class RTSGameplayScreen : GameScreen
     private Vector2 dragCameraStart;
     private bool isDragging;
     private bool hudPressed;   // links über der Leiste gedrückt: Taste oder Minimap beim Loslassen
+    private bool hudRightPressed;   // rechts über der Leiste gedrückt: Abbrechen beim Loslassen
     private const float DRAG_THRESHOLD = 6f;
 
     // Rendering (prozedural generierte AoE1-artige Texturen)
@@ -372,8 +373,24 @@ public partial class RTSGameplayScreen : GameScreen
         public string Hint;      // Kosten/Status-Zeile im Tooltip/Bereich
         public BuildingType? Type; // gesetzt, gold, solange dieses Gebäude platziert wird
             public Action Action;
+        public Action<int> RightAction; // Rechtsklick mit Anzahl (1, mit Shift CANCEL_BATCH), oder null
         public Texture2D Icon;     // Symbol aus Content/Icons, oder null
     }
+
+    /// <summary>
+    /// Ein Feld der Warteschlange in der Leiste (QueueSlots): ein Lauf gleicher Einheiten
+    /// an den Stellen First bis Last der Warteschlange des ausgewählten Gebäudes.
+    /// </summary>
+    private readonly record struct QueueSlot(Rectangle Rect, UnitType Unit, int First, int Last)
+    {
+        public int Count => Last - First + 1;
+    }
+
+    // Warteschlangen-Felder in der Leiste: Kantenlänge und Abstand in Bildschirmpunkten
+    private const int QUEUE_SLOT_SIZE = 48;
+    private const int QUEUE_SLOT_GAP = 4;
+    // So viele Ausbildungen bricht Shift+Klick auf einmal ab (wie AoE II)
+    private const int CANCEL_BATCH = 5;
 
     // Symbol je Befehlstaste - erzeugt mit Qwen-Image (tools/bilder/bilder.json,
     // Gruppe icons), verkleinert auf 128 px in Content/Icons
@@ -2165,6 +2182,24 @@ public partial class RTSGameplayScreen : GameScreen
             return;
         }
 
+        // Shift beim Loslassen: ein Klick auf ein Warteschlangen-Feld oder ein Rechtsklick
+        // auf die Ausbildungstaste bricht CANCEL_BATCH Ausbildungen ab statt einer
+        bool shift = keyboard.IsKeyDown(Keys.LeftShift) || keyboard.IsKeyDown(Keys.RightShift);
+
+        // Rechts über der Leiste: markiert nichts; beim Loslassen über der Leiste bricht er
+        // auf einer Ausbildungstaste oder einem Warteschlangen-Feld ab (HandleHudRightClick)
+        if (mouse.RightButton == ButtonState.Pressed && previousMouse.RightButton == ButtonState.Released
+            && IsOverHud(mouse.Position))
+        {
+            hudRightPressed = true;
+        }
+        else if (mouse.RightButton == ButtonState.Released && hudRightPressed)
+        {
+            hudRightPressed = false;
+            if (IsOverHud(mouse.Position))
+                HandleHudRightClick(mouse.Position, shift);
+        }
+
         // Rechts: markieren
         if (mouse.RightButton == ButtonState.Pressed)
         {
@@ -2245,7 +2280,7 @@ public partial class RTSGameplayScreen : GameScreen
             // ausgewertet, wenn auf der Karte ein Ziehen begonnen hatte.
             hudPressed = false;
             if (IsOverHud(mouse.Position))
-                HandleHudButtons(mouse.Position);
+                HandleHudButtons(mouse.Position, shift);
         }
         else if (dragStart.HasValue)
         {
@@ -4163,6 +4198,34 @@ public partial class RTSGameplayScreen : GameScreen
             return false;
         }
         return true;
+    }
+
+    /// <summary>
+    /// Bricht im Gebäude <paramref name="b"/> bis zu <paramref name="count"/> eingereihte
+    /// Einheiten der Art <paramref name="unit"/> für Spieler 0 ab - Klick auf ein
+    /// Warteschlangen-Feld oder Rechtsklick auf die Ausbildungstaste (wie AoE II).
+    /// VERTRAG:
+    /// - Nur in einem eigenen Gebäude (b nicht null, OwnerId 0); sonst 0, nichts ändert sich.
+    /// - Von hinten nach vorn, von der Stelle Math.Min(last, Training.Count - 1) bis zur Stelle
+    ///   Math.Max(first, 0): jede Einheit der Art unit nimmt Training.CancelAt heraus und
+    ///   erstattet ihre Kosten voll an player1.Resources, bis count abgebrochen sind. Die gerade
+    ///   ausgebildete (Stelle 0) kommt so zuletzt an die Reihe; erst ihr Abbruch kostet
+    ///   den Fortschritt.
+    /// - Rückgabe: die Zahl der abgebrochenen Einheiten.
+    /// </summary>
+    internal int CancelTraining(Data.Building b, UnitType unit, int count, int first = 0, int last = int.MaxValue)
+    {
+        if (b == null || b.OwnerId != 0)
+            return 0;
+        // Von hinten nach vorn: was vor der Stelle i liegt, behält seine Stelle
+        var queued = b.Training.Units;
+        int cancelled = 0;
+        for (int i = Math.Min(last, queued.Count - 1); i >= Math.Max(first, 0) && cancelled < count; i--)
+        {
+            if (queued[i] == unit && b.Training.CancelAt(i, player1.Resources))
+                cancelled++;
+        }
+        return cancelled;
     }
 
     /// <summary>
@@ -8402,8 +8465,17 @@ public partial class RTSGameplayScreen : GameScreen
         // Maus auf eine Befehlstaste, steht hier ihr Name mit Kürzel und Kosten -
         // die Tasten selbst tragen nur Symbol und Buchstaben
         var hovered = _buttons.FirstOrDefault(b => b.Rect.Contains(cursor));
+        var queueSlots = QueueSlots();
+        int slotIndex = queueSlots.FindIndex(s => s.Rect.Contains(cursor));
         string infoLine;
-        if (hovered.Name != null)
+        if (slotIndex >= 0)
+        {
+            // Zeiger auf einem Warteschlangen-Feld: was ein Klick dort tut
+            var slot = queueSlots[slotIndex];
+            infoLine = $"{CoreUnits.GermanName(slot.Unit)}: {slot.Count} in der Warteschlange"
+                     + $"   Klick bricht eine Ausbildung ab   Shift+Klick {CANCEL_BATCH}   die Kosten kommen voll zurück";
+        }
+        else if (hovered.Name != null)
             infoLine = $"{hovered.Name} ({hovered.Label}): {hovered.Hint}";
         else if (selectedBuilding != null && selectedUnits.Count == 0)
             infoLine = BuildingStatus(selectedBuilding);
@@ -8431,8 +8503,7 @@ public partial class RTSGameplayScreen : GameScreen
         // bricht er an den Dreifach-Leerzeichen um, statt unter die Minimap zu laufen
         // Rechts neben der breitesten Tastenreihe: die letzte Taste liegt jetzt
         // in der zweiten Reihe, die erste kann breiter sein
-        int infoLeft = _buttons.Max(b => b.Rect.Right) + 24;
-        float infoWidth = minimapRect.Left - 24 - infoLeft;
+        var (infoLeft, infoWidth) = InfoArea();
         var lines = WrapHudText(infoLine, infoWidth);
         // Dunkles Feld hinter dem Hilfetext: auf hellem Stein und Marmor bliebe weiße Schrift sonst kaum lesbar
         var infoField = new Rectangle(infoLeft - 10, barY + 10, (int)infoWidth + 20, HUD_BOTTOM_HEIGHT - 20);
@@ -8441,6 +8512,11 @@ public partial class RTSGameplayScreen : GameScreen
         for (int i = 0; i < lines.Count; i++)
             spriteBatch.DrawString(ScreenManager.Font, lines[i],
                 new Vector2(infoLeft, barY + 18 + i * ScreenManager.Font.LineSpacing), Color.White);
+
+        // Warteschlange des ausgewählten Gebäudes unten im Feld: je Lauf gleicher Einheiten
+        // ein Feld mit Symbol und Anzahl - ein Klick bricht ab
+        foreach (var slot in queueSlots)
+            DrawQueueSlot(spriteBatch, slot, cursor);
     }
 
     /// <summary>
@@ -8535,11 +8611,13 @@ public partial class RTSGameplayScreen : GameScreen
         {
             foreach (var entry in Products.Where(p => p.Building == building.Core.BuildingType && p.From <= age))
             {
+                // Rechtsklick nimmt die zuletzt eingereihte dieser Art wieder heraus
                 var b = building;
                 AddButton(ref x, size, gap, y, entry.Key.ToString(),
                           CoreUnits.GermanName(entry.Unit),
-                          $"{CostText(entry.Cost)}, {(int)entry.Seconds} s",
-                          () => Train(b, entry.Unit));
+                          $"{CostText(entry.Cost)}, {(int)entry.Seconds} s   Rechtsklick bricht eine Ausbildung ab",
+                          null, () => Train(b, entry.Unit),
+                          n => CancelTraining(b, entry.Unit, n));
             }
             // Forschungen (P2): je Forschung des Gebäudes, die der Spieler in
             // seinem Zeitalter starten darf, eine Taste mit Kosten, Dauer und Wirkung
@@ -8605,7 +8683,7 @@ public partial class RTSGameplayScreen : GameScreen
     }
 
     private void AddButton(ref int x, int size, int gap, int y, string label, string name,
-                           string hint, BuildingType? type, Action action)
+                           string hint, BuildingType? type, Action action, Action<int> rightAction = null)
     {
         // Mit Symbol quadratisch - Name und Kosten nennt die Leiste beim Zeigen.
         // Ohne Symbol (Datei fehlt, tools/spielablauf) so breit wie der Name:
@@ -8622,7 +8700,7 @@ public partial class RTSGameplayScreen : GameScreen
         {
             Rect = new Rectangle(x, y, width, size),
             Label = label, Name = name, Hint = hint,
-            Type = type, Action = action, Icon = icon,
+            Type = type, Action = action, RightAction = rightAction, Icon = icon,
         });
         x += width + gap;
     }
@@ -8675,9 +8753,14 @@ public partial class RTSGameplayScreen : GameScreen
             active ? new Color(240, 210, 140) : new Color(214, 200, 170));
     }
 
-    /// <summary>Klicks auf die Leiste — einmal beim Loslassen, kein Drag.</summary>
-    private void HandleHudButtons(Point cursor)
+    /// <summary>
+    /// Klicks auf die Leiste — einmal beim Loslassen, kein Drag. Ein Warteschlangen-Feld
+    /// bricht eine Ausbildung seines Laufs ab, mit <paramref name="shift"/> CANCEL_BATCH.
+    /// </summary>
+    private void HandleHudButtons(Point cursor, bool shift = false)
     {
+        if (CancelAtQueueSlot(cursor, shift))
+            return;
         foreach (var b in _buttons)
             if (b.Rect.Contains(cursor))
             {
@@ -8686,6 +8769,151 @@ public partial class RTSGameplayScreen : GameScreen
             }
         if (_minimapRect != Rectangle.Empty && _minimapRect.Contains(cursor))
             CenterCameraOnMinimapPoint(cursor);
+    }
+
+    /// <summary>
+    /// Rechtsklick auf die Leiste, beim Loslassen. VERTRAG: auf einem Warteschlangen-Feld wie
+    /// der Linksklick (CancelAtQueueSlot); sonst auf einer Taste mit RightAction deren Aufruf
+    /// mit 1, mit <paramref name="shift"/> CANCEL_BATCH (die Ausbildungstasten brechen so ab);
+    /// anderswo nichts - auch keine Auswahl.
+    /// </summary>
+    private void HandleHudRightClick(Point cursor, bool shift)
+    {
+        if (CancelAtQueueSlot(cursor, shift))
+            return;
+        foreach (var b in _buttons)
+            if (b.Rect.Contains(cursor))
+            {
+                b.RightAction?.Invoke(shift ? CANCEL_BATCH : 1);
+                return;
+            }
+    }
+
+    /// <summary>
+    /// Liegt <paramref name="cursor"/> auf einem Warteschlangen-Feld (QueueSlots), bricht
+    /// CancelTraining im ausgewählten Gebäude eine Einheit des Felds ab, mit
+    /// <paramref name="shift"/> CANCEL_BATCH - von hinten, nur innerhalb des Laufs. Rückgabe:
+    /// ob ein Feld getroffen war (auch wenn nichts mehr abzubrechen war).
+    /// </summary>
+    private bool CancelAtQueueSlot(Point cursor, bool shift)
+    {
+        foreach (var slot in QueueSlots())
+        {
+            if (!slot.Rect.Contains(cursor))
+                continue;
+            CancelTraining(selectedBuilding, slot.Unit, shift ? CANCEL_BATCH : 1, slot.First, slot.Last);
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Das dunkle Infofeld der unteren Leiste zwischen Befehlstasten und Minimap: linke Kante
+    /// des Texts und seine Breite. Rechts neben der breitesten Tastenreihe (24 px Abstand, ohne
+    /// Tasten ab x = 10), bis 24 px vor der Minimap.
+    /// </summary>
+    private (int Left, float Width) InfoArea()
+    {
+        int left = (_buttons.Count > 0 ? _buttons.Max(b => b.Rect.Right) : 10) + 24;
+        return (left, MinimapRect().Left - 24 - left);
+    }
+
+    /// <summary>
+    /// Die Felder der Warteschlange in der Leiste - Klick oder Rechtsklick bricht ab
+    /// (HandleHudButtons, HandleHudRightClick).
+    /// VERTRAG:
+    /// - Leer, außer ein fertiges eigenes Gebäude ist ausgewählt (selectedBuilding mit
+    ///   OwnerId 0, IsComplete) und Training.Count &gt; 0.
+    /// - Je Lauf gleicher Einheiten in Training.Units (die gerade ausgebildete zuerst) ein
+    ///   Feld, in derselben Reihenfolge, mit Unit und den Stellen First bis Last.
+    /// - Die Felder sind quadratisch, QUEUE_SLOT_SIZE groß mit QUEUE_SLOT_GAP Abstand,
+    ///   schmaler, wenn sie sonst nicht in die Breite des Infofelds (InfoArea) passen
+    ///   (mindestens 16); sie beginnen an dessen linker Kante, ihre Unterkante liegt 18 px
+    ///   über dem Fensterboden - unten im dunklen Feld, unter dem Statustext.
+    /// </summary>
+    private List<QueueSlot> QueueSlots()
+    {
+        var slots = new List<QueueSlot>();
+        if (selectedBuilding is not { OwnerId: 0, IsComplete: true } b || b.Training.Count == 0)
+            return slots;
+
+        // Läufe gleicher Einheiten: [Dorfbewohner x 12] ist ein Feld
+        var units = b.Training.Units;
+        var runs = new List<(UnitType Unit, int First, int Last)>();
+        for (int i = 0; i < units.Count; i++)
+        {
+            if (runs.Count > 0 && runs[^1].Unit == units[i])
+                runs[^1] = (units[i], runs[^1].First, i);
+            else
+                runs.Add((units[i], i, i));
+        }
+
+        // Passen sie nicht nebeneinander ins Infofeld, werden sie schmaler
+        var (left, width) = InfoArea();
+        int size = Math.Max(16, Math.Min(QUEUE_SLOT_SIZE, (int)((width + QUEUE_SLOT_GAP) / runs.Count) - QUEUE_SLOT_GAP));
+        int y = screenBounds.Height - 18 - size;
+        for (int i = 0; i < runs.Count; i++)
+            slots.Add(new QueueSlot(new Rectangle(left + i * (size + QUEUE_SLOT_GAP), y, size, size),
+                                    runs[i].Unit, runs[i].First, runs[i].Last));
+        return slots;
+    }
+
+    /// <summary>
+    /// Zeichnet ein Warteschlangen-Feld: Rahmen und Fläche wie eine Befehlstaste (beim Zeigen
+    /// heller), das Symbol der Einheit (ohne Symbol die ersten drei Buchstaben ihres Namens),
+    /// oben rechts die Anzahl, wenn es mehr als eine ist, und im Feld der gerade ausgebildeten
+    /// (First 0) unten ein Fortschrittsbalken - rot, solange die Ausbildung auf Platz wartet.
+    /// Beim Zeigen zusätzlich ein heller Rahmen, 2 px.
+    /// </summary>
+    private void DrawQueueSlot(SpriteBatch sb, QueueSlot slot, Point cursor)
+    {
+        var r = slot.Rect;
+        bool hover = r.Contains(cursor);
+        sb.Draw(px, new Rectangle(r.Left - 1, r.Top - 1, r.Width + 2, r.Height + 2), new Color(38, 28, 16));
+        sb.Draw(px, r, hover ? new Color(140, 116, 76) : new Color(118, 94, 58));
+        var font = ScreenManager.Font;
+        string name = CoreUnits.GermanName(slot.Unit);
+        if (_nameIcons.TryGetValue(name, out var icon))
+        {
+            sb.Draw(icon, new Rectangle(r.Left + 2, r.Top + 2, r.Width - 4, r.Height - 4),
+                    hover ? Color.White : new Color(222, 222, 222));
+        }
+        else
+        {
+            string kurz = name.Length > 3 ? name[..3] : name;
+            var kurzSize = font.MeasureString(kurz);
+            sb.DrawString(font, kurz, new Vector2(r.Left + (r.Width - kurzSize.X) / 2f, r.Top + (r.Height - kurzSize.Y) / 2f),
+                          new Color(214, 200, 170));
+        }
+
+        // Anzahl oben rechts, mit Schatten lesbar auf dem Bild
+        if (slot.Count > 1)
+        {
+            string text = slot.Count.ToString();
+            var at = new Vector2(r.Right - 4 - font.MeasureString(text).X, r.Top + 1);
+            sb.DrawString(font, text, at + new Vector2(1, 1), Color.Black);
+            sb.DrawString(font, text, at, Color.White);
+        }
+
+        // Die gerade ausgebildete: Fortschritt als Balken am unteren Rand
+        if (slot.First == 0 && selectedBuilding is { } b)
+        {
+            var bar = new Rectangle(r.Left + 3, r.Bottom - 7, r.Width - 6, 4);
+            sb.Draw(px, bar, Color.Black * 0.65f);
+            sb.Draw(px, new Rectangle(bar.X, bar.Y, (int)(bar.Width * MathHelper.Clamp(b.Training.Progress, 0f, 1f)), bar.Height),
+                    b.Training.IsBlocked ? LimitColor : new Color(96, 220, 96));
+        }
+
+        // Beim Zeigen ein heller Rahmen - das Symbol füllt das Feld fast ganz, eine hellere
+        // Fläche allein sähe man kaum
+        if (hover)
+        {
+            var hell = new Color(255, 228, 120);
+            sb.Draw(px, new Rectangle(r.Left, r.Top, r.Width, 2), hell);
+            sb.Draw(px, new Rectangle(r.Left, r.Bottom - 2, r.Width, 2), hell);
+            sb.Draw(px, new Rectangle(r.Left, r.Top, 2, r.Height), hell);
+            sb.Draw(px, new Rectangle(r.Right - 2, r.Top, 2, r.Height), hell);
+        }
     }
 
     // --- Minimap (C6) -----------------------------------------------------------
