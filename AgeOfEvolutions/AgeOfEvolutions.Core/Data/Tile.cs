@@ -1,3 +1,4 @@
+using System;
 using Microsoft.Xna.Framework;
 using Resource = AoE.Core.Entities.Resource;
 
@@ -66,6 +67,33 @@ public class Tile
     // Resource information (if tile contains resources)
     public Resource? ResourceType { get; set; }
     public int ResourceAmount { get; set; }
+
+    /// <summary>
+    /// Wie viel Stein oder Gold die Kachel zu Anfang trug (R2): der Vorrat, den die
+    /// Kartenerzeugung ihr gab (TileMap.StampResource). Daran misst <see cref="PileStage"/>,
+    /// wie weit der Haufen abgetragen ist. 0 heißt unbekannt - dann gilt der Haufen als voll.
+    /// </summary>
+    public int ResourceStart { get; set; }
+
+    /// <summary>
+    /// Die Abbaustufe eines Stein- oder Goldhaufens (R2): 0 voll, 1 drei Viertel, 2 die
+    /// Hälfte, 3 ein Viertel - das Bild für das angebrochene Viertel, in dem der Vorrat
+    /// gerade steht. Bei 80 von 100 also noch voll, bei 75 schon drei Viertel, bei 1 ein
+    /// Viertel; leer wird die Kachel zu Wiese (TileMap.ClearResource). Ohne bekannten
+    /// Startvorrat (<see cref="ResourceStart"/> 0) und bei mehr als dem Startvorrat: 0.
+    /// </summary>
+    public int PileStage
+    {
+        get
+        {
+            if (ResourceStart <= 0 || ResourceAmount >= ResourceStart)
+                return 0;
+            // Angebrochene Viertel: 1 bis 4, ganzzahlig aufgerundet
+            int quarters = Math.Max(1, (4 * Math.Max(0, ResourceAmount) + ResourceStart - 1) / ResourceStart);
+            return 4 - quarters;
+        }
+    }
+
     public FoodSource Food { get; set; }
 
     /// <summary>
@@ -181,6 +209,7 @@ public class Tile
                 ResourceAmount = 60;
                 break;
         }
+        ResourceStart = ResourceAmount;
     }
 }
 

@@ -240,6 +240,7 @@ als Negativ **`negativ` der Gruppe + `negativ` des Eintrags**.
 | `schritte`, `cfg` | Gruppe | Sampler-Schritte (sonst 30) und Prompt-Treue (sonst 3.0) |
 | `freistellen` | Gruppe | `true`: zweiter Durchgang mit BiRefNet, Hintergrund wird durchsichtig |
 | `vorlage`, `maske`, `staerke` | Eintrag | nur einen Teil eines vorhandenen Bilds neu malen (s. u.) |
+| `vorfuellen`, `abbau` | Eintrag | Vorlage vorher mit `vorfuellen.py` bzw. `abbau.py` schreiben (s. u.) |
 
 ### Felder für das Übernehmen (`uebernehmen.ps1`)
 
@@ -314,9 +315,27 @@ Pixel gleich. Beispiel aus der Gruppe `gebaeude` (Mühle ohne Flügel):
  "negativ": "sails, blades, windmill arms, spokes, ..."}
 ```
 
-Masken gibt es als `rechtecke` `[x, y, b, h]`, `ellipsen` `[x, y, rx, ry]` und
-`linien` `[x1, y1, x2, y2, Dicke]`. Für Bodenbilder taugt das selten – die
+Masken gibt es als `rechtecke` `[x, y, b, h]`, `ellipsen` `[x, y, rx, ry]`,
+`linien` `[x1, y1, x2, y2, Dicke]` und `boegen` `[cx, cy, rx, ry, Dicke]` (die obere
+Hälfte einer Ellipse als dicke Linie). Für Bodenbilder taugt das selten – die
 Maskenkanten sieht man in der Fläche. Für Gras lieber einen neuen Seed.
+
+### Abbaustufen eines Haufens (`abbau.py`)
+
+Stein- und Goldhaufen werden beim Abbau sichtbar kleiner (`Rohstoffe/stein_75`, `_50`,
+`_25` neben dem vollen `stein`). Jede Stufe entsteht aus dem vollen Haufen, damit die
+unteren Steine dieselben bleiben: `abbau.py` macht im Rohbild alles außerhalb einer
+Ellipse weiß (`"abbau": {"von": "stein_7002_roh.png", "ellipse": [cx, cy, rx, ry]}`,
+`cy` = Unterkante des Haufens) und schreibt das als `vorlage`; danach malt
+`qwen_image.py` nur den Schnittrand neu (`"maske": {"boegen": [[cx, cy, rx, ry, 100]],
+"weich": 12}`), damit die angeschnittenen Steine oben rund abschließen. Alle Stufen und
+das volle Bild tragen dieselbe `figur` – so schneidet `uebernehmen.ps1` sie auf dasselbe
+Rechteck, und der Haufen schrumpft im Spiel an seinem Platz.
+
+```
+D:/Apps/ComfyUI/ComfyUI_windows_portable/python_embeded/python.exe tools/bilder/abbau.py rohstoffe stein_75
+py tools/bilder/qwen_image.py rohstoffe stein_75 --seeds 2
+```
 
 ## Prompt-Tipps für Gras
 

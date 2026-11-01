@@ -653,6 +653,10 @@ public partial class RTSGameplayScreen : GameScreen
     };
     private static readonly string[] StoneAssets = { "Rohstoffe/stein", "Rohstoffe/stein2" };
     private static readonly string[] GoldAssets = { "Rohstoffe/gold", "Rohstoffe/gold2" };
+    // Die Abbaustufen jedes Haufenbilds (R2), in der Reihenfolge von Tile.PileStage: voll,
+    // drei Viertel, halb, ein Viertel. Gleicher Zuschnitt wie das volle Bild, der Haufen
+    // darin nur niedriger - er wird so an derselben Stelle kleiner.
+    private static readonly string[] PileStageSuffixes = { "", "_75", "_50", "_25" };
     // Schafe und Rehe aus tools/bilder (Gruppe tiere), nach rechts blickend. Ihre
     // Breite als Anteil an der Kachel - ein Dorfbewohner ist 24 von 32 Welteinheiten hoch
     private static readonly string[] SheepAssets = { "Tiere/schaf", "Tiere/schaf2" };
@@ -708,8 +712,9 @@ public partial class RTSGameplayScreen : GameScreen
         { "Nahrung/beerenbusch", "Nahrung/beerenbusch2", "Nahrung/beerenbusch3" };
     private const float BERRY_WIDTH = 0.95f;
     private Texture2D[] _berrySprites = Array.Empty<Texture2D>();
-    private Texture2D[] _stoneSprites = Array.Empty<Texture2D>();
-    private Texture2D[] _goldSprites = Array.Empty<Texture2D>();
+    // Je Haufenbild seine Abbaustufen: [Bild][Tile.PileStage]
+    private Texture2D[][] _stoneSprites = Array.Empty<Texture2D[]>();
+    private Texture2D[][] _goldSprites = Array.Empty<Texture2D[]>();
     private Texture2D[] _sheepSprites = Array.Empty<Texture2D>();
     private Texture2D[] _deerSprites = Array.Empty<Texture2D>();
     private Texture2D[] _rabbitSprites = Array.Empty<Texture2D>();
@@ -1053,8 +1058,8 @@ public partial class RTSGameplayScreen : GameScreen
 
         _tuftSprites = TuftAssets.Select(LoadOptional).Where(t => t != null).ToArray();
         _berrySprites = BerryAssets.Select(LoadOptional).Where(t => t != null).ToArray();
-        _stoneSprites = StoneAssets.Select(LoadOptional).Where(t => t != null).ToArray();
-        _goldSprites = GoldAssets.Select(LoadOptional).Where(t => t != null).ToArray();
+        _stoneSprites = LoadPileSprites(StoneAssets);
+        _goldSprites = LoadPileSprites(GoldAssets);
         _sheepSprites = SheepAssets.Select(LoadOptional).Where(t => t != null).ToArray();
         _deerSprites = DeerAssets.Select(LoadOptional).Where(t => t != null).ToArray();
         _rabbitSprites = RabbitAssets.Select(LoadOptional).Where(t => t != null).ToArray();
@@ -6733,13 +6738,23 @@ public partial class RTSGameplayScreen : GameScreen
                         new Vector2(size / 2 + t * 2f, size / 3 + t * 5f), 0.4f);
     }
 
-    /// <summary>Die Haufen-Sprites für Stein- und Goldkacheln, sonst keine.</summary>
-    private Texture2D[] PileSprites(TileType type) => type switch
+    /// <summary>Die Haufen-Sprites für Stein- und Goldkacheln, sonst keine: je Bild seine Abbaustufen.</summary>
+    private Texture2D[][] PileSprites(TileType type) => type switch
     {
         TileType.Mountain => _stoneSprites,
         TileType.GoldMine => _goldSprites,
-        _ => Array.Empty<Texture2D>(),
+        _ => Array.Empty<Texture2D[]>(),
     };
+
+    /// <summary>
+    /// Lädt die Haufenbilder samt ihren Abbaustufen (R2): je vollem Bild, das es gibt, ein Feld
+    /// mit einem Eintrag je PileStageSuffixes. Fehlt eine Stufe, steht dort das volle Bild.
+    /// </summary>
+    private Texture2D[][] LoadPileSprites(string[] assets) => assets
+        .Select(a => (Voll: LoadOptional(a), Asset: a))
+        .Where(a => a.Voll != null)
+        .Select(a => PileStageSuffixes.Select(s => s.Length == 0 ? a.Voll : LoadOptional(a.Asset + s) ?? a.Voll).ToArray())
+        .ToArray();
 
     /// <summary>
     /// Eine Feldkachel zeigt ihren Teil des Feldbilds: Felder/weizen und
@@ -6829,15 +6844,19 @@ public partial class RTSGameplayScreen : GameScreen
     /// Kachelbreiten groß und gegeneinander versetzt - Nachbarhaufen überlappen
     /// so zu einem Steinbruch oder einer Goldader statt in Reihen zu stehen.
     /// Bild, Größe und Versatz kommen fest aus dem Ortshash der Kachel, sonst
-    /// zappelten die Haufen.
+    /// zappelten die Haufen. Wie viel vom Haufen noch steht, zeigt die Abbaustufe
+    /// der Kachel (Tile.PileStage, R2): dasselbe Bild, nur niedriger - Größe und Lage
+    /// richten sich nach dem vollen Bild, so schrumpft der Haufen an seinem Platz.
     /// </summary>
-    private void DrawPile(SpriteBatch spriteBatch, int x, int y, Texture2D[] sprites, bool hover = false)
+    private void DrawPile(SpriteBatch spriteBatch, int x, int y, Texture2D[][] sprites, bool hover = false)
     {
         var tileRect = TileScreenRect(x, y);
         int hash = unchecked(x * 73856093 ^ y * 19349663) & 0x7FFFFFFF;
-        var tex = sprites[(hash >> 16) % sprites.Length];
+        var stages = sprites[(hash >> 16) % sprites.Length];
+        var full = stages[0];
+        var tex = stages[Math.Clamp(tileMap.GetTile(x, y)?.PileStage ?? 0, 0, stages.Length - 1)];
         int width = tileRect.Width * (150 + (hash >> 20) % 26) / 100;
-        int height = width * tex.Height / tex.Width;
+        int height = width * full.Height / full.Width;
         int jx = ((hash >> 4) % 11 - 5) * tileRect.Width / 32;
         int jy = ((hash >> 8) % 7 - 3) * tileRect.Width / 32;
         var target = new Rectangle(tileRect.Center.X - width / 2 + jx,

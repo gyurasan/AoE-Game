@@ -105,6 +105,13 @@ public sealed class TileSave
     public bool Buildable { get; set; }
     public Resource? ResourceType { get; set; }
     public int ResourceAmount { get; set; }
+
+    /// <summary>
+    /// Der Startvorrat der Kachel (Tile.ResourceStart, R2); null in Spielständen von
+    /// vorher - dann gilt beim Laden für Stein und Gold der mittlere Startvorrat.
+    /// </summary>
+    public int? ResourceStart { get; set; }
+
     public FoodSource Food { get; set; }
 
     /// <summary>Das Tier auf der Kachel, oder null.</summary>

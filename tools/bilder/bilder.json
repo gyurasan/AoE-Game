@@ -2419,25 +2419,377 @@
     "name": "stein",
     "seed": 7002,
     "ziel": "Rohstoffe/stein.png",
-    "prompt": "A low wide pile of large rough grey granite boulders and a few quarried square grey stone blocks."
+    "prompt": "A low wide pile of large rough grey granite boulders and a few quarried square grey stone blocks.",
+    "figur": "stein"
    },
    {
     "name": "stein2",
     "seed": 7004,
     "ziel": "Rohstoffe/stein2.png",
-    "prompt": "A low wide pile of large rough grey granite boulders and a few quarried square grey stone blocks."
+    "prompt": "A low wide pile of large rough grey granite boulders and a few quarried square grey stone blocks.",
+    "figur": "stein2"
    },
    {
     "name": "gold",
     "seed": 7103,
     "ziel": "Rohstoffe/gold.png",
-    "prompt": "A low wide pile of dark brown rocks with thick glittering gold veins and many shiny gold nuggets."
+    "prompt": "A low wide pile of dark brown rocks with thick glittering gold veins and many shiny gold nuggets.",
+    "figur": "gold"
    },
    {
     "name": "gold2",
     "seed": 7102,
     "ziel": "Rohstoffe/gold2.png",
-    "prompt": "A low wide pile of dark brown rocks with thick glittering gold veins and many shiny gold nuggets."
+    "prompt": "A low wide pile of dark brown rocks with thick glittering gold veins and many shiny gold nuggets.",
+    "figur": "gold2"
+   },
+   {
+    "name": "stein_75",
+    "seed": 7202,
+    "ziel": "Rohstoffe/stein_75.png",
+    "figur": "stein",
+    "abbau": {
+     "von": "stein_7002_roh.png",
+     "ellipse": [
+      506,
+      819,
+      414,
+      460
+     ]
+    },
+    "vorlage": "stein_75_vorlage.png",
+    "maske": {
+     "boegen": [
+      [
+       506,
+       819,
+       414,
+       460,
+       100
+      ]
+     ],
+     "weich": 12
+    },
+    "prompt": "A low flat pile of large rough grey granite boulders and a few quarried square grey stone blocks."
+   },
+   {
+    "name": "stein_50",
+    "seed": 7204,
+    "ziel": "Rohstoffe/stein_50.png",
+    "figur": "stein",
+    "abbau": {
+     "von": "stein_7002_roh.png",
+     "ellipse": [
+      506,
+      819,
+      360,
+      323
+     ]
+    },
+    "vorlage": "stein_50_vorlage.png",
+    "maske": {
+     "boegen": [
+      [
+       506,
+       819,
+       360,
+       323,
+       100
+      ]
+     ],
+     "weich": 12
+    },
+    "prompt": "A low flat pile of large rough grey granite boulders and a few quarried square grey stone blocks."
+   },
+   {
+    "name": "stein_25",
+    "seed": 7206,
+    "ziel": "Rohstoffe/stein_25.png",
+    "figur": "stein",
+    "abbau": {
+     "von": "stein_7002_roh.png",
+     "ellipse": [
+      506,
+      819,
+      288,
+      199
+     ]
+    },
+    "vorlage": "stein_25_vorlage.png",
+    "maske": {
+     "boegen": [
+      [
+       506,
+       819,
+       288,
+       199,
+       100
+      ]
+     ],
+     "weich": 12
+    },
+    "prompt": "A low flat pile of large rough grey granite boulders and a few quarried square grey stone blocks."
+   },
+   {
+    "name": "stein2_75",
+    "seed": 7212,
+    "ziel": "Rohstoffe/stein2_75.png",
+    "figur": "stein2",
+    "abbau": {
+     "von": "stein2_7004_roh.png",
+     "ellipse": [
+      508,
+      812,
+      433,
+      447
+     ]
+    },
+    "vorlage": "stein2_75_vorlage.png",
+    "maske": {
+     "boegen": [
+      [
+       508,
+       812,
+       433,
+       447,
+       100
+      ]
+     ],
+     "weich": 12
+    },
+    "prompt": "A low flat pile of large rough grey granite boulders and a few quarried square grey stone blocks."
+   },
+   {
+    "name": "stein2_50",
+    "seed": 7214,
+    "ziel": "Rohstoffe/stein2_50.png",
+    "figur": "stein2",
+    "abbau": {
+     "von": "stein2_7004_roh.png",
+     "ellipse": [
+      508,
+      812,
+      377,
+      314
+     ]
+    },
+    "vorlage": "stein2_50_vorlage.png",
+    "maske": {
+     "boegen": [
+      [
+       508,
+       812,
+       377,
+       314,
+       100
+      ]
+     ],
+     "weich": 12
+    },
+    "prompt": "A low flat pile of large rough grey granite boulders and a few quarried square grey stone blocks."
+   },
+   {
+    "name": "stein2_25",
+    "seed": 7216,
+    "ziel": "Rohstoffe/stein2_25.png",
+    "figur": "stein2",
+    "abbau": {
+     "von": "stein2_7004_roh.png",
+     "ellipse": [
+      508,
+      812,
+      301,
+      193
+     ]
+    },
+    "vorlage": "stein2_25_vorlage.png",
+    "maske": {
+     "boegen": [
+      [
+       508,
+       812,
+       301,
+       193,
+       100
+      ]
+     ],
+     "weich": 12
+    },
+    "prompt": "A low flat pile of large rough grey granite boulders and a few quarried square grey stone blocks."
+   },
+   {
+    "name": "gold_75",
+    "seed": 7303,
+    "ziel": "Rohstoffe/gold_75.png",
+    "figur": "gold",
+    "abbau": {
+     "von": "gold_7103_roh.png",
+     "ellipse": [
+      512,
+      942,
+      471,
+      631
+     ]
+    },
+    "vorlage": "gold_75_vorlage.png",
+    "maske": {
+     "boegen": [
+      [
+       512,
+       942,
+       471,
+       631,
+       100
+      ]
+     ],
+     "weich": 12
+    },
+    "prompt": "A low flat pile of dark brown rocks with thick glittering gold veins and many shiny gold nuggets."
+   },
+   {
+    "name": "gold_50",
+    "seed": 7305,
+    "ziel": "Rohstoffe/gold_50.png",
+    "figur": "gold",
+    "abbau": {
+     "von": "gold_7103_roh.png",
+     "ellipse": [
+      512,
+      942,
+      409,
+      444
+     ]
+    },
+    "vorlage": "gold_50_vorlage.png",
+    "maske": {
+     "boegen": [
+      [
+       512,
+       942,
+       409,
+       444,
+       100
+      ]
+     ],
+     "weich": 12
+    },
+    "prompt": "A low flat pile of dark brown rocks with thick glittering gold veins and many shiny gold nuggets."
+   },
+   {
+    "name": "gold_25",
+    "seed": 7307,
+    "ziel": "Rohstoffe/gold_25.png",
+    "figur": "gold",
+    "abbau": {
+     "von": "gold_7103_roh.png",
+     "ellipse": [
+      512,
+      942,
+      327,
+      273
+     ]
+    },
+    "vorlage": "gold_25_vorlage.png",
+    "maske": {
+     "boegen": [
+      [
+       512,
+       942,
+       327,
+       273,
+       100
+      ]
+     ],
+     "weich": 12
+    },
+    "prompt": "A low flat pile of dark brown rocks with thick glittering gold veins and many shiny gold nuggets."
+   },
+   {
+    "name": "gold2_75",
+    "seed": 7312,
+    "ziel": "Rohstoffe/gold2_75.png",
+    "figur": "gold2",
+    "abbau": {
+     "von": "gold2_7102_roh.png",
+     "ellipse": [
+      510,
+      909,
+      459,
+      626
+     ]
+    },
+    "vorlage": "gold2_75_vorlage.png",
+    "maske": {
+     "boegen": [
+      [
+       510,
+       909,
+       459,
+       626,
+       100
+      ]
+     ],
+     "weich": 12
+    },
+    "prompt": "A low flat pile of dark brown rocks with thick glittering gold veins and many shiny gold nuggets."
+   },
+   {
+    "name": "gold2_50",
+    "seed": 7314,
+    "ziel": "Rohstoffe/gold2_50.png",
+    "figur": "gold2",
+    "abbau": {
+     "von": "gold2_7102_roh.png",
+     "ellipse": [
+      510,
+      909,
+      399,
+      440
+     ]
+    },
+    "vorlage": "gold2_50_vorlage.png",
+    "maske": {
+     "boegen": [
+      [
+       510,
+       909,
+       399,
+       440,
+       100
+      ]
+     ],
+     "weich": 12
+    },
+    "prompt": "A low flat pile of dark brown rocks with thick glittering gold veins and many shiny gold nuggets."
+   },
+   {
+    "name": "gold2_25",
+    "seed": 7316,
+    "ziel": "Rohstoffe/gold2_25.png",
+    "figur": "gold2",
+    "abbau": {
+     "von": "gold2_7102_roh.png",
+     "ellipse": [
+      510,
+      909,
+      319,
+      271
+     ]
+    },
+    "vorlage": "gold2_25_vorlage.png",
+    "maske": {
+     "boegen": [
+      [
+       510,
+       909,
+       319,
+       271,
+       100
+      ]
+     ],
+     "weich": 12
+    },
+    "prompt": "A low flat pile of dark brown rocks with thick glittering gold veins and many shiny gold nuggets."
    }
   ]
  },

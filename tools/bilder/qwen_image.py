@@ -19,8 +19,9 @@ der Nutzer.
 Ein Eintrag mit "vorlage" und "maske" malt nur einen Teil eines vorhandenen
 Bilds neu (Inpainting), etwa um der Figur ihr Werkzeug abzunehmen: "vorlage" ist
 eine Datei im Ausgabeordner der Gruppe, "maske" beschreibt die neu zu malende
-Fläche als Linien [x1, y1, x2, y2, Dicke], Ellipsen [x, y, rx, ry] und
-Rechtecke [x, y, Breite, Höhe] in Pixeln der Vorlage. Alles außerhalb der Maske
+Fläche als Linien [x1, y1, x2, y2, Dicke], Ellipsen [x, y, rx, ry],
+Rechtecke [x, y, Breite, Höhe] und Bögen [cx, cy, rx, ry, Dicke] (obere
+Ellipsenhälfte als dicke Linie) in Pixeln der Vorlage. Alles außerhalb der Maske
 bleibt Pixel für Pixel erhalten; "weich": r in der Maske lässt ihre Ränder über rund r
 Pixel auslaufen - für Masken, deren Ränder durch die Figur laufen (Beine neu malen).
 Beinmasken reichen bis zum unteren Bildrand: neu gemalte Beine stehen oft tiefer
@@ -37,6 +38,7 @@ belegt sonst rund 27 GB Grafikspeicher.
 
 import argparse
 import json
+import math
 import random
 import sys
 import time
@@ -147,8 +149,8 @@ def weichzeichnen(pixel: bytearray, breite: int, hoehe: int, radius: int) -> byt
 def maske_zeichnen(form: dict, breite: int, hoehe: int, ziel: Path) -> Path:
     """Zeichnet die Inpainting-Maske als Graustufen-PNG: weiß wird neu gemalt.
 
-    Linien [x1, y1, x2, y2, Dicke], Ellipsen [x, y, rx, ry] und Rechtecke
-    [x, y, Breite, Höhe] in Pixeln.
+    Linien [x1, y1, x2, y2, Dicke], Ellipsen [x, y, rx, ry], Rechtecke
+    [x, y, Breite, Höhe] und Bögen [cx, cy, rx, ry, Dicke] in Pixeln.
     Reines Python mit eigenem PNG-Schreiber - die Python-Installation für
     diese Skripte hat kein Pillow.
     """
@@ -160,7 +162,13 @@ def maske_zeichnen(form: dict, breite: int, hoehe: int, ziel: Path) -> Path:
                 if drin(x, y):
                     pixel[y * breite + x] = 255
 
-    for x1, y1, x2, y2, dicke in form.get("linien", []):
+    # "boegen" [cx, cy, rx, ry, Dicke]: die obere Hälfte einer Ellipse als dicke Linie - der
+    # Rand eines abgetragenen Haufens (abbau.py), angenähert durch 32 gerade Stücke
+    linien = list(form.get("linien", []))
+    for cx, cy, rx, ry, dicke in form.get("boegen", []):
+        punkte = [(cx - rx * math.cos(math.pi * k / 32), cy - ry * math.sin(math.pi * k / 32)) for k in range(33)]
+        linien += [[*punkte[k], *punkte[k + 1], dicke] for k in range(32)]
+    for x1, y1, x2, y2, dicke in linien:
         r = dicke / 2
         dx, dy = x2 - x1, y2 - y1
         laenge2 = dx * dx + dy * dy or 1

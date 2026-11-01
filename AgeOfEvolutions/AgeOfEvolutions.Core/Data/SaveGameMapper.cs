@@ -27,7 +27,8 @@ public static class SaveGameMapper
     ///   Ages = player.Ages.ToState(); Techs = player.Techs.ToState();
     ///   Explored = map.ExploredMask(player.Id).
     /// - Tiles: Width · Height Einträge, Index y · Width + x, je Kachel map.GetTile(x, y) mit
-    ///   Type, GroundType (G15), Walkable, Buildable, ResourceType, ResourceAmount, Food, Wear,
+    ///   Type, GroundType (G15), Walkable, Buildable, ResourceType, ResourceAmount,
+    ///   ResourceStart (R2), Food, Wear,
     ///   Farm, FarmRegrow, FarmFood, FarmCol, FarmRow, FarmSize, RoadLevel und
     ///   Animal: null, wenn tile.Animal null ist,
     ///   sonst ein AnimalSave mit allen neun Werten des Tiers (Look, FacingLeft, WanderTimer,
@@ -104,6 +105,7 @@ public static class SaveGameMapper
                     Buildable = tile.Buildable,
                     ResourceType = tile.ResourceType,
                     ResourceAmount = tile.ResourceAmount,
+                    ResourceStart = tile.ResourceStart,
                     Food = tile.Food,
                     Animal = tile.Animal is null ? null : new AnimalSave
                     {
@@ -186,7 +188,9 @@ public static class SaveGameMapper
     /// 3. Kacheln: jede Kachel map.GetTile(x, y) bekommt alle Werte ihres TileSave (Index
     ///    y · Width + x); Animal null bleibt null, sonst ein neues WildAnimal mit den neun
     ///    Werten (Strike bleibt 0). GroundType = ts.GroundType ?? ts.Type (ältere Spielstände ohne den Boden
-    ///    der Kartenerzeugung, G15). Building bleibt null - das setzt Schritt 5.
+    ///    der Kartenerzeugung, G15). ResourceStart = ts.ResourceStart ?? für Stein
+    ///    TileMap.STONE_AMOUNT · 5 / 4, für Gold TileMap.GOLD_AMOUNT · 5 / 4, sonst 0 (R2).
+    ///    Building bleibt null - das setzt Schritt 5.
     /// 4. Spieler: je PlayerSave new Player(Id, Name, Civilization); danach steht jeder der vier
     ///    Rohstoffe GENAU auf dem gespeicherten Wert (player.Resources.Add(r, gespeichert -
     ///    player.Resources[r]) - der Konstruktor hat schon Startkapital und Volksbonus gebucht);
@@ -239,6 +243,15 @@ public static class SaveGameMapper
                 tile.Buildable = ts.Buildable;
                 tile.ResourceType = ts.ResourceType;
                 tile.ResourceAmount = ts.ResourceAmount;
+                // Ältere Spielstände ohne Startvorrat (R2): für Stein und Gold der mittlere
+                // Startvorrat der Kartenerzeugung - frische Haufen zeigen sich damit voll
+                // (der kleinste ist vier Fünftel davon), abgetragene ungefähr richtig.
+                tile.ResourceStart = ts.ResourceStart ?? ts.ResourceType switch
+                {
+                    Resource.Stone => TileMap.STONE_AMOUNT * 5 / 4,
+                    Resource.Gold => TileMap.GOLD_AMOUNT * 5 / 4,
+                    _ => 0,
+                };
                 tile.Food = ts.Food;
                 tile.Animal = ts.Animal is null ? null : new WildAnimal
                 {

@@ -324,7 +324,14 @@ public partial class TileMap
         if (Math.Abs(x - _startP2.x) + Math.Abs(y - _startP2.y) < dist * 2) return true;
         return false;
     }
-    
+
+    /// <summary>
+    /// Grundvorrat einer Stein- und einer Goldkachel: StampResource legt bis zur Hälfte
+    /// zufällig darauf, im Mittel also das Fünfviertelfache.
+    /// </summary>
+    public const int STONE_AMOUNT = 80;
+    public const int GOLD_AMOUNT = 60;
+
     private void StampResource(int cx, int cy, int radius, TileType type,
                                Resource resource, int baseAmount)
     {
@@ -345,6 +352,8 @@ public partial class TileMap
                 {
                     t.ResourceType = resource;
                     t.ResourceAmount = baseAmount + _random.Next(0, baseAmount / 2);
+                    // Der Startvorrat: daran misst der Haufen, wie weit er abgetragen ist (R2)
+                    t.ResourceStart = t.ResourceAmount;
                 }
                 t.Food = FoodSource.None;
             }
@@ -396,11 +405,11 @@ public partial class TileMap
 
         // Steinbrüche: 4–7 Klumpen (vorher 3–4), je etwas größer
         foreach (var (cx, cy) in PlaceClusterCenters(_random.Next(Settings.StoneClustersMin, Settings.StoneClustersMax + 1), 2))
-            StampResource(cx, cy, _random.Next(Settings.StoneRadiusMin, Settings.StoneRadiusMax + 1), TileType.Mountain, Resource.Stone, 80);
+            StampResource(cx, cy, _random.Next(Settings.StoneRadiusMin, Settings.StoneRadiusMax + 1), TileType.Mountain, Resource.Stone, STONE_AMOUNT);
 
         // Goldklumpen: 3–6 kleine, wertvollere Klumpen (vorher 2–3)
         foreach (var (cx, cy) in PlaceClusterCenters(_random.Next(Settings.GoldClustersMin, Settings.GoldClustersMax + 1), 2))
-            StampResource(cx, cy, _random.Next(Settings.GoldRadiusMin, Settings.GoldRadiusMax + 1), TileType.GoldMine, Resource.Gold, 60);
+            StampResource(cx, cy, _random.Next(Settings.GoldRadiusMin, Settings.GoldRadiusMax + 1), TileType.GoldMine, Resource.Gold, GOLD_AMOUNT);
 
         // Startrohstoffe in Laufweite beider Stadtzentren, zur Kartenmitte hin
         PlaceStartResources(_startP1.x, _startP1.y, _startP1.x * 2 < Width ? 1 : -1, _startP1.y * 2 < Height ? 1 : -1);
@@ -465,8 +474,8 @@ public partial class TileMap
     private void PlaceStartResources(int tcX, int tcY, int dirX, int dirY)
     {
         int mx = tcX + 2, my = tcY + 2;   // Mitte des 4 × 4-Stadtzentrums
-        PlaceStartCluster(mx + dirX * 8, my + dirY * 2, TileType.Mountain, Resource.Stone, 80);
-        PlaceStartCluster(mx + dirX * 2, my + dirY * 8, TileType.GoldMine, Resource.Gold, 60);
+        PlaceStartCluster(mx + dirX * 8, my + dirY * 2, TileType.Mountain, Resource.Stone, STONE_AMOUNT);
+        PlaceStartCluster(mx + dirX * 2, my + dirY * 8, TileType.GoldMine, Resource.Gold, GOLD_AMOUNT);
     }
 
     /// <summary>
