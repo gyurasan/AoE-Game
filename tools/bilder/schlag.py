@@ -124,6 +124,10 @@ def figur(name, cfg):
     verschoben = lambda p: (p[0] + RAND, p[1] + RAND)   # noqa: E731 - Koordinaten auf der Leinwand
     a = lade(AUSGABE / cfg["bild"])
     rumpf = lade(AUSGABE / cfg["rumpf_bild"])
+    # "flicken": Rechtecke, die im Rumpf aus dem Standbild kommen - überdeckt kleine Malfehler
+    # des neu gemalten Rumpfs, wo das Standbild dort genauso aussähe (etwa am Rücken)
+    for x0, y0, x1, y1 in cfg.get("flicken", []):
+        rumpf[y0 + RAND:y1 + RAND, x0 + RAND:x1 + RAND] = a[y0 + RAND:y1 + RAND, x0 + RAND:x1 + RAND]
     H, W = a.shape[:2]
     yy, xx = np.mgrid[0:H, 0:W]
     deckend = a[:, :, 3] > 8

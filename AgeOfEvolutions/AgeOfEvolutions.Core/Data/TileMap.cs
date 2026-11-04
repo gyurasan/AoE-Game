@@ -128,12 +128,18 @@ public partial class TileMap
                         _sheepCoords.Add((x, y));
                         break;
                     case FoodSource.Deer:
+                        // F11: ältere Stände kennen keine Reh-Lebenspunkte - ein lebendes Reh
+                        // bekommt sie jetzt, sonst wäre es beim Laden bereits erlegt.
+                        if (t.Animal is { Slaughtered: false } reh && reh.Health <= 0)
+                            reh.Health = Settings.DeerHealth;
                         _deerCoords.Add((x, y));
                         break;
                     case FoodSource.Rabbit:
                         _rabbitCoords.Add((x, y));
                         break;
                     case FoodSource.Boar:
+                        if (t.Animal is { Slaughtered: false } eber && eber.Health <= 0)
+                            eber.Health = Settings.BoarHealth;
                         _boarCoords.Add((x, y));
                         break;
                     case FoodSource.Bear:
@@ -578,6 +584,7 @@ public partial class TileMap
             t.ResourceAmount = Settings.DeerFood;
             t.Food = FoodSource.Deer;
             t.Animal = NewAnimal(Settings.DeerWanderSecondsMax);
+            t.Animal.Health = Settings.DeerHealth;   // F11: erst erlegen, dann ernten
             _deerCoords.Add((sx, sy));
             placed++;
         }
@@ -613,6 +620,9 @@ public partial class TileMap
                     t.ResourceAmount = food;
                     t.Food = source;
                     t.Animal = NewAnimal(maxSeconds);
+                    // F11: Wildschweine wehren sich - sie brauchen Lebenspunkte wie die Raubtiere.
+                    if (source == FoodSource.Boar)
+                        t.Animal.Health = Settings.BoarHealth;
                     coords.Add((sx, sy));
                     placed++;
                 }
@@ -1638,12 +1648,79 @@ public partial class TileMap
     }
 
     /// <summary>
-    /// Taktet die Reh-Wanderung — eigene Herde, eigener Takt.
+    /// Taktet die Reh-Wanderung — eigene Herde, eigener Takt. Seit F11 fliehen Rehe: steht
+    /// eine lebende Einheit höchstens Settings.DeerFleeRadiusTiles (Chebyshev) von ihrer
+    /// Kachel, treten sie ihr im Fluchttempo (Settings.DeerFleeStepSeconds) einen Schritt
+    /// weit von ihr weg und zeigen dabei die Sprungbilder (WildAnimal.Fleeing) - aber nur,
+    /// solange sie unverletzt sind (Health mindestens Settings.DeerHealth). Fluchttempo
+    /// und Verletztes-Stehenholen zusammen holen: ein Dorfbewohner ist schneller und kann
+    /// sie erlegen (AttackAnimal). Geschlachtete und reservierte Rehe stehen wie zuvor.
+    /// VERTRAG: wie UpdateWild, nur dass vor dem Wandertakt die Flucht geprüft wird;
+    /// Fluchtschritte nehmen die freie Nachbarkachel mit dem größten Abstand zur Bedrohung
+    /// (FleeStep), und WildAnimal.Fleeing steht genau während eines Fluchtschritts.
     /// </summary>
-    public void UpdateDeer(float dt)
+    public void UpdateDeer(float dt, IReadOnlyList<Unit> units)
     {
-        UpdateWild(_deerCoords, dt, Settings.DeerWanderSecondsMin, Settings.DeerWanderSecondsMax,
-                   Settings.DeerWanderRadius, FoodSource.Deer);
+        _deerCoords.RemoveAll(c => GetTile(c.x, c.y)?.Food != FoodSource.Deer);
+        for (int i = 0; i < _deerCoords.Count; i++)
+        {
+            var (sx, sy) = _deerCoords[i];
+            var t = GetTile(sx, sy);
+            t.Animal ??= NewAnimal(Settings.DeerWanderSecondsMax);
+            var tier = t.Animal;
+            tier.Glide = Math.Max(0f, tier.Glide - dt);
+            if (tier.Slaughtered || _claimed.Contains((sx, sy)) || t.ResourceAmount <= 0)
+            {
+                tier.Fleeing = false;
+                continue;
+            }
+
+            // Die nächste lebende Einheit in Fluchtradius - nur ihre Kachel zählt sie.
+            Unit threat = null;
+            int bestD = int.MaxValue;
+            foreach (Unit u in units)
+            {
+                if (u.State == AoE.Core.Entities.UnitState.Dead || u.Health <= 0)
+                    continue;
+                var g = WorldToGrid(u.Position);
+                int d = Math.Max(Math.Abs((int)g.X - sx), Math.Abs((int)g.Y - sy));
+                if (d < bestD)
+                {
+                    bestD = d;
+                    threat = u;
+                }
+            }
+
+            // F11: nur das unverletzte Reh flieht - ein Treffer sitzt, und es steht, bis
+            // es erlegt ist. Sonst flöhen ihm die Rehe auf freier Wiese für immer davon.
+            if (threat != null && bestD <= Settings.DeerFleeRadiusTiles && tier.Health >= Settings.DeerHealth)
+            {
+                tier.Fleeing = true;
+                if (tier.Glide > 0f)
+                    continue;   // mitten im Sprung wird nicht umgebogen
+                // Der lange Wandertakt darf die Flucht nicht bremsen - höchstens eine
+                // Fluchttrittzeit bis zum nächsten Sprung.
+                if (tier.WanderTimer > Settings.DeerFleeStepSeconds)
+                    tier.WanderTimer = Settings.DeerFleeStepSeconds;
+                tier.WanderTimer -= dt;
+                if (tier.WanderTimer > 0f)
+                    continue;
+                tier.WanderTimer = _RandomRange(_wildRng,
+                    Settings.DeerFleeStepSeconds * 0.85f, Settings.DeerFleeStepSeconds * 1.15f);
+                if (FleeStep(t, threat.Position, FoodSource.Deer) is { } flucht)
+                    _deerCoords[i] = flucht;
+                continue;
+            }
+
+            // Keine Bedrohung: wie zuvor in Ruhe äsend umherziehen.
+            tier.Fleeing = false;
+            tier.WanderTimer -= dt;
+            if (tier.WanderTimer > 0f || tier.Glide > 0f)
+                continue;
+            tier.WanderTimer = _RandomRange(_wildRng, Settings.DeerWanderSecondsMin, Settings.DeerWanderSecondsMax);
+            if (WanderStep(t, Settings.DeerWanderRadius, FoodSource.Deer) is { } ziel)
+                _deerCoords[i] = ziel;
+        }
     }
 
     /// <summary>Taktet das Hoppeln der Kaninchen - flink, kurzer Takt.</summary>
@@ -1653,12 +1730,8 @@ public partial class TileMap
                    Settings.RabbitWanderRadius, FoodSource.Rabbit);
     }
 
-    /// <summary>Taktet die Wanderung der Wildschweine - gemächlich, langer Takt.</summary>
-    public void UpdateBoars(float dt)
-    {
-        UpdateWild(_boarCoords, dt, Settings.BoarWanderSecondsMin, Settings.BoarWanderSecondsMax,
-                   Settings.BoarWanderRadius, FoodSource.Boar);
-    }
+    // Die Wanderung der Wildschweine takten seit F11 in TileMap.UpdatePredators mit -
+    // sie wehren sich und verfolgen ihre Angreifer, das braucht die Einheitenliste.
 
     /// <summary>
     /// Der gemeinsame Wandertakt: jedes freie Tier hat seinen eigenen Zähler
@@ -1709,31 +1782,142 @@ public partial class TileMap
             // (dx == 0): das Tier zeigt sich nur von der Seite und ginge sonst
             // seitwärts gewandt nach oben oder unten; erst danach sind sie erlaubt.
             if (dx == 0 && attempt < 8) continue;
-            int nx = t.X + dx, ny = t.Y + dy;
-            var target = GetTile(nx, ny);
-            if (target == null) continue;
-            if (target.Type != TileType.Grassland) continue;
-            if (!string.IsNullOrEmpty(target.Building)) continue;
-            if (target.Farm) continue;
-            if (target.ResourceType != null && target.ResourceAmount > 0) continue;
-            if (target.Food != FoodSource.None) continue;   // kein anderes Tier dort
-
-            var tier = t.Animal;
-            tier.FromX = -dx;
-            tier.FromY = -dy;
-            tier.Glide = WILD_STEP_SECONDS;
-            if (dx != 0) tier.FacingLeft = dx < 0;
-            target.Food = source;
-            target.ResourceType = Resource.Food;
-            target.ResourceAmount = t.ResourceAmount;
-            target.Animal = tier;
-            t.Food = FoodSource.None;
-            t.ResourceType = null;
-            t.ResourceAmount = 0;
-            t.Animal = null;
-            return (nx, ny);
+            if (!FreeWildTile(GetTile(t.X + dx, t.Y + dy))) continue;
+            return MoveAnimal(t, dx, dy, source);
         }
         return null;
+    }
+
+    /// <summary>
+    /// Ein Fluchtschritt des Rehs (F11): die freie Nachbarkachel (zulässig wie bei
+    /// WanderStep) mit dem größten Abstand zum Flucht punkt <paramref name="threatPos"/> -
+    /// diagonal gemessen, Luftlinie von Kachelmitte zu Kachelmitte. Liegt kein freier
+    /// Schritt weiter weg als die eigene Kachel, bleibt das Tier stehen (null).
+    /// </summary>
+    private (int x, int y)? FleeStep(Tile t, Vector2 threatPos, FoodSource source)
+    {
+        Vector2 own = GridToWorld(new Vector2(t.X, t.Y));
+        float bestD = Vector2.DistanceSquared(own, threatPos);
+        int bestDx = 0, bestDy = 0;
+        for (int dx = -1; dx <= 1; dx++)
+        {
+            for (int dy = -1; dy <= 1; dy++)
+            {
+                if (dx == 0 && dy == 0) continue;
+                if (!FreeWildTile(GetTile(t.X + dx, t.Y + dy))) continue;
+                Vector2 n = GridToWorld(new Vector2(t.X + dx, t.Y + dy));
+                float d = Vector2.DistanceSquared(n, threatPos);
+                if (d > bestD)
+                {
+                    bestD = d;
+                    bestDx = dx;
+                    bestDy = dy;
+                }
+            }
+        }
+        return bestDx == 0 && bestDy == 0 ? null : MoveAnimal(t, bestDx, bestDy, source);
+    }
+
+    /// <summary>
+    /// Zieht das Tier auf (dx, dy) um: Nahrung und WildAnimal ziehen mit, die alte Kachel
+    /// wird Wiese. Das Tier merkt sich den Schritt (FromX, FromY, Glide) und blickt in
+    /// Schrittrichtung. Gibt die neue Kachel zurück.
+    /// </summary>
+    private (int x, int y) MoveAnimal(Tile t, int dx, int dy, FoodSource source)
+    {
+        var tier = t.Animal;
+        tier.FromX = -dx;
+        tier.FromY = -dy;
+        tier.Glide = WILD_STEP_SECONDS;
+        if (dx != 0) tier.FacingLeft = dx < 0;
+        var target = GetTile(t.X + dx, t.Y + dy);
+        target.Food = source;
+        target.ResourceType = Resource.Food;
+        target.ResourceAmount = t.ResourceAmount;
+        target.Animal = tier;
+        t.Food = FoodSource.None;
+        t.ResourceType = null;
+        t.ResourceAmount = 0;
+        t.Animal = null;
+        return (target.X, target.Y);
+    }
+
+    /// <summary>
+    /// Freie Wiese für einen Tiertritt: Grasland ohne Gebäude, Farm, Rohstoff und
+    /// anderes Wild (dieselben Regeln, die WanderStep bisher inline prüfte).
+    /// </summary>
+    private static bool FreeWildTile(Tile n)
+        => n != null
+            && n.Type == TileType.Grassland
+            && string.IsNullOrEmpty(n.Building)
+            && !n.Farm
+            && !(n.ResourceType != null && n.ResourceAmount > 0)
+            && n.Food == FoodSource.None;
+
+    // --- Aas verdirbt (F11) -------------------------------------------------------------
+    private float _spoilCarry;
+
+    /// <summary>
+    /// Erlegtes Wild verliert langsam Nahrung (F11): von einer erlegten Sau, einem Reh
+    /// oder Bär gehen Settings.MeatSpoilPerSecond Nahrung je Sekunde weg - die Sammel-
+    /// mannschaft muss groß genug sein. Ist das Aas leer, verschwindet die Kachel wie ein
+    /// leer gesammelter Rohstoff (ClearResourceAndRemoveSheep). Aufgerufen aus dem
+    /// Spielbildschirm (UpdateUnits) jedes Bild.
+    /// VERTRAG: Nahrung wird ganzzahlig abgezogen; der Rest bleibt über die Bilder
+    /// hinweg stehen (_spoilCarry). Leere Aaskacheln fallen aus den Wander-Beständen.
+    /// </summary>
+    public void UpdateSpoilage(float dt)
+    {
+        if (Settings.MeatSpoilPerSecond <= 0f)
+            return;
+        _spoilCarry += Settings.MeatSpoilPerSecond * dt;
+        int n = (int)_spoilCarry;
+        if (n <= 0)
+            return;
+        _spoilCarry -= n;
+
+        foreach (var coords in new[] { _deerCoords, _boarCoords, _bearCoords })
+        {
+            for (int i = coords.Count - 1; i >= 0; i--)
+            {
+                var t = GetTile(coords[i].x, coords[i].y);
+                if (t?.Food.Spoils() != true || t.Animal is not { Slaughtered: true })
+                    continue;
+                if (t.ResourceType != Resource.Food || t.ResourceAmount <= 0)
+                    continue;
+                if (t.ResourceAmount > n)
+                {
+                    t.ResourceAmount -= n;
+                    continue;
+                }
+                // Leer: das Aas ist weg, die Kachel wird wieder Wiese.
+                ClearResourceAndRemoveSheep(t);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Die Aas-Stufe der Kachel (F11): 0 volles Fleisch, 1 drei Viertel, 2 die Hälfte,
+    /// 3 das letzte Viertel - gemessen an der vollen Nahrung seiner Art (Settings.DeerFood,
+    /// BoarFood, BearFood), dieselben angebrochenen Viertel wie Tile.PileStage (R2).
+    /// Liegt kein Aas, 0.
+    /// </summary>
+    public int MeatStage(int x, int y)
+    {
+        var t = GetTile(x, y);
+        if (t?.Food.Spoils() != true || t.Animal is not { Slaughtered: true } || t.ResourceType != Resource.Food)
+            return 0;
+        int full = t.Food switch
+        {
+            FoodSource.Deer => Settings.DeerFood,
+            FoodSource.Boar => Settings.BoarFood,
+            FoodSource.Bear => Settings.BearFood,
+            _ => 0,
+        };
+        if (full <= 0 || t.ResourceAmount >= full)
+            return 0;
+        int quarters = Math.Max(1, (4 * Math.Max(0, t.ResourceAmount) + full - 1) / full);
+        return 4 - quarters;
     }
 
     /// <summary>

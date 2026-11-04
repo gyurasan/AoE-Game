@@ -19,7 +19,14 @@ public sealed class TileMapGatherWorld : IGatherWorld
     public int AmountAt(CorePosition cell, Resource resource)
     {
         var tile = _map.GetTile(cell.X, cell.Y);
-        return tile != null && tile.ResourceType == resource ? tile.ResourceAmount : 0;
+        if (tile == null || tile.ResourceType != resource)
+            return 0;
+        // F11: Reh und Wildschwein tragen ihre Nahrung lebend nicht - erst das Aas
+        // (Slaughtered) kann geerntet werden. FindNearestSource findet lebendes Wild
+        // damit nicht mehr als Sammelziel.
+        if (tile.Food.MustBeKilled() && tile.Animal is not { Slaughtered: true })
+            return 0;
+        return tile.ResourceAmount;
     }
 
     public int Harvest(CorePosition cell, Resource resource, int amount)
@@ -27,6 +34,8 @@ public sealed class TileMapGatherWorld : IGatherWorld
         var tile = _map.GetTile(cell.X, cell.Y);
         if (tile == null || tile.ResourceType != resource || tile.ResourceAmount <= 0)
             return 0;
+        if (tile.Food.MustBeKilled() && tile.Animal is not { Slaughtered: true })
+            return 0;   // F11: lebendes Wild lässt sich nicht ernten
 
         int taken = Math.Min(amount, tile.ResourceAmount);
         tile.ResourceAmount -= taken;

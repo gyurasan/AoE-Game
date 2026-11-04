@@ -147,5 +147,61 @@
    {"huefte": [420, 635], "knie": [320, 744], "knoechel": [344, 880], "zehe": [396, 928]},
    {"huefte": [530, 635], "knie": [570, 800], "knoechel": [624, 920], "zehe": [704, 912]}
   ]
+ },
+ "armbrustschuetze": {
+  "bild": "soldaten/armbrustschuetze_5132.png",
+  "saum": 625, "breite": 62, "schritt": 200,
+  "rumpf": [[295, 540, 375, 640], [555, 595, 700, 650]],
+  "beine": [
+   {"huefte": [405, 640], "knie": [355, 755], "knoechel": [315, 860], "zehe": [390, 920]},
+   {"huefte": [520, 640], "knie": [530, 755], "knoechel": [570, 890], "zehe": [712, 908]}
+  ]
+ },
+ "langbogenschuetze": {
+  "bild": "soldaten/langbogenschuetze_5143.png",
+  "saum": 625, "breite": 62, "schritt": 200,
+  "rumpf": [[295, 540, 375, 640], [555, 595, 700, 650]],
+  "beine": [
+   {"huefte": [405, 640], "knie": [355, 755], "knoechel": [315, 860], "zehe": [390, 920]},
+   {"huefte": [520, 640], "knie": [530, 755], "knoechel": [570, 890], "zehe": [712, 908]}
+  ]
+ },
+ "leichte_kavallerie": {
+  "bild": "soldaten/leichte_kavallerie_5152.png",
+  "saum": 700, "breite": 45, "schritt": 150,
+  "gang": {"stand": 0.62, "ferse_ende": 0.08, "zehe_anfang": 0.4, "ferse_grad": 6.0, "zehe_grad": -28.0, "schwung_hub": 0.12},
+  "rumpf": [[370, 645, 465, 730], [150, 560, 215, 690]],
+  "beine": [
+   {"huefte": [345, 580], "knie": [365, 745], "knoechel": [378, 778], "zehe": [405, 798], "knick": "hinten", "saum": 595, "versatz": 0.5, "ferse_x": -10},
+   {"huefte": [650, 670], "knie": [635, 860], "knoechel": [645, 910], "zehe": [680, 940], "saum": 685, "versatz": 0.75, "ferse_x": -12},
+   {"huefte": [255, 570], "knie": [235, 760], "knoechel": [245, 810], "zehe": [275, 836], "knick": "hinten", "saum": 585, "versatz": 0.0, "ferse_x": -10},
+   {"huefte": [555, 660], "knie": [545, 805], "knoechel": [552, 940], "zehe": [585, 985], "saum": 675, "versatz": 0.25, "ferse_x": -12}
+  ]
+ },
+ "moench": {
+  "bild": "soldaten/moench_5203.png",
+  "saum": 776, "breite": 52, "schritt": 150, "saum_glied": 1,
+  "saum_linie": [[280, 756], [300, 758], [320, 761], [340, 766], [360, 773], [372, 781], [385, 785], [465, 785],
+                 [478, 781], [495, 777], [520, 775], [545, 773], [560, 769], [568, 772], [576, 806]],
+  "gang": {"schwung_hub": 0.05, "ferse_grad": 10.0, "zehe_grad": -26.0},
+  "rumpf": [[646, 770, 686, 850], [638, 850, 680, 905]],
+  "rumpf_frei": [[638, 905, 680, 929]],
+  "beine": [
+   {"huefte": [395, 600], "knie": [352, 748], "knoechel": [268, 893], "zehe": [362, 955]},
+   {"huefte": [460, 600], "knie": [500, 752], "knoechel": [548, 925], "zehe": [668, 950]}
+  ]
+ },
+ "moench_reliquie": {
+  "bild": "soldaten/moench_reliquie_5282.png",
+  "saum": 776, "breite": 52, "schritt": 150, "saum_glied": 1,
+  "saum_linie": [[280, 756], [300, 758], [320, 761], [340, 766], [360, 773], [372, 781], [385, 785], [465, 785],
+                 [478, 781], [495, 777], [520, 775], [545, 773], [560, 769], [568, 772], [576, 806]],
+  "gang": {"schwung_hub": 0.05, "ferse_grad": 10.0, "zehe_grad": -26.0},
+  "rumpf": [[646, 770, 686, 850], [638, 850, 680, 905]],
+  "rumpf_frei": [[638, 905, 680, 929]],
+  "beine": [
+   {"huefte": [395, 600], "knie": [352, 748], "knoechel": [268, 893], "zehe": [362, 955]},
+   {"huefte": [460, 600], "knie": [500, 752], "knoechel": [548, 925], "zehe": [668, 950]}
+  ]
  }
 }

@@ -1,0 +1,65 @@
+{
+ "_hinweis": "Bewegliche Teile der Belagerungswaffen für teilanim.py (F15): Masken und Drehpunkte in Pixeln des freigestellten Rohbilds. Siehe Kopf von teilanim.py.",
+ "rammbock": {
+  "bild": "belagerung/rammbock_12001.png",
+  "figur": "rammbock",
+  "art": "angriff",
+  "teile": [
+   {"name": "balken", "maske": {"linien": [[590, 520, 800, 585, 175], [860, 600, 978, 668, 55]], "ellipsen": [[835, 600, 85, 115]]},
+    "drehpunkt": [700, 550], "hinten": true, "verlaengern": [-95, -31, 80],
+    "durch": {"rechtecke": [[625, 445, 399, 579]]}}
+  ],
+  "phasen": [
+   {"balken": {"versatz": [0, 0]}},
+   {"balken": {"versatz": [-19, -6]}},
+   {"balken": {"versatz": [-38, -12]}},
+   {"balken": {"versatz": [-48, -16]}},
+   {"balken": {"versatz": [10, 3]}},
+   {"balken": {"versatz": [43, 14]}},
+   {"balken": {"versatz": [29, 9]}},
+   {"balken": {"versatz": [10, 3]}}
+  ]
+ },
+ "mangonel": {
+  "bild": "belagerung/mangonel_12012.png",
+  "figur": "mangonel",
+  "art": "angriff",
+  "teile": [
+   {"name": "arm", "maske": {"linien": [[125, 115, 265, 215, 125], [255, 210, 400, 330, 90]], "ellipsen": [[142, 135, 82, 102]]},
+    "drehpunkt": [450, 360], "hinten": true, "verlaengern": [310, 228, 40]}
+  ],
+  "phasen": [
+   {"arm": {"winkel": 0}},
+   {"arm": {"winkel": -4}},
+   {"arm": {"winkel": 20}},
+   {"arm": {"winkel": 55}},
+   {"arm": {"winkel": 82}},
+   {"arm": {"winkel": 76}},
+   {"arm": {"winkel": 45}},
+   {"arm": {"winkel": 15}}
+  ]
+ },
+ "trebuchet": {
+  "bild": "belagerung/trebuchet_12021.png",
+  "figur": "trebuchet",
+  "art": "angriff",
+  "teile": [
+   {"name": "arm", "maske": {"linien": [[85, 585, 905, 45, 100], [860, 62, 505, 228, 26], [505, 228, 150, 490, 26]],
+                             "ellipsen": [[110, 665, 80, 55], [150, 510, 35, 35], [185, 595, 35, 30]]},
+    "drehpunkt": [515, 302], "hinten": true,
+    "durch": {"rechtecke": [[515, 150, 95, 160]]}},
+   {"name": "gewicht", "maske": {"rechtecke": [[845, 90, 46, 240], [755, 325, 215, 210]]},
+    "drehpunkt": [868, 100], "haengt_an": {"teil": "arm", "punkt": [868, 100]}, "tiefste": 900}
+  ],
+  "phasen": [
+   {"arm": {"winkel": 0}},
+   {"arm": {"winkel": 25}},
+   {"arm": {"winkel": 60}},
+   {"arm": {"winkel": 100}},
+   {"arm": {"winkel": 115}},
+   {"arm": {"winkel": 90}},
+   {"arm": {"winkel": 55}},
+   {"arm": {"winkel": 20}}
+  ]
+ }
+}

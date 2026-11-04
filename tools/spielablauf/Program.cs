@@ -257,6 +257,10 @@ for (int karte = 1; karte <= KARTEN; karte++)
     // Raubtiere in Bewegung (RT): acht Lauf- und acht Angriffsphasen, der Biss trifft mit dem Schlag
     if (gruppen.Contains("raubtieranim"))
         Pruefe($"Karte {karte}, Raubtiere in Bewegung", () => RaubtierAnimation.Pruefen(karte, verstoesse));
+    // Jagd (F11): Rehe fliehen und wollen erlegt sein, Wildschweine wehren sich und
+    // folgen ihren Angreifern, Aas verdirbt
+    if (gruppen.Contains("jagd"))
+        Pruefe($"Karte {karte}, Jagd", () => Jagd.Pruefen(karte, verstoesse));
     // Mauszeiger-Hervorhebung (C17): was der Linksklick unter dem Zeiger täte, wird leicht heller gezeichnet
     if (gruppen.Contains("hover"))
         Pruefe($"Karte {karte}, Hover", () => Hover.Pruefen(karte, verstoesse));
@@ -800,8 +804,9 @@ static void SchafWanderung(int karte, List<string> verstoesse)
         Console.WriteLine($"  ok  {wer}: {schafe.Count} → {nach.Count} Schafe auf der Karte, mindestens eines gewandert");
 }
 
-// Wie SchafReservierung, aber für ein Reh (FoodSource.Deer): während ein
-// Dorfbewohner jagt, bleibt das Reh reserviert und am Platz.
+// F11: Ein Reh lässt sich lebend nicht ernten. Ein Sammelauftrag auf ein lebendes
+// Reh (etwa aus einem alten Spielstand) verfällt - das Reh bleibt frei und flieht
+// weiter. Erst das Aas wird wie previously reserviert und bleibt am Platz.
 static void RehReservierung(int karte, List<string> verstoesse)
 {
     var w = new Welt();
@@ -817,25 +822,49 @@ static void RehReservierung(int karte, List<string> verstoesse)
         return;
     }
     var v = w.Dorfbewohner().First();
-    int vor = w.Map.GetTile(rehX, rehY)!.ResourceAmount;
-    var job = new AoE.Core.Economy.GatherJob(0, Resource.Food,
+    v.Job = new AoE.Core.Economy.GatherJob(0, Resource.Food,
         new AoE.Core.Entities.Position(rehX, rehY));
     v.State = AoE.Core.Entities.UnitState.Gathering;
-    v.Job = job;
     w.LaufeBis(() => false, 2f);
-    bool reserviert = w.Map.IsClaimed(rehX, rehY);
-    bool rehAmPlatz = w.Map.GetTile(rehX, rehY)?.Food == FoodSource.Deer;
-    if (!reserviert)
+    if (v.Job != null)
+        verstoesse.Add($"{wer}: Sammelauftrag auf das lebende Reh wurde nicht verworfen (Phase={v.Job.Phase})");
+    if (w.Map.IsClaimed(rehX, rehY))
+        verstoesse.Add($"{wer}: lebendes Reh ist reserviert, obwohl es erst erlegt werden muss");
+    // Erst Angriffe erlegen es - hier direkt über die Karte, der Jagdklick selbst
+    // läuft in der Gruppe jagd. Das Reh ist in der Zwischenzeit weitergewandert:
+    // der Sammelplatz ist seine jetzige Kachel. Danach ist das Aas erntbar und
+    // bleibt reserviert liegen.
+    rehX = -1;
+    for (int tx = 0; tx < w.Map.Width && rehX < 0; tx++)
+        for (int ty = 0; ty < w.Map.Height && rehX < 0; ty++)
+            if (w.Map.GetTile(tx, ty)?.Food == FoodSource.Deer
+                && w.Map.GetTile(tx, ty)!.Animal is not { Slaughtered: true })
+                { rehX = tx; rehY = ty; }
+    if (rehX < 0)
     {
-        verstoesse.Add($"{wer}: Reh nicht reserviert, während der Dörfler es jagt (Phase={v.Job?.Phase})");
+        verstoesse.Add($"{wer}: nach dem verfallenen Auftrag ist kein Reh mehr auf der Karte");
         return;
     }
-    if (!rehAmPlatz)
+    if (!w.Map.DamageAnimal(rehX, rehY, 9999))
     {
-        verstoesse.Add($"{wer}: reserviertes Reh ist zwischenzeitlich gewandert");
+        verstoesse.Add($"{wer}: DamageAnimal erlegt das Reh nicht");
         return;
     }
-    Console.WriteLine($"  ok  {wer}: während der Jagd reserviert (vor={vor}, Reh am Platz)");
+    int vor = w.Map.GetTile(rehX, rehY)!.ResourceAmount;
+    v.Job = new AoE.Core.Economy.GatherJob(0, Resource.Food,
+        new AoE.Core.Entities.Position(rehX, rehY));
+    v.State = AoE.Core.Entities.UnitState.Gathering;
+    w.LaufeBis(() => false, 2f);
+    if (!w.Map.IsClaimed(rehX, rehY))
+        verstoesse.Add($"{wer}: Aas nicht reserviert, während der Dörfler es sammelt (Phase={v.Job?.Phase})");
+    if (w.Map.GetTile(rehX, rehY)?.Food != FoodSource.Deer)
+        verstoesse.Add($"{wer}: reserviertes Aas ist gewandert");
+    if (w.Map.GetTile(rehX, rehY)!.Animal is not { Slaughtered: true })
+        verstoesse.Add($"{wer}: Aas nicht mehr als Fleisch markiert");
+    if (vor <= 0)
+        verstoesse.Add($"{wer}: erlegtes Reh trägt keine Nahrung");
+    else if (!verstoesse.Any(s => s.StartsWith(wer)))
+        Console.WriteLine($"  ok  {wer}: lebendes Reh verschont den Auftrag, Aas reserviert (vor={vor})");
 }
 
 // Wie SchafWanderung, aber für die Rehe.
@@ -1509,6 +1538,18 @@ static void Schlachten(int karte, List<string> verstoesse)
         v.Position = w.Map.GridToWorld(new Vector2(kachel.X, kachel.Y));
         v.Job = new GatherJob(0, Resource.Food, new CorePosition(kachel.X, kachel.Y));
         w.Call("FollowJob", v);
+        if (art.MustBeKilled())
+        {
+            // F11: lebende Rehe und Wildschweine erntet niemand - der Auftrag verfällt,
+            // oder das fliehende Tier trägt die Quelle selbst davon. Geschlachtet wird
+            // hier keines, das erledigen erst Angriffe (jagd).
+            w.LaufeBis(() => v.Job == null || w.Map.GetTile(kachel.X, kachel.Y).Animal != tier, 20f);
+            if (v.Job != null && w.Map.GetTile(kachel.X, kachel.Y).Animal == tier)
+                verstoesse.Add($"{wer}: ein Sammelauftrag aufs lebende {name} verfällt nicht (Phase {v.Job.Phase})");
+            if (tier.Slaughtered)
+                verstoesse.Add($"{wer}: das lebende {name} wurde geschlachtet, obwohl niemand es erlegt hat");
+            continue;
+        }
         w.LaufeBis(() => v.Job?.Phase == AoE.Core.Economy.GatherPhase.Gathering, 20f);
         w.LaufeBis(() => false, 0.5f);
         if (v.Job?.Phase != AoE.Core.Economy.GatherPhase.Gathering && !tier.Slaughtered)
@@ -9005,9 +9046,9 @@ class Welt
             Map.RegrowCrop(dt);
             Map.RegrowGrass(dt);
             Map.UpdateSheep(dt);
-            Map.UpdateDeer(dt);
+            Map.UpdateDeer(dt, _units);   // F11: Rehe fliehen vor Einheiten
             Map.UpdateRabbits(dt);
-            Map.UpdateBoars(dt);
+            Map.UpdateSpoilage(dt);       // F11: erlegtes Wild verdirbt
             Map.Market.Update(dt);   // Kurse am Markt kehren zurück (F8)
             _nebel -= dt;
             if (_nebel <= 0)

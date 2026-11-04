@@ -133,7 +133,10 @@ Der „echte" Weg, um (neue) Bilder zu produzieren, lebt unter `tools/bilder/`
   (ausdrücklich im ps1-Kopfkommentar vermerkt) und in C# laden.
 - Spezialwerkzeuge: `gang.py`/`gang.json` (Lauf-Reihen),
   `schlag.py`/`schlag.json` (Angriffsphasen), `tieranim.py`/`tieranim.json` (Lauf- und
-  Angriffsphasen von Bär und Wolf), `naht.py` (nahtloses Kacheln).
+  Angriffsphasen von Bär, Wolf und Wildschwein), `teilanim.py`/`teilanim.json` (bewegliche
+  Teile von Maschinen: Rammbock, Mangonel, Trebuchet), `vorfuellen.py` und `abbau.py`
+  (Vorlagen fürs Inpainting), `naht.py` (nahtloses Kacheln). Was jedes Feld bedeutet, steht im
+  Kopfkommentar des Skripts; die Felder von `bilder.json` in `Bilder-erzeugen.md`.
 
 ## Checkliste „Bild ist nicht zu sehen"
 

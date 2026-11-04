@@ -135,5 +135,67 @@
     {"quelle": "stand", "koerper": [3, 0, 0], "beine": ["steht", "steht", "steht"]}
    ]
   }
+ },
+ "wildschwein": {
+  "bild": "tiere/wildschwein_9701.png",
+  "risse": 5,
+  "angriff_bild": "tiere_lauf/wildschwein_angriff_9953.png",
+  "rumpf": {"stand": [[[690, 640], [790, 640], [790, 745], [690, 745]]]},
+  "zielbreite": 320,
+  "schritt": 130,
+  "breite": 60,
+  "wippen": 5,
+  "mitte_versatz": -40,
+  "gang": {"stand": 0.55, "ferse_ende": 0.08, "zehe_anfang": 0.3, "ferse_grad": 5.0, "zehe_grad": -28.0, "schwung_hub": 0.12, "mitte_ruhe": true},
+  "beine": [
+   {"huefte": [285, 540], "knie": [290, 612], "knoechel": [305, 652], "zehe": [372, 688], "knick": "hinten", "saum": 540, "versatz": 0.5, "ferse_x": -15, "hinten": true, "breite": 55},
+   {"huefte": [645, 660], "knie": [662, 790], "knoechel": [665, 828], "zehe": [726, 864], "saum": 660, "versatz": 0.0, "ferse_x": -15, "hinten": true, "breite": 50},
+   {"huefte": [155, 540], "knie": [142, 648], "knoechel": [152, 702], "zehe": [196, 744], "knick": "hinten", "saum": 540, "versatz": 0.0, "ferse_x": -15, "breite": 70},
+   {"huefte": [515, 650], "knie": [524, 818], "knoechel": [524, 864], "zehe": [566, 918], "saum": 650, "versatz": 0.5, "ferse_x": -15, "breite": 70}
+  ],
+  "angriff_beine": [
+   null,
+   {"fehlt": true},
+   null,
+   {"huefte": [520, 650], "knie": [529, 818], "knoechel": [530, 866], "zehe": [574, 922], "saum": 650}
+  ],
+  "angriff": {"um": [160, 730], "phasen": [
+    {"quelle": "stand", "koerper": [-8, 4, -2], "beine": ["steht", "steht", "steht", "steht"]},
+    {"quelle": "stand", "koerper": [-18, 8, -4], "beine": ["steht", "steht", "steht", "steht"]},
+    {"quelle": "angriff", "koerper": [-6, 4, -5], "beine": ["steht", "steht", "steht", "steht"]},
+    {"quelle": "angriff", "koerper": [28, 0, 0], "beine": ["steht", "steht", "steht", {"fuss": [28, 0, 0]}]},
+    {"quelle": "angriff", "koerper": [40, -6, 7], "beine": ["steht", "steht", "steht", {"fuss": [36, 0, 0]}]},
+    {"quelle": "angriff", "koerper": [26, -2, 3], "beine": ["steht", "steht", "steht", {"fuss": [26, 0, 0]}]},
+    {"quelle": "stand", "koerper": [10, 2, 0], "beine": ["steht", "steht", "steht", "steht"]},
+    {"quelle": "stand", "koerper": [3, 0, 0], "beine": ["steht", "steht", "steht", "steht"]}
+  ]}
+ },
+ "wildschwein2": {
+  "bild": "tiere/wildschwein2_9712.png",
+  "risse": 5,
+  "angriff_bild": "tiere/wildschwein2_9712.png",
+  "rumpf": {"stand": [[[350, 555], [430, 555], [430, 760], [380, 760], [378, 640], [350, 600]]], "angriff": [[[350, 555], [430, 555], [430, 760], [380, 760], [378, 640], [350, 600]]]},
+  "zielbreite": 320,
+  "schritt": 130,
+  "breite": 60,
+  "wippen": 5,
+  "mitte_versatz": -50,
+  "gang": {"stand": 0.55, "ferse_ende": 0.08, "zehe_anfang": 0.3, "ferse_grad": 5.0, "zehe_grad": -28.0, "schwung_hub": 0.12, "mitte_ruhe": true},
+  "beine": [
+   {"huefte": [290, 495], "knie": [276, 574], "knoechel": [300, 615], "zehe": [371, 668], "knick": "hinten", "saum": 495, "versatz": 0.5, "ferse_x": -15, "hinten": true, "breite": 55},
+   {"huefte": [612, 660], "knie": [635, 744], "knoechel": [641, 774], "zehe": [694, 803], "saum": 660, "versatz": 0.0, "ferse_x": -15, "hinten": true, "breite": 50},
+   {"huefte": [165, 500], "knie": [147, 632], "knoechel": [165, 679], "zehe": [218, 726], "knick": "hinten", "saum": 500, "versatz": 0.0, "ferse_x": -15, "breite": 70},
+   {"huefte": [500, 630], "knie": [517, 762], "knoechel": [522, 815], "zehe": [575, 862], "saum": 630, "versatz": 0.5, "ferse_x": -15, "breite": 70}
+  ],
+  "angriff": {"um": [180, 715], "phasen": [
+    {"quelle": "stand", "koerper": [-8, 0, 1], "beine": ["steht", "steht", "steht", "steht"]},
+    {"quelle": "stand", "koerper": [-18, 2, 2], "beine": ["steht", "steht", "steht", "steht"]},
+    {"quelle": "stand", "koerper": [-4, 0, 1], "beine": ["steht", "steht", "steht", "steht"]},
+    {"quelle": "stand", "koerper": [26, 0, 3], "beine": ["steht", "steht", "steht", {"fuss": [26, 0, 0]}]},
+    {"quelle": "stand", "koerper": [38, -8, 9], "beine": ["steht", "steht", "steht", {"fuss": [34, 0, 0]}]},
+    {"quelle": "stand", "koerper": [26, -4, 4], "beine": ["steht", "steht", "steht", {"fuss": [24, 0, 0]}]},
+    {"quelle": "stand", "koerper": [10, 0, 1], "beine": ["steht", "steht", "steht", "steht"]},
+    {"quelle": "stand", "koerper": [3, 0, 0], "beine": ["steht", "steht", "steht", "steht"]}
+  ]}
  }
 }

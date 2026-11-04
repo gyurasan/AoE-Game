@@ -23,7 +23,11 @@ static class Raubtiere
         Rueckzug(karte, verstoesse);
     }
 
-    /// <summary>Eine Welt ohne die Raubtiere der Kartenerzeugung - jeder Ablauf stellt seine eigenen auf.</summary>
+    /// <summary>
+    /// Eine Welt ohne die Tiere der Kartenerzeugung, die sich wehren oder fliehen (F11:
+    /// Raubtiere, Rehe, Wildschweine) - jeder Ablauf stellt seine eigenen auf. Sonst
+    /// bisse etwa ein zufällig nearbyes Wildschwein in eine Szene hinein.
+    /// </summary>
     internal static Welt NeueWelt(List<(string Name, Vector2 Position)> log = null)
     {
         var w = new Welt();
@@ -33,7 +37,7 @@ static class Raubtiere
             w.Set("SoundLog", log);
         for (int x = 0; x < w.Map.Width; x++)
             for (int y = 0; y < w.Map.Height; y++)
-                if (w.Map.GetTile(x, y) is { } t && t.Food.IsPredator())
+                if (w.Map.GetTile(x, y) is { } t && (t.Food.IsPredator() || t.Food.IsHuntable()))
                 {
                     t.Food = FoodSource.None;
                     t.Animal = null;

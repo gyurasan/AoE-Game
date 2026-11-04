@@ -14,6 +14,12 @@ Viertel versetzt, Feld "versatz" je Bein). Der Oberschenkel reicht unter dem Sau
 nach oben weiter, damit beim Schwingen kein Hintergrund unter dem Kittel aufblitzt; was er
 dabei über den Saum schiebt, bleibt unsichtbar.
 
+Lange Kutte (Mönch): "saum_linie" [[x, y], ...] legt den Saum je Spalte fest, statt waagerecht in
+Höhe "saum" - ein schräger Saum ließ sonst Kerben und Lücken; "saum_glied": 1 verlängert statt des
+Oberschenkels den Unterschenkel (das Knie liegt schon unter dem Stoff); "rumpf_frei" sind
+Rechtecke [x0, y0, x1, y1], die fest zum Rumpf gehören, ohne gespiegeltes Bein dahinter - das Ende
+eines Stabs, das über den Zehen liegt.
+
 Gelenke, Saum und Schrittlänge je Figur stehen in gang.json neben diesem Skript, in Pixeln
 des freigestellten Rohbilds (1024 x 1024 aus qwen_image.py) - gearbeitet wird in voller
 Auflösung, verkleinert erst beim Übernehmen. Ergebnis je Figur unter ausgabe/gang/:
@@ -177,9 +183,19 @@ def figur(name, cfg):
     d = np.stack([abstand_strecke(xx, yy, k[2], k[3]) for k in knochen])
     naechster = d.argmin(axis=0)
     bein_von = np.array([k[0] for k in knochen])[naechster]
+    # Saum je Spalte: waagrecht in Höhe "saum" (je Bein ersetzbar) oder entlang "saum_linie"
+    # [[x, y], ...] - der Unterkante eines schräg geschnittenen Stoffs (Kutte über dem hinteren Bein
+    # höher als vorn); zwischen den Punkten linear, außerhalb gleich dem äußersten Punkt
+    spalten_x = np.arange(W)
+    for b in beine:
+        if "saum_linie" in cfg:
+            xs, ys = zip(*cfg["saum_linie"])
+            b.saum_y = np.round(np.interp(spalten_x, xs, ys)).astype(int)
+        else:
+            b.saum_y = np.full(W, int(b.saum))
     unter_saum = np.zeros((H, W), bool)
     for i, b in enumerate(beine):
-        unter_saum |= (bein_von == i) & (yy >= b.saum)
+        unter_saum |= (bein_von == i) & (yy >= b.saum_y[None, :])
     # Bein ist unter dem Saum, was nah an einem Knochen liegt, und unten bei den Füßen alles
     # (auch eine weit ausladende Stiefelferse). Weit abseits liegende Schatten unter dem Saum
     # bleiben beim Rumpf - drehten sie mit, klappten sie beim Schwingen heraus
@@ -190,6 +206,12 @@ def figur(name, cfg):
     geschuetzt = np.zeros((H, W), bool)
     for x0, y0, x1, y1 in cfg.get("rumpf", []):
         geschuetzt[y0:y1, x0:x1] = True
+    # "rumpf_frei": ebenso Rumpf, aber ohne Bein dahinter - das Ende eines Stabs, das über den Zehen
+    # aufhört, statt vor dem Fuß zu liegen; dort wird unten nichts aufgefüllt
+    frei = np.zeros((H, W), bool)
+    for x0, y0, x1, y1 in cfg.get("rumpf_frei", []):
+        frei[y0:y1, x0:x1] = True
+    geschuetzt |= frei
     for x1, y1, x2, y2, dicke in cfg.get("rumpf_linien", []):
         geschuetzt |= abstand_strecke(xx, yy, (x1, y1), (x2, y2)) < dicke / 2
     # Eine Decke über den Beinen (Schabracke des Ritterpferds): in den Rechtecken
@@ -225,7 +247,7 @@ def figur(name, cfg):
     # Unter dem Geschützten fehlt dem Bein seine Textur - schwänge es aus, wanderte ein Loch in
     # Form der Hand oder Klinge mit. Dort mit der Farbe des nächsten Beinpixels auffüllen, nur wo
     # das Geschützte deckt (daneben liegt Hintergrund); das Geschützte liegt im Bild darüber
-    unter = geschuetzt & deckend & unter_saum & (d.min(axis=0) < breite * 0.8)
+    unter = geschuetzt & ~frei & deckend & unter_saum & (d.min(axis=0) < breite * 0.8)
     if unter.any():
         _, (ny, nx) = ndimage.distance_transform_edt(~beinbereich, return_indices=True)
         a = a.copy()
@@ -265,14 +287,17 @@ def figur(name, cfg):
         for j, maske in enumerate(glieder):
             t = np.zeros_like(a)
             t[maske] = a[maske]
-            if j == 0:
+            if j == cfg.get("saum_glied", 0):
                 # Oberschenkel unter dem Saum nach oben verlängern, gespiegelt: die Zeilen unter dem
                 # Saum noch einmal darüber. Schwingt der Oberschenkel, füllt das die Lücke unter
-                # dem Saum mit Stoff statt mit Hintergrund
+                # dem Saum mit Stoff statt mit Hintergrund. Unter einer langen Kutte liegt schon das
+                # Knie unter dem Stoff - dort ("saum_glied": 1) wird der Unterschenkel verlängert
                 for k in range(1, cfg.get("verlaengerung", 70)):
-                    quelle, ziel_y = b.saum + k, b.saum - k
-                    spalten = np.where(maske[quelle])[0]
-                    t[ziel_y, spalten] = a[quelle, spalten]
+                    quelle, ziel_y = b.saum_y + k, b.saum_y - k
+                    ok = (quelle < H) & (ziel_y >= 0)
+                    spalten = spalten_x[ok]
+                    spalten = spalten[maske[quelle[spalten], spalten]]
+                    t[ziel_y[spalten], spalten] = a[quelle[spalten], spalten]
             teile[(i, j)] = Image.fromarray(t)
     ruhe = {(i, 0): winkel(b.h, b.k) for i, b in enumerate(beine)}
     ruhe.update({(i, 1): winkel(b.k, b.a) for i, b in enumerate(beine)})
@@ -307,7 +332,7 @@ def figur(name, cfg):
             # Über dem Saum ist Rumpf: was ein schwingender Oberschenkel dort seitlich über den
             # Kittelrand hinausschiebt, bleibt unsichtbar
             arr = np.array(bein)
-            arr[:max(0, int(round(b.saum + dy))), :, 3] = 0
+            arr[yy < np.round(b.saum_y + dy)[None, :], 3] = 0
             bildp = Image.alpha_composite(bildp, Image.fromarray(arr))
         r = Image.fromarray(rumpf)
         lage = Image.new("RGBA", (W, H), (0, 0, 0, 0))

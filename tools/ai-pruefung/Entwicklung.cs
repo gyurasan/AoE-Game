@@ -111,7 +111,9 @@ static class Entwicklung
             Call("UpdateConstruction", dt);
             map.RegrowCrop(dt);
             map.RegrowGrass(dt);
-            map.UpdateSheep(dt); map.UpdateDeer(dt); map.UpdateRabbits(dt); map.UpdateBoars(dt);
+            // F11: Rehe fliehen vor Einheiten; Wildschweine takten im Screen (UpdatePredators),
+            // Aas verdirbt.
+            map.UpdateSheep(dt); map.UpdateDeer(dt, units); map.UpdateRabbits(dt); map.UpdateSpoilage(dt);
             nebel -= dt;
             if (nebel <= 0)
             {
