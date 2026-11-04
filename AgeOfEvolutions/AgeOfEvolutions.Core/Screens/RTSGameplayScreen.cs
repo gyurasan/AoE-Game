@@ -744,6 +744,13 @@ public partial class RTSGameplayScreen : GameScreen
     private Texture2D _deerMeat;
     private Texture2D _rabbitMeat;
     private Texture2D _boarMeat;
+    // F11: Aasstufen - das geschrumpfte Fleisch je verderbender Art (Reh, Wildschwein,
+    // Bär) bei drei Vierteln, der Hälfte und dem letzten Viertel der vollen Nahrung
+    // (TileMap.MeatStage); Werte: [_75, _50, _25]
+    private readonly Dictionary<FoodSource, Texture2D[]> _meatStages = new();
+    // F11: die Sprünge des fliehenden Rehs (Tiere/reh_flucht1, _flucht2) - eigene
+    // Leinwand im Maßstab des Rehs, der Rumpf an derselben Stelle
+    private Texture2D _deerFlee1, _deerFlee2;
     private const int GROUND_TEXELS = 10;   // Bildpixel der Bodenbilder je Welteinheit
     // Bildpixel der Grasbilder je Welteinheit: mehr als bei Sand und Wasser - die Halme
     // sollen neben Bäumen und Figuren klein bleiben, das Bild wiederholt sich dafür öfter
@@ -1084,6 +1091,20 @@ public partial class RTSGameplayScreen : GameScreen
         _deerMeat = LoadOptional("Tiere/fleisch_reh");
         _rabbitMeat = LoadOptional("Tiere/fleisch_kaninchen");
         _boarMeat = LoadOptional("Tiere/fleisch_wildschwein");
+        // F11: Aasstufen (nur die verderbenden Arten) und die Sprünge des fliehenden Rehs
+        foreach (var (food, asset) in new (FoodSource Food, string Asset)[]
+        {
+            (FoodSource.Deer, "Tiere/fleisch_reh"),
+            (FoodSource.Boar, "Tiere/fleisch_wildschwein"),
+            (FoodSource.Bear, "Tiere/fleisch_baer"),
+        })
+        {
+            var stages = new[] { LoadOptional(asset + "_75"), LoadOptional(asset + "_50"), LoadOptional(asset + "_25") };
+            if (stages.All(t => t != null))
+                _meatStages[food] = stages;
+        }
+        _deerFlee1 = LoadOptional("Tiere/reh_flucht1");
+        _deerFlee2 = LoadOptional("Tiere/reh_flucht2");
         // Laufbilder nur, wenn beide da sind - sonst gleitet das Tier wie bisher
         foreach (var asset in SheepAssets.Concat(DeerAssets).Concat(RabbitAssets).Concat(BoarAssets))
         {
@@ -1245,9 +1266,11 @@ public partial class RTSGameplayScreen : GameScreen
         tileMap.Market.Update((float)gameTime.ElapsedGameTime.TotalSeconds);   // Kurse kehren langsam zurück (F8)
         UpdateSheepClaims();    // Reservierung = der einzige Dorfbewohner, der gerade erntet
         tileMap.UpdateSheep((float)gameTime.ElapsedGameTime.TotalSeconds);
-        tileMap.UpdateDeer((float)gameTime.ElapsedGameTime.TotalSeconds);
+        // F11: Rehe fliehen vor Einheiten (braucht die Einheitenliste), Wildschweine
+        // takten seit F11 in UpdatePredators (sie schlagen zu und verfolgen), Aas verdirbt.
+        tileMap.UpdateDeer((float)gameTime.ElapsedGameTime.TotalSeconds, units);
         tileMap.UpdateRabbits((float)gameTime.ElapsedGameTime.TotalSeconds);
-        tileMap.UpdateBoars((float)gameTime.ElapsedGameTime.TotalSeconds);
+        tileMap.UpdateSpoilage((float)gameTime.ElapsedGameTime.TotalSeconds);
 
         if (hudMessageTimer > 0f)
             hudMessageTimer -= (float)gameTime.ElapsedGameTime.TotalSeconds;
@@ -5726,8 +5749,18 @@ public partial class RTSGameplayScreen : GameScreen
             if (job == null) continue;
             if (job.Phase == GatherPhase.Done) continue;
             if (job.Resource != Resource.Food) continue;
-            var food = tileMap.GetTile(job.Source.X, job.Source.Y)?.Food;
+            var srct = tileMap.GetTile(job.Source.X, job.Source.Y);
+            var food = srct?.Food;
             if (food is not { } wild || !wild.IsWild()) continue;
+            // F11: Ein Sammelauftrag auf ein lebendes Reh oder Wildschwein (aus einem
+            // alten Spielstand) ist gegenstandslos - die Ernte öffnet erst das Aas.
+            // Der Dorfbewohner fällt auf Untätig zurück und sucht sich neues Werk.
+            if (wild.MustBeKilled() && srct.Animal is not { Slaughtered: true })
+            {
+                u.Job = null;
+                u.State = UnitState.Idle;
+                continue;
+            }
             aktiv.Add((job.Source.X, job.Source.Y));
             // Wer schon daran sammelt, hat das Tier geschlachtet: ab jetzt Fleisch
             if (job.Phase == GatherPhase.Gathering)
@@ -5778,6 +5811,22 @@ public partial class RTSGameplayScreen : GameScreen
                 if (desiredPath.Count > 0
                     && (unit.Path.Count == 0
                         || Vector2.Distance(unit.Position, stand2)
+                           <= Vector2.Distance(unit.Position, unit.Path[0]) + 2f))
+                    unit.Path = desiredPath;
+            }
+        }
+        else if (free && unit.PreyTarget is not null && unit.AttackPower > 0)
+        {
+            // F11: Das fliehende Reh zieht weg - der Jäger plant seinen Weg wie auf
+            // ein laufendes Einheitenziel neu auf den aktuellen Standpunkt, sonst
+            // steht er am leeren Ort des letzten Sichtkontakts.
+            if (LivePrey(unit) is { } prey)
+            {
+                Vector2 desired = PreyStandPoint(unit, PreyCenter(prey.X, prey.Y));
+                var desiredPath = tileMap.FindPath(unit.Position, desired);
+                if (desiredPath.Count > 0
+                    && (unit.Path.Count == 0
+                        || Vector2.Distance(unit.Position, desired)
                            <= Vector2.Distance(unit.Position, unit.Path[0]) + 2f))
                     unit.Path = desiredPath;
             }
@@ -7033,6 +7082,10 @@ public partial class RTSGameplayScreen : GameScreen
             _ => _sheepMeat,
         };
         bool butchered = tier.Slaughtered && meat != null;
+        // F11: Das Aas schrumpft mit dem Verderb in Stufen (drei Viertel, Hälfte, Viertel)
+        if (butchered && tileMap.MeatStage(x, y) is > 0 and var stage
+            && _meatStages.TryGetValue(tile.Food, out var stageTex) && stageTex[stage - 1] is { } shrunk)
+            meat = shrunk;
         var stand = butchered ? meat : sprites[tier.Look % sprites.Length];
         var tex = stand;
         // Bär und Wolf (RT): acht Angriffsphasen beim Ausholen und Zuschlagen, sonst acht Laufphasen
@@ -7043,6 +7096,11 @@ public partial class RTSGameplayScreen : GameScreen
             tex = attackFrames[attack];
         else if (phase >= 0 && _animalWalk.TryGetValue(stand, out var walk))
             tex = walk[phase];
+        // F11: Ein fliehendes Reh zeigt den Sprung (reh_flucht1/2) statt der Laufbilder -
+        // die Leinwand sitzt im Maßstab des Standbilds, die Hufhöhe stimmt also weiterhin
+        if (attack < 0 && !butchered && !predatorGait && tier.Fleeing && tier.Glide > 0f
+            && tile.Food == FoodSource.Deer && _deerFlee1 is { } fl1 && _deerFlee2 is { } fl2)
+            tex = Gait.Ease(1f - MathHelper.Clamp(tier.Glide / TileMap.WILD_STEP_SECONDS, 0f, 1f)) < 0.5f ? fl1 : fl2;
         int standWidth = (int)(tileRect.Width * tile.Food switch
         {
             FoodSource.Deer => DEER_WIDTH,
@@ -7060,8 +7118,10 @@ public partial class RTSGameplayScreen : GameScreen
         float progress = 1f - rest;
         // Die Hufe aus AnimalFoot, rest ist der Teil des Schritts, der noch fehlt.
         var foot = AnimalFoot(tile, x, y);
-        // Es wippt im Takt der Beine und nur, solange es Fahrt hat (Bär und Wolf schon im Bild).
-        float bob = rest > 0f && !predatorGait ? MathF.Abs(MathF.Sin(Gait.Ease(progress) * MathF.PI * 2f * WALK_CYCLES_PER_STEP)) * 1.5f * cameraZoom * Gait.EaseSpeed(progress) : 0f;
+        // Es wippt im Takt der Beine und nur, solange es Fahrt hat (Bär und Wolf schon im
+        // Bild; das fliehende Reh trägt den Sprung im Bild - ein Wippen wäre Doppelarbeit).
+        float bob = rest > 0f && !predatorGait && !(tier.Fleeing && tile.Food == FoodSource.Deer)
+            ? MathF.Abs(MathF.Sin(Gait.Ease(progress) * MathF.PI * 2f * WALK_CYCLES_PER_STEP)) * 1.5f * cameraZoom * Gait.EaseSpeed(progress) : 0f;
 
         var target = new Rectangle((int)(foot.X - width / 2f), (int)(foot.Y - height - bob), width, height);
         if (!target.Intersects(screenBounds))

@@ -54,7 +54,8 @@ public partial class RTSGameplayScreen
             return null;
         if (tileMap.LocatePredator(unit.PreyTarget) is not { } p)
             return null;
-        if (!tileMap.IsLivePredator(p.X, p.Y))
+        // F11: auch Reh und Wildschwein sind Beute, solange sie leben.
+        if (!tileMap.IsLiveHuntable(p.X, p.Y))
             return null;
         return p;
     }
@@ -111,12 +112,13 @@ public partial class RTSGameplayScreen
     }
 
     /// <summary>
-    /// Das lebende Raubtier unter einem Klick auf die Kachel gridPos, das ownerId gerade sieht -
-    /// oder null. Ein Raubtier steht im unteren Teil seiner Kachel und ragt nach oben und zur
-    /// Seite hinaus, deshalb zählen auch die Kachel darunter und die Nachbarn.
+    /// Das lebende Tier unter einem Klick auf die Kachel gridPos, das ownerId gerade sieht -
+    /// oder null: Raubtier (Bär, Wolf) oder seit F11 Jagdwild (Reh, Wildschwein). Ein Tier
+    /// steht im unteren Teil seiner Kachel und ragt nach oben und zur Seite hinaus, deshalb
+    /// zählen auch die Kachel darunter und die Nachbarn.
     /// VERTRAG: gx = (int)gridPos.X, gy = (int)gridPos.Y; der Reihe nach (gx, gy), (gx, gy + 1),
     /// (gx - 1, gy), (gx + 1, gy), (gx - 1, gy + 1), (gx + 1, gy + 1): die erste Kachel (x, y) mit
-    /// tileMap.IsLivePredator(x, y) und tileMap.IsTileVisible(x, y, ownerId) → (x, y). Sonst null.
+    /// tileMap.IsLiveHuntable(x, y) und tileMap.IsTileVisible(x, y, ownerId) → (x, y). Sonst null.
     /// </summary>
     internal (int X, int Y)? PredatorAt(Vector2 gridPos, int ownerId)
     {
@@ -129,7 +131,7 @@ public partial class RTSGameplayScreen
         };
         foreach ((int x, int y) in candidates)
         {
-            if (tileMap.IsLivePredator(x, y) && tileMap.IsTileVisible(x, y, ownerId))
+            if (tileMap.IsLiveHuntable(x, y) && tileMap.IsTileVisible(x, y, ownerId))
                 return (x, y);
         }
         return null;
@@ -147,7 +149,8 @@ public partial class RTSGameplayScreen
     /// </summary>
     internal void AttackAnimal(List<Unit> attackers, int x, int y)
     {
-        if (!tileMap.IsLivePredator(x, y))
+        // F11: nicht nur Raubtiere, auch Reh und Wildschwein wollen erlegt sein.
+        if (!tileMap.IsLiveHuntable(x, y))
             return;
         WildAnimal tier = tileMap.GetTile(x, y).Animal;
         Vector2 center = PreyCenter(x, y);
@@ -195,7 +198,7 @@ public partial class RTSGameplayScreen
     ///    unit.AttackTimer -= RELOAD_SECONDS; ein Fernkämpfer (unit.AttackType == AttackType.Ranged)
     ///    EmitSound("bogen", unit.Position), sonst EmitSound("treffer", center); animal =
     ///    unit.PreyTarget; kind = tileMap.GetTile(prey.X, prey.Y).Food; liefert
-    ///    tileMap.DamagePredator(prey.X, prey.Y, unit.AttackPower) true, dann
+    ///    tileMap.DamageAnimal(prey.X, prey.Y, unit.AttackPower, unit) true, dann
     ///    PredatorKilled(kind, prey.X, prey.Y, animal) und PreyDone(unit).
     /// </summary>
     private void HandleAnimalAttack(Unit unit, float dt)
@@ -207,10 +210,14 @@ public partial class RTSGameplayScreen
             return;
         }
         Vector2 center = PreyCenter(prey.X, prey.Y);
-        // 2. Noch nicht in Reichweite: hinlaufen.
+        // 2. Noch nicht in Reichweite: hinlaufen. Ein fliehendes Reh steht gern an der
+        // Kartenecke, wo der haltende Standpunkt außerhalb der Karte fällt - dann zielt
+        // der Jäger auf die Kachelmitte, statt die Jagd abzubrechen (F11).
         if (!InPreyRange(unit, center))
         {
             unit.Path = tileMap.FindPath(unit.Position, PreyStandPoint(unit, center));
+            if (unit.Path.Count == 0)
+                unit.Path = tileMap.FindPath(unit.Position, center);
             if (unit.Path.Count > 0)
                 unit.State = UnitState.Moving;
             else
@@ -233,7 +240,8 @@ public partial class RTSGameplayScreen
                 EmitSound("treffer", center);
             WildAnimal animal = unit.PreyTarget;
             FoodSource kind = tileMap.GetTile(prey.X, prey.Y).Food;
-            if (tileMap.DamagePredator(prey.X, prey.Y, unit.AttackPower))
+            // F11: übergibt die angreifende Einheit - ein getroffenes Wildschwein folgt ihr.
+            if (tileMap.DamageAnimal(prey.X, prey.Y, unit.AttackPower, unit))
             {
                 PredatorKilled(kind, prey.X, prey.Y, animal);
                 PreyDone(unit);
@@ -296,6 +304,9 @@ public partial class RTSGameplayScreen
     // Bär 0,165 * 1,3 * 32, Wolf 0,177 bis 0,197 * 32). So rutschen die Pfoten nicht über das Gras
     private const float BEAR_STRIDE = 6.85f;
     private const float WOLF_STRIDE = 6.0f;
+    // Wildschwein (F11): dasselbe Maß wie beim Bär - tieranim.py meldet Schritt 130 px bei
+    // 900 px Figur (0,144 Bildbreiten) mal BOAR_WIDTH 0,85 mal Kachel 32
+    private const float BOAR_STRIDE = 3.9f;
     private Texture2D[] _bearSprites = Array.Empty<Texture2D>();
     private Texture2D[] _wolfSprites = Array.Empty<Texture2D>();
     private Texture2D _bearMeat;
@@ -321,7 +332,10 @@ public partial class RTSGameplayScreen
         _bearSprites = BearAssets.Select(LoadOptional).Where(t => t != null).ToArray();
         _wolfSprites = WolfAssets.Select(LoadOptional).Where(t => t != null).ToArray();
         _bearMeat = LoadOptional("Tiere/fleisch_baer");
-        foreach (string asset in BearAssets.Concat(WolfAssets))
+        // F11: Wildschweine gehen wie die Raubtiere in acht Phasen und greifen in acht an -
+        // erst wenn alle acht Laufbilder da sind, verdrängen sie die alten zwei Laufbilder
+        // (vierer-Eintrag aus LoadContent); fehlen sie, bleibt der alte Wechsel erhalten.
+        foreach (string asset in BearAssets.Concat(WolfAssets).Concat(BoarAssets))
         {
             if (LoadOptional(asset) is not { } stand)
                 continue;
@@ -341,7 +355,8 @@ public partial class RTSGameplayScreen
     /// VERTRAG: -1, wenn tile.Animal null ist oder Glide kleiner oder gleich 0. Sonst schritt =
     /// tileMap.TileSize * Länge von (FromX, FromY) (diagonal länger), gelaufen = Gait.Ease(1 -
     /// Glide / TileMap.WILD_STEP_SECONDS, auf 0 bis 1 begrenzt) * schritt; Ergebnis
-    /// Gait.WalkFrame(gelaufen, Bär: BEAR_STRIDE, sonst WOLF_STRIDE, Gait.WALK_FRAMES).
+    /// Gait.WalkFrame(gelaufen, Bär: BEAR_STRIDE, Wildschwein: BOAR_STRIDE, sonst WOLF_STRIDE,
+    /// Gait.WALK_FRAMES).
     /// </summary>
     private int PredatorWalkFrame(Data.Tile tile)
     {
@@ -350,7 +365,13 @@ public partial class RTSGameplayScreen
             return -1;
         float schritt = tileMap.TileSize * MathF.Sqrt(tier.FromX * tier.FromX + tier.FromY * tier.FromY);
         float gelaufen = Gait.Ease(1f - MathHelper.Clamp(tier.Glide / TileMap.WILD_STEP_SECONDS, 0f, 1f)) * schritt;
-        return Gait.WalkFrame(gelaufen, tile.Food == FoodSource.Bear ? BEAR_STRIDE : WOLF_STRIDE, Gait.WALK_FRAMES);
+        float stride = tile.Food switch
+        {
+            FoodSource.Bear => BEAR_STRIDE,
+            FoodSource.Boar => BOAR_STRIDE,
+            _ => WOLF_STRIDE,
+        };
+        return Gait.WalkFrame(gelaufen, stride, Gait.WALK_FRAMES);
     }
 
     /// <summary>
@@ -476,7 +497,7 @@ public partial class RTSGameplayScreen
     /// <summary>
     /// Lebensbalken über einem verwundeten Raubtier, wie bei den Einheiten, aber rot - es ist
     /// keine eigene Figur. DrawAnimal ruft es am Ende mit dem Zielrechteck des Tierbilds.
-    /// VERTRAG: nichts, wenn tile.Food.IsPredator() nicht gilt, tile.Animal null ist, Slaughtered
+    /// VERTRAG: nichts, wenn tile.Food.MustBeKilled() nicht gilt, tile.Animal null ist, Slaughtered
     /// gilt, Health kleiner oder gleich 0 ist oder Health mindestens tileMap.PredatorMaxHealth(tile.Food).
     /// Sonst barHeight = Math.Max(3, (int)(3 * cameraZoom)); barWidth = Math.Max(8, target.Width / 2);
     /// bar = new Rectangle(target.Center.X - barWidth / 2, target.Y - barHeight - 2, barWidth,
@@ -486,7 +507,7 @@ public partial class RTSGameplayScreen
     /// </summary>
     private void DrawPredatorHealth(SpriteBatch spriteBatch, Data.Tile tile, Rectangle target)
     {
-        if (!tile.Food.IsPredator()
+        if (!tile.Food.MustBeKilled()   // F11: auch verwundete Rehe und Wildschweine zeigen den Balken
             || tile.Animal is null
             || tile.Animal.Slaughtered
             || tile.Animal.Health <= 0

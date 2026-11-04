@@ -37,6 +37,12 @@
 #                         auf dasselbe Rechteck beschneiden: die Vereinigung ihrer
 #                         sichtbaren Flächen. So bleiben die Laufbilder eines Tiers
 #                         deckungsgleich mit seinem Standbild. Ersetzt "zuschneiden".
+#   figur_basis   name    Bilder, die über das Rechteck einer anderen Figur hinausragen (etwa das
+#                         Reh im Fluchtsprung): ihre Figur bekommt das Rechteck der Basisfigur,
+#                         seitlich gleich weit und nach oben erweitert, bis alle ihre Bilder
+#                         hineinpassen; die Unterkante bleibt, die Hufe stehen also an derselben
+#                         Stelle (wie die Angriffsbilder aus tieranim.py). "zielbreite" ist die
+#                         der Basisfigur und wächst mit dem Rechteck - gleicher Maßstab
 #   programmsymbol true   das Symbol der Exe: auf den sichtbaren Bereich beschneiden,
 #                         quadratisch machen und als <ziel>.ico mit 16 bis 256 px
 #                         schreiben, dazu <ziel>.bmp mit 256 px (Fenstersymbol, MonoGame
@@ -44,7 +50,13 @@
 #                         daneben (Vorlage der Symbol-Skripte für macOS)
 #
 # Neue Ziele muss danach noch jemand in Content/AgeOfEvolutions.mgcb eintragen.
-param([string]$Gruppe = "")
+#
+#   -Namen  nur Einträge, deren Name auf eines der Muster passt (Platzhalter * und ?), etwa
+#           -Namen 'schwertkaempfer*','krieger*' - die übrigen Bilder der Gruppe bleiben
+#           unberührt, statt neu kodiert zu werden (sonst Byte-Diffs im Bestand)
+param([string]$Gruppe = "", [string[]]$Namen = @())
+# pwsh -File reicht "a,b" als eine Zeichenkette durch - selbst trennen
+$Namen = @($Namen | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Drawing
 Add-Type -ReferencedAssemblies System.Drawing.Common, System.Drawing.Primitives, System.Private.Windows.GdiPlus, System.Private.Windows.Core -TypeDefinition @"
@@ -482,10 +494,28 @@ foreach ($g in $katalog.PSObject.Properties) {
     }
 }
 
+# Figuren mit "figur_basis": Rechteck der Basis symmetrisch und nach oben erweitert, Unterkante fest
+$basisFaktor = @{}
+foreach ($g in $katalog.PSObject.Properties) {
+    foreach ($e in $g.Value.bilder) {
+        if (-not $e.figur_basis -or -not $e.ziel -or $basisFaktor.ContainsKey($e.figur)) { continue }
+        if (-not $figuren.ContainsKey($e.figur_basis) -or -not $figuren.ContainsKey($e.figur)) { continue }
+        $b = $figuren[$e.figur_basis]; $f = $figuren[$e.figur]
+        $mitte = $b.X + $b.Width / 2.0
+        $halb = [Math]::Max($b.Width / 2.0, [Math]::Max($mitte - $f.Left, $f.Right - $mitte))
+        $links = [int][Math]::Floor($mitte - $halb); $rechts = [int][Math]::Ceiling($mitte + $halb)
+        $oben = [Math]::Min($b.Top, $f.Top)
+        if ($links -lt 0) { throw "$($e.figur): Rechteck ragt links aus dem Bild ($links)" }
+        $figuren[$e.figur] = [System.Drawing.Rectangle]::new($links, $oben, $rechts - $links, $b.Bottom - $oben)
+        $basisFaktor[$e.figur] = ($rechts - $links) / [double]$b.Width
+    }
+}
+
 foreach ($g in $katalog.PSObject.Properties) {
     if ($Gruppe -and $g.Name -ne $Gruppe) { continue }
     foreach ($e in $g.Value.bilder) {
         if (-not $e.ziel) { continue }
+        if ($Namen.Count -and -not ($Namen | Where-Object { $e.name -like $_ })) { continue }
         $quelle = Join-Path $hier "ausgabe\$($g.Name)\$($e.name)_$($e.seed).png"
         if (-not (Test-Path $quelle)) { throw "fehlt: $quelle - erst qwen_image.py $($g.Name) laufen lassen" }
         $ziel = Join-Path $content $e.ziel
@@ -545,6 +575,9 @@ foreach ($g in $katalog.PSObject.Properties) {
                 $neu = [Nachbearbeitung]::Zuschneiden($bild, 8); $bild.Dispose(); $bild = $neu
             }
             $breite = Wert $e $g.Value "zielbreite"
+            if ($breite -and $e.figur_basis -and $basisFaktor.ContainsKey($e.figur)) {
+                $breite = [Math]::Round([double]$breite * $basisFaktor[$e.figur])
+            }
             if ($breite) {
                 $neu = [Nachbearbeitung]::AufBreite($bild, [int]$breite); $bild.Dispose(); $bild = $neu
             }

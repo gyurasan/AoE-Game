@@ -2913,14 +2913,18 @@
     "seed": 9302,
     "ziel": "Tiere/reh.png",
     "prompt": "A slender roe deer buck with a reddish-brown coat, a lighter belly, a white rump patch, large ears and a small pair of short pointed antlers, facing right, standing alert with its head up.",
-    "figur": "reh"
+    "figur": "reh",
+    "zielbreite": 320,
+    "entgruenen": true
    },
    {
     "name": "reh2",
     "seed": 9312,
     "ziel": "Tiere/reh2.png",
     "prompt": "A slender roe deer doe without antlers, with a reddish-brown coat, a lighter belly, a white rump patch and large ears, facing right, grazing with its head lowered.",
-    "figur": "reh2"
+    "figur": "reh2",
+    "zielbreite": 320,
+    "entgruenen": true
    },
    {
     "name": "kaninchen",
@@ -2941,14 +2945,18 @@
     "seed": 9701,
     "ziel": "Tiere/wildschwein.png",
     "figur": "wildschwein",
-    "prompt": "A sturdy wild boar with coarse dark brown bristly fur, a ridge of bristles along its back, a long snout and small curved white tusks, facing right, standing on all four short legs."
+    "prompt": "A sturdy wild boar with coarse dark brown bristly fur, a ridge of bristles along its back, a long snout and small curved white tusks, facing right, standing on all four short legs.",
+    "zielbreite": 320,
+    "entgruenen": true
    },
    {
     "name": "wildschwein2",
     "seed": 9712,
     "ziel": "Tiere/wildschwein2.png",
     "figur": "wildschwein2",
-    "prompt": "A sturdy wild boar with coarse dark brown bristly fur, a ridge of bristles along its back and small curved white tusks, facing right, rooting in the ground with its snout lowered, on all four short legs."
+    "prompt": "A sturdy wild boar with coarse dark brown bristly fur, a ridge of bristles along its back and small curved white tusks, facing right, rooting in the ground with its snout lowered, on all four short legs.",
+    "zielbreite": 320,
+    "entgruenen": true
    },
    {
     "name": "baer",
@@ -3123,7 +3131,9 @@
       ]
      ]
     },
-    "prompt": "A slender roe deer buck with a reddish-brown coat, a lighter belly, a white rump patch, large ears and a small pair of short pointed antlers, facing right, walking to the right with its head up. Its legs are in mid-stride, spread wide apart: the front leg reaches far forward and the other front leg pushes back, the hind legs are spread the same way."
+    "prompt": "A slender roe deer buck with a reddish-brown coat, a lighter belly, a white rump patch, large ears and a small pair of short pointed antlers, facing right, walking to the right with its head up. Its legs are in mid-stride, spread wide apart: the front leg reaches far forward and the other front leg pushes back, the hind legs are spread the same way.",
+    "zielbreite": 320,
+    "entgruenen": true
    },
    {
     "name": "reh_lauf2",
@@ -3147,7 +3157,9 @@
       ]
      ]
     },
-    "prompt": "A slender roe deer buck with a reddish-brown coat, a lighter belly, a white rump patch, large ears and a small pair of short pointed antlers, facing right, walking to the right with its head up. Its legs are in mid-stride, spread wide apart: the front leg reaches far forward and the other front leg pushes back, the hind legs are spread the same way."
+    "prompt": "A slender roe deer buck with a reddish-brown coat, a lighter belly, a white rump patch, large ears and a small pair of short pointed antlers, facing right, walking to the right with its head up. Its legs are in mid-stride, spread wide apart: the front leg reaches far forward and the other front leg pushes back, the hind legs are spread the same way.",
+    "zielbreite": 320,
+    "entgruenen": true
    },
    {
     "name": "reh2_lauf1",
@@ -3171,7 +3183,9 @@
       ]
      ]
     },
-    "prompt": "A slender roe deer doe without antlers, with a reddish-brown coat, a lighter belly, a white rump patch and large ears, facing right, its head lowered to graze while it slowly walks to the right. Its legs are in mid-stride, spread wide apart: the front leg reaches far forward and the other front leg pushes back, the hind legs are spread the same way."
+    "prompt": "A slender roe deer doe without antlers, with a reddish-brown coat, a lighter belly, a white rump patch and large ears, facing right, its head lowered to graze while it slowly walks to the right. Its legs are in mid-stride, spread wide apart: the front leg reaches far forward and the other front leg pushes back, the hind legs are spread the same way.",
+    "zielbreite": 320,
+    "entgruenen": true
    },
    {
     "name": "reh2_lauf2",
@@ -3195,7 +3209,9 @@
       ]
      ]
     },
-    "prompt": "A slender roe deer doe without antlers, with a reddish-brown coat, a lighter belly, a white rump patch and large ears, facing right, its head lowered to graze while it slowly walks to the right. Its legs pass each other under the body: one front leg is lifted with the knee bent and one hind leg swings forward under the belly, the other legs carry the weight."
+    "prompt": "A slender roe deer doe without antlers, with a reddish-brown coat, a lighter belly, a white rump patch and large ears, facing right, its head lowered to graze while it slowly walks to the right. Its legs pass each other under the body: one front leg is lifted with the knee bent and one hind leg swings forward under the belly, the other legs carry the weight.",
+    "zielbreite": 320,
+    "entgruenen": true
    },
    {
     "name": "kaninchen_lauf1",
@@ -3296,8 +3312,7 @@
    {
     "name": "wildschwein_lauf1",
     "seed": 9841,
-    "ziel": "Tiere/wildschwein_lauf1.png",
-    "figur": "wildschwein",
+        "figur": "wildschwein",
     "vorlage": "../tiere/wildschwein_9701_roh.png",
     "maske": {
      "rechtecke": [
@@ -3321,13 +3336,14 @@
       ]
      ]
     },
-    "prompt": "A sturdy wild boar with coarse dark brown bristly fur, a ridge of bristles along its back, a long snout and small curved white tusks, facing right, trotting to the right. Its short legs are in mid-stride: the front legs spread apart, one reaching forward, the hind legs spread the other way."
+    "prompt": "A sturdy wild boar with coarse dark brown bristly fur, a ridge of bristles along its back, a long snout and small curved white tusks, facing right, trotting to the right. Its short legs are in mid-stride: the front legs spread apart, one reaching forward, the hind legs spread the other way.",
+    "zielbreite": 320,
+    "entgruenen": true
    },
    {
     "name": "wildschwein_lauf2",
     "seed": 9851,
-    "ziel": "Tiere/wildschwein_lauf2.png",
-    "figur": "wildschwein",
+        "figur": "wildschwein",
     "vorlage": "../tiere/wildschwein_9701_roh.png",
     "maske": {
      "rechtecke": [
@@ -3351,13 +3367,14 @@
       ]
      ]
     },
-    "prompt": "A sturdy wild boar with coarse dark brown bristly fur, a ridge of bristles along its back, a long snout and small curved white tusks, facing right, trotting to the right. Its short legs pass each other under the body: one front leg is lifted with the hoof bent, one hind leg swings forward."
+    "prompt": "A sturdy wild boar with coarse dark brown bristly fur, a ridge of bristles along its back, a long snout and small curved white tusks, facing right, trotting to the right. Its short legs pass each other under the body: one front leg is lifted with the hoof bent, one hind leg swings forward.",
+    "zielbreite": 320,
+    "entgruenen": true
    },
    {
     "name": "wildschwein2_lauf1",
     "seed": 9861,
-    "ziel": "Tiere/wildschwein2_lauf1.png",
-    "figur": "wildschwein2",
+        "figur": "wildschwein2",
     "vorlage": "../tiere/wildschwein2_9712_roh.png",
     "maske": {
      "rechtecke": [
@@ -3375,13 +3392,14 @@
       ]
      ]
     },
-    "prompt": "A sturdy wild boar with coarse dark brown bristly fur and small curved white tusks, facing right, its snout lowered, trotting slowly to the right. Its short legs are in mid-stride: the front legs spread apart, one reaching forward, the hind legs spread the other way."
+    "prompt": "A sturdy wild boar with coarse dark brown bristly fur and small curved white tusks, facing right, its snout lowered, trotting slowly to the right. Its short legs are in mid-stride: the front legs spread apart, one reaching forward, the hind legs spread the other way.",
+    "zielbreite": 320,
+    "entgruenen": true
    },
    {
     "name": "wildschwein2_lauf2",
     "seed": 9871,
-    "ziel": "Tiere/wildschwein2_lauf2.png",
-    "figur": "wildschwein2",
+        "figur": "wildschwein2",
     "vorlage": "../tiere/wildschwein2_9712_roh.png",
     "maske": {
      "rechtecke": [
@@ -3399,7 +3417,9 @@
       ]
      ]
     },
-    "prompt": "A sturdy wild boar with coarse dark brown bristly fur and small curved white tusks, facing right, its snout lowered, trotting slowly to the right. Its short legs pass each other under the body: one front leg is lifted with the hoof bent, one hind leg swings forward."
+    "prompt": "A sturdy wild boar with coarse dark brown bristly fur and small curved white tusks, facing right, its snout lowered, trotting slowly to the right. Its short legs pass each other under the body: one front leg is lifted with the hoof bent, one hind leg swings forward.",
+    "zielbreite": 320,
+    "entgruenen": true
    },
    {
     "name": "baer_lauf1",
@@ -3703,6 +3723,84 @@
     "negativ": "calm, closed mouth, sitting, standing upright, two legs, blood, gore",
     "prompt": "A lean wild dark grey wolf with thick charcoal and silver-grey fur, a pale grey chest and belly, pointed upright ears, amber eyes, long legs and a long bushy tail, facing right, its head held low, attacking: it lunges forward snarling with its jaws wide open, baring sharp white fangs, ears laid back, low on its front legs.",
     "_hinweis": "Vorlage der acht Angriffsphasen (tieranim.py, Gruppe tieranim) - nicht mehr selbst im Spiel."
+   },
+   {
+    "name": "wildschwein_angriff",
+    "seed": 9953,
+    "figur": "wildschwein",
+    "vorlage": "../tiere/wildschwein_9701_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       540,
+       140,
+       484,
+       780
+      ]
+     ],
+     "weich": 16
+    },
+    "stil": "Game sprite for a top-down 2D strategy game, seen from above at a three-quarter angle from the south, the body shown from the side, detailed 16-bit pixel art, crisp pixels, warm natural colors, soft light from the upper left. One single wild animal attacking, centered and fully visible, isolated on a plain flat solid green background like a green screen, no ground, no grass, no shadow, no text.",
+    "negativ": "calm, closed mouth, sitting, standing upright, two legs, blood, gore",
+    "prompt": "A sturdy wild boar with coarse dark brown bristly fur, a ridge of bristles raised along its back, a long snout and curved white tusks, facing right, attacking: it charges forward with its head lowered and its tusks thrust forward, mouth open, squealing, low on its braced front legs.",
+    "_hinweis": "Vorlage der acht Angriffsphasen (tieranim.py, Gruppe tieranim) - nicht selbst im Spiel.",
+    "entgruenen": true
+   },
+   {
+    "name": "reh_flucht1",
+    "seed": 9961,
+    "figur": "reh_flucht",
+    "vorlage": "../tiere/reh_9302_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       90,
+       470,
+       380,
+       380
+      ],
+      [
+       460,
+       590,
+       320,
+       434
+      ]
+     ],
+     "weich": 16
+    },
+    "prompt": "A slender roe deer buck with a reddish-brown coat, a lighter belly, a white rump patch, large ears and a small pair of short pointed antlers, facing right, fleeing in panic with its head up, bounding to the right in a fast gallop: in mid-leap, its front legs stretched far forward and its hind legs stretched far back, no hoof touching the ground.",
+    "zielbreite": 320,
+    "entgruenen": true,
+    "ziel": "Tiere/reh_flucht1.png",
+    "figur_basis": "reh"
+   },
+   {
+    "name": "reh_flucht2",
+    "seed": 9973,
+    "figur": "reh_flucht",
+    "vorlage": "../tiere/reh_9302_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       90,
+       470,
+       380,
+       380
+      ],
+      [
+       460,
+       590,
+       320,
+       434
+      ]
+     ],
+     "weich": 16
+    },
+    "prompt": "A slender roe deer buck with a reddish-brown coat, a lighter belly, a white rump patch, large ears and a small pair of short pointed antlers, facing right, fleeing in panic with its head up, galloping fast to the right: landing from a leap, all four legs gathered close together under its body, the hind hooves set down just behind the front hooves.",
+    "zielbreite": 320,
+    "entgruenen": true,
+    "ziel": "Tiere/reh_flucht2.png",
+    "figur_basis": "reh"
    }
   ]
  },
@@ -4126,6 +4224,230 @@
     "ziel": "Tiere/wolf2_angriff8.png",
     "figur": "wolf2_angriff",
     "zielbreite": 268
+   },
+   {
+    "name": "wildschwein_lauf1",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein_lauf1.png",
+    "figur": "wildschwein",
+    "zielbreite": 320
+   },
+   {
+    "name": "wildschwein_lauf2",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein_lauf2.png",
+    "figur": "wildschwein",
+    "zielbreite": 320
+   },
+   {
+    "name": "wildschwein_lauf3",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein_lauf3.png",
+    "figur": "wildschwein",
+    "zielbreite": 320
+   },
+   {
+    "name": "wildschwein_lauf4",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein_lauf4.png",
+    "figur": "wildschwein",
+    "zielbreite": 320
+   },
+   {
+    "name": "wildschwein_lauf5",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein_lauf5.png",
+    "figur": "wildschwein",
+    "zielbreite": 320
+   },
+   {
+    "name": "wildschwein_lauf6",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein_lauf6.png",
+    "figur": "wildschwein",
+    "zielbreite": 320
+   },
+   {
+    "name": "wildschwein_lauf7",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein_lauf7.png",
+    "figur": "wildschwein",
+    "zielbreite": 320
+   },
+   {
+    "name": "wildschwein_lauf8",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein_lauf8.png",
+    "figur": "wildschwein",
+    "zielbreite": 320
+   },
+   {
+    "name": "wildschwein_angriff1",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein_angriff1.png",
+    "figur": "wildschwein_angriff",
+    "zielbreite": 374
+   },
+   {
+    "name": "wildschwein_angriff2",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein_angriff2.png",
+    "figur": "wildschwein_angriff",
+    "zielbreite": 374
+   },
+   {
+    "name": "wildschwein_angriff3",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein_angriff3.png",
+    "figur": "wildschwein_angriff",
+    "zielbreite": 374
+   },
+   {
+    "name": "wildschwein_angriff4",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein_angriff4.png",
+    "figur": "wildschwein_angriff",
+    "zielbreite": 374
+   },
+   {
+    "name": "wildschwein_angriff5",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein_angriff5.png",
+    "figur": "wildschwein_angriff",
+    "zielbreite": 374
+   },
+   {
+    "name": "wildschwein_angriff6",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein_angriff6.png",
+    "figur": "wildschwein_angriff",
+    "zielbreite": 374
+   },
+   {
+    "name": "wildschwein_angriff7",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein_angriff7.png",
+    "figur": "wildschwein_angriff",
+    "zielbreite": 374
+   },
+   {
+    "name": "wildschwein_angriff8",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein_angriff8.png",
+    "figur": "wildschwein_angriff",
+    "zielbreite": 374
+   },
+   {
+    "name": "wildschwein2_lauf1",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein2_lauf1.png",
+    "figur": "wildschwein2",
+    "zielbreite": 320
+   },
+   {
+    "name": "wildschwein2_lauf2",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein2_lauf2.png",
+    "figur": "wildschwein2",
+    "zielbreite": 320
+   },
+   {
+    "name": "wildschwein2_lauf3",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein2_lauf3.png",
+    "figur": "wildschwein2",
+    "zielbreite": 320
+   },
+   {
+    "name": "wildschwein2_lauf4",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein2_lauf4.png",
+    "figur": "wildschwein2",
+    "zielbreite": 320
+   },
+   {
+    "name": "wildschwein2_lauf5",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein2_lauf5.png",
+    "figur": "wildschwein2",
+    "zielbreite": 320
+   },
+   {
+    "name": "wildschwein2_lauf6",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein2_lauf6.png",
+    "figur": "wildschwein2",
+    "zielbreite": 320
+   },
+   {
+    "name": "wildschwein2_lauf7",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein2_lauf7.png",
+    "figur": "wildschwein2",
+    "zielbreite": 320
+   },
+   {
+    "name": "wildschwein2_lauf8",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein2_lauf8.png",
+    "figur": "wildschwein2",
+    "zielbreite": 320
+   },
+   {
+    "name": "wildschwein2_angriff1",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein2_angriff1.png",
+    "figur": "wildschwein2_angriff",
+    "zielbreite": 353
+   },
+   {
+    "name": "wildschwein2_angriff2",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein2_angriff2.png",
+    "figur": "wildschwein2_angriff",
+    "zielbreite": 353
+   },
+   {
+    "name": "wildschwein2_angriff3",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein2_angriff3.png",
+    "figur": "wildschwein2_angriff",
+    "zielbreite": 353
+   },
+   {
+    "name": "wildschwein2_angriff4",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein2_angriff4.png",
+    "figur": "wildschwein2_angriff",
+    "zielbreite": 353
+   },
+   {
+    "name": "wildschwein2_angriff5",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein2_angriff5.png",
+    "figur": "wildschwein2_angriff",
+    "zielbreite": 353
+   },
+   {
+    "name": "wildschwein2_angriff6",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein2_angriff6.png",
+    "figur": "wildschwein2_angriff",
+    "zielbreite": 353
+   },
+   {
+    "name": "wildschwein2_angriff7",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein2_angriff7.png",
+    "figur": "wildschwein2_angriff",
+    "zielbreite": 353
+   },
+   {
+    "name": "wildschwein2_angriff8",
+    "seed": 1,
+    "ziel": "Tiere/wildschwein2_angriff8.png",
+    "figur": "wildschwein2_angriff",
+    "zielbreite": 353
    }
   ]
  },
@@ -4146,34 +4468,574 @@
     "name": "fleisch_schaf",
     "seed": 9522,
     "ziel": "Tiere/fleisch_schaf.png",
-    "prompt": "Butchered sheep meat: a small neat pile of fresh raw mutton - a leg of lamb, a rack of ribs and two red steaks - lying directly on the ground, nothing underneath."
+    "prompt": "Butchered sheep meat: a small neat pile of fresh raw mutton - a leg of lamb, a rack of ribs and two red steaks - lying directly on the ground, nothing underneath.",
+    "figur": "fleisch_schaf",
+    "zielbreite": 320
    },
    {
     "name": "fleisch_reh",
     "seed": 9532,
     "ziel": "Tiere/fleisch_reh.png",
-    "prompt": "Butchered deer meat: a small neat pile of fresh raw venison - a haunch, a rack of ribs and two dark red steaks - lying directly on the ground, nothing underneath."
+    "prompt": "Butchered deer meat: a small neat pile of fresh raw venison - a haunch, a rack of ribs and two dark red steaks - lying directly on the ground, nothing underneath.",
+    "figur": "fleisch_reh",
+    "zielbreite": 320
    },
    {
     "name": "fleisch_kaninchen",
     "seed": 9921,
     "ziel": "Tiere/fleisch_kaninchen.png",
     "prompt": "Butchered rabbit meat: a very small neat pile of a few fresh raw pink meat pieces - two small drumsticks and a few small cutlets - lying directly on the ground, nothing underneath.",
-    "negativ": "whole animal, carcass, body, ears, head, eyes, paws, fur"
+    "negativ": "whole animal, carcass, body, ears, head, eyes, paws, fur",
+    "figur": "fleisch_kaninchen",
+    "zielbreite": 320
    },
    {
     "name": "fleisch_wildschwein",
     "seed": 9913,
     "ziel": "Tiere/fleisch_wildschwein.png",
-    "prompt": "Butchered wild boar meat: a small neat pile of fresh raw dark pink pork - a big ham, a rack of pork ribs and two thick steaks with a rim of white fat - lying directly on the ground, nothing underneath."
+    "prompt": "Butchered wild boar meat: a small neat pile of fresh raw dark pink pork - a big ham, a rack of pork ribs and two thick steaks with a rim of white fat - lying directly on the ground, nothing underneath.",
+    "figur": "fleisch_wildschwein",
+    "zielbreite": 320
    },
    {
     "name": "fleisch_baer",
     "seed": 9932,
     "ziel": "Tiere/fleisch_baer.png",
-    "zielbreite": 256,
+    "zielbreite": 448,
     "entgruenen": true,
-    "prompt": "Butchered bear meat: a neat pile of fresh raw dark red meat - a big haunch, a rack of thick ribs and two dark steaks with a little white fat - lying directly on the ground, nothing underneath."
+    "prompt": "Butchered bear meat: a neat pile of fresh raw dark red meat - a big haunch, a rack of thick ribs and two dark steaks with a little white fat - lying directly on the ground, nothing underneath.",
+    "figur": "fleisch_baer"
+   },
+   {
+    "name": "fleisch_schaf_75",
+    "seed": 13002,
+    "figur": "fleisch_schaf",
+    "abbau": {
+     "von": "fleisch_schaf_9522_roh.png",
+     "ellipse": [
+      508,
+      810,
+      400,
+      619
+     ],
+     "grund": [
+      80,
+      175,
+      86
+     ]
+    },
+    "vorlage": "fleisch_schaf_75_vorlage.png",
+    "maske": {
+     "boegen": [
+      [
+       508,
+       810,
+       400,
+       619,
+       100
+      ]
+     ],
+     "weich": 12
+    },
+    "prompt": "Butchered sheep meat: a low flat pile of fresh raw mutton - a leg of lamb, a rack of ribs and two red steaks - lying directly on the ground, nothing underneath.",
+    "zielbreite": 320,
+    "ziel": "Tiere/fleisch_schaf_75.png"
+   },
+   {
+    "name": "fleisch_schaf_50",
+    "seed": 13012,
+    "figur": "fleisch_schaf",
+    "abbau": {
+     "von": "fleisch_schaf_9522_roh.png",
+     "ellipse": [
+      508,
+      810,
+      349,
+      433
+     ],
+     "grund": [
+      80,
+      175,
+      86
+     ]
+    },
+    "vorlage": "fleisch_schaf_50_vorlage.png",
+    "maske": {
+     "boegen": [
+      [
+       508,
+       810,
+       349,
+       433,
+       100
+      ]
+     ],
+     "weich": 12
+    },
+    "prompt": "Butchered sheep meat: a low flat pile of fresh raw mutton - a leg of lamb, a rack of ribs and two red steaks - lying directly on the ground, nothing underneath.",
+    "zielbreite": 320,
+    "ziel": "Tiere/fleisch_schaf_50.png"
+   },
+   {
+    "name": "fleisch_schaf_25",
+    "seed": 13021,
+    "figur": "fleisch_schaf",
+    "abbau": {
+     "von": "fleisch_schaf_9522_roh.png",
+     "ellipse": [
+      508,
+      810,
+      278,
+      266
+     ],
+     "grund": [
+      80,
+      175,
+      86
+     ]
+    },
+    "vorlage": "fleisch_schaf_25_vorlage.png",
+    "maske": {
+     "boegen": [
+      [
+       508,
+       810,
+       278,
+       266,
+       100
+      ]
+     ],
+     "weich": 12
+    },
+    "prompt": "Butchered sheep meat: a low flat pile of fresh raw mutton - a leg of lamb, a rack of ribs and two red steaks - lying directly on the ground, nothing underneath.",
+    "zielbreite": 320,
+    "ziel": "Tiere/fleisch_schaf_25.png"
+   },
+   {
+    "name": "fleisch_reh_75",
+    "seed": 13031,
+    "figur": "fleisch_reh",
+    "abbau": {
+     "von": "fleisch_reh_9532_roh.png",
+     "ellipse": [
+      511,
+      807,
+      386,
+      542
+     ],
+     "grund": [
+      80,
+      175,
+      86
+     ]
+    },
+    "vorlage": "fleisch_reh_75_vorlage.png",
+    "maske": {
+     "boegen": [
+      [
+       511,
+       807,
+       386,
+       542,
+       100
+      ]
+     ],
+     "weich": 12
+    },
+    "prompt": "Butchered deer meat: a low flat pile of fresh raw venison - a haunch, a rack of ribs and two dark red steaks - lying directly on the ground, nothing underneath.",
+    "zielbreite": 320,
+    "ziel": "Tiere/fleisch_reh_75.png"
+   },
+   {
+    "name": "fleisch_reh_50",
+    "seed": 13041,
+    "figur": "fleisch_reh",
+    "abbau": {
+     "von": "fleisch_reh_9532_roh.png",
+     "ellipse": [
+      511,
+      807,
+      337,
+      379
+     ],
+     "grund": [
+      80,
+      175,
+      86
+     ]
+    },
+    "vorlage": "fleisch_reh_50_vorlage.png",
+    "maske": {
+     "boegen": [
+      [
+       511,
+       807,
+       337,
+       379,
+       100
+      ]
+     ],
+     "weich": 12
+    },
+    "prompt": "Butchered deer meat: a low flat pile of fresh raw venison - a haunch, a rack of ribs and two dark red steaks - lying directly on the ground, nothing underneath.",
+    "zielbreite": 320,
+    "ziel": "Tiere/fleisch_reh_50.png"
+   },
+   {
+    "name": "fleisch_reh_25",
+    "seed": 13052,
+    "figur": "fleisch_reh",
+    "abbau": {
+     "von": "fleisch_reh_9532_roh.png",
+     "ellipse": [
+      511,
+      807,
+      268,
+      233
+     ],
+     "grund": [
+      80,
+      175,
+      86
+     ]
+    },
+    "vorlage": "fleisch_reh_25_vorlage.png",
+    "maske": {
+     "boegen": [
+      [
+       511,
+       807,
+       268,
+       233,
+       100
+      ]
+     ],
+     "weich": 12
+    },
+    "prompt": "Butchered deer meat: a low flat pile of fresh raw venison - a haunch, a rack of ribs and two dark red steaks - lying directly on the ground, nothing underneath.",
+    "zielbreite": 320,
+    "ziel": "Tiere/fleisch_reh_25.png"
+   },
+   {
+    "name": "fleisch_wildschwein_75",
+    "seed": 13061,
+    "figur": "fleisch_wildschwein",
+    "abbau": {
+     "von": "fleisch_wildschwein_9913_roh.png",
+     "ellipse": [
+      503,
+      816,
+      424,
+      627
+     ],
+     "grund": [
+      80,
+      175,
+      86
+     ]
+    },
+    "vorlage": "fleisch_wildschwein_75_vorlage.png",
+    "maske": {
+     "boegen": [
+      [
+       503,
+       816,
+       424,
+       627,
+       100
+      ]
+     ],
+     "weich": 12
+    },
+    "prompt": "Butchered wild boar meat: a low flat pile of fresh raw dark pink pork - a big ham, a rack of pork ribs and two thick steaks with a rim of white fat - lying directly on the ground, nothing underneath.",
+    "zielbreite": 320,
+    "ziel": "Tiere/fleisch_wildschwein_75.png"
+   },
+   {
+    "name": "fleisch_wildschwein_50",
+    "seed": 13072,
+    "figur": "fleisch_wildschwein",
+    "abbau": {
+     "von": "fleisch_wildschwein_9913_roh.png",
+     "ellipse": [
+      503,
+      816,
+      371,
+      439
+     ],
+     "grund": [
+      80,
+      175,
+      86
+     ]
+    },
+    "vorlage": "fleisch_wildschwein_50_vorlage.png",
+    "maske": {
+     "boegen": [
+      [
+       503,
+       816,
+       371,
+       439,
+       100
+      ]
+     ],
+     "weich": 12
+    },
+    "prompt": "Butchered wild boar meat: a low flat pile of fresh raw dark pink pork - a big ham, a rack of pork ribs and two thick steaks with a rim of white fat - lying directly on the ground, nothing underneath.",
+    "zielbreite": 320,
+    "ziel": "Tiere/fleisch_wildschwein_50.png"
+   },
+   {
+    "name": "fleisch_wildschwein_25",
+    "seed": 13081,
+    "figur": "fleisch_wildschwein",
+    "abbau": {
+     "von": "fleisch_wildschwein_9913_roh.png",
+     "ellipse": [
+      503,
+      816,
+      295,
+      270
+     ],
+     "grund": [
+      80,
+      175,
+      86
+     ]
+    },
+    "vorlage": "fleisch_wildschwein_25_vorlage.png",
+    "maske": {
+     "boegen": [
+      [
+       503,
+       816,
+       295,
+       270,
+       100
+      ]
+     ],
+     "weich": 12
+    },
+    "prompt": "Butchered wild boar meat: a low flat pile of fresh raw dark pink pork - a big ham, a rack of pork ribs and two thick steaks with a rim of white fat - lying directly on the ground, nothing underneath.",
+    "zielbreite": 320,
+    "ziel": "Tiere/fleisch_wildschwein_25.png"
+   },
+   {
+    "name": "fleisch_baer_75",
+    "seed": 13092,
+    "figur": "fleisch_baer",
+    "abbau": {
+     "von": "fleisch_baer_9932_roh.png",
+     "ellipse": [
+      514,
+      861,
+      435,
+      690
+     ],
+     "grund": [
+      80,
+      175,
+      86
+     ]
+    },
+    "vorlage": "fleisch_baer_75_vorlage.png",
+    "maske": {
+     "boegen": [
+      [
+       514,
+       861,
+       435,
+       690,
+       100
+      ]
+     ],
+     "weich": 12
+    },
+    "prompt": "Butchered bear meat: a low flat pile of fresh raw dark red meat - a big haunch, a rack of thick ribs and two dark steaks with a little white fat - lying directly on the ground, nothing underneath.",
+    "zielbreite": 448,
+    "entgruenen": true,
+    "ziel": "Tiere/fleisch_baer_75.png"
+   },
+   {
+    "name": "fleisch_baer_50",
+    "seed": 13102,
+    "figur": "fleisch_baer",
+    "abbau": {
+     "von": "fleisch_baer_9932_roh.png",
+     "ellipse": [
+      514,
+      861,
+      380,
+      483
+     ],
+     "grund": [
+      80,
+      175,
+      86
+     ]
+    },
+    "vorlage": "fleisch_baer_50_vorlage.png",
+    "maske": {
+     "boegen": [
+      [
+       514,
+       861,
+       380,
+       483,
+       100
+      ]
+     ],
+     "weich": 12
+    },
+    "prompt": "Butchered bear meat: a low flat pile of fresh raw dark red meat - a big haunch, a rack of thick ribs and two dark steaks with a little white fat - lying directly on the ground, nothing underneath.",
+    "zielbreite": 448,
+    "entgruenen": true,
+    "ziel": "Tiere/fleisch_baer_50.png"
+   },
+   {
+    "name": "fleisch_baer_25",
+    "seed": 13112,
+    "figur": "fleisch_baer",
+    "abbau": {
+     "von": "fleisch_baer_9932_roh.png",
+     "ellipse": [
+      514,
+      861,
+      302,
+      297
+     ],
+     "grund": [
+      80,
+      175,
+      86
+     ]
+    },
+    "vorlage": "fleisch_baer_25_vorlage.png",
+    "maske": {
+     "boegen": [
+      [
+       514,
+       861,
+       302,
+       297,
+       100
+      ]
+     ],
+     "weich": 12
+    },
+    "prompt": "Butchered bear meat: a low flat pile of fresh raw dark red meat - a big haunch, a rack of thick ribs and two dark steaks with a little white fat - lying directly on the ground, nothing underneath.",
+    "zielbreite": 448,
+    "entgruenen": true,
+    "ziel": "Tiere/fleisch_baer_25.png"
+   },
+   {
+    "name": "fleisch_kaninchen_75",
+    "seed": 13121,
+    "figur": "fleisch_kaninchen",
+    "abbau": {
+     "von": "fleisch_kaninchen_9921_roh.png",
+     "ellipse": [
+      514,
+      744,
+      345,
+      480
+     ],
+     "grund": [
+      80,
+      175,
+      86
+     ]
+    },
+    "vorlage": "fleisch_kaninchen_75_vorlage.png",
+    "maske": {
+     "boegen": [
+      [
+       514,
+       744,
+       345,
+       480,
+       100
+      ]
+     ],
+     "weich": 12
+    },
+    "prompt": "Butchered rabbit meat: a very low flat pile of a few fresh raw pink meat pieces - two small drumsticks and a few small cutlets - lying directly on the ground, nothing underneath.",
+    "negativ": "whole animal, carcass, body, ears, head, eyes, paws, fur",
+    "zielbreite": 320,
+    "ziel": "Tiere/fleisch_kaninchen_75.png"
+   },
+   {
+    "name": "fleisch_kaninchen_50",
+    "seed": 13131,
+    "figur": "fleisch_kaninchen",
+    "abbau": {
+     "von": "fleisch_kaninchen_9921_roh.png",
+     "ellipse": [
+      514,
+      744,
+      302,
+      336
+     ],
+     "grund": [
+      80,
+      175,
+      86
+     ]
+    },
+    "vorlage": "fleisch_kaninchen_50_vorlage.png",
+    "maske": {
+     "boegen": [
+      [
+       514,
+       744,
+       302,
+       336,
+       100
+      ]
+     ],
+     "weich": 12
+    },
+    "prompt": "Butchered rabbit meat: a very low flat pile of a few fresh raw pink meat pieces - two small drumsticks and a few small cutlets - lying directly on the ground, nothing underneath.",
+    "negativ": "whole animal, carcass, body, ears, head, eyes, paws, fur",
+    "zielbreite": 320,
+    "ziel": "Tiere/fleisch_kaninchen_50.png"
+   },
+   {
+    "name": "fleisch_kaninchen_25",
+    "seed": 13142,
+    "figur": "fleisch_kaninchen",
+    "abbau": {
+     "von": "fleisch_kaninchen_9921_roh.png",
+     "ellipse": [
+      514,
+      744,
+      240,
+      206
+     ],
+     "grund": [
+      80,
+      175,
+      86
+     ]
+    },
+    "vorlage": "fleisch_kaninchen_25_vorlage.png",
+    "maske": {
+     "boegen": [
+      [
+       514,
+       744,
+       240,
+       206,
+       100
+      ]
+     ],
+     "weich": 12
+    },
+    "prompt": "Butchered rabbit meat: a very low flat pile of a few fresh raw pink meat pieces - two small drumsticks and a few small cutlets - lying directly on the ground, nothing underneath.",
+    "negativ": "whole animal, carcass, body, ears, head, eyes, paws, fur",
+    "zielbreite": 320,
+    "ziel": "Tiere/fleisch_kaninchen_25.png"
    }
   ]
  },
@@ -6585,6 +7447,498 @@
     },
     "prompt": "Plain white background beside a medieval soldier.",
     "negativ": "speck, dot, line, stick, dirt, weapon, metal, shadow"
+   },
+   {
+    "name": "schwertkaempfer",
+    "seed": 5102,
+    "figur": "schwertkaempfer",
+    "vorlage": "miliz_beine_4631_roh.png",
+    "staerke": 0.85,
+    "maske": {
+     "rechtecke": [
+      [
+       90,
+       0,
+       740,
+       645
+      ],
+      [
+       622,
+       645,
+       165,
+       50
+      ],
+      [
+       440,
+       640,
+       185,
+       20
+      ]
+     ],
+     "ohne": {
+      "rechtecke": [
+       [
+        225,
+        445,
+        120,
+        165
+       ]
+      ],
+      "linien": [
+       [
+        305,
+        575,
+        372,
+        665,
+        40
+       ]
+      ]
+     }
+    },
+    "prompt": "A medieval man-at-arms foot soldier in a long chain mail hauberk over a bright blue padded gambeson, a brown belt, brown trousers and leather boots, a conical steel nasal helmet over a mail coif, a short sword in his right hand pointing down and a round shield painted bright blue with an iron rim and an iron boss on his left arm, determined bearded face, walking pose turned to the right.",
+    "negativ": "extra hand, extra arm, second sword, spear, axe, shadow",
+    "ziel": "Einheiten/schwertkaempfer.png"
+   },
+   {
+    "name": "langschwertkaempfer",
+    "seed": 5111,
+    "figur": "langschwertkaempfer",
+    "vorlage": "miliz_beine_4631_roh.png",
+    "staerke": 0.85,
+    "maske": {
+     "rechtecke": [
+      [
+       90,
+       0,
+       740,
+       645
+      ],
+      [
+       622,
+       645,
+       165,
+       50
+      ],
+      [
+       440,
+       640,
+       185,
+       20
+      ]
+     ],
+     "ohne": {
+      "rechtecke": [
+       [
+        225,
+        445,
+        120,
+        165
+       ]
+      ],
+      "linien": [
+       [
+        305,
+        575,
+        372,
+        665,
+        40
+       ]
+      ]
+     }
+    },
+    "prompt": "A medieval long swordsman in a polished steel breastplate with steel shoulder plates over chain mail, a bright blue surcoat, a brown belt, brown trousers and leather boots, a steel bascinet helmet with an open face, a sword in his right hand pointing down and a bright blue heater shield with a steel rim on his left arm, determined face, walking pose turned to the right.",
+    "negativ": "extra hand, extra arm, second sword, spear, axe, shadow",
+    "ziel": "Einheiten/langschwertkaempfer.png"
+   },
+   {
+    "name": "krieger",
+    "seed": 5122,
+    "figur": "krieger",
+    "vorlage": "miliz_beine_4631_roh.png",
+    "staerke": 0.85,
+    "maske": {
+     "rechtecke": [
+      [
+       90,
+       0,
+       740,
+       645
+      ],
+      [
+       622,
+       645,
+       165,
+       50
+      ],
+      [
+       440,
+       640,
+       185,
+       20
+      ]
+     ],
+     "ohne": {
+      "rechtecke": [
+       [
+        225,
+        445,
+        120,
+        165
+       ]
+      ],
+      "linien": [
+       [
+        305,
+        575,
+        372,
+        665,
+        40
+       ]
+      ]
+     }
+    },
+    "prompt": "A sturdy village warrior in a bright blue linen tunic with a shaggy brown fur vest over it, a brown belt, brown trousers and leather boots, a simple brown leather cap, a short sword in his right hand pointing down and a small round wooden buckler on his left arm, rugged bearded face, walking pose turned to the right.",
+    "negativ": "helmet, armor, chain mail, extra hand, extra arm, second sword, spear, shadow",
+    "ziel": "Einheiten/krieger.png"
+   },
+   {
+    "name": "armbrustschuetze",
+    "seed": 5132,
+    "figur": "armbrustschuetze",
+    "vorlage": "bogenschuetze_beine_4651_roh.png",
+    "staerke": 0.92,
+    "maske": {
+     "rechtecke": [
+      [
+       150,
+       0,
+       800,
+       625
+      ],
+      [
+       540,
+       600,
+       170,
+       55
+      ]
+     ]
+    },
+    "prompt": "A medieval crossbowman in a bright blue padded jack with a brown leather belt, brown trousers, leather boots and a steel kettle hat with a wide brim, a quiver of crossbow bolts at his hip and a loaded wooden crossbow with a short steel bow held in his left hand, focused face, walking pose turned to the right.",
+    "negativ": "longbow, tall bow, hood, extra hand, extra arm, second crossbow, shadow",
+    "ziel": "Einheiten/armbrustschuetze.png",
+    "zielbreite": 128
+   },
+   {
+    "name": "langbogenschuetze",
+    "seed": 5143,
+    "figur": "langbogenschuetze",
+    "vorlage": "bogenschuetze_beine_4651_roh.png",
+    "staerke": 0.85,
+    "maske": {
+     "rechtecke": [
+      [
+       150,
+       0,
+       800,
+       625
+      ],
+      [
+       540,
+       600,
+       170,
+       55
+      ]
+     ]
+    },
+    "prompt": "A medieval longbowman in a bright blue padded jack with a brown leather belt, brown trousers, leather boots and a round steel cap, a quiver of arrows on his back and a very tall yew longbow in his left hand reaching high above his head, focused face, walking pose turned to the right.",
+    "negativ": "crossbow, hood, extra hand, extra arm, second bow, shadow",
+    "ziel": "Einheiten/langbogenschuetze.png",
+    "zielbreite": 128
+   },
+   {
+    "name": "leichte_kavallerie",
+    "seed": 5152,
+    "figur": "leichte_kavallerie",
+    "vorlage": "spaeher_4621_roh.png",
+    "staerke": 0.85,
+    "maske": {
+     "rechtecke": [
+      [
+       330,
+       0,
+       290,
+       470
+      ]
+     ],
+     "ohne": {
+      "linien": [
+       [
+        320,
+        590,
+        665,
+        25,
+        26
+       ]
+      ],
+      "ellipsen": [
+       [
+        440,
+        362,
+        40,
+        42
+       ]
+      ]
+     }
+    },
+    "prompt": "A medieval light cavalryman on a brown horse, the rider in a short chain mail shirt over a bright blue tunic and a pointed steel helmet with a nose guard, a short spear held in his right hand, the horse with a simple saddle and bridle, the whole horse visible from ears to hooves, standing pose turned slightly to the right.",
+    "negativ": "second spear, pennant, extra hand, extra arm, shield, shadow",
+    "ziel": "Einheiten/leichte_kavallerie.png",
+    "zielbreite": 128
+   },
+   {
+    "name": "moench",
+    "seed": 5203,
+    "figur": "moench",
+    "prompt": "A medieval monk in a plain brown wool habit reaching just below his knees, a bright blue hood lying on his shoulders and a bright blue stole hanging from his neck, a white rope belt, bare shins and leather sandals, a tonsured head with a short beard, a tall plain wooden staff in his right hand, calm kind face, walking pose turned to the right: his legs in a relaxed stride seen from the side, the front leg forward and the back leg behind, both feet pointing to the right.",
+    "negativ": "sword, weapon, shield, armor, helmet, cross on the staff, extra leg, three legs, feet pointing at the viewer, frontal stance",
+    "ziel": "Einheiten/moench.png",
+    "zielbreite": 128
+   },
+   {
+    "name": "leichte_kavallerie_ohne_speer",
+    "seed": 5251,
+    "vorlage": "leichte_kavallerie_5152_roh.png",
+    "maske": {
+     "linien": [
+      [
+       318,
+       590,
+       668,
+       22,
+       46
+      ]
+     ]
+    },
+    "prompt": "A medieval light cavalryman on a brown horse, the rider in a short chain mail shirt over a bright blue tunic and a pointed steel helmet with a nose guard, both gloved hands resting in front of his belt, the horse with a simple saddle and bridle, the whole horse visible from ears to hooves, standing pose turned slightly to the right. He carries no spear.",
+    "negativ": "spear, lance, pole, stick, staff, weapon, rod, shaft"
+   },
+   {
+    "name": "moench_ohne_arm",
+    "seed": 5261,
+    "vorlage": "moench_5203_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       255,
+       300,
+       175,
+       340
+      ]
+     ]
+    },
+    "prompt": "A medieval monk in a plain brown wool habit reaching to his calves, a bright blue hood lying on his shoulders and a bright blue stole hanging from his neck, a white rope belt, bare shins and leather sandals, a tonsured head with a short beard, calm kind face, walking pose turned to the right. A tall plain wooden staff in his far hand at the front. His near arm is raised high behind his head, out of view: at his near side only the brown habit is visible down to its hem, no sleeve and no hand hang down.",
+    "negativ": "hand, fist, arm hanging down, sleeve hanging down, extra arm, extra hand, shadow"
+   },
+   {
+    "name": "moench_ohne_arm_v",
+    "seed": 5271,
+    "vorlage": "moench_ohne_arm_v_vorlage.png",
+    "maske": {
+     "rechtecke": [
+      [
+       255,
+       300,
+       175,
+       340
+      ]
+     ]
+    },
+    "prompt": "A medieval monk in a plain brown wool habit reaching to his calves, a bright blue hood lying on his shoulders and a bright blue stole hanging from his neck, a white rope belt, bare shins and leather sandals, a tonsured head with a short beard, calm kind face, walking pose turned to the right. A tall plain wooden staff in his far hand at the front. His near arm is raised high behind his head, out of view: at his near side only the brown habit is visible down to its hem, no sleeve and no hand hang down.",
+    "negativ": "hand, fist, arm hanging down, sleeve hanging down, extra arm, extra hand, shadow",
+    "vorfuellen": "moench_5203_roh.png",
+    "staerke": 0.65
+   },
+   {
+    "name": "moench_reliquie",
+    "seed": 5282,
+    "vorlage": "moench_5203_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       250,
+       300,
+       240,
+       340
+      ]
+     ]
+    },
+    "prompt": "A medieval monk in a plain brown wool habit reaching to his calves, a bright blue hood lying on his shoulders and a bright blue stole hanging from his neck, a white rope belt, bare shins and leather sandals, a tonsured head with a short beard, calm kind face, walking pose turned to the right. A tall plain wooden staff in his far hand at the front. In the crook of his near arm he carries a small golden medieval reliquary chest with a rounded lid, decorated with red and blue gems, a small golden cross standing upright on top of its lid, pressed against his chest.",
+    "negativ": "book, bible, lantern, extra arm, extra hand, shadow",
+    "ziel": "Einheiten/moench_reliquie.png",
+    "zielbreite": 128,
+    "figur": "moench_reliquie"
+   },
+   {
+    "name": "schwertkaempfer_ohne_arm",
+    "seed": 5152,
+    "vorlage": "schwertkaempfer_5102_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       212,
+       322,
+       176,
+       318
+      ]
+     ],
+     "linien": [
+      [
+       300,
+       565,
+       505,
+       795,
+       56
+      ]
+     ]
+    },
+    "prompt": "A medieval man-at-arms foot soldier in a long chain mail hauberk over a bright blue padded gambeson, a brown belt, brown trousers and leather boots, a conical steel nasal helmet over a mail coif and a round shield painted bright blue with an iron rim and an iron boss on his left arm, determined bearded face, walking pose turned to the right. His right arm is raised high behind his head, out of view: at his right side only his clothing is visible down to its hem, and nothing is in front of his legs.",
+    "negativ": "sword, blade, weapon, hand, fist, arm hanging down, sleeve hanging down, extra arm, glove, dagger"
+   },
+   {
+    "name": "langschwertkaempfer_ohne_arm",
+    "seed": 5161,
+    "vorlage": "langschwertkaempfer_5111_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       212,
+       322,
+       176,
+       318
+      ]
+     ],
+     "linien": [
+      [
+       300,
+       565,
+       505,
+       795,
+       56
+      ]
+     ]
+    },
+    "prompt": "A medieval long swordsman in a polished steel breastplate with steel shoulder plates over chain mail, a bright blue surcoat, a brown belt, brown trousers and leather boots, a steel bascinet helmet with an open face and a bright blue heater shield with a steel rim on his left arm, determined face, walking pose turned to the right. His right arm is raised high behind his head, out of view: at his right side only his clothing is visible down to its hem, and nothing is in front of his legs.",
+    "negativ": "sword, blade, weapon, hand, fist, arm hanging down, sleeve hanging down, extra arm, glove, dagger"
+   },
+   {
+    "name": "krieger_ohne_arm",
+    "seed": 5172,
+    "vorlage": "krieger_5122_roh.png",
+    "maske": {
+     "rechtecke": [
+      [
+       212,
+       322,
+       176,
+       318
+      ]
+     ],
+     "linien": [
+      [
+       300,
+       565,
+       505,
+       795,
+       56
+      ]
+     ]
+    },
+    "prompt": "A sturdy village warrior in a bright blue linen tunic with a shaggy brown fur vest over it, a brown belt, brown trousers and leather boots, a simple brown leather cap and a small round wooden buckler on his left arm, rugged bearded face, walking pose turned to the right. His right arm is raised high behind his head, out of view: at his right side only his clothing is visible down to its hem, and nothing is in front of his legs.",
+    "negativ": "sword, blade, weapon, hand, fist, arm hanging down, sleeve hanging down, extra arm, glove, dagger"
+   },
+   {
+    "name": "schwertkaempfer_ohne_arm_v",
+    "seed": 5162,
+    "vorlage": "schwertkaempfer_ohne_arm_v_vorlage.png",
+    "maske": {
+     "rechtecke": [
+      [
+       212,
+       322,
+       176,
+       318
+      ]
+     ],
+     "linien": [
+      [
+       300,
+       565,
+       505,
+       795,
+       56
+      ]
+     ]
+    },
+    "prompt": "A medieval man-at-arms foot soldier in a long chain mail hauberk over a bright blue padded gambeson, a brown belt, brown trousers and leather boots, a conical steel nasal helmet over a mail coif and a round shield painted bright blue with an iron rim and an iron boss on his left arm, determined bearded face, walking pose turned to the right. His right arm is raised high behind his head, out of view: at his right side only his clothing is visible down to its hem, and nothing is in front of his legs.",
+    "negativ": "sword, blade, weapon, hand, fist, arm hanging down, sleeve hanging down, extra arm, glove, dagger",
+    "vorfuellen": "schwertkaempfer_5102_roh.png",
+    "staerke": 0.6
+   },
+   {
+    "name": "langschwertkaempfer_ohne_arm_v",
+    "seed": 5171,
+    "vorlage": "langschwertkaempfer_ohne_arm_v_vorlage.png",
+    "maske": {
+     "rechtecke": [
+      [
+       212,
+       322,
+       176,
+       318
+      ]
+     ],
+     "linien": [
+      [
+       300,
+       565,
+       505,
+       795,
+       56
+      ]
+     ]
+    },
+    "prompt": "A medieval long swordsman in a polished steel breastplate with steel shoulder plates over chain mail, a bright blue surcoat, a brown belt, brown trousers and leather boots, a steel bascinet helmet with an open face and a bright blue heater shield with a steel rim on his left arm, determined face, walking pose turned to the right. His right arm is raised high behind his head, out of view: at his right side only his clothing is visible down to its hem, and nothing is in front of his legs.",
+    "negativ": "sword, blade, weapon, hand, fist, arm hanging down, sleeve hanging down, extra arm, glove, dagger",
+    "vorfuellen": "langschwertkaempfer_5111_roh.png",
+    "staerke": 0.6
+   },
+   {
+    "name": "krieger_ohne_arm_v",
+    "seed": 5182,
+    "vorlage": "krieger_ohne_arm_v_vorlage.png",
+    "maske": {
+     "rechtecke": [
+      [
+       212,
+       322,
+       176,
+       318
+      ]
+     ],
+     "linien": [
+      [
+       300,
+       565,
+       505,
+       795,
+       56
+      ]
+     ]
+    },
+    "prompt": "A sturdy village warrior in a bright blue linen tunic with a shaggy brown fur vest over it, a brown belt, brown trousers and leather boots, a simple brown leather cap and a small round wooden buckler on his left arm, rugged bearded face, walking pose turned to the right. His right arm is raised high behind his head, out of view: at his right side only his clothing is visible down to its hem, and nothing is in front of his legs.",
+    "negativ": "sword, blade, weapon, hand, fist, arm hanging down, sleeve hanging down, extra arm, glove, dagger",
+    "vorfuellen": "krieger_5122_roh.png",
+    "staerke": 0.6
    }
   ]
  },
@@ -7600,6 +8954,286 @@
     "figur": "paladin",
     "zielbreite": 149,
     "blau_saettigung": 0.75
+   },
+   {
+    "name": "armbrustschuetze_lauf1",
+    "seed": 1,
+    "ziel": "Einheiten/armbrustschuetze_lauf1.png",
+    "figur": "armbrustschuetze",
+    "zielbreite": 128
+   },
+   {
+    "name": "armbrustschuetze_lauf2",
+    "seed": 1,
+    "ziel": "Einheiten/armbrustschuetze_lauf2.png",
+    "figur": "armbrustschuetze",
+    "zielbreite": 128
+   },
+   {
+    "name": "armbrustschuetze_lauf3",
+    "seed": 1,
+    "ziel": "Einheiten/armbrustschuetze_lauf3.png",
+    "figur": "armbrustschuetze",
+    "zielbreite": 128
+   },
+   {
+    "name": "armbrustschuetze_lauf4",
+    "seed": 1,
+    "ziel": "Einheiten/armbrustschuetze_lauf4.png",
+    "figur": "armbrustschuetze",
+    "zielbreite": 128
+   },
+   {
+    "name": "armbrustschuetze_lauf5",
+    "seed": 1,
+    "ziel": "Einheiten/armbrustschuetze_lauf5.png",
+    "figur": "armbrustschuetze",
+    "zielbreite": 128
+   },
+   {
+    "name": "armbrustschuetze_lauf6",
+    "seed": 1,
+    "ziel": "Einheiten/armbrustschuetze_lauf6.png",
+    "figur": "armbrustschuetze",
+    "zielbreite": 128
+   },
+   {
+    "name": "armbrustschuetze_lauf7",
+    "seed": 1,
+    "ziel": "Einheiten/armbrustschuetze_lauf7.png",
+    "figur": "armbrustschuetze",
+    "zielbreite": 128
+   },
+   {
+    "name": "armbrustschuetze_lauf8",
+    "seed": 1,
+    "ziel": "Einheiten/armbrustschuetze_lauf8.png",
+    "figur": "armbrustschuetze",
+    "zielbreite": 128
+   },
+   {
+    "name": "langbogenschuetze_lauf1",
+    "seed": 1,
+    "ziel": "Einheiten/langbogenschuetze_lauf1.png",
+    "figur": "langbogenschuetze",
+    "zielbreite": 128
+   },
+   {
+    "name": "langbogenschuetze_lauf2",
+    "seed": 1,
+    "ziel": "Einheiten/langbogenschuetze_lauf2.png",
+    "figur": "langbogenschuetze",
+    "zielbreite": 128
+   },
+   {
+    "name": "langbogenschuetze_lauf3",
+    "seed": 1,
+    "ziel": "Einheiten/langbogenschuetze_lauf3.png",
+    "figur": "langbogenschuetze",
+    "zielbreite": 128
+   },
+   {
+    "name": "langbogenschuetze_lauf4",
+    "seed": 1,
+    "ziel": "Einheiten/langbogenschuetze_lauf4.png",
+    "figur": "langbogenschuetze",
+    "zielbreite": 128
+   },
+   {
+    "name": "langbogenschuetze_lauf5",
+    "seed": 1,
+    "ziel": "Einheiten/langbogenschuetze_lauf5.png",
+    "figur": "langbogenschuetze",
+    "zielbreite": 128
+   },
+   {
+    "name": "langbogenschuetze_lauf6",
+    "seed": 1,
+    "ziel": "Einheiten/langbogenschuetze_lauf6.png",
+    "figur": "langbogenschuetze",
+    "zielbreite": 128
+   },
+   {
+    "name": "langbogenschuetze_lauf7",
+    "seed": 1,
+    "ziel": "Einheiten/langbogenschuetze_lauf7.png",
+    "figur": "langbogenschuetze",
+    "zielbreite": 128
+   },
+   {
+    "name": "langbogenschuetze_lauf8",
+    "seed": 1,
+    "ziel": "Einheiten/langbogenschuetze_lauf8.png",
+    "figur": "langbogenschuetze",
+    "zielbreite": 128
+   },
+   {
+    "name": "leichte_kavallerie_lauf1",
+    "seed": 1,
+    "ziel": "Einheiten/leichte_kavallerie_lauf1.png",
+    "figur": "leichte_kavallerie",
+    "zielbreite": 128
+   },
+   {
+    "name": "leichte_kavallerie_lauf2",
+    "seed": 1,
+    "ziel": "Einheiten/leichte_kavallerie_lauf2.png",
+    "figur": "leichte_kavallerie",
+    "zielbreite": 128
+   },
+   {
+    "name": "leichte_kavallerie_lauf3",
+    "seed": 1,
+    "ziel": "Einheiten/leichte_kavallerie_lauf3.png",
+    "figur": "leichte_kavallerie",
+    "zielbreite": 128
+   },
+   {
+    "name": "leichte_kavallerie_lauf4",
+    "seed": 1,
+    "ziel": "Einheiten/leichte_kavallerie_lauf4.png",
+    "figur": "leichte_kavallerie",
+    "zielbreite": 128
+   },
+   {
+    "name": "leichte_kavallerie_lauf5",
+    "seed": 1,
+    "ziel": "Einheiten/leichte_kavallerie_lauf5.png",
+    "figur": "leichte_kavallerie",
+    "zielbreite": 128
+   },
+   {
+    "name": "leichte_kavallerie_lauf6",
+    "seed": 1,
+    "ziel": "Einheiten/leichte_kavallerie_lauf6.png",
+    "figur": "leichte_kavallerie",
+    "zielbreite": 128
+   },
+   {
+    "name": "leichte_kavallerie_lauf7",
+    "seed": 1,
+    "ziel": "Einheiten/leichte_kavallerie_lauf7.png",
+    "figur": "leichte_kavallerie",
+    "zielbreite": 128
+   },
+   {
+    "name": "leichte_kavallerie_lauf8",
+    "seed": 1,
+    "ziel": "Einheiten/leichte_kavallerie_lauf8.png",
+    "figur": "leichte_kavallerie",
+    "zielbreite": 128
+   },
+   {
+    "name": "moench_lauf1",
+    "seed": 1,
+    "ziel": "Einheiten/moench_lauf1.png",
+    "figur": "moench",
+    "zielbreite": 128
+   },
+   {
+    "name": "moench_lauf2",
+    "seed": 1,
+    "ziel": "Einheiten/moench_lauf2.png",
+    "figur": "moench",
+    "zielbreite": 128
+   },
+   {
+    "name": "moench_lauf3",
+    "seed": 1,
+    "ziel": "Einheiten/moench_lauf3.png",
+    "figur": "moench",
+    "zielbreite": 128
+   },
+   {
+    "name": "moench_lauf4",
+    "seed": 1,
+    "ziel": "Einheiten/moench_lauf4.png",
+    "figur": "moench",
+    "zielbreite": 128
+   },
+   {
+    "name": "moench_lauf5",
+    "seed": 1,
+    "ziel": "Einheiten/moench_lauf5.png",
+    "figur": "moench",
+    "zielbreite": 128
+   },
+   {
+    "name": "moench_lauf6",
+    "seed": 1,
+    "ziel": "Einheiten/moench_lauf6.png",
+    "figur": "moench",
+    "zielbreite": 128
+   },
+   {
+    "name": "moench_lauf7",
+    "seed": 1,
+    "ziel": "Einheiten/moench_lauf7.png",
+    "figur": "moench",
+    "zielbreite": 128
+   },
+   {
+    "name": "moench_lauf8",
+    "seed": 1,
+    "ziel": "Einheiten/moench_lauf8.png",
+    "figur": "moench",
+    "zielbreite": 128
+   },
+   {
+    "name": "moench_reliquie_lauf1",
+    "seed": 1,
+    "ziel": "Einheiten/moench_reliquie_lauf1.png",
+    "figur": "moench_reliquie",
+    "zielbreite": 128
+   },
+   {
+    "name": "moench_reliquie_lauf2",
+    "seed": 1,
+    "ziel": "Einheiten/moench_reliquie_lauf2.png",
+    "figur": "moench_reliquie",
+    "zielbreite": 128
+   },
+   {
+    "name": "moench_reliquie_lauf3",
+    "seed": 1,
+    "ziel": "Einheiten/moench_reliquie_lauf3.png",
+    "figur": "moench_reliquie",
+    "zielbreite": 128
+   },
+   {
+    "name": "moench_reliquie_lauf4",
+    "seed": 1,
+    "ziel": "Einheiten/moench_reliquie_lauf4.png",
+    "figur": "moench_reliquie",
+    "zielbreite": 128
+   },
+   {
+    "name": "moench_reliquie_lauf5",
+    "seed": 1,
+    "ziel": "Einheiten/moench_reliquie_lauf5.png",
+    "figur": "moench_reliquie",
+    "zielbreite": 128
+   },
+   {
+    "name": "moench_reliquie_lauf6",
+    "seed": 1,
+    "ziel": "Einheiten/moench_reliquie_lauf6.png",
+    "figur": "moench_reliquie",
+    "zielbreite": 128
+   },
+   {
+    "name": "moench_reliquie_lauf7",
+    "seed": 1,
+    "ziel": "Einheiten/moench_reliquie_lauf7.png",
+    "figur": "moench_reliquie",
+    "zielbreite": 128
+   },
+   {
+    "name": "moench_reliquie_lauf8",
+    "seed": 1,
+    "ziel": "Einheiten/moench_reliquie_lauf8.png",
+    "figur": "moench_reliquie",
+    "zielbreite": 128
    }
   ]
  },
@@ -8078,6 +9712,118 @@
     "figur": "paladin_schlag",
     "zielbreite": 150,
     "blau_saettigung": 0.75
+   },
+   {
+    "name": "leichte_kavallerie_schlag1",
+    "seed": 1,
+    "ziel": "Einheiten/leichte_kavallerie_schlag1.png",
+    "figur": "leichte_kavallerie_schlag",
+    "zielbreite": 145
+   },
+   {
+    "name": "leichte_kavallerie_schlag2",
+    "seed": 1,
+    "ziel": "Einheiten/leichte_kavallerie_schlag2.png",
+    "figur": "leichte_kavallerie_schlag",
+    "zielbreite": 145
+   },
+   {
+    "name": "leichte_kavallerie_schlag3",
+    "seed": 1,
+    "ziel": "Einheiten/leichte_kavallerie_schlag3.png",
+    "figur": "leichte_kavallerie_schlag",
+    "zielbreite": 145
+   },
+   {
+    "name": "leichte_kavallerie_schlag4",
+    "seed": 1,
+    "ziel": "Einheiten/leichte_kavallerie_schlag4.png",
+    "figur": "leichte_kavallerie_schlag",
+    "zielbreite": 145
+   },
+   {
+    "name": "leichte_kavallerie_schlag5",
+    "seed": 1,
+    "ziel": "Einheiten/leichte_kavallerie_schlag5.png",
+    "figur": "leichte_kavallerie_schlag",
+    "zielbreite": 145
+   },
+   {
+    "name": "leichte_kavallerie_schlag6",
+    "seed": 1,
+    "ziel": "Einheiten/leichte_kavallerie_schlag6.png",
+    "figur": "leichte_kavallerie_schlag",
+    "zielbreite": 145
+   },
+   {
+    "name": "leichte_kavallerie_schlag7",
+    "seed": 1,
+    "ziel": "Einheiten/leichte_kavallerie_schlag7.png",
+    "figur": "leichte_kavallerie_schlag",
+    "zielbreite": 145
+   },
+   {
+    "name": "leichte_kavallerie_schlag8",
+    "seed": 1,
+    "ziel": "Einheiten/leichte_kavallerie_schlag8.png",
+    "figur": "leichte_kavallerie_schlag",
+    "zielbreite": 145
+   },
+   {
+    "name": "moench_schlag1",
+    "seed": 1,
+    "ziel": "Einheiten/moench_schlag1.png",
+    "figur": "moench_schlag",
+    "zielbreite": 137
+   },
+   {
+    "name": "moench_schlag2",
+    "seed": 1,
+    "ziel": "Einheiten/moench_schlag2.png",
+    "figur": "moench_schlag",
+    "zielbreite": 137
+   },
+   {
+    "name": "moench_schlag3",
+    "seed": 1,
+    "ziel": "Einheiten/moench_schlag3.png",
+    "figur": "moench_schlag",
+    "zielbreite": 137
+   },
+   {
+    "name": "moench_schlag4",
+    "seed": 1,
+    "ziel": "Einheiten/moench_schlag4.png",
+    "figur": "moench_schlag",
+    "zielbreite": 137
+   },
+   {
+    "name": "moench_schlag5",
+    "seed": 1,
+    "ziel": "Einheiten/moench_schlag5.png",
+    "figur": "moench_schlag",
+    "zielbreite": 137
+   },
+   {
+    "name": "moench_schlag6",
+    "seed": 1,
+    "ziel": "Einheiten/moench_schlag6.png",
+    "figur": "moench_schlag",
+    "zielbreite": 137
+   },
+   {
+    "name": "moench_schlag7",
+    "seed": 1,
+    "ziel": "Einheiten/moench_schlag7.png",
+    "figur": "moench_schlag",
+    "zielbreite": 137
+   },
+   {
+    "name": "moench_schlag8",
+    "seed": 1,
+    "ziel": "Einheiten/moench_schlag8.png",
+    "figur": "moench_schlag",
+    "zielbreite": 137
    }
   ]
  },
@@ -8314,6 +10060,827 @@
     "seed": 10201,
     "ziel": "Effekte/pfeil_befiedert.png",
     "prompt": "A finely crafted war arrow: a straight polished honey-colored ash shaft, a long sharp shining steel bodkin arrowhead, and three long bright red and white feathers neatly fletched at the back end, bound to the shaft with thin red thread."
+   }
+  ]
+ },
+ "icons_ausbildung": {
+  "groesse": [
+   1024,
+   1024
+  ],
+  "zielgroesse": [
+   128,
+   128
+  ],
+  "schritte": 30,
+  "cfg": 3.0,
+  "stil": "Game user interface icon in 16-bit pixel art style, crisp square pixels, limited warm color palette, one single object centered and filling most of the image, three-quarter view, plain flat dark brown background, no text.",
+  "negativ": "text, letters, numbers, words, watermark, logo, signature, frame, border, photo, realistic, 3d render, multiple objects, cluttered background, blurry",
+  "bilder": [
+   {
+    "name": "speerkaempfer",
+    "seed": 11201,
+    "prompt": "A medieval spearman foot soldier in a bright blue padded gambeson, a conical iron helmet with a nose guard and his bearded face clearly visible, holding a long wooden spear with an iron spearhead upright.",
+    "negativ": "visor, closed helmet, great helm, face covered"
+   },
+   {
+    "name": "plaenkler",
+    "seed": 11011,
+    "prompt": "A light medieval skirmisher in a blue quilted tunic and a brown leather cap, a small round wicker shield on his arm, about to throw a short javelin.",
+    "ziel": "Icons/plaenkler.png"
+   },
+   {
+    "name": "ritter",
+    "seed": 11022,
+    "prompt": "A medieval knight in shining steel plate armor with a closed great helm, riding a grey warhorse covered by a long blue cloth caparison with a golden trim, his longsword raised.",
+    "ziel": "Icons/ritter.png"
+   },
+   {
+    "name": "pikenier",
+    "seed": 11031,
+    "prompt": "A medieval pikeman with a steel kettle hat with a wide brim and a steel breastplate over a blue padded gambeson, holding a very long wooden pike upright.",
+    "ziel": "Icons/pikenier.png"
+   },
+   {
+    "name": "hellebardier",
+    "seed": 11042,
+    "prompt": "A late medieval halberdier with a steel sallet helmet and a polished steel breastplate over a blue and white striped doublet, holding a halberd with a broad steel axe blade upright.",
+    "ziel": "Icons/hellebardier.png"
+   },
+   {
+    "name": "elite_plaenkler",
+    "seed": 11051,
+    "prompt": "An elite medieval skirmisher with a round steel cap and a short mail shirt over a blue quilted tunic, a round wooden shield with an iron boss on his arm, about to throw a short javelin.",
+    "ziel": "Icons/elite_plaenkler.png"
+   },
+   {
+    "name": "kavalier",
+    "seed": 11062,
+    "prompt": "A medieval cavalier in heavy polished steel plate armor and a closed great helm with a tall blue feather plume, riding a grey warhorse covered by a blue caparison with a white and silver checkered border, his longsword raised.",
+    "ziel": "Icons/kavalier.png"
+   },
+   {
+    "name": "paladin",
+    "seed": 11071,
+    "prompt": "A medieval paladin in ornate gilded plate armor, a golden crown crest on his great helm, riding a grey warhorse covered by a blue caparison embroidered with golden fleur-de-lis, his longsword raised.",
+    "ziel": "Icons/paladin.png"
+   },
+   {
+    "name": "schwertkaempfer",
+    "seed": 11811,
+    "prompt": "A medieval man-at-arms foot soldier in a rounded steel kettle helmet over a chain mail coif, a bright blue quilted gambeson with chain mail sleeves, his bearded face clearly visible, holding a short steel sword and a round bright blue shield with an iron rim and an iron boss.",
+    "negativ": "visor, closed helmet, great helm, face covered, spear, axe"
+   },
+   {
+    "name": "langschwertkaempfer",
+    "seed": 11091,
+    "prompt": "A medieval long swordsman in a steel bascinet helmet and a polished steel breastplate over chain mail and a blue surcoat, holding a long steel longsword and a blue heater shield.",
+    "ziel": "Icons/langschwertkaempfer.png"
+   },
+   {
+    "name": "armbrustschuetze",
+    "seed": 11102,
+    "prompt": "A medieval crossbowman with a steel kettle hat and a blue padded jack, aiming a wooden crossbow with a steel bow.",
+    "ziel": "Icons/armbrustschuetze.png"
+   },
+   {
+    "name": "leichte_kavallerie",
+    "seed": 11112,
+    "prompt": "A medieval light cavalryman with a pointed steel helmet and a chain mail shirt over a blue tunic, riding a brown horse with a blue saddle cloth, holding a light lance.",
+    "ziel": "Icons/leichte_kavallerie.png"
+   },
+   {
+    "name": "langbogenschuetze",
+    "seed": 11122,
+    "prompt": "A medieval longbowman with a steel cap and a blue padded jack, drawing a very tall yew longbow that is taller than himself.",
+    "ziel": "Icons/langbogenschuetze.png"
+   },
+   {
+    "name": "krieger",
+    "seed": 11821,
+    "prompt": "A sturdy village warrior in a bright blue linen tunic with a shaggy brown fur vest over it and a simple brown leather cap, his rugged bearded face clearly visible, holding a short steel sword and a small round wooden buckler.",
+    "negativ": "club, mace, axe, helmet, armor, chain mail"
+   },
+   {
+    "name": "moench",
+    "seed": 11141,
+    "prompt": "A medieval monk in a long brown wool habit with a bright blue hood and stole, holding a tall wooden staff, one hand raised in blessing.",
+    "ziel": "Icons/moench.png"
+   },
+   {
+    "name": "rammbock",
+    "seed": 11151,
+    "prompt": "A medieval battering ram: a heavy log with an iron ram head hanging under a sloped wooden roof covered with hides, on four solid wooden wheels, blue painted shields on its sides.",
+    "ziel": "Icons/rammbock.png"
+   },
+   {
+    "name": "mangonel",
+    "seed": 11162,
+    "prompt": "A small wooden mangonel catapult on four wheels with its throwing arm swung high, a round stone flying from its cup.",
+    "ziel": "Icons/mangonel.png"
+   },
+   {
+    "name": "trebuchet",
+    "seed": 11172,
+    "prompt": "A tall medieval counterweight trebuchet: a high wooden frame with a long throwing arm, a heavy wooden box counterweight and a rope sling.",
+    "ziel": "Icons/trebuchet.png"
+   }
+  ]
+ },
+ "icons_forschung": {
+  "groesse": [
+   1024,
+   1024
+  ],
+  "zielgroesse": [
+   128,
+   128
+  ],
+  "schritte": 30,
+  "cfg": 3.0,
+  "stil": "Game user interface icon in 16-bit pixel art style, crisp square pixels, limited warm color palette, one single object centered and filling most of the image, three-quarter view, plain flat dark brown background, no text.",
+  "negativ": "text, letters, numbers, words, watermark, logo, signature, frame, border, photo, realistic, 3d render, multiple objects, cluttered background, blurry",
+  "bilder": [
+   {
+    "name": "schubkarre",
+    "seed": 11302,
+    "prompt": "A wooden wheelbarrow with one iron-rimmed wheel, loaded with logs and grey stones.",
+    "ziel": "Icons/schubkarre.png"
+   },
+   {
+    "name": "handkarren",
+    "seed": 11312,
+    "prompt": "A two-wheeled wooden handcart loaded with sacks of grain, logs and a small pile of gold.",
+    "ziel": "Icons/handkarren.png"
+   },
+   {
+    "name": "schwerer_pflug",
+    "seed": 11461,
+    "prompt": "A heavy medieval wheeled plough: a sturdy wooden frame with two long handles, a pair of small wooden wheels at the front and a large curved iron ploughshare cutting a deep furrow into dark brown earth.",
+    "negativ": "sickle, scythe, hoe, axe"
+   },
+   {
+    "name": "fruchtwechsel",
+    "seed": 11332,
+    "prompt": "A small square farm field divided into three strips: ripe golden wheat, green bean plants and freshly tilled brown earth.",
+    "ziel": "Icons/fruchtwechsel.png"
+   },
+   {
+    "name": "bogensaege",
+    "seed": 11342,
+    "prompt": "A bow saw with a curved wooden frame and a thin toothed steel blade, resting on a half cut log.",
+    "ziel": "Icons/bogensaege.png"
+   },
+   {
+    "name": "goldschacht",
+    "seed": 11451,
+    "prompt": "A timber-framed mine entrance in a rocky hillside with a wooden pulley wheel above it and a wooden bucket full of gold nuggets hanging from its rope, more gold nuggets piled at the mouth of the mine.",
+    "negativ": "noose, gallows, hanging loop, rope loop, skeleton"
+   },
+   {
+    "name": "steinbergbau",
+    "seed": 11361,
+    "prompt": "An iron pickaxe resting on a pile of grey cut stone blocks.",
+    "ziel": "Icons/steinbergbau.png"
+   },
+   {
+    "name": "eisengiesserei",
+    "seed": 11371,
+    "prompt": "Glowing orange molten iron pouring from a clay crucible into a sword-shaped mold.",
+    "ziel": "Icons/eisengiesserei.png"
+   },
+   {
+    "name": "hochofen",
+    "seed": 11381,
+    "prompt": "A tall stone blast furnace with roaring orange flames at its mouth and a big leather bellows.",
+    "ziel": "Icons/hochofen.png"
+   },
+   {
+    "name": "bodkinpfeil",
+    "seed": 11391,
+    "prompt": "A bundle of arrows with long narrow shining steel bodkin points, tied together with a leather strap.",
+    "ziel": "Icons/bodkinpfeil.png"
+   },
+   {
+    "name": "armschiene",
+    "seed": 11401,
+    "prompt": "A leather archer's arm bracer reinforced with riveted steel plates and buckles.",
+    "ziel": "Icons/armschiene.png"
+   },
+   {
+    "name": "kettenpanzer",
+    "seed": 11412,
+    "prompt": "A shirt of chain mail made of small interlocking steel rings.",
+    "ziel": "Icons/kettenpanzer.png"
+   },
+   {
+    "name": "plattenpanzer",
+    "seed": 11422,
+    "prompt": "A polished steel plate cuirass with round shoulder plates.",
+    "ziel": "Icons/plattenpanzer.png"
+   },
+   {
+    "name": "schuppen_rossharnisch",
+    "seed": 11432,
+    "prompt": "The head and neck of a brown horse protected by armor of overlapping iron scales.",
+    "ziel": "Icons/schuppen_rossharnisch.png"
+   },
+   {
+    "name": "ketten_rossharnisch",
+    "seed": 11441,
+    "prompt": "The head and neck of a brown horse covered by chain mail barding.",
+    "ziel": "Icons/ketten_rossharnisch.png"
+   },
+   {
+    "name": "platten_rossharnisch",
+    "seed": 11452,
+    "prompt": "The head of a horse covered by a polished steel plate chanfron with a short spike.",
+    "ziel": "Icons/platten_rossharnisch.png"
+   },
+   {
+    "name": "polsterwams",
+    "seed": 11531,
+    "prompt": "A medieval padded gambeson: a thick quilted linen arming coat with diamond stitching, a high collar and a laced front with leather ties.",
+    "negativ": "zipper, modern jacket, puffer jacket, down jacket, buttons"
+   },
+   {
+    "name": "lederwams",
+    "seed": 11471,
+    "prompt": "A sturdy brown boiled leather jerkin with buckles and shoulder pieces.",
+    "ziel": "Icons/lederwams.png"
+   },
+   {
+    "name": "ringwams",
+    "seed": 11481,
+    "prompt": "A brown leather jerkin covered with rows of sewn-on iron rings.",
+    "ziel": "Icons/ringwams.png"
+   },
+   {
+    "name": "glaube",
+    "seed": 11492,
+    "prompt": "A golden processional cross with a soft golden glow and light rays around it.",
+    "ziel": "Icons/glaube.png"
+   }
+  ]
+ },
+ "icons_befehle": {
+  "groesse": [
+   1024,
+   1024
+  ],
+  "zielgroesse": [
+   128,
+   128
+  ],
+  "schritte": 30,
+  "cfg": 3.0,
+  "stil": "Game user interface icon in 16-bit pixel art style, crisp square pixels, limited warm color palette, one single object centered and filling most of the image, three-quarter view, plain flat dark brown background, no text.",
+  "negativ": "text, letters, numbers, words, watermark, logo, signature, frame, border, photo, realistic, 3d render, multiple objects, cluttered background, blurry",
+  "bilder": [
+   {
+    "name": "garnison",
+    "seed": 11601,
+    "prompt": "A small stone tower with an open wooden door and a big bright green arrow pointing into the doorway.",
+    "ziel": "Icons/garnison.png"
+   },
+   {
+    "name": "entlassen",
+    "seed": 11612,
+    "prompt": "A small stone tower with an open wooden door and a big bright yellow arrow pointing out of the doorway.",
+    "ziel": "Icons/entlassen.png"
+   },
+   {
+    "name": "alarm",
+    "seed": 11621,
+    "prompt": "A bronze town bell hanging from a wooden beam, swinging and ringing.",
+    "ziel": "Icons/alarm.png"
+   },
+   {
+    "name": "haltung_aggressiv",
+    "seed": 11631,
+    "prompt": "Two crossed steel swords in front of a red pennant.",
+    "ziel": "Icons/haltung_aggressiv.png"
+   },
+   {
+    "name": "haltung_defensiv",
+    "seed": 11641,
+    "prompt": "A round wooden shield with an iron rim in front of a sword pointing downwards.",
+    "ziel": "Icons/haltung_defensiv.png"
+   },
+   {
+    "name": "haltung_stellung",
+    "seed": 11652,
+    "prompt": "A blue banner on a wooden pole planted firmly into a small mound of earth.",
+    "ziel": "Icons/haltung_stellung.png"
+   },
+   {
+    "name": "haltung_kein_angriff",
+    "seed": 11661,
+    "prompt": "A sword in its leather scabbard, wrapped and tied with a white cloth.",
+    "ziel": "Icons/haltung_kein_angriff.png"
+   },
+   {
+    "name": "formation_linie",
+    "seed": 11671,
+    "prompt": "Five small blue soldier tokens standing side by side in one straight row.",
+    "stil": "Game user interface icon in 16-bit pixel art style, crisp square pixels, limited warm color palette, a simple clear symbol seen from directly above, plain flat dark brown background, no text.",
+    "ziel": "Icons/formation_linie.png"
+   },
+   {
+    "name": "formation_kasten",
+    "seed": 11741,
+    "prompt": "Twelve small blue soldier tokens standing in a square formation: four along each side, forming the outline of a square with an empty middle.",
+    "stil": "Game user interface icon in 16-bit pixel art style, crisp square pixels, limited warm color palette, a simple clear symbol seen from directly above, plain flat dark brown background, no text.",
+    "negativ": "circle, ring, round formation"
+   },
+   {
+    "name": "formation_gestaffelt",
+    "seed": 11691,
+    "prompt": "Nine small blue soldier tokens standing far apart in a loose checkerboard pattern.",
+    "stil": "Game user interface icon in 16-bit pixel art style, crisp square pixels, limited warm color palette, a simple clear symbol seen from directly above, plain flat dark brown background, no text.",
+    "ziel": "Icons/formation_gestaffelt.png"
+   },
+   {
+    "name": "formation_flanke",
+    "seed": 11701,
+    "prompt": "Two separate groups of small blue soldier tokens with a wide empty gap between them.",
+    "stil": "Game user interface icon in 16-bit pixel art style, crisp square pixels, limited warm color palette, a simple clear symbol seen from directly above, plain flat dark brown background, no text.",
+    "ziel": "Icons/formation_flanke.png"
+   },
+   {
+    "name": "trebuchet_aufbauen",
+    "seed": 11711,
+    "prompt": "A tall wooden trebuchet standing upright and ready to throw, a wooden mallet leaning against its frame.",
+    "ziel": "Icons/trebuchet_aufbauen.png"
+   },
+   {
+    "name": "trebuchet_abbauen",
+    "seed": 11722,
+    "prompt": "A wooden trebuchet folded down and packed onto a low wooden cart with wheels for transport.",
+    "ziel": "Icons/trebuchet_abbauen.png"
+   }
+  ]
+ },
+ "belagerung": {
+  "groesse": [
+   1024,
+   1024
+  ],
+  "schritte": 30,
+  "cfg": 3.0,
+  "freistellen": true,
+  "zuschneiden": true,
+  "zielbreite": 512,
+  "spielerfarben": true,
+  "blau_saettigung": 0.6,
+  "stil": "Game sprite of a medieval siege engine for a top-down 2D strategy game, three-quarter view from the front, turned to the right, the whole machine fully visible including all its wheels, detailed 16-bit pixel art, crisp pixels, realistic proportions, warm medieval colors, soft light from the upper left. One single object centered, isolated on a plain white background, no shadow on the background, no text.",
+  "negativ": "text, letters, logo, watermark, frame, border, people, soldiers, crew, horse, oxen, landscape, grass, ground, castle, wall, tower, multiple objects, cut off, cropped, blurry, photo, 3d render, shadow",
+  "bilder": [
+   {
+    "name": "rammbock",
+    "seed": 12001,
+    "prompt": "A medieval battering ram: a sturdy wooden shed with a steep sloped roof covered with brown animal hides, on four solid wooden wheels, a heavy tree-trunk ram with a black iron ram head poking out of its front end on the right, a few bright blue painted wooden shields hanging on its side.",
+    "ziel": "Einheiten/rammbock.png",
+    "figur": "rammbock"
+   },
+   {
+    "name": "mangonel",
+    "seed": 12012,
+    "prompt": "A medieval mangonel torsion catapult: a low heavy wooden frame on four solid wooden wheels, a thick bundle of twisted ropes across the frame, a long wooden throwing arm pulled down and back to the left with a round grey stone in its iron cup, a padded wooden crossbar standing upright at the front, bright blue painted planks on its side.",
+    "ziel": "Einheiten/mangonel.png",
+    "figur": "mangonel"
+   },
+   {
+    "name": "trebuchet",
+    "seed": 12021,
+    "prompt": "A tall medieval counterweight trebuchet ready to throw: a high wooden A-frame on a heavy wooden base, a very long wooden throwing arm pivoting on an axle at the top of the frame, its long end pulled down to the left with a rope sling lying beside the base, its short end raised high on the right with a heavy wooden box counterweight hanging from it, bright blue painted beams on the base.",
+    "ziel": "Einheiten/trebuchet.png",
+    "figur": "trebuchet"
+   },
+   {
+    "name": "trebuchet_abgebaut",
+    "seed": 12032,
+    "prompt": "A medieval trebuchet packed for transport: its long wooden beams and the long throwing arm lie folded flat and lashed together with ropes on a low four-wheeled wooden cart, the wooden counterweight box sits on the cart, bright blue painted planks on the cart's side.",
+    "ziel": "Einheiten/trebuchet_abgebaut.png",
+    "figur": "trebuchet_abgebaut"
+   },
+   {
+    "name": "rammbock_ohne_kopf",
+    "seed": 12061,
+    "vorlage": "rammbock_12001_roh.png",
+    "maske": {
+     "linien": [
+      [
+       590,
+       520,
+       800,
+       585,
+       175
+      ],
+      [
+       860,
+       600,
+       985,
+       672,
+       65
+      ]
+     ],
+     "ellipsen": [
+      [
+       835,
+       600,
+       98,
+       128
+      ]
+     ]
+    },
+    "prompt": "A medieval battering ram: a sturdy wooden shed with a steep sloped roof covered with brown animal hides, on four solid wooden wheels, a heavy tree-trunk ram with a black iron ram head poking out of its front end on the right, a few bright blue painted wooden shields hanging on its side. The battering ram has been pulled completely inside: the front opening of the shed is dark and empty, nothing sticks out of it.",
+    "negativ": "battering ram, log, tree trunk, iron ram head, spike"
+   },
+   {
+    "name": "rammbock_ohne_kopf_v",
+    "seed": 12071,
+    "vorfuellen": "rammbock_12001_roh.png",
+    "vorlage": "rammbock_ohne_kopf_v_vorlage.png",
+    "staerke": 0.6,
+    "maske": {
+     "linien": [
+      [
+       590,
+       520,
+       800,
+       585,
+       175
+      ],
+      [
+       860,
+       600,
+       985,
+       672,
+       65
+      ]
+     ],
+     "ellipsen": [
+      [
+       835,
+       600,
+       98,
+       128
+      ]
+     ]
+    },
+    "prompt": "A medieval battering ram: a sturdy wooden shed with a steep sloped roof covered with brown animal hides, on four solid wooden wheels, a heavy tree-trunk ram with a black iron ram head poking out of its front end on the right, a few bright blue painted wooden shields hanging on its side. The battering ram has been pulled completely inside: the front opening of the shed is dark and empty, nothing sticks out of it.",
+    "negativ": "battering ram, log, tree trunk, iron ram head, spike"
+   },
+   {
+    "name": "mangonel_ohne_arm",
+    "seed": 12041,
+    "vorlage": "mangonel_12012_roh.png",
+    "maske": {
+     "linien": [
+      [
+       125,
+       115,
+       265,
+       215,
+       135
+      ],
+      [
+       255,
+       210,
+       400,
+       330,
+       96
+      ],
+      [
+       235,
+       390,
+       330,
+       415,
+       62
+      ],
+      [
+       300,
+       400,
+       450,
+       372,
+       70
+      ],
+      [
+       180,
+       120,
+       330,
+       205,
+       40
+      ],
+      [
+       320,
+       205,
+       470,
+       300,
+       40
+      ]
+     ],
+     "rechtecke": [
+      [
+       150,
+       200,
+       250,
+       210
+      ]
+     ],
+     "ellipsen": [
+      [
+       140,
+       132,
+       98,
+       118
+      ]
+     ]
+    },
+    "prompt": "A medieval mangonel torsion catapult: a low heavy wooden frame on four solid wooden wheels, a thick bundle of twisted ropes across the frame, a long wooden throwing arm pulled down and back to the left with a round grey stone in its iron cup, a padded wooden crossbar standing upright at the front, bright blue painted planks on its side. The throwing arm has been taken off: above the thick rope bundle only plain white background is visible, no arm, no cup and no stone.",
+    "negativ": "throwing arm, beam, pole, cup, bucket, stone, hanging rope"
+   },
+   {
+    "name": "mangonel_ohne_arm_v",
+    "seed": 12051,
+    "vorfuellen": "mangonel_12012_roh.png",
+    "vorlage": "mangonel_ohne_arm_v_vorlage.png",
+    "staerke": 0.6,
+    "maske": {
+     "linien": [
+      [
+       125,
+       115,
+       265,
+       215,
+       135
+      ],
+      [
+       255,
+       210,
+       400,
+       330,
+       96
+      ],
+      [
+       235,
+       390,
+       330,
+       415,
+       62
+      ],
+      [
+       300,
+       400,
+       450,
+       372,
+       70
+      ],
+      [
+       180,
+       120,
+       330,
+       205,
+       40
+      ],
+      [
+       320,
+       205,
+       470,
+       300,
+       40
+      ]
+     ],
+     "rechtecke": [
+      [
+       150,
+       200,
+       250,
+       210
+      ]
+     ],
+     "ellipsen": [
+      [
+       140,
+       132,
+       98,
+       118
+      ]
+     ]
+    },
+    "prompt": "A medieval mangonel torsion catapult: a low heavy wooden frame on four solid wooden wheels, a thick bundle of twisted ropes across the frame, a long wooden throwing arm pulled down and back to the left with a round grey stone in its iron cup, a padded wooden crossbar standing upright at the front, bright blue painted planks on its side. The throwing arm has been taken off: above the thick rope bundle only plain white background is visible, no arm, no cup and no stone.",
+    "negativ": "throwing arm, beam, pole, cup, bucket, stone, hanging rope"
+   },
+   {
+    "name": "trebuchet_ohne_arm",
+    "seed": 12081,
+    "vorlage": "trebuchet_12021_roh.png",
+    "maske": {
+     "linien": [
+      [
+       65,
+       598,
+       915,
+       38,
+       112
+      ],
+      [
+       860,
+       62,
+       505,
+       228,
+       30
+      ],
+      [
+       505,
+       228,
+       150,
+       490,
+       30
+      ]
+     ],
+     "rechtecke": [
+      [
+       600,
+       8,
+       345,
+       322
+      ],
+      [
+       750,
+       320,
+       225,
+       220
+      ]
+     ],
+     "ellipsen": [
+      [
+       110,
+       665,
+       92,
+       66
+      ],
+      [
+       150,
+       510,
+       40,
+       40
+      ],
+      [
+       185,
+       598,
+       42,
+       36
+      ]
+     ]
+    },
+    "prompt": "A tall medieval counterweight trebuchet ready to throw: a high wooden A-frame on a heavy wooden base, a very long wooden throwing arm pivoting on an axle at the top of the frame, its long end pulled down to the left with a rope sling lying beside the base, its short end raised high on the right with a heavy wooden box counterweight hanging from it, bright blue painted beams on the base. The throwing arm and the counterweight have been taken off: above the A-frame only plain white background is visible, the frame with its axle and the base stay.",
+    "negativ": "throwing arm, long beam, counterweight, hanging box, rope, sling"
+   },
+   {
+    "name": "trebuchet_ohne_arm_v",
+    "seed": 12091,
+    "vorfuellen": "trebuchet_12021_roh.png",
+    "vorlage": "trebuchet_ohne_arm_v_vorlage.png",
+    "staerke": 0.6,
+    "maske": {
+     "linien": [
+      [
+       65,
+       598,
+       915,
+       38,
+       112
+      ],
+      [
+       860,
+       62,
+       505,
+       228,
+       30
+      ],
+      [
+       505,
+       228,
+       150,
+       490,
+       30
+      ]
+     ],
+     "rechtecke": [
+      [
+       600,
+       8,
+       345,
+       322
+      ],
+      [
+       750,
+       320,
+       225,
+       220
+      ]
+     ],
+     "ellipsen": [
+      [
+       110,
+       665,
+       92,
+       66
+      ],
+      [
+       150,
+       510,
+       40,
+       40
+      ],
+      [
+       185,
+       598,
+       42,
+       36
+      ]
+     ]
+    },
+    "prompt": "A tall medieval counterweight trebuchet ready to throw: a high wooden A-frame on a heavy wooden base, a very long wooden throwing arm pivoting on an axle at the top of the frame, its long end pulled down to the left with a rope sling lying beside the base, its short end raised high on the right with a heavy wooden box counterweight hanging from it, bright blue painted beams on the base. The throwing arm and the counterweight have been taken off: above the A-frame only plain white background is visible, the frame with its axle and the base stay.",
+    "negativ": "throwing arm, long beam, counterweight, hanging box, rope, sling"
+   }
+  ]
+ },
+ "geschosse": {
+  "groesse": [
+   1024,
+   1024
+  ],
+  "schritte": 30,
+  "cfg": 3.0,
+  "freistellen": true,
+  "zuschneiden": true,
+  "zielbreite": 48,
+  "stil": "Game item sprite for a top-down 2D medieval strategy game, seen from the side, detailed 16-bit pixel art, crisp pixels, realistic proportions, soft light from the upper left. One single object centered and fully visible, isolated on a plain white background, no shadow, no text.",
+  "negativ": "text, letters, logo, watermark, frame, border, multiple objects, pile, catapult, hand, person, ground, grass, landscape, cut off, cropped, blurry, photo, 3d render, shadow",
+  "bilder": [
+   {
+    "name": "stein",
+    "seed": 12101,
+    "prompt": "A single roughly round grey stone ball, hewn from rough granite, with a few chips and cracks.",
+    "zielbreite": 96
+   },
+   {
+    "name": "stein_gross",
+    "seed": 12111,
+    "zielbreite": 128,
+    "prompt": "A single large heavy round boulder of rough grey granite, roughly hewn, with chips and cracks."
+   },
+   {
+    "name": "reliquie",
+    "seed": 12131,
+    "zielbreite": 160,
+    "stil": "Game item sprite for a top-down 2D strategy game, seen from above at a three-quarter angle from the south, detailed 16-bit pixel art, crisp pixels, warm colors, soft light from the upper left. One single small object lying on the ground, centered and fully visible, isolated on a plain white background, no shadow, no text.",
+    "prompt": "A small golden medieval reliquary chest with a rounded lid, decorated with red and blue gems, a small golden cross standing upright on top of its lid.",
+    "negativ": "loose cross, separate cross, cross lying on the ground, second object"
+   }
+  ]
+ },
+ "boden2": {
+  "groesse": [
+   1328,
+   1328
+  ],
+  "schritte": 50,
+  "cfg": 3.0,
+  "stil": "Seamless ground texture for a top-down 2D strategy game, seen straight from above, finely detailed hand-painted pixel art, natural muted colors, soft even lighting, the same surface fills the whole image evenly edge to edge with no direction, no objects, no shadows, no horizon, no text.",
+  "negativ": "text, letters, logo, watermark, frame, border, edge, perspective, horizon, sky, trees, plants, road, path, track, footprints, tracks, people, animals, objects, vignette, blurry, 3d render, close-up, macro, photo, thick black outlines",
+  "kachelbar": true,
+  "ausgleichen": 0.06,
+  "bilder": [
+   {
+    "name": "schnee",
+    "seed": 12202,
+    "prompt": "Fresh snow-covered ground seen from above: smooth white snow with soft pale blue-grey shading in low shallow drifts, a few tiny sparkles and faint wind ripples, spread evenly.",
+    "negativ": "ice, frozen lake, glare, bright spot, rocks, grass, mountains",
+    "ziel": "Boden/schnee.png"
+   },
+   {
+    "name": "fels",
+    "seed": 12212,
+    "prompt": "Bare rocky ground seen from above: weathered flat grey stone with fine cracks, scattered small loose stones and grey gravel between them, a little dark green moss in a few cracks, spread evenly.",
+    "negativ": "boulders, big stones, cliff, mountain, wall, bricks, paving, slabs in rows",
+    "ziel": "Boden/fels.png"
+   },
+   {
+    "name": "untiefe",
+    "seed": 12222,
+    "groesse": [
+     1024,
+     1024
+    ],
+    "schritte": 30,
+    "stil": "Seamless ground texture for a top-down 2D strategy game, seen straight from above, 16-bit pixel art, crisp pixels, even soft lighting, subtle low contrast, uniform pattern filling the whole image edge to edge, no objects, no paths, no shadows, no horizon, no text.",
+    "prompt": "Shallow clear water over a sandy bottom in classic 16-bit RPG style: light turquoise and pale teal water through which pale golden sand and a few small pebbles show, many small curved light cyan ripple lines scattered evenly, the same brightness everywhere.",
+    "negativ": "sun, sun glare, bright spot, light gradient, light rays, horizontal stripes, straight lines, scanlines, foam, big waves, deep blue",
+    "ziel": "Boden/untiefe.png"
    }
   ]
  }

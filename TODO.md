@@ -1723,12 +1723,26 @@ schießen mit mehr Pfeilen, je mehr drin sind; das Stadtzentrum schützt Dorfbew
 
 ### F11 · Jagd wie in AoE: Hirsch flieht, Wildschwein wehrt sich, Fleisch verdirbt [R]
 
-Stand: Rehe und Wildschweine wandern, ein Dorfbewohner schlachtet sie ohne Gegenwehr, das
-Fleisch hält ewig. Bären und Wölfe greifen schon an (RT).
+Stand: Bären und Wölfe greifen an (RT), Rehe fliehen und wollen erst erlegt sein, Wildschweine
+beißen zurück und folgen ihren Angreifern, und Aas verdirbt (2026-11-04, Gruppe jagd).
 
-- [ ] Reh flieht vor Dorfbewohnern und muss erst erlegt werden
-- [ ] Wildschwein greift den Jäger an (Raubtier-Logik aus RT) und lässt sich zum Stadtzentrum locken
-- [ ] Erlegtes Wild verliert langsam Nahrung (Spec: die Sammelmannschaft muss groß genug sein)
+- [x] Reh flieht vor Dorfbewohnern und muss erst erlegt werden: unverletzt flieht es in 6
+      Kacheln Umkreis (Fluchtschritt alle 1,1 s - knapp langsamer als ein Dorfbewohner), verletzt
+      steht es; erst Angriffe erlegen es, der Klick aufs lebende Wild jagd statt ernten
+- [x] Wildschwein greift den Jäger an (Raubtier-Logik aus RT) und lässt sich zum Stadtzentrum
+      locken: Biß in Reichweite, 6 s lange Verfolgung des Angreifers (8 Kacheln weit, Gebäude
+      halten es nicht auf)
+- [x] Erlegtes Wild verliert langsam Nahrung (0,4 je Sekunde, Aasstufen 75/50/25 wie R2);
+      Schafe und Kaninchen verderben nicht
+- [x] Bilder (2026-11-04): `Tiere/reh_flucht1`, `_flucht2` (Sprung, eigene Leinwand im Maßstab
+      des Rehs: Rumpf an derselben Stelle, Hufe in der Luft - `figur_basis` in `uebernehmen.ps1`);
+      Fleisch je Tier in drei Stufen `Tiere/fleisch_<tier>_75`, `_50`, `_25` (schrumpft an Ort und
+      Stelle, gemeinsame `figur`); Reh, Wildschwein und alles Fleisch jetzt 320 px breit (Bär 448)
+- [x] Wildschwein in acht Lauf- und acht Angriffsphasen wie Bär und Wolf (2026-11-05): Bilder
+      `wildschwein(_2)_lauf3-8` und `_angriff1-8` in `Content/Tiere` (tieranim-Gruppen
+      `wildschwein`/`wildschwein2`, `ziel` in `bilder.json`), `LoadPredatorSprites` verdrängt
+      den alten Zweier-Laufwechsel erst, wenn alle acht Phasen da sind, `BOAR_STRIDE` 3,9 aus
+      der tieranim-Ausgabe
 
 ### F12 · Haltungen, Formationen, gemeinsames Tempo [R]
 
@@ -1796,6 +1810,8 @@ vorbestellte Warteschlange in der Mühle wie in AoE II DE.
 - [ ] Startaufstellung wie AoE II: 3 Dorfbewohner und 1 Späher (heute 4 Dorfbewohner, kein Späher)
 - [ ] Gelände: Schnee und Fels stehen in `TileType`, werden aber nie erzeugt; Untiefen
       (begehbares Flachwasser) fehlen; Erhöhungen mit Angriffs- und Sichtvorteil fehlen
+- [x] Bodenbilder (2026-11-04): `Boden/schnee`, `Boden/fels`, `Boden/untiefe` (kachelbar, Gruppe
+      `boden2`, in der mgcb) - noch nicht im Bodenshader
 - [ ] Kartentypen im Menü neben der Größe: offen (Arabia), Schwarzwald, Nomade; Inseln erst mit Schiffen
 - [ ] Spielmodi Todesmatch und Königsmord; mehr als zwei Spieler, Teams, Rohstoffe an Verbündete
 

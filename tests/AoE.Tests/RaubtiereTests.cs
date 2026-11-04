@@ -345,17 +345,17 @@ public class RaubtiereTests
         karte.PlacePredator(FoodSource.Bear, 10, 10);
         var t = karte.GetTile(10, 10);
         var tier = t.Animal;
-        Assert.False(karte.DamagePredator(10, 10, 30));
+        Assert.False(karte.DamageAnimal(10, 10, 30));
         Assert.Equal(karte.Settings.BearHealth - 30, tier.Health);
-        Assert.False(karte.DamagePredator(10, 11, 999));   // dort steht keins
-        Assert.True(karte.DamagePredator(10, 10, 999));
+        Assert.False(karte.DamageAnimal(10, 11, 999));   // dort steht keins
+        Assert.True(karte.DamageAnimal(10, 10, 999));
         Assert.Equal(0, tier.Health);
         Assert.True(tier.Slaughtered);
         Assert.Equal(FoodSource.Bear, t.Food);
         Assert.Equal(AoE.Core.Entities.Resource.Food, t.ResourceType);
         Assert.Equal(karte.Settings.BearFood, t.ResourceAmount);
         Assert.False(karte.IsLivePredator(10, 10));
-        Assert.False(karte.DamagePredator(10, 10, 5));      // schon erlegt
+        Assert.False(karte.DamageAnimal(10, 10, 5));      // schon erlegt
         Assert.Equal(1, karte.BearCount);
     }
 
@@ -365,7 +365,7 @@ public class RaubtiereTests
         var karte = Leer();
         karte.PlacePredator(FoodSource.Bear, 10, 10);
         var tier = karte.GetTile(10, 10).Animal;
-        Assert.True(karte.DamagePredator(10, 10, 999));
+        Assert.True(karte.DamageAnimal(10, 10, 999));
         var dorfi = Einheit(UnitType.Villager, Mitte(11, 10));
         Assert.Empty(Laufe(karte, new List<Unit> { dorfi }, 30f));
         Assert.Same(tier, karte.GetTile(10, 10).Animal);
@@ -376,9 +376,9 @@ public class RaubtiereTests
     {
         var karte = Leer(wandern: false);
         karte.PlacePredator(FoodSource.Wolf, 10, 10);
-        Assert.False(karte.DamagePredator(10, 10, 0));    // auch 0 Schaden zählt als 1
+        Assert.False(karte.DamageAnimal(10, 10, 0));    // auch 0 Schaden zählt als 1
         Assert.Equal(karte.Settings.WolfHealth - 1, karte.GetTile(10, 10).Animal.Health);
-        Assert.True(karte.DamagePredator(10, 10, karte.Settings.WolfHealth));
+        Assert.True(karte.DamageAnimal(10, 10, karte.Settings.WolfHealth));
         var t = karte.GetTile(10, 10);
         Assert.Equal(FoodSource.None, t.Food);
         Assert.Null(t.Animal);
@@ -399,8 +399,8 @@ public class RaubtiereTests
         Assert.Null(karte.LocatePredator(new WildAnimal()));
         // der erlegte Bär liegt als Fleisch da und ist noch zu finden, der erlegte Wolf nicht mehr
         var baer = karte.GetTile(4, 4).Animal;
-        karte.DamagePredator(4, 4, 999);
-        karte.DamagePredator(10, 10, 999);
+        karte.DamageAnimal(4, 4, 999);
+        karte.DamageAnimal(10, 10, 999);
         Assert.Equal((4, 4), karte.LocatePredator(baer));
         Assert.Null(karte.LocatePredator(tier));
     }

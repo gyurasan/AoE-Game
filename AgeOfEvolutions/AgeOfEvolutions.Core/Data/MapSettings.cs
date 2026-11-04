@@ -134,6 +134,34 @@ public class MapSettings
     public float BoarWanderSecondsMin { get; set; } = 2.0f;
     public float BoarWanderSecondsMax { get; set; } = 5.0f;
     public int BoarWanderRadius { get; set; } = 1;
+    /// <summary>Lebenspunkte, Schaden je Biss und Sekunden zwischen zwei Bissen des Wildschweins (F11).</summary>
+    public int BoarHealth { get; set; } = 60;
+    public int BoarDamage { get; set; } = 5;
+    public float BoarReloadSeconds { get; set; } = 2.0f;
+    /// <summary>
+    /// Kacheln, in denen das Wildschwein seinen letzten Angreifer verfolgt, und Sekunden,
+    /// die es ihm nach jedem Treffer nachläuft (F11) - deshalb lässt es sich vors
+    /// Stadtzentrum locken. Anders als Bär und Wolf hält es dabei keinen Abstand zu Gebäuden.
+    /// </summary>
+    public int BoarChaseRadiusTiles { get; set; } = 8;
+    public float BoarProvokedSeconds { get; set; } = 6f;
+
+    // --- Jagd: Reh flieht, Fleisch verdirbt (F11) -------------------------
+    /// <summary>Volle Lebenspunkte eines Rehs - es will erlegt sein, bevor es Nahrung gibt.</summary>
+    public int DeerHealth { get; set; } = 40;
+    /// <summary>
+    /// Kacheln (Chebyshev), in denen ein unverletztes Reh vor lebenden Einheiten flieht
+    /// (F11). Fliehend tritt es alle DeerFleeStepSeconds einen Schritt - etwas langsamer
+    /// als ein Dorfbewohner (1,13 Kacheln je Sekunde), damit ein Jäger es einholt.
+    /// Verletzt (Health unter DeerHealth) steht es und lässt sich erlegen.
+    /// </summary>
+    public int DeerFleeRadiusTiles { get; set; } = 6;
+    public float DeerFleeStepSeconds { get; set; } = 1.1f;
+    /// <summary>
+    /// Nahrung, die ein erlegtes Stück Wild (Reh, Wildschwein, Bär) je Sekunde verliert
+    /// (F11: Fleisch verdirbt) - die Sammelmannschaft muss groß genug sein.
+    /// </summary>
+    public float MeatSpoilPerSecond { get; set; } = 0.4f;
 
     // --- Raubtiere: Bären und Wölfe (RT) --------------------------------
     /// <summary>Bären auf der Karte - Einzelgänger - und Bären je Gruppe (Min/Max, inclusive).</summary>

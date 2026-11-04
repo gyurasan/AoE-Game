@@ -21,7 +21,8 @@ Bilds neu (Inpainting), etwa um der Figur ihr Werkzeug abzunehmen: "vorlage" ist
 eine Datei im Ausgabeordner der Gruppe, "maske" beschreibt die neu zu malende
 Fläche als Linien [x1, y1, x2, y2, Dicke], Ellipsen [x, y, rx, ry],
 Rechtecke [x, y, Breite, Höhe] und Bögen [cx, cy, rx, ry, Dicke] (obere
-Ellipsenhälfte als dicke Linie) in Pixeln der Vorlage. Alles außerhalb der Maske
+Ellipsenhälfte als dicke Linie) in Pixeln der Vorlage; "ohne" nimmt Formen derselben Art
+wieder heraus (Anker beim Umkleiden: Faust, Speerschaft). Alles außerhalb der Maske
 bleibt Pixel für Pixel erhalten; "weich": r in der Maske lässt ihre Ränder über rund r
 Pixel auslaufen - für Masken, deren Ränder durch die Figur laufen (Beine neu malen).
 Beinmasken reichen bis zum unteren Bildrand: neu gemalte Beine stehen oft tiefer
@@ -156,33 +157,40 @@ def maske_zeichnen(form: dict, breite: int, hoehe: int, ziel: Path) -> Path:
     """
     pixel = bytearray(breite * hoehe)
 
-    def fuellen(x0, y0, x1, y1, drin):
-        for y in range(max(0, int(y0)), min(hoehe, int(y1) + 1)):
-            for x in range(max(0, int(x0)), min(breite, int(x1) + 1)):
-                if drin(x, y):
-                    pixel[y * breite + x] = 255
+    def zeichnen(form: dict, wert: int) -> None:
+        def fuellen(x0, y0, x1, y1, drin):
+            for y in range(max(0, int(y0)), min(hoehe, int(y1) + 1)):
+                for x in range(max(0, int(x0)), min(breite, int(x1) + 1)):
+                    if drin(x, y):
+                        pixel[y * breite + x] = wert
 
-    # "boegen" [cx, cy, rx, ry, Dicke]: die obere Hälfte einer Ellipse als dicke Linie - der
-    # Rand eines abgetragenen Haufens (abbau.py), angenähert durch 32 gerade Stücke
-    linien = list(form.get("linien", []))
-    for cx, cy, rx, ry, dicke in form.get("boegen", []):
-        punkte = [(cx - rx * math.cos(math.pi * k / 32), cy - ry * math.sin(math.pi * k / 32)) for k in range(33)]
-        linien += [[*punkte[k], *punkte[k + 1], dicke] for k in range(32)]
-    for x1, y1, x2, y2, dicke in linien:
-        r = dicke / 2
-        dx, dy = x2 - x1, y2 - y1
-        laenge2 = dx * dx + dy * dy or 1
+        # "boegen" [cx, cy, rx, ry, Dicke]: die obere Hälfte einer Ellipse als dicke Linie - der
+        # Rand eines abgetragenen Haufens (abbau.py), angenähert durch 32 gerade Stücke
+        linien = list(form.get("linien", []))
+        for cx, cy, rx, ry, dicke in form.get("boegen", []):
+            punkte = [(cx - rx * math.cos(math.pi * k / 32), cy - ry * math.sin(math.pi * k / 32)) for k in range(33)]
+            linien += [[*punkte[k], *punkte[k + 1], dicke] for k in range(32)]
+        for x1, y1, x2, y2, dicke in linien:
+            r = dicke / 2
+            dx, dy = x2 - x1, y2 - y1
+            laenge2 = dx * dx + dy * dy or 1
 
-        def auf_linie(x, y, x1=x1, y1=y1, dx=dx, dy=dy, laenge2=laenge2, r=r):
-            s = max(0.0, min(1.0, ((x - x1) * dx + (y - y1) * dy) / laenge2))
-            return (x - x1 - s * dx) ** 2 + (y - y1 - s * dy) ** 2 <= r * r
+            def auf_linie(x, y, x1=x1, y1=y1, dx=dx, dy=dy, laenge2=laenge2, r=r):
+                s = max(0.0, min(1.0, ((x - x1) * dx + (y - y1) * dy) / laenge2))
+                return (x - x1 - s * dx) ** 2 + (y - y1 - s * dy) ** 2 <= r * r
 
-        fuellen(min(x1, x2) - r, min(y1, y2) - r, max(x1, x2) + r, max(y1, y2) + r, auf_linie)
-    for cx, cy, rx, ry in form.get("ellipsen", []):
-        fuellen(cx - rx, cy - ry, cx + rx, cy + ry,
-                lambda x, y, cx=cx, cy=cy, rx=rx, ry=ry: ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1)
-    for x, y, b, h in form.get("rechtecke", []):
-        fuellen(x, y, x + b - 1, y + h - 1, lambda x, y: True)
+            fuellen(min(x1, x2) - r, min(y1, y2) - r, max(x1, x2) + r, max(y1, y2) + r, auf_linie)
+        for cx, cy, rx, ry in form.get("ellipsen", []):
+            fuellen(cx - rx, cy - ry, cx + rx, cy + ry,
+                    lambda x, y, cx=cx, cy=cy, rx=rx, ry=ry: ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1)
+        for x, y, b, h in form.get("rechtecke", []):
+            fuellen(x, y, x + b - 1, y + h - 1, lambda x, y: True)
+
+    zeichnen(form, 255)
+    # "ohne": dieselben Formen, aber wieder aus der Maske genommen - Anker wie die Faust am
+    # Schwertgriff oder ein schräger Speer, die beim Umkleiden Pixel für Pixel stehen bleiben
+    if form.get("ohne"):
+        zeichnen(form["ohne"], 0)
     # "weich": Ränder über so viele Pixel weich auslaufen lassen - sonst bleibt eine harte
     # Naht, wo ein Rechteck durch den Körper läuft und das neu Gemalte nicht genau anschließt
     if form.get("weich"):

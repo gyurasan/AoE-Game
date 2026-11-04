@@ -254,9 +254,15 @@ als Negativ **`negativ` der Gruppe + `negativ` des Eintrags**.
 | `zielbreite` / `zielgroesse` | verkleinern auf Breite bzw. genaue Größe |
 | `loecher` | weiße Lücken (z. B. zwischen Halmen, Ästen) durchsichtig machen |
 | `spielerfarben`, `blau_saettigung` | `_blau.png` und umgefärbte `_rot.png` erzeugen |
+| `entgruenen` | Grünstich vom Green-Screen entfernen – nur für Motive ohne eigenes Grün (Tiere) |
 | `figur` | alle Bilder einer Figur auf dasselbe Rechteck beschneiden |
+| `figur_basis` | Bilder, die über das Rechteck einer anderen Figur hinausragen (Reh im Fluchtsprung): Rechteck der Basis seitlich gleich weit und nach oben erweitert, Unterkante fest; `zielbreite` ist die der Basis und wächst mit – gleicher Maßstab, Hufe an derselben Stelle |
 
 Die vollständige Beschreibung steht jeweils im Kopfkommentar der beiden Skripte.
+
+Nur einen Teil einer Gruppe übernehmen: `-Namen` mit Platzhaltern, etwa
+`pwsh -File tools/bilder/uebernehmen.ps1 -Gruppe tiere_lauf -Namen 'reh*','wildschwein*'` – die
+übrigen Bilder der Gruppe bleiben unberührt, statt neu kodiert zu werden.
 
 ## Eine eigene Grassorte
 
@@ -317,8 +323,16 @@ Pixel gleich. Beispiel aus der Gruppe `gebaeude` (Mühle ohne Flügel):
 
 Masken gibt es als `rechtecke` `[x, y, b, h]`, `ellipsen` `[x, y, rx, ry]`,
 `linien` `[x1, y1, x2, y2, Dicke]` und `boegen` `[cx, cy, rx, ry, Dicke]` (die obere
-Hälfte einer Ellipse als dicke Linie). Für Bodenbilder taugt das selten – die
-Maskenkanten sieht man in der Fläche. Für Gras lieber einen neuen Seed.
+Hälfte einer Ellipse als dicke Linie). `"ohne": {…}` nimmt Formen derselben Art wieder aus
+der Maske – Anker, die stehen bleiben müssen, etwa die Faust am Speer oder der Saum. Für
+Bodenbilder taugt das selten – die Maskenkanten sieht man in der Fläche. Für Gras lieber einen
+neuen Seed.
+
+Soll ein Teil **verschwinden** (Waffenarm, Wurfarm, Rammbalken), malt Qwen oft etwas Ähnliches
+wieder hinein. Dann hilft `"vorfuellen": "<rohbild>"` mit `"staerke"` um 0,6: `vorfuellen.py`
+füllt die Maske vorher mit den Farben ringsum und schreibt das als `vorlage`; bei geringer
+Stärke bleibt die Fläche leer. Die Maske muss dabei das ganze Teil samt Schatten decken – was
+herausragt, wird als dunkler Keil mit vorgefüllt.
 
 ### Abbaustufen eines Haufens (`abbau.py`)
 
@@ -336,6 +350,24 @@ Rechteck, und der Haufen schrumpft im Spiel an seinem Platz.
 D:/Apps/ComfyUI/ComfyUI_windows_portable/python_embeded/python.exe tools/bilder/abbau.py rohstoffe stein_75
 py tools/bilder/qwen_image.py rohstoffe stein_75 --seeds 2
 ```
+
+## Bewegung aus einem Standbild
+
+Lauf-, Schlag- und Angriffsphasen malt Qwen nicht einzeln – sie entstünden nie deckungsgleich.
+Vier Skripte stellen sie aus dem Standbild (Gelenke in Pixeln des freigestellten 1024er
+Rohbilds, je eine JSON-Datei daneben; Ergebnis in `ausgabe/<skript>/<figur>_<art><N>_1.png`,
+Seed 1 ist nur das Namensschema):
+
+| Skript | Wofür | Neuere Felder |
+|---|---|---|
+| `gang.py` | acht Gehphasen von Menschen und Pferden (Bein-Skelett) | lange Kutte: `saum_linie` (Saum je Spalte als Linie statt waagerecht), `saum_glied: 1` (das Knie liegt unter dem Stoff, verlängert wird der Unterschenkel), `rumpf_frei` (Rechtecke, die zum Rumpf gehören, ohne Bein dahinter – das Ende eines Stabs über den Zehen) |
+| `schlag.py` | acht Schlagphasen: Waffenarm oder Speer über einem Rumpf ohne Waffe | `flicken` (Rechtecke, die im Rumpf aus dem Standbild kommen – kleine Malfehler des neu gemalten Rumpfs), `verlaengerung` (wie weit der Ärmel über die Schulter gespiegelt wird; kurz bei weiten Kutten) |
+| `tieranim.py` | Lauf und Angriff vierbeiniger Tiere, Beine weich gebogen | `zielbreite` je Figur (Breite des Standbilds), `rumpf` (Vielecke je Quelle fest dem Rumpf), `risse` (Halbmesser: schließt schmale Spalten zwischen Rumpf und Beinansatz und zwischen fernem Bein und Brust) |
+| `teilanim.py` | Maschinen: Teile drehen und schieben (Wurfarm, Rammbalken, Gegengewicht) | `hinten`, `verlaengern`, `durch` (Fenster, in dem ein hinteres Teil doch vorn liegt), `haengt_an` mit `tiefste` (Gegengewicht sinkt nie tiefer, das Seil wird gekürzt) |
+
+Vor dem Übernehmen jede Phase vergrößert prüfen: **Zahl der Beine** (zwei, beim Tier vier),
+kein Glied, das falsch herum knickt (ein Vorderlauf knickt wie ein Handgelenk nach vorn, der
+Huf klappt im Schwung nach hinten), kein Fellstück, das neben dem Bein schwebt.
 
 ## Prompt-Tipps für Gras
 

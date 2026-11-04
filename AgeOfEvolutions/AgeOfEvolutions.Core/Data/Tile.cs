@@ -41,6 +41,24 @@ public static class FoodSources
     /// ein erlegter Bär liegt als Fleisch da, ein erlegter Wolf verschwindet.
     /// </summary>
     public static bool IsPredator(this FoodSource food) => food is FoodSource.Bear or FoodSource.Wolf;
+
+    /// <summary>
+    /// Ob das Tier gejagt werden muss (F11): Reh oder Wildschwein. Es lässt sich nicht
+    /// lebend ernten - erst Angriffe (AttackAnimal) erlegen es, dann liegt es als Fleisch
+    /// da und verdirbt langsam (TileMap.UpdateSpoilage). Das Reh flieht vor Einheiten,
+    /// das Wildschwein wehrt sich und folgt seinen Angreifern (TileMap.UpdatePredators).
+    /// </summary>
+    public static bool IsHuntable(this FoodSource food) => food is FoodSource.Deer or FoodSource.Boar;
+
+    /// <summary>Ob das Tier erlegt werden muss, bevor es Nahrung gibt (Raubtier oder Jagdwild, F11).</summary>
+    public static bool MustBeKilled(this FoodSource food) => food.IsPredator() || food.IsHuntable();
+
+    /// <summary>
+    /// Ob auf der Kachel Aas liegt, das verdirbt (F11): erlegtes Reh, Wildschwein oder
+    /// erlegter Bär - ein erlegter Wolf verschwindet, Schafe und Kaninchen verderben nicht.
+    /// </summary>
+    public static bool Spoils(this FoodSource food)
+        => food is FoodSource.Deer or FoodSource.Boar or FoodSource.Bear;
 }
 
 /// <summary>
@@ -268,6 +286,27 @@ public class WildAnimal
     /// kurz vor dem nächsten Schlag sichtbar aus. Nur für das Bild, nicht im Spielstand.
     /// </summary>
     public bool Engaged { get; set; }
+
+    /// <summary>
+    /// Das Reh flieht gerade vor einer Einheit (F11, TileMap.UpdateDeer) - der Spielbildschirm
+    /// zeigt dann die Sprungbilder <c>Tiere/reh_flucht1/2</c> statt der Laufbilder.
+    /// Nur für das Bild, nicht im Spielstand.
+    /// </summary>
+    public bool Fleeing { get; set; }
+
+    /// <summary>
+    /// Sekunden, die das Wildschwein seinem letzten Angreifer noch folgt (F11); nach jedem
+    /// Treffer auf ihn Settings.BoarProvokedSeconds, dann vergisst es ihn. Auch für das
+    /// Ausweichen des Rehs genutzt (Fluchttempo, F11). Nur für das Bild und die Verfolgung,
+    /// nicht im Spielstand.
+    /// </summary>
+    public float ProvokedSeconds { get; set; }
+
+    /// <summary>
+    /// Das Raubtier oder Wildschwein (F11) folgt dieser Einheit, solange ProvokedSeconds läuft -
+    /// deshalb lässt sich das Wildschwein bis ans Stadtzentrum locken. Nicht im Spielstand.
+    /// </summary>
+    public Unit ProvokedBy { get; set; }
 }
 
 /// <summary>

@@ -6,7 +6,8 @@ Spiel an derselben Stelle kleiner wird, statt gegen einen anderen getauscht zu w
 
 Ein Eintrag in bilder.json bekommt dazu "abbau": {"von": Rohbild des vollen Haufens im
 Ausgabeordner der Gruppe, "ellipse": [cx, cy, rx, ry]}. Dieses Skript schreibt daraus seine
-"vorlage": alles außerhalb der Ellipse wird weiß (der Hintergrund der Rohbilder), nur was in ihr
+"vorlage": alles außerhalb der Ellipse wird weiß (der Hintergrund der Rohbilder; Rohbilder auf
+Green-Screen wie beim Fleisch geben ihre Farbe als "grund": [r, g, b] an), nur was in ihr
 liegt, bleibt stehen. cy ist die Unterkante des Haufens, die obere Ellipsenhälfte also der neue
 Umriss - ry seine Höhe, rx die halbe Breite am Fuß. Danach malt qwen_image.py für den Eintrag den
 Schnittrand neu ("maske" mit "boegen" entlang derselben Ellipse), damit die angeschnittenen Steine
@@ -28,13 +29,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import qwen_image  # noqa: E402
 
 
-def abtragen(quelle: np.ndarray, cx: float, cy: float, rx: float, ry: float) -> np.ndarray:
-    """Das Bild mit Weiß überall außerhalb der Ellipse (cx, cy, rx, ry)."""
+def abtragen(quelle: np.ndarray, cx: float, cy: float, rx: float, ry: float, grund=255) -> np.ndarray:
+    """Das Bild mit der Hintergrundfarbe (sonst Weiß) überall außerhalb der Ellipse (cx, cy, rx, ry)."""
     hoehe, breite = quelle.shape[:2]
     y, x = np.mgrid[0:hoehe, 0:breite]
     drin = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1.0
     bild = quelle.copy()
-    bild[~drin] = 255
+    bild[~drin] = grund
     return bild
 
 
@@ -46,7 +47,9 @@ def main():
         if (namen and e["name"] not in namen) or "abbau" not in e:
             continue
         quelle = np.array(Image.open(ordner / e["abbau"]["von"]).convert("RGB"))
-        Image.fromarray(abtragen(quelle, *e["abbau"]["ellipse"])).save(ordner / e["vorlage"])
+        # "grund": [r, g, b] für Rohbilder auf Green-Screen (Fleisch), sonst Weiß
+        grund = e["abbau"].get("grund", 255)
+        Image.fromarray(abtragen(quelle, *e["abbau"]["ellipse"], grund=grund)).save(ordner / e["vorlage"])
         print(f"  {gruppe}/{e['vorlage']} aus {e['abbau']['von']}")
 
 

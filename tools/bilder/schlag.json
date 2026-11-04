@@ -180,5 +180,53 @@
    {"name": "durchziehen", "oberarm": 0, "unterarm": -95, "rumpf": 0},
    {"name": "zurueck", "oberarm": 0, "unterarm": -45, "rumpf": 0}
   ]
+ },
+ "leichte_kavallerie": {
+  "modus": "speer",
+  "bild": "soldaten/leichte_kavallerie_5152.png",
+  "rumpf_bild": "soldaten/leichte_kavallerie_ohne_speer_5252.png",
+  "figur": "leichte_kavallerie",
+  "speer": [[320, 590, 665, 25, 14], [607, 127, 665, 25, 32]],
+  "haende": [[440, 362, 34, 36]],
+  "griff": [440, 362],
+  "oberkoerper": [358, 0, 600, 462],
+  "huefte": [450, 462],
+  "phasen": [
+   {"name": "bereit", "winkel": 0, "schub": 0, "rumpf": 0},
+   {"name": "zurueck", "winkel": -10, "schub": -35, "rumpf": 0},
+   {"name": "ausgeholt", "winkel": -20, "schub": -60, "rumpf": 0},
+   {"name": "stoss", "winkel": -28, "schub": 15, "rumpf": 0},
+   {"name": "stoss2", "winkel": -31, "schub": 85, "rumpf": 0},
+   {"name": "treffer", "winkel": -33, "schub": 135, "rumpf": 0},
+   {"name": "nachfedern", "winkel": -30, "schub": 110, "rumpf": 0},
+   {"name": "zurueck2", "winkel": -15, "schub": 45, "rumpf": 0}
+  ]
+ },
+ "moench": {
+  "_hinweis": "Heil- und Segensgeste (F16): der nahe Arm hebt sich nach vorn, die Hand segnet - kein Schlag.",
+  "bild": "soldaten/moench_5203.png",
+  "rumpf_bild": "soldaten/moench_ohne_arm_v_5271.png",
+  "figur": "moench",
+  "arm": {"schulter": [312, 272], "ellbogen": [300, 425], "hand": [350, 588]},
+  "oberarm_breite": 44,
+  "unterarm_breite": 46,
+  "waffe": [],
+  "nicht_arm": [[385, 250, 470, 700], [342, 432, 400, 462]],
+  "kopf": [500, 110, 70, 90],
+  "schulterkappe": [318, 262, 50, 40],
+  "schulter_schnitt": 288,
+  "flicken": [[288, 290, 326, 332]],
+  "verlaengerung": 20,
+  "huefte": [450, 450],
+  "phasen": [
+   {"name": "bereit", "oberarm": 0, "unterarm": 0, "rumpf": 0},
+   {"name": "heben", "oberarm": 15, "unterarm": 15, "rumpf": 0},
+   {"name": "vor", "oberarm": 35, "unterarm": 30, "rumpf": 1},
+   {"name": "hoch", "oberarm": 55, "unterarm": 45, "rumpf": 2},
+   {"name": "segnen", "oberarm": 70, "unterarm": 45, "rumpf": 2},
+   {"name": "segnen2", "oberarm": 68, "unterarm": 38, "rumpf": 2},
+   {"name": "senken", "oberarm": 40, "unterarm": 25, "rumpf": 1},
+   {"name": "zurueck", "oberarm": 12, "unterarm": 8, "rumpf": 0}
+  ]
  }
 }

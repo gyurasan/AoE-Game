@@ -41,25 +41,32 @@ public partial class TileMap
     public int BearCount => _bearCoords.Count;
     public int WolfCount => _wolfCoords.Count;
 
-    /// <summary>Die Kachelliste einer Raubtierart: Bear die Bären, Wolf die Wölfe, sonst null.</summary>
+    /// <summary>
+    /// Die Kachelliste einer Tierart, die erlegt werden muss: Bear, Wolf, und seit F11 auch
+    /// das Wildschwein (es wehrt sich nach derselben Logik). Andere Arten liefern null.
+    /// </summary>
     private List<(int x, int y)> PredatorCoords(FoodSource kind) => kind switch
     {
         FoodSource.Bear => _bearCoords,
         FoodSource.Wolf => _wolfCoords,
+        FoodSource.Boar => _boarCoords,
         _ => null,
     };
 
     /// <summary>
-    /// Volle Lebenspunkte einer Raubtierart.
-    /// VERTRAG: Bear → Settings.BearHealth, Wolf → Settings.WolfHealth, jede andere Art → 0.
+    /// Volle Lebenspunkte einer Raubtier- oder Jagdwildart (F11: auch Reh und Wildschwein).
+    /// VERTRAG: Bear → Settings.BearHealth, Wolf → Settings.WolfHealth, Boar →
+    /// Settings.BoarHealth, Deer → Settings.DeerHealth, jede andere Art → 0.
     /// </summary>
     public int PredatorMaxHealth(FoodSource kind)
     {
-        // Bär und Wolf haben je eigene volle Lebenspunkte, jede andere Art zählt nicht.
+        // Jede kampfbereite Art hat je eigene volle Lebenspunkte, jede andere zählt nicht.
         return kind switch
         {
             FoodSource.Bear => Settings.BearHealth,
             FoodSource.Wolf => Settings.WolfHealth,
+            FoodSource.Boar => Settings.BoarHealth,
+            FoodSource.Deer => Settings.DeerHealth,
             _ => 0,
         };
     }
@@ -75,6 +82,20 @@ public partial class TileMap
         Tile t = GetTile(x, y);
         return t is not null
             && t.Food.IsPredator()
+            && t.Animal is { Slaughtered: false } tier
+            && tier.Health > 0;
+    }
+
+    /// <summary>
+    /// Steht auf (x, y) ein Tier, das erst erlegt werden muss - Raubtier (Bär, Wolf) oder
+    /// Jagdwild (Reh, Wildschwein, F11) - und lebt es? Das ist die Frage aller Jagd- und
+    /// Gegenwehrpfade (AttackAnimal, LivePrey, Gesundheitsbalken).
+    /// </summary>
+    public bool IsLiveHuntable(int x, int y)
+    {
+        Tile t = GetTile(x, y);
+        return t is not null
+            && t.Food.MustBeKilled()
             && t.Animal is { Slaughtered: false } tier
             && tier.Health > 0;
     }
@@ -222,6 +243,8 @@ public partial class TileMap
     ///    und tier.Glide kleiner oder gleich 0: tier.WanderTimer = _RandomRange(_wildRng, min, max)
     ///    mit Settings.BearWanderSecondsMin/Max bzw. WolfWanderSecondsMin/Max; liefert
     ///    PredatorStep(t, kind) eine Kachel, wird sie coords[i].
+    /// 5. Zuletzt takten die Wildschweine (UpdateBoars, F11) - ihre Schläge kommen in
+    ///    dieselbe strikes-Liste.
     /// Rückgabe strikes.
     /// </summary>
     public List<PredatorStrike> UpdatePredators(float dt, IReadOnlyList<Unit> units)
@@ -302,7 +325,176 @@ public partial class TileMap
                 }
             }
         }
+        // F11: die Wildschweine schlagen ebenfalls zu - und folgen ihren Angreifern.
+        UpdateBoars(dt, units, strikes);
         return strikes;
+    }
+
+    /// <summary>
+    /// Die Wildschweine (F11): sie wandern wie zuvor gemächlich, schlagen aber jedem
+    /// Opfer in Reichweite in den Rücken wie die Raubtiere - und wer sie verletzt, wird
+    /// eine Weile verfolgt (Settings.BoarProvokedSeconds, höchstens
+    /// Settings.BoarChaseRadiusTiles weit). Anders als Bär und Wolf halten sie dabei
+    /// keinen Abstand zu Gebäuden: ein Dorfbewohner, der eine unverhoffte Sau ärgert,
+    /// zieht sie vors eigene Stadtzentrum.
+    /// VERTRAG: coords = _boarCoords; coords.RemoveAll(c => GetTile(c.x, c.y)?.Food != Boar).
+    /// Pro Tier (überspringen wenn tier null, Slaughtered oder Health <= 0): Glide, Strike,
+    /// AttackCooldown und ProvokedSeconds um dt senken (nicht unter 0); ProvokedSeconds 0
+    /// ⇒ ProvokedBy null. Ist die verfolgte Einheit tot oder weiter als BoarChaseRadiusTiles
+    /// (Chebyshev-Kachelabstand) entfernt, ist sie vergessen. Opfer = verfolgte Einheit,
+    /// sonst die nächste lebende Einheit in Settings.PredatorReachTiles (wie die Raubtiere).
+    /// Mit Opfer: zugewandt; in Reichweite und AttackCooldown <= 0 ⇒ Schlag
+    /// (Settings.BoarDamage - Rüstung, mindestens 1), AttackCooldown = BoarReloadSeconds,
+    /// Strike = PREDATOR_STRIKE_SECONDS, Eintrag in strikes. Außerhalb der Reichweite und
+    /// nur während der Verfolgung: alle 0,6 s ein Schritt auf die freie Nachbarkachel mit
+    /// dem kleinsten Abstand zum Opfer (BoarStep). Ohne Opfer: Wandertakt wie zuvor
+    /// (BoarWanderSecondsMin/Max), Schritt auf eine freie Nachbarkachel ohne
+    /// Gebäudeabstand (BoarStep(null)). tier.Engaged = Opfer in Reichweite.
+    /// </summary>
+    private void UpdateBoars(float dt, IReadOnlyList<Unit> units, List<PredatorStrike> strikes)
+    {
+        _boarCoords.RemoveAll(c => GetTile(c.x, c.y)?.Food != FoodSource.Boar);
+        for (int i = 0; i < _boarCoords.Count; i++)
+        {
+            (int sx, int sy) = _boarCoords[i];
+            Tile t = GetTile(sx, sy);
+            WildAnimal tier = t.Animal;
+            if (tier is null || tier.Slaughtered || tier.Health <= 0)
+                continue;
+
+            tier.Glide = Math.Max(0, tier.Glide - dt);
+            tier.Strike = Math.Max(0, tier.Strike - dt);
+            tier.AttackCooldown = Math.Max(0, tier.AttackCooldown - dt);
+            tier.ProvokedSeconds = Math.Max(0, tier.ProvokedSeconds - dt);
+            if (tier.ProvokedSeconds == 0)
+                tier.ProvokedBy = null;
+
+            // Die verfolgte Einheit: lebt sie noch und bleibt sie in Rufweite der Sau?
+            Unit chased = tier.ProvokedBy;
+            if (chased is not null)
+            {
+                var cg = WorldToGrid(chased.Position);
+                if (chased.State == AoE.Core.Entities.UnitState.Dead || chased.Health <= 0
+                    || Math.Max(Math.Abs(cg.X - sx), Math.Abs(cg.Y - sy)) > Settings.BoarChaseRadiusTiles)
+                {
+                    chased = null;
+                    tier.ProvokedBy = null;
+                }
+            }
+
+            // Ohne Verfolgung: schlägt das nächste Opfer in Reichweite zu (wie Bär und Wolf).
+            Unit victim = chased;
+            Vector2 center = GridToWorld(new Vector2(sx, sy));
+            Unit inReach = null;
+            float best = float.MaxValue;
+            if (tier.Glide == 0)
+            {
+                float reach = Settings.PredatorReachTiles * TileSize;
+                foreach (Unit u in units)
+                {
+                    if (u.State == AoE.Core.Entities.UnitState.Dead || u.Health <= 0)
+                        continue;
+                    float d = Vector2.Distance(u.Position, center);
+                    if (d <= reach && d < best)
+                    {
+                        best = d;
+                        inReach = u;
+                    }
+                }
+            }
+            tier.Engaged = chased is not null && Vector2.Distance(chased.Position, center)
+                           <= Settings.PredatorReachTiles * TileSize || inReach is not null;
+
+            if (victim is null)
+                victim = inReach;
+
+            if (victim is not null)
+            {
+                if (victim.Position.X != center.X)
+                    tier.FacingLeft = victim.Position.X < center.X;
+                bool reachable = victim == inReach
+                    || (chased is not null && Vector2.Distance(chased.Position, center)
+                        <= Settings.PredatorReachTiles * TileSize && tier.Glide == 0);
+                if (reachable && tier.AttackCooldown <= 0)
+                {
+                    int damage = Math.Max(1, Settings.BoarDamage - victim.Armor);
+                    victim.Health = Math.Max(0, victim.Health - damage);
+                    if (victim.Health == 0)
+                        victim.State = AoE.Core.Entities.UnitState.Dead;
+                    tier.AttackCooldown = Settings.BoarReloadSeconds;
+                    tier.Strike = PREDATOR_STRIKE_SECONDS;
+                    strikes.Add(new PredatorStrike(FoodSource.Boar, sx, sy, victim, damage, victim.Health == 0));
+                }
+                else if (chased is not null && !reachable)
+                {
+                    // Verfolgung: ein Schritt Richtung Angreifer, Gebäude sind ihr egal.
+                    tier.WanderTimer -= dt;
+                    if (tier.WanderTimer <= 0 && tier.Glide <= 0)
+                    {
+                        tier.WanderTimer = 0.6f;
+                        if (BoarStep(t, victim.Position) is { } next)
+                            _boarCoords[i] = next;
+                    }
+                }
+                continue;
+            }
+
+            // Kein Opfer: gemächliche Wanderung ohne Gebäudeabstand.
+            tier.WanderTimer -= dt;
+            if (tier.WanderTimer <= 0 && tier.Glide <= 0)
+            {
+                tier.WanderTimer = _RandomRange(_wildRng, Settings.BoarWanderSecondsMin, Settings.BoarWanderSecondsMax);
+                if (BoarStep(t, null) is { } next)
+                    _boarCoords[i] = next;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Ein Schritt eines Wildschweins auf eine freie Nachbarkachel (zulässig wie bei
+    /// WanderStep, Gebäudeabstand wie immer egal): mit Ziel (Weltkoordinaten) die Kachel
+    /// mit dem kleinsten Abstand dorthin, ohne Ziel eine zufällige (Seitenanteil zuerst,
+    /// wie WanderStep). Gibt die neue Kachel zurück oder null.
+    /// </summary>
+    private (int x, int y)? BoarStep(Tile t, Vector2? toward)
+    {
+        if (toward is { } goal)
+        {
+            Tile best = null;
+            float bestD = float.MaxValue;
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                for (int dy = -1; dy <= 1; dy++)
+                {
+                    if (dx == 0 && dy == 0)
+                        continue;
+                    Tile n = GetTile(t.X + dx, t.Y + dy);
+                    if (!FreeWildTile(n))
+                        continue;
+                    float d = Vector2.DistanceSquared(GridToWorld(new Vector2(n.X, n.Y)), goal);
+                    if (d < bestD)
+                    {
+                        bestD = d;
+                        best = n;
+                    }
+                }
+            }
+            return best is null ? null : MoveAnimal(t, best.X - t.X, best.Y - t.Y, FoodSource.Boar);
+        }
+
+        for (int attempt = 0; attempt < 12; attempt++)
+        {
+            int dx = _wildRng.Next(-1, 2);
+            int dy = _wildRng.Next(-1, 2);
+            if (dx == 0 && dy == 0)
+                continue;
+            if (dx == 0 && attempt < 8)
+                continue;
+            if (!FreeWildTile(GetTile(t.X + dx, t.Y + dy)))
+                continue;
+            return MoveAnimal(t, dx, dy, FoodSource.Boar);
+        }
+        return null;
     }
 
     /// <summary>
@@ -434,36 +626,65 @@ public partial class TileMap
     }
 
     /// <summary>
-    /// Eine Einheit trifft das Raubtier auf (x, y). Gibt true zurück, wenn dieser Treffer es
-    /// erlegt hat.
-    /// VERTRAG: IsLivePredator(x, y) false → false, nichts ändern. Sonst t = GetTile(x, y),
-    /// tier = t.Animal; tier.Health = Math.Max(0, tier.Health - Math.Max(1, damage)); größer 0 →
-    /// false. Bei 0 ist es erlegt: tier.Glide = 0, tier.Strike = 0. Bär (t.Food Bear):
-    /// tier.Slaughtered = true, t.ResourceType = Resource.Food, t.ResourceAmount = Settings.BearFood -
-    /// er bleibt in _bearCoords und liegt als Fleisch da. Wolf: _wolfCoords.Remove((x, y)),
-    /// t.Food = FoodSource.None, t.ResourceType = null, t.ResourceAmount = 0, t.Animal = null.
-    /// Dann true.
+    /// Eine Einheit trifft das Tier auf (x, y) - Raubtier (Bär, Wolf) oder Jagdwild
+    /// (Reh, Wildschwein, F11). Gibt true zurück, wenn dieser Treffer es erlegt hat.
+    /// Ein Treffer auf ein Wildschwein durch <paramref name="attacker"/> macht es
+    /// sauer: es verfolgt den Angreifer für Settings.BoarProvokedSeconds (F11, Locken).
+    /// VERTRAG: IsLiveHuntable(x, y) false → false, nichts ändern. Sonst t = GetTile(x, y),
+    /// tier = t.Animal; Wildschwein und attacker nicht null → tier.ProvokedBy = attacker,
+    /// tier.ProvokedSeconds = Settings.BoarProvokedSeconds; tier.Health = Math.Max(0,
+    /// tier.Health - Math.Max(1, damage)); größer 0 → false. Bei 0 ist es erlegt:
+    /// tier.Glide = 0, tier.Strike = 0, tier.ProvokedSeconds = 0, tier.ProvokedBy = null.
+    /// Bär (t.Food Bear): tier.Slaughtered = true, t.ResourceType = Resource.Food,
+    /// t.ResourceAmount = Settings.BearFood - er bleibt in _bearCoords und liegt als
+    /// Fleisch da. Reh und Wildschwein (F11): tier.Slaughtered = true; die Kachel behält
+    /// ihre Nahrung (DeerFood, BoarFood), das Aas verdirbt langsam (UpdateSpoilage) und
+    /// das Tier bleibt in seiner Kachelliste. Wolf: _wolfCoords.Remove((x, y)),
+    /// t.Food = FoodSource.None, t.ResourceType = null, t.ResourceAmount = 0,
+    /// t.Animal = null. Dann true.
     /// </summary>
-    public bool DamagePredator(int x, int y, int damage)
+    public bool DamageAnimal(int x, int y, int damage, Unit attacker = null)
     {
-        // Nur ein lebendes Raubtier kann getroffen werden.
-        if (!IsLivePredator(x, y))
+        // Nur ein lebendes Tier, das erlegt werden muss, kann getroffen werden.
+        if (!IsLiveHuntable(x, y))
             return false;
         Tile t = GetTile(x, y);
         WildAnimal tier = t.Animal;
+
+        // F11: Das Wildschwein vergisst nicht, wer es verletzt hat - es folgt ihm.
+        // Der lange Wandertakt wird sofort auf das kurze Verfolgungstempo gestellt.
+        if (t.Food == FoodSource.Boar && attacker is not null)
+        {
+            tier.ProvokedBy = attacker;
+            tier.ProvokedSeconds = Settings.BoarProvokedSeconds;
+            if (tier.WanderTimer > 0.6f)
+                tier.WanderTimer = 0.6f;
+        }
+
         tier.Health = Math.Max(0, tier.Health - Math.Max(1, damage));
         if (tier.Health > 0)
             return false;
 
-        // Erlegt: keine Animation mehr.
+        // Erlegt: keine Animation mehr, keine Verfolgung mehr.
         tier.Glide = 0;
         tier.Strike = 0;
+        tier.ProvokedSeconds = 0;
+        tier.ProvokedBy = null;
         if (t.Food == FoodSource.Bear)
         {
             // Bär bleibt als Fleisch liegen und wird in der Kachelliste behalten.
             tier.Slaughtered = true;
             t.ResourceType = Resource.Food;
             t.ResourceAmount = Settings.BearFood;
+        }
+        else if (t.Food.IsHuntable())
+        {
+            // Reh und Wildschwein (F11): die Kachel trug ihre Nahrung schon lebend -
+            // jetzt liegt sie als Aas da (Slaughtered öffnet die Ernte, F11) und
+            // verdirbt langsam. Das Tier bleibt in seiner Wanderliste stehen.
+            tier.Slaughtered = true;
+            tier.Fleeing = false;
+            t.ResourceType = Resource.Food;
         }
         else
         {
@@ -478,18 +699,19 @@ public partial class TileMap
     }
 
     /// <summary>
-    /// Wo steht dieses Raubtier gerade? Es zieht mit seiner Kachel um, die Einheit, die es
+    /// Wo steht dieses Tier gerade? Es zieht mit seiner Kachel um, die Einheit, die es
     /// angreift, hält nur das WildAnimal.
-    /// VERTRAG: animal null → null. Sonst erst _bearCoords, dann _wolfCoords der Reihe nach: die
-    /// erste Kachel (x, y), deren GetTile(x, y)?.Animal per ReferenceEquals gleich animal ist,
-    /// liefert (x, y). Keine → null.
+    /// VERTRAG: animal null → null. Sonst _bearCoords, _wolfCoords, _deerCoords und
+    /// _boarCoords (F11: auch das fliehende Reh und das verfolgende Wildschwein) der Reihe
+    /// nach: die erste Kachel (x, y), deren GetTile(x, y)?.Animal per ReferenceEquals gleich
+    /// animal ist, liefert (x, y). Keine → null.
     /// </summary>
     public (int X, int Y)? LocatePredator(WildAnimal animal)
     {
         // Das Tier zieht mit seiner Kachel um; die Kachel finden wir über die Kachellisten.
         if (animal is null)
             return null;
-        foreach (List<(int x, int y)> coords in new[] { _bearCoords, _wolfCoords })
+        foreach (List<(int x, int y)> coords in new[] { _bearCoords, _wolfCoords, _deerCoords, _boarCoords })
         {
             foreach ((int x, int y) in coords)
             {

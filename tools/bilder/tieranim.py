@@ -25,6 +25,15 @@ dazu). Im Angriffsbild stehen manche Beine anders als im Standbild - "angriff_be
 deren Gelenke (null: wie im Standbild; "fehlt": true - dort kein eigenes Bein, etwa die erhobene
 Pranke des Bären: sie bleibt beim Rumpf und schlägt mit dessen Neigung zu).
 
+Feinheiten je Figur: "zielbreite" (Breite des Standbilds im Spiel, sonst ZIELBREITE - davon hängt
+die Zielbreite der Angriffsbilder ab), "rumpf": {quelle: [Vielecke]} weist Pixel fest dem Rumpf zu
+(Brustfell, das sonst mit einem Huf mitwanderte), "risse": Halbmesser in Pixeln - schließt schmale
+Spalten, wo Rumpf und Beinansatz auseinanderziehen oder ein fernes Bein dicht hinter der Brust
+vorbeischwingt (Füllung aus dem mitbewegten Rumpf bzw. dem verbreiterten fernen Bein; nur Spalten
+enger als zwei Halbmesser, nie offene Flächen). Ein Vorderlauf knickt wie ein Handgelenk nach vorn:
+sein "knie" muss im Bild auf oder knapp vor der Linie Hüfte-Knöchel liegen, sonst wählt die
+Zwei-Knochen-Rechnung die andere Seite und der Huf klappt im Schwung nach vorn oben.
+
 Die Laufbilder bleiben auf der 1024er Leinwand des Standbilds - uebernehmen.ps1 schneidet sie mit
 dem Standbild auf ein gemeinsames Rechteck zu (Figur). Die Angriffsbilder ragen beim Sprung und
 Aufrichten darüber hinaus und bekommen wie bei schlag.py eine größere Leinwand im selben Maßstab:
@@ -59,7 +68,7 @@ ZIEL = AUSGABE / "tieranim"
 RAND = 220          # Platz rund um das 1024er Bild für Sprung und Aufrichten
 GROESSE = 1024
 DICHTE = 3          # je Bildpunkt DICHTE x DICHTE Proben beim Biegen - so entstehen keine Lücken
-ZIELBREITE = 256    # Breite des Standbilds im Spiel (bilder.json, Gruppe tiere)
+ZIELBREITE = 256    # Breite des Standbilds im Spiel (bilder.json, Gruppe tiere); je Figur "zielbreite"
 FARBEN = [(255, 0, 255), (0, 220, 255), (255, 200, 0), (0, 255, 0), (255, 90, 90)]
 
 
@@ -248,6 +257,17 @@ class Quelle:
         rumpfbild[bein_von >= 0, :3] = a[bein_von >= 0, :3]
         self.rumpf = Image.fromarray(rumpfbild)
 
+        # Unterlage gegen Risse ("risse": Halbmesser in Pixeln, sonst aus): der Rumpf samt den oberen
+        # "risse_tiefe" Pixeln jedes Beins, mit dem Rumpf bewegt. Wo Rumpf und Beinansatz im Bild
+        # auseinanderziehen - am tiefen Bauch eines Tiers mit gesenktem Kopf -, klafft sonst ein feiner
+        # Spalt Hintergrund; stelle() füllt nur solche Spalten daraus, nie offene Flächen
+        self.risse = cfg.get("risse", 0)
+        if self.risse:
+            unter = a.copy()
+            for i, b in enumerate(self.beine):
+                unter[(bein_von == i) & (yy >= b.saum + cfg.get("risse_tiefe", 70)), 3] = 0
+            self.unterlage = Image.fromarray(unter)
+
     def teile_bild(self):
         """Prüfbild: Rumpf grau, jedes Bein in seiner Farbe, Gelenke als Linien."""
         H, W = self.bein_von.shape
@@ -315,6 +335,29 @@ class Quelle:
             else:
                 vorn = Image.alpha_composite(vorn, lage)
         bild = np.array(Image.alpha_composite(Image.alpha_composite(hinten, rumpf), vorn))
+        if self.risse:
+            # Spalten: im Bild durchsichtig, von deckenden Pixeln enger als zwei Halbmesser umschlossen
+            # (morphologisch geschlossen) und in der Unterlage gedeckt - dort die Unterlage dahinter
+            unter = np.array(self.unterlage.transform((W, H), Image.AFFINE,
+                                                      (Ri[0, 0], Ri[0, 1], off[0], Ri[1, 0], Ri[1, 1], off[1]),
+                                                      resample=Image.BICUBIC))
+            # Dazu die abgewandten Beine um den Halbmesser verbreitert: schwingt ein Bein dicht hinter
+            # Brust oder Bauch vorbei, bleibt sonst ein Strich Hintergrund zwischen beiden stehen
+            r = self.risse
+            scheibe = np.hypot(*np.mgrid[-r:r + 1, -r:r + 1]) <= r
+            fern = np.array(hinten)
+            # Farbe nur aus satt deckendem Fell - die halbdurchsichtigen Randhaare tragen noch Grün vom
+            # Green-Screen und würden als Sprenkel deckend
+            abstand, (ny, nx) = ndimage.distance_transform_edt(fern[:, :, 3] < 230, return_indices=True)
+            breit = fern[ny, nx]
+            breit[:, :, 3] = np.where(abstand <= r + 3, 255, 0)
+            fueller = np.array(Image.alpha_composite(Image.fromarray(breit), Image.fromarray(unter)))
+            deckt = bild[:, :, 3] > 8
+            riss = ndimage.binary_closing(deckt, structure=scheibe) & ~deckt & (fueller[:, :, 3] > 8)
+            if riss.any():
+                zone = ndimage.binary_dilation(riss, iterations=2) & (fueller[:, :, 3] > 8)
+                gefuellt = np.array(Image.alpha_composite(Image.fromarray(fueller), Image.fromarray(bild)))
+                bild[zone] = gefuellt[zone]
         # Einzelne verirrte Pixel (wo sich das Fell an einem stark gebeugten Gelenk faltet) weg
         teile, anzahl = ndimage.label(bild[:, :, 3] > 8)
         if anzahl > 1:
@@ -502,7 +545,7 @@ def figur(name, cfg):
         Image.fromarray(a).save(ZIEL / f"{name}_angriff{p + 1}_1.png")
         bilder[p] = Image.fromarray(a)
     blatt(bilder, ZIEL / f"{name}_angriff_blatt.png", [figur_r[3]])
-    zielbreite = round(ZIELBREITE * (rahmen[2] - rahmen[0]) / breite_r)
+    zielbreite = round(cfg.get("zielbreite", ZIELBREITE) * (rahmen[2] - rahmen[0]) / breite_r)
     print(f"{name}: {len(bilder)} Angriffsphasen, Leinwand {rahmen[2] - rahmen[0]} x {rahmen[3] - rahmen[1]}"
           f" - zielbreite {zielbreite} (bilder.json, Gruppe tieranim)")
 
