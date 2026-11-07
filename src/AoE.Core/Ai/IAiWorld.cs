@@ -70,6 +70,15 @@ public interface IWorldState
     /// </summary>
     bool IsWalkable(int x, int y);
 
+    /// <summary>
+    /// Ob man von (<paramref name="ax"/>, <paramref name="ay"/>) nach (<paramref name="bx"/>,
+    /// <paramref name="by"/>) zu Fuß kommt: beide liegen auf derselben Landmasse. Auf der
+    /// Wiking-Karte trennt das Meer die Inseln (Nutzer 2026-11-07: „man wird nur mit booten von einer
+    /// zur nächsten insel kommen“) - eine Einheit an Bord eines Schiffs auf offener See steht auf
+    /// keiner Landmasse (false). Ohne Inseln immer true.
+    /// </summary>
+    bool SameLand(int ax, int ay, int bx, int by) => true;
+
     /// <summary>Die nächste Kachel mit einer offenen Menge von <paramref name="resource"/>,
     /// an der ein Arbeiter arbeiten kann, maximal <paramref name="maxDistance"/>
     /// Kacheln von (<paramref name="fromX"/>, <paramref name="fromY"/>) entfernt —

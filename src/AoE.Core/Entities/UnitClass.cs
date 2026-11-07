@@ -53,5 +53,10 @@ public enum UnitClass
     /// <summary>
     /// Mönch
     /// </summary>
-    Monk
+    Monk,
+
+    /// <summary>
+    /// Schiff (Transportschiff)
+    /// </summary>
+    Ship
 }

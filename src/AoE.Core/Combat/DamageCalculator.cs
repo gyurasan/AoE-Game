@@ -111,6 +111,8 @@ public static class DamageCalculator
             "Mangonel" => UnitClass.SiegeWeapon,
             "Trebuchet" => UnitClass.SiegeWeapon,
             "Monk" => UnitClass.Monk,
+            "TransportShip" => UnitClass.Ship,
+            "WarShip" => UnitClass.Ship,
             "Building" => UnitClass.Building,
             _ => UnitClass.Infantry
         };
@@ -169,6 +171,14 @@ public static class DamageCalculator
                 int siegeBonus = attacker.Stats.GetTotalAttack(UnitClass.SiegeWeapon);
                 int siegeArmor = defender.Stats.GetTotalArmor(UnitClass.SiegeWeapon, isRanged);
                 totalDamage += Math.Max(0, siegeBonus - siegeArmor);
+                break;
+
+            case UnitClass.Ship:
+                // Nur der Bonus gegen Schiffe (Kriegsschiff +4) - der Grundangriff steckt schon im
+                // Nahkampf-Schaden oben. Ohne eigenen Schiffsbonus fällt GetTotalAttack auf den
+                // Infanteriewert zurück, der Unterschied ist dann 0.
+                int shipBonus = attacker.Stats.GetTotalAttack(UnitClass.Ship) - attacker.Stats.GetTotalAttack(UnitClass.Infantry);
+                totalDamage += Math.Max(0, shipBonus);
                 break;
         }
         

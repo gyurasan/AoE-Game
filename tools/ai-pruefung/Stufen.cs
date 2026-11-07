@@ -11,7 +11,10 @@
 //     ziehen sich wieder zurück
 // Gemessen wird jede Spielsekunde; am Ende je Paarung der Ausgang (zerstörte Gebäude, Dorfzentren).
 //
-//   dotnet run --project tools/ai-pruefung -- stufen [minuten] [sparta|defense|duell|basis] [karten N] [verlauf]
+//   dotnet run --project tools/ai-pruefung -- stufen [minuten] [sparta|defense|duell|basis] [karten N] [verlauf] [wiking]
+//
+// „wiking" spielt auf der Inselkarte (Nutzer 2026-11-07: „man wird nur mit booten von einer zur nächsten
+// insel kommen“): dort zählt zusätzlich, ob die angreifenden Stufen übersetzen (ÜBERFAHRT, BRÜCKENKOPF).
 //
 // „verlauf" druckt die Meldungen der Armeeführung (Welle, Kampf, Belagerung, Reiter, Rückzug) mit Uhrzeit.
 // Je Paarung 2 frisch erzeugte Karten („karten N" ändert das). Ohne Paarung laufen „sparta"
@@ -43,6 +46,7 @@ static class Stufen
         public AiBridge Bruecke = null!;
         public readonly List<string> Log = new();
         public int Wellen, Reiterangriffe, Reiterrueckzuege;
+        public int Ueberfahrten, Brueckenkoepfe;   // Wiking: Wellen, die übersetzen, und die drüben ankamen
         public int MaxBogen, MaxReiter, MaxSoldaten, MaxTuerme;
         public bool Stall;
         public Age Zeitalter;
@@ -77,6 +81,7 @@ static class Stufen
         }
 
         var verstoesse = new List<string>();
+        if (args.Contains("wiking")) _stil = MapStyle.Wiking;
         int karten = 2;
         int ki = Array.IndexOf(args, "karten");
         if (ki >= 0 && ki + 1 < args.Length && int.TryParse(args[ki + 1], out int k) && k > 0) karten = k;
@@ -130,7 +135,11 @@ static class Stufen
     static string StufeName(AiProfile p) => GameplayOptionsName(AiProfile.LevelOf(p));
     static string GameplayOptionsName(int level) => level switch { 0 => "Defense", 2 => "This is Sparta", _ => "Normal" };
 
-    static readonly string[] Armeemeldungen = { "WELLE", "KAMPF", "NEU AUFSTELLEN", "BELAGERUNG", "RÜCKZUG", "REITER", "ERKUNDUNG" };
+    static readonly string[] Armeemeldungen = { "WELLE", "KAMPF", "NEU AUFSTELLEN", "BELAGERUNG", "RÜCKZUG", "REITER", "ERKUNDUNG",
+                                                "ÜBERFAHRT", "BRÜCKENKOPF", "Fähre" };
+
+    /// <summary>Die Landart der Spiele (Schalter „wiking“).</summary>
+    static MapStyle _stil = MapStyle.Europa;
 
     static void Spiel(string paarung, AiProfile profilA, AiProfile profilB, int minuten, List<string> verstoesse, bool verlauf,
                       Bilanz bilanz)
@@ -139,7 +148,9 @@ static class Stufen
         var uhr = System.Diagnostics.Stopwatch.StartNew();
         var screen = new RTSGameplayScreen(MapSize.Standard);
         var dims = MapSizes.Dimensions(MapSize.Standard, 16f / 9f);
-        var map = new TileMap(dims.Width, dims.Height, 32, MapSettings.ForSize(MapSize.Standard));
+        var map = _stil == MapStyle.Europa
+            ? new TileMap(dims.Width, dims.Height, 32, MapSettings.ForSize(MapSize.Standard))
+            : new TileMap(dims.Width, dims.Height, 32, MapSettings.ForStyle(_stil, MapSize.Standard), _stil);
         var units = map.Units;
         var p1 = new Player(0, "P1", "Briten");
         var p2 = new Player(1, "P2", "Azteken");
@@ -177,6 +188,8 @@ static class Stufen
                 if (verlauf && Armeemeldungen.Any(msg.StartsWith))
                     Console.WriteLine($"      [{zeit / 60:00.0}] {s.Name}: {msg}");
                 if (msg.StartsWith("WELLE:")) s.Wellen++;
+                if (msg.StartsWith("ÜBERFAHRT")) s.Ueberfahrten++;
+                if (msg.StartsWith("BRÜCKENKOPF")) s.Brueckenkoepfe++;
                 if (msg.StartsWith("REITER:") && msg.Contains("Schwall")) s.Reiterangriffe++;
                 if (msg.StartsWith("REITER: Rückzug")) s.Reiterrueckzuege++;
             };
@@ -254,7 +267,8 @@ static class Stufen
             Console.WriteLine($"    {s.Name}: {Stand(s, map)}");
             Console.WriteLine($"      Wellen {s.Wellen}, Fernangriffe {s.FernAngriffe}, weitester Soldat {s.MaxEntfernung} Kacheln vom Stadtzentrum, "
                 + $"höchstens {s.MaxSoldaten} Soldaten ({s.MaxBogen} Bogen, {s.MaxReiter} Reiter), Türme {s.MaxTuerme}, Stall {(s.Stall ? "ja" : "nein")}, "
-                + $"Feudal {(s.FeudalAb < 0 ? "-" : $"{s.FeudalAb / 60:0.0} min")}, Gegner gesichtet {(s.GesichtetAb < 0 ? "nie" : $"{s.GesichtetAb / 60:0.0} min")}");
+                + $"Feudal {(s.FeudalAb < 0 ? "-" : $"{s.FeudalAb / 60:0.0} min")}, Gegner gesichtet {(s.GesichtetAb < 0 ? "nie" : $"{s.GesichtetAb / 60:0.0} min")}"
+                + (_stil == MapStyle.Wiking ? $", Überfahrten {s.Ueberfahrten}, Brückenköpfe {s.Brueckenkoepfe}" : ""));
             if (s.Ki.Army is not null)
                 Console.WriteLine($"      Aufstellung: Marsch {s.Marschproben} Proben, in Form {Prozent(s.MarschAufPlatz, s.Marschproben * 100)}; "
                     + $"Schützen hinten {s.ReihenOk}/{s.Reihenproben}; Abstand ≥ 2 {s.AbstandOk}/{s.AbstandProben}; "

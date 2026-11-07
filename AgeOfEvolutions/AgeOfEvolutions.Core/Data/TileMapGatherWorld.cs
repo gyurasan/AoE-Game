@@ -65,6 +65,24 @@ public sealed class TileMapGatherWorld : IGatherWorld
     }
 
     /// <summary>
+    /// Liegt die Kachel auf der Landmasse <paramref name="region"/> - oder, bei Wasser (Fisch),
+    /// grenzt sie an eine begehbare Kachel dieser Landmasse? Region 0 (der Dorfbewohner steht nicht
+    /// auf Land) prüft nichts.
+    /// </summary>
+    private bool OnLand(int x, int y, int region)
+    {
+        if (region == 0)
+            return true;
+        if (_map.GetTile(x, y) is { Type: not TileType.Water })
+            return _map.LandRegion(x, y) == region;
+        for (int dx = -1; dx <= 1; dx++)
+            for (int dy = -1; dy <= 1; dy++)
+                if ((dx != 0 || dy != 0) && _map.IsWalkable(x + dx, y + dy) && _map.LandRegion(x + dx, y + dy) == region)
+                    return true;
+        return false;
+    }
+
+    /// <summary>
     /// Nächste Kachel mit dieser Ressource nach Luftlinie, an der ein
     /// Dorfbewohner arbeiten kann (<see cref="IsWorkable"/>). Reserviertes
     /// Wild (Schaf oder Reh — ein anderer Dörfler erntet bzw. jagt es gerade)
@@ -76,6 +94,8 @@ public sealed class TileMapGatherWorld : IGatherWorld
     {
         CorePosition? best = null;
         double bestDistance = (double)maxDistance * maxDistance;
+        // Nur auf der eigenen Insel: über Wasser führt kein Weg (Wiking-Karte)
+        int region = _map.LandRegion(from.X, from.Y);
 
         for (int x = from.X - maxDistance; x <= from.X + maxDistance; x++)
         {
@@ -85,7 +105,7 @@ public sealed class TileMapGatherWorld : IGatherWorld
                 double distance = cell.DistanceSquared(from);
                 if (distance > bestDistance || (best != null && distance == bestDistance))
                     continue;
-                if (AmountAt(cell, resource) <= 0 || !IsWorkable(x, y))
+                if (AmountAt(cell, resource) <= 0 || !IsWorkable(x, y) || !OnLand(x, y, region))
                     continue;
                 // Reserviertes Wild überspringen — es gehört bereits jemandem
                 var food = _map.GetTile(x, y)?.Food;
@@ -113,6 +133,8 @@ public sealed class TileMapGatherWorld : IGatherWorld
     {
         CorePosition? best = null;
         double bestDistance = double.MaxValue;
+        // Nur Lager auf der eigenen Insel (Wiking-Karte)
+        int region = _map.LandRegion(from.X, from.Y);
 
         foreach (var building in _map.Buildings)
         {
@@ -127,7 +149,7 @@ public sealed class TileMapGatherWorld : IGatherWorld
                 {
                     bool onRing = x == building.X - 1 || x == building.X + building.Width
                                || y == building.Y - 1 || y == building.Y + building.Height;
-                    if (!onRing || !_map.IsWalkable(x, y))
+                    if (!onRing || !_map.IsWalkable(x, y) || !OnLand(x, y, region))
                         continue;
 
                     var cell = new CorePosition(x, y);
@@ -154,6 +176,7 @@ public sealed class TileMapGatherWorld : IGatherWorld
         ResourceDropOff.Mill => resource == Resource.Food,
         ResourceDropOff.LumberCamp => resource == Resource.Wood,
         ResourceDropOff.MiningCamp => resource is Resource.Gold or Resource.Stone,
+        ResourceDropOff.Dock => resource == Resource.Food,   // Fisch vom Ufer
         _ => false,
     };
 }

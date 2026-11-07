@@ -43,7 +43,11 @@ public enum UnitType
     Monk,
     
     // Building units (construction)
-    Builder
+    Builder,
+
+    // Schiffe (Hafen) - am Ende, damit gespeicherte Zahlenwerte gleich bleiben
+    TransportShip,
+    WarShip
 }
 
 /// <summary>
@@ -141,6 +145,27 @@ public class Unit
 
     /// <summary>Sekunden seit dem letzten Schlag; ein Schlag alle BuildingCombat.RELOAD_SECONDS.</summary>
     public float AttackTimer { get; set; }
+
+    // --- Schiffe (Wiking-Karte, Nutzer 2026-11-07) ---------------------------
+
+    /// <summary>Ein Schiff fährt nur auf Wasser (Transport- und Kriegsschiff aus dem Hafen).</summary>
+    public bool IsShip => Type is UnitType.TransportShip or UnitType.WarShip;
+
+    private List<Unit> _passengers;
+
+    /// <summary>
+    /// Wer an Bord eines Schiffs ist. Passagiere stehen nicht in TileMap.Units (sie sind
+    /// unsichtbar, sehen nichts und können nicht angegriffen werden), bleiben aber in der
+    /// Einheitenliste ihres Spielers und zählen zur Bevölkerung. Sinkt das Schiff, sterben sie.
+    /// </summary>
+    public List<Unit> Passengers => _passengers ??= new List<Unit>();
+
+    /// <summary>Landeinheit: das eigene Schiff, zu dem sie läuft, um einzusteigen, oder null.</summary>
+    public Unit BoardShip { get; set; }
+
+    /// <summary>Schiff: die Landkachel, an der es nach der Fahrt alle Passagiere absetzt,
+    /// oder null (nur fahren).</summary>
+    public Point? UnloadAt { get; set; }
     
     // Constructor
     public Unit(UnitType type, int ownerId)
@@ -202,7 +227,8 @@ public enum UnitCategory
     Archer,      // Archers, Skirmishers, CavArcher
     Cavalry,     // LightHorse, Cav, ImperialCamel
     Siege,       // Rams, Catapults
-    Civilian     // Monks
+    Civilian,    // Monks
+    Ship         // Transportschiff
 }
 
 /// <summary>

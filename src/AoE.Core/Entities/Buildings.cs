@@ -101,7 +101,14 @@ public enum BuildingType
     /// <summary>
     /// Wunder
     /// </summary>
-    Wonder
+    Wonder,
+
+    /// <summary>
+    /// Hafen - steht auf Wasser am Ufer, bildet Transportschiffe aus und nimmt Fisch an
+    /// (Wiking-Karte, Nutzer 2026-11-07). Am Ende der Aufzählung, damit gespeicherte
+    /// Zahlenwerte der übrigen Typen gleich bleiben.
+    /// </summary>
+    Dock
 }
 
 /// <summary>
@@ -113,7 +120,9 @@ public enum ResourceDropOff
     TownCenter,
     Mill,
     LumberCamp,
-    MiningCamp
+    MiningCamp,
+    /// <summary>Hafen: nimmt Nahrung an (Fisch, der vom Ufer aus gefangen wird)</summary>
+    Dock
 }
 
 /// <summary>
@@ -162,6 +171,7 @@ public sealed class BuildingEntity : UnitEntity
             BuildingType.Mill => ResourceDropOff.Mill,
             BuildingType.LumberCamp => ResourceDropOff.LumberCamp,
             BuildingType.MiningCamp => ResourceDropOff.MiningCamp,
+            BuildingType.Dock => ResourceDropOff.Dock,
             _ => ResourceDropOff.None
         };
     }
@@ -338,6 +348,7 @@ public sealed class BuildingEntity : UnitEntity
             BuildingType.PalisadeWall => new UnitStats { HitPoints = 250, BaseAttack = 0, BaseArmor = 2, Range = 0, Speed = 0, VisionRange = 2 },
             BuildingType.StoneWall => new UnitStats { HitPoints = 1800, BaseAttack = 0, BaseArmor = 8, Range = 0, Speed = 0, VisionRange = 2 },
             BuildingType.Wonder => new UnitStats { HitPoints = 4800, BaseAttack = 0, BaseArmor = 3, Range = 0, Speed = 0, VisionRange = 8 },
+            BuildingType.Dock => new UnitStats { HitPoints = 1800, BaseAttack = 0, BaseArmor = 1, Range = 0, Speed = 0, VisionRange = 6 },
             _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unbekannter Gebäudetyp.")
         };
         return new BuildingEntity(type, ownerId, position, stats);

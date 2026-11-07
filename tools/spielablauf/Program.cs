@@ -6,10 +6,12 @@
 // auswahl (Gebäude auswählen), angriff (Gebäude angreifen), soldaten
 // (Ausbildung in Kaserne, Schießstand und Stall), faellen (Bäume fallen beim Holzschlagen in
 // Stufen), werkstatt (Belagerungswerkstatt: Rammbock und
-// Katapult ab der Ritterzeit, Tribok ab der Imperialzeit, auch in der Burg), warteschlange (Ausbildung abbrechen: Klick
+// Katapult ab der Ritterzeit, Tribok ab der Imperialzeit, auch in der Burg), hafen (Wiking-Karte: Hafen am
+// Ufer, Transport- und Kriegsschiff, Einsteigen, Übersetzen, Untergang, Fährdienst der KI), warteschlange (Ausbildung abbrechen: Klick
 // aufs Feld der Warteschlange, Shift+Klick fünf, Rechtsklick auf die Ausbildungstaste),
-// land (Landarten: Karte 1 Ägypten — Wüste, Palmen, kein Wasser; Karte 2 Wiking —
-// überwiegend Wasser, alle Inseln per Brücke verbunden; Karte 3 Europa als Referenz),
+// land (Landarten: Karte 1 Ägypten — Wüste, Oasen (Wasser bei den Palmen, grün am
+// Ufer); Karte 2 Wiking —
+// überwiegend Wasser, Inseln ganz von Wasser umgeben, nur per Schiff erreichbar; Karte 3 Europa als Referenz),
 // forschung (Forschungen und ihre Wirkung), markt (F8: am eigenen Markt Nahrung, Holz und Stein
 // gegen Gold kaufen und verkaufen, Kurse in der Leiste und im Spielstand, KI handelt),
 // strassen (Wege: Trampelpfade werden beim Zeitaufstieg zu Feldwegen und besser, laufen 20 % schneller),
@@ -91,6 +93,8 @@ for (int karte = 1; karte <= KARTEN; karte++)
     }
     if (gruppen.Contains("weiterbauen"))
         Pruefe($"Karte {karte}, Weiterbauen", () => Weiterbauen(karte, verstoesse));
+    if (gruppen.Contains("standort"))
+        Pruefe($"Karte {karte}, Arbeitsstandpunkt", () => Standort(karte, verstoesse));
     if (gruppen.Contains("linksklick"))
         Pruefe($"Karte {karte}, Linksklick", () => Linksklick(karte, verstoesse));
     if (gruppen.Contains("farm"))
@@ -188,6 +192,13 @@ for (int karte = 1; karte <= KARTEN; karte++)
     // Belagerungswerkstatt (F15): Rammbock, Katapult, Tribok - und der Tribok in der Burg
     if (gruppen.Contains("werkstatt"))
         Pruefe($"Karte {karte}, Werkstatt", () => Werkstatt(karte, verstoesse));
+    // Hafen und Schiffe auf der Wiking-Karte (eigene Karte, einmal)
+    if (gruppen.Contains("hafen") && karte == 1)
+        Pruefe("Hafen", () => Hafen(verstoesse));
+    // Dorfbewohner steigen ins Transportschiff ein: Auswahl + Klick aufs Schiff,
+    // auch aus dem Inselinneren, verstreut, Schiff in freiem Wasser, Klick am Schiffsrand
+    if (gruppen.Contains("anlegen") && karte == 1)
+        Pruefe("Anlegen", () => Anlegen(verstoesse));
     // Warteschlange abbrechen: Klick aufs Feld, Shift+Klick fünf, Rechtsklick auf die Ausbildungstaste
     if (gruppen.Contains("warteschlange"))
         Pruefe($"Karte {karte}, Warteschlange", () => Warteschlange(karte, verstoesse));
@@ -353,6 +364,103 @@ static void Lager(int karte, List<string> verstoesse)
         verstoesse.Add($"{wer}: nicht alle Erbauer sammeln danach Holz ({string.Join(", ", arbeiter.Select(u => u.Job?.Resource.ToString() ?? u.State.ToString()))})");
     else
         Console.WriteLine($"  ok  {wer}: fertig, alle {arbeiter.Count} sammeln Holz");
+}
+
+// Arbeitsstandpunkt (2026-11-07): wer arbeitet, steht bei dem, woran er arbeitet —
+// Baum, Beeren und Stein höchstens eine halbe Kachel von der Kachelmitte entfernt
+// (früher volle eine), am Gebäude höchstens eine viertel Kachel von der Wand (früher
+// halbe). Der Punkt bleibt auf einer begehbaren Kachel: Wald, Steinbruch, Goldberg
+// und Beerenbusch sind begehbar, Wasser und Gebäude nicht — dort bleibt der alte
+// Abstand (Kachelmitte der Nachbar- bzw. Ringkachel), damit der Auftrag erreichbar bleibt.
+static void Standort(int karte, List<string> verstoesse)
+{
+    string wer = $"Karte {karte}, Arbeitsstandpunkt";
+    int vorher = verstoesse.Count;
+    float ts = 32f;   // Welt-Karte (TileMap-Konstruktor)
+
+    void Quelle(string fall, Resource rohstoff, FoodSource? art)
+    {
+        var w = new Welt();
+        var dorf = w.Dorfbewohner().First();
+        // Eine Quelle in der Nähe des Dorfbewohners (höchstens 10 Kacheln),
+        // sonst ist der Hinlauf länger als der Ablauf läuft.
+        var startZelle = w.Map.WorldToGrid(dorf.Position);
+        Tile k = null;
+        for (int x = 0; x < w.Map.Width && k == null; x++)
+            for (int y = 0; y < w.Map.Height && k == null; y++)
+            {
+                var t = w.Map.GetTile(x, y);
+                if (t is { } t2 && t2.ResourceAmount > 0
+                    && t2.ResourceType == rohstoff
+                    && (art == null || t2.Food == art)
+                    && Math.Abs(x - startZelle.X) + Math.Abs(y - startZelle.Y) <= 10)
+                    k = t;
+            }
+        if (k == null)
+        {
+            Console.WriteLine($"  --  {wer}: keine {fall} in 10 Kacheln - Fall übersprungen");
+            return;
+        }
+
+        // Der Dorfbewohner startet 3 Kacheln entfernt, wie ein Klick den Auftrag
+        // gibt, und läuft an — die Arbeit beginnt, sobald er ankommt.
+        var start = w.FreieKachel(dorf, 3);
+        dorf.Position = start * ts + new Vector2(ts / 2, ts / 2);
+        dorf.Job = new GatherJob(0, rohstoff, new CorePosition((int)k.X, (int)k.Y));
+        w.Call("FollowJob", dorf);
+        w.LaufeBis(() => dorf.State == UnitState.Gathering, 20f);
+        if (dorf.State != UnitState.Gathering)
+        {
+            verstoesse.Add($"{wer}: {fall} - beginnt in 20 s nicht mit der Arbeit ({dorf.State}, {dorf.Job?.Phase})");
+            return;
+        }
+
+        var mitte = new Vector2(k.X * ts + ts / 2, k.Y * ts + ts / 2);
+        float dist = Vector2.Distance(dorf.Position, mitte) / ts;
+        // Seitliche Standzelle: halbe Kachel (0.50), diagonale: 0.25 * Wurzel 2 ~ 0.71.
+        // Der Test kann die Diagonale nicht verlässlich erkennen (der Standpunkt liegt
+        // auf dem Kachelrand), daher ein gemeinsames Fenster:
+        if (dist > 0.78f)
+            verstoesse.Add($"{wer}: {fall} - steht {dist:0.00} Kacheln entfernt (Target {dorf.TargetPosition}, Pos {dorf.Position}, Mitte {mitte}) - soll bei höchstens einer halben Kachel ankommen");
+        else if (dist < 0.40f)
+            verstoesse.Add($"{wer}: {fall} - steht nur {dist:0.00} Kacheln entfernt - soll etwa eine halbe Kachel Abstand halten");
+        else
+            Console.WriteLine($"  ok  {wer}: {fall} - arbeitet in {dist:0.00} Kacheln Abstand an der {fall} (halbe Kachel seitlich, ~0.71 diagonal)");
+    }
+
+    Quelle("Beere", Resource.Food, FoodSource.Berries);
+    Quelle("Baum", Resource.Wood, null);
+    Quelle("Stein", Resource.Stone, null);
+
+    // Am Gebäude: eine viertel Kachel von der Wand, nicht die frühere halbe.
+    {
+        var w = new Welt();
+        var arbeiter = w.Dorfbewohner().First();
+        w.Waehle(new List<Unit> { arbeiter });
+        var platz = w.Bauplatz(BuildingType.House, arbeiter, 3);
+        w.Call("PlaceBuilding", BuildingType.House, platz);
+        var haus = w.Map.Buildings.Last();
+        w.LaufeBis(() => arbeiter.State == UnitState.Building, 20f);
+        if (arbeiter.State != UnitState.Building)
+        {
+            verstoesse.Add($"{wer}: Haus - arbeitet in 20 s noch nicht ({arbeiter.State}, Baustelle {haus?.IsComplete})");
+            return;
+        }
+        // Abstand zum Grundflächen-Rechteck, in Kacheln (Eckstandzelle: 0.25 * Wurzel 2)
+        float px = arbeiter.Position.X / ts, py = arbeiter.Position.Y / ts;
+        float dx = MathF.Max(MathF.Max(haus.X - px, 0f), px - (haus.X + haus.Width));
+        float dy = MathF.Max(MathF.Max(haus.Y - py, 0f), py - (haus.Y + haus.Height));
+        float dist = MathF.Sqrt(dx * dx + dy * dy);
+        if (dist > 0.41f)
+            verstoesse.Add($"{wer}: Haus - steht {dist:0.00} Kacheln von der Wand entfernt - soll bei höchstens einer viertel Kachel ankommen");
+        else if (dist < 0.15f)
+            verstoesse.Add($"{wer}: Haus - steht nur {dist:0.00} Kacheln von der Wand entfernt - soll etwa eine viertel Kachel Abstand halten");
+        else
+            Console.WriteLine($"  ok  {wer}: Haus - arbeitet in {dist:0.00} Kacheln Abstand an der Wand");
+    }
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: alle Abstände stimmen");
 }
 
 // C5d: Haus A angefangen, dann wird derselbe Dorfbewohner an Haus B gesetzt. Ist B
@@ -5188,6 +5296,692 @@ static void Faellen(int karte, List<string> verstoesse)
 // einen Ram und einen Mangonel am Gebäude. In der Imperialzeit kommt E Tribok dazu (200 Holz +
 // 200 Gold, 50 s, Trebuchet), ebenso Q Tribok in der Burg. Ohne Nebel: Werkstatt (3x3) und Burg
 // (4x4) brauchen Platz im Startgebiet.
+// Hafen und Schiffe (Nutzer 2026-11-07: „In der Wiking Version müssen wir dann noch Hafen
+// erstellen können. Die Inseln müssen da komplett von Wasser umgeben sein und man wird nur mit
+// booten von einer zur nächsten insel kommen.“ und „auch die Schiffe Truppentransport schiffe und
+// Kriegsschiffe erstellen“). Auf der Wiking-Karte: Hafen nur auf Wasser am eigenen Ufer, Bau,
+// Transportschiff (Q) und Kriegsschiff (W, Feudalzeit) aus dem Hafen, fünf steigen ein, der sechste
+// nicht, Übersetzen auf die Gegnerinsel, Spielstand mit Passagieren, ein sinkendes Schiff nimmt alle
+// mit, das Kriegsschiff trifft einen Gegner am Ufer, Nahkämpfer greifen kein Schiff an, Sammeln
+// bleibt auf der eigenen Insel, und der Fährdienst der KI (AiFerry) setzt Soldaten über und baut
+// selbst Hafen und Transportschiffe.
+static void Hafen(List<string> verstoesse)
+{
+    const int bw = 2406, bh = 1353;
+    string wer = "Hafen";
+    int vorher = verstoesse.Count;
+    var w = new Welt(MapSize.Test, 1f, MapStyle.Wiking);
+    w.Set("screenBounds", new Rectangle(0, 0, bw, bh));
+    w.Set("cameraZoom", 1f);
+    w.Set("cameraPosition", Vector2.Zero);
+    var map = w.Map;
+    int T = map.TileSize;
+    foreach (var r in new[] { Resource.Food, Resource.Wood, Resource.Gold, Resource.Stone })
+        w.P1.Resources.Add(r, 20000);
+    var ages = (AgeProgress)typeof(Player).GetProperty("Ages")!.GetValue(w.P1)!;
+    ages.TryStart(w.P1.Resources);
+    ages.Update(1000f);   // Feudalzeit: das Kriegsschiff
+    Point Mitte(int owner)
+    {
+        var b = map.Buildings.First(x => x.OwnerId == owner && x.Core.BuildingType == BuildingType.TownCenter);
+        return new Point(b.X + b.Width / 2, b.Y + b.Height / 2);
+    }
+    var tc1 = Mitte(0);
+    var tc2 = Mitte(1);
+    int insel1 = map.LandRegion(tc1.X, tc1.Y), insel2 = map.LandRegion(tc2.X, tc2.Y);
+    if (insel1 == 0 || insel1 == insel2)
+    {
+        verstoesse.Add($"{wer}: Aufbau - Inseln {insel1} und {insel2}, erwartet zwei verschiedene Landmassen");
+        return;
+    }
+    int InselVon(Unit u)
+    {
+        var c = map.WorldToGrid(u.Position);
+        return map.LandRegionAround((int)c.X, (int)c.Y);
+    }
+    string hud() => (string)w.Get("hudMessage") ?? "";
+    var gt = new GameTime(TimeSpan.Zero, TimeSpan.FromSeconds(1.0 / 60));
+    void Taste(Keys k)
+    {
+        var maus = new MouseState(bw / 2, bh / 2, 0, ButtonState.Released, ButtonState.Released,
+                                  ButtonState.Released, ButtonState.Released, ButtonState.Released);
+        w.Call("HandleRtsInput", gt, new KeyboardState(k), maus);
+        w.Call("HandleRtsInput", gt, new KeyboardState(), maus);
+    }
+    Unit Neu(UnitType typ, int owner, Point kachel)
+    {
+        var u = map.AddUnit(typ, kachel.X, kachel.Y, owner);
+        (owner == 0 ? w.P1 : w.P2).AddUnit(u);
+        return u;
+    }
+    // Freie Landkacheln einer Insel, die man von einem Dorfbewohner des Besitzers aus zu Fuß
+    // erreicht (Wald und das Stadtzentrum schneiden sonst Stücke ab), die dem Punkt am nächsten zuerst
+    Unit Anker(int owner)
+    {
+        var b = map.Buildings.First(x => x.OwnerId == owner && x.Core.BuildingType == BuildingType.TownCenter);
+        var mitte = map.GridToWorld(new Vector2(b.X + b.Width / 2, b.Y + b.Height / 2));
+        return map.Units.Where(u => u.OwnerId == owner && u.Type == UnitType.Villager)
+            .OrderBy(u => Vector2.DistanceSquared(u.Position, mitte)).FirstOrDefault();
+    }
+    HashSet<Point> Zufuss(int owner)
+    {
+        if (Anker(owner) is { } a)
+            return w.KiBruecke(owner).Ferry.Reachable(a, 1000);
+        // Kein Dorfbewohner mehr: vom Rand des Stadtzentrums aus
+        var b = map.Buildings.First(x => x.OwnerId == owner && x.Core.BuildingType == BuildingType.TownCenter);
+        var rand = Enumerable.Range(b.X - 1, b.Width + 2).SelectMany(x => new[] { new Point(x, b.Y - 1), new Point(x, b.Y + b.Height) })
+            .Concat(Enumerable.Range(b.Y, b.Height).SelectMany(y => new[] { new Point(b.X - 1, y), new Point(b.X + b.Width, y) }))
+            .First(p => map.IsWalkable(p.X, p.Y));
+        return map.WalkReach(rand);
+    }
+    List<Point> Land(int insel, Point nahe, int anzahl, bool zuFuss = true)
+    {
+        var fuss = zuFuss ? Zufuss(insel == map.LandRegion(tc1.X, tc1.Y) ? 0 : 1)
+            : Enumerable.Range(0, map.Width).SelectMany(x => Enumerable.Range(0, map.Height).Select(y => new Point(x, y)))
+                .Where(p => map.IsWalkable(p.X, p.Y)).ToHashSet();
+        return fuss.Where(p => map.LandRegion(p.X, p.Y) == insel
+                               && map.GetTile(p.X, p.Y).ResourceType == null
+                               && !map.Units.Any(u => map.WorldToGrid(u.Position) == new Vector2(p.X, p.Y)))
+            .OrderBy(p => (p.X - nahe.X) * (p.X - nahe.X) + (p.Y - nahe.Y) * (p.Y - nahe.Y))
+            .Take(anzahl).ToList();
+    }
+    // Häuser für die Bevölkerung: je Spieler vier auf der eigenen Insel
+    void Haeuser(int owner, Point nahe, int insel)
+    {
+        int gebaut = 0;
+        foreach (var p in Enumerable.Range(0, map.Width).SelectMany(x => Enumerable.Range(0, map.Height).Select(y => new Point(x, y)))
+                     .OrderBy(p => (p.X - nahe.X) * (p.X - nahe.X) + (p.Y - nahe.Y) * (p.Y - nahe.Y)))
+        {
+            if (gebaut == 4) break;
+            if (map.LandRegion(p.X, p.Y) != insel || Math.Abs(p.X - nahe.X) + Math.Abs(p.Y - nahe.Y) < 4
+                || !(bool)w.Call("CanPlace", owner, BuildingType.House, new Vector2(p.X, p.Y)))
+                continue;
+            // Kein Haus, das auf der kleinen Testinsel ein Stück Ufer abriegelt: zu Fuß gehen
+            // höchstens die vier Hauskacheln verloren
+            int vorher = Zufuss(owner).Count;
+            var haus = map.AddBuilding(p.X, p.Y, "Haus", owner, 2);
+            if (Zufuss(owner).Count < vorher - 4)
+            {
+                map.RemoveBuilding(haus);
+                continue;
+            }
+            gebaut++;
+        }
+        // Was auf der kleinen Startinsel keinen Platz fand, steht auf einer neutralen Insel -
+        // Häuser zählen für die Bevölkerung, wo immer sie stehen
+        foreach (var p in Enumerable.Range(0, map.Width).SelectMany(x => Enumerable.Range(0, map.Height).Select(y => new Point(x, y))))
+        {
+            if (gebaut == 4) break;
+            int r = map.LandRegion(p.X, p.Y);
+            // Unerkundet - CanPlace des Bildschirms lehnte ab; die Karte selbst muss passen
+            if (r == 0 || r == insel1 || r == insel2 || !map.CanPlaceBuilding(p.X, p.Y, 2))
+                continue;
+            map.AddBuilding(p.X, p.Y, "Haus", owner, 2);
+            gebaut++;
+        }
+        w.Call("UpdatePopulationLimits");
+    }
+    var notiz = new List<string>();
+    TileMap.TestNoFog = true;
+    try
+    {
+        Haeuser(0, tc1, insel1);
+        Haeuser(1, tc2, insel2);
+        string HausListe(int owner) => string.Join(" ", map.Buildings.Where(b => b.OwnerId == owner && b.Core.BuildingType == BuildingType.House)
+            .Select(b => $"({b.X},{b.Y}){(b.IsComplete ? "" : "Bau")}/I{map.LandRegion(b.X, b.Y)}"));
+        string hausStart = $"P1 {w.P1.PopulationLimit}: {HausListe(0)}; P2 {w.P2.PopulationLimit}: {HausListe(1)}";
+
+        // 1. Bauplatz: am Strand, ein Teil im Wasser, ein Teil auf Land (Nutzer 2026-11-07: „es muss
+        //    am strand möglich sein, also ein Teil im Wasser ein Teil auf land“) - der nächste zu Fuß
+        //    erreichbare, wie ihn die KI wählt
+        var platz = w.KiBruecke(0).Ferry.FindDockSite(Anker(0));
+        if (platz is { } kp && !(bool)w.Call("CanPlace", BuildingType.Dock, new Vector2(kp.X, kp.Y)))
+            verstoesse.Add($"{wer}: der Hafenplatz {kp} der Fähr-KI passt nicht (CanPlace)");
+        if (platz is not { } hp)
+        {
+            var alleKacheln = Enumerable.Range(0, map.Width).SelectMany(x => Enumerable.Range(0, map.Height).Select(y => new Point(x, y))).ToList();
+            var amUfer = alleKacheln.Where(p => map.CanPlaceDock(p.X, p.Y, 3)
+                && Enumerable.Range(0, 9).Any(i => map.LandRegion(p.X + i % 3, p.Y + i / 3) == insel1)).ToList();
+            var bildschirm = amUfer.Where(p => (bool)w.Call("CanPlace", BuildingType.Dock, new Vector2(p.X, p.Y))).ToList();
+            var fuss0 = Zufuss(0);
+            verstoesse.Add($"{wer}: kein Hafenplatz am Ufer der Startinsel (CanPlaceDock an Insel {insel1}: {amUfer.Count}, davon CanPlace {bildschirm.Count}: {string.Join(" ", bildschirm.Take(6))}; zu Fuß erreichbar {fuss0.Count} Kacheln)");
+            Console.WriteLine("     Karte (Ziffer = Landmasse, . Wasser, T Gebäude, W Wald, M Fels, G Gold):");
+            for (int y = 0; y < map.Height; y++)
+                Console.WriteLine("       " + new string(Enumerable.Range(0, map.Width).Select(x =>
+                    map.GetTile(x, y) is { } kt && !string.IsNullOrEmpty(kt.Building) ? 'T'
+                    : map.GetTile(x, y) is { Type: TileType.Forest } ? 'W' : map.GetTile(x, y) is { Type: TileType.Mountain } ? 'M'
+                    : map.GetTile(x, y) is { Type: TileType.GoldMine } ? 'G'
+                    : map.LandRegion(x, y) is var r && r == 0 ? '.' : (char)('0' + r % 10)).ToArray()));
+            return;
+        }
+        // Ganz auf Land (keine Wasserkachel in der Grundfläche) passt er nicht
+        var ganzLand = Land(insel1, tc1, 200).FirstOrDefault(p => Enumerable.Range(0, 9).All(i => map.GetTile(p.X + i % 3, p.Y + i / 3) is { Type: not TileType.Water }));
+        if (ganzLand != default && (bool)w.Call("CanPlace", BuildingType.Dock, new Vector2(ganzLand.X, ganzLand.Y)))
+            verstoesse.Add($"{wer}: Hafen passt ganz auf Land ({ganzLand})");
+        int nass = 0, trocken = 0;
+        for (int x = 0; x < 3; x++)
+            for (int y = 0; y < 3; y++)
+                if (map.GetTile(hp.X + x, hp.Y + y).Type == TileType.Water) nass++; else trocken++;
+        if (nass < 3)
+            verstoesse.Add($"{wer}: Hafenplatz {hp} hat nur {nass} Wasserkacheln, erwartet mindestens 3 (am Strand)");
+        // Ganz im Wasser geht nur direkt am Strand (Nutzer 2026-11-07: „1 kachel maximal von
+        // land“): eine Grundfläche ohne Land im Ring passt nicht, eine mit Strand daneben schon
+        bool Strand(Point p) => Enumerable.Range(0, 3).Any(i => map.IsWalkable(p.X + i, p.Y - 1) || map.IsWalkable(p.X + i, p.Y + 3)
+                                                            || map.IsWalkable(p.X - 1, p.Y + i) || map.IsWalkable(p.X + 3, p.Y + i));
+        bool Nass(Point p) => Enumerable.Range(0, 9).All(i => map.GetTile(p.X + i % 3, p.Y + i / 3) is { Type: TileType.Water, Building: null or "" });
+        var kacheln = Enumerable.Range(0, map.Width).SelectMany(x => Enumerable.Range(0, map.Height).Select(y => new Point(x, y))).ToList();
+        var weitDraussen = kacheln.FirstOrDefault(p => Nass(p) && !Strand(p) && map.OpenWater(p.X + 1, p.Y - 1)
+            && Enumerable.Range(-2, 7).All(i => map.GetTile(p.X + i, p.Y - 2) is not { Type: not TileType.Water } && map.GetTile(p.X + i, p.Y + 4) is not { Type: not TileType.Water }
+                                             && map.GetTile(p.X - 2, p.Y + i) is not { Type: not TileType.Water } && map.GetTile(p.X + 4, p.Y + i) is not { Type: not TileType.Water }));
+        if (weitDraussen != default && map.CanPlaceDock(weitDraussen.X, weitDraussen.Y, 3))
+            verstoesse.Add($"{wer}: Hafen passt draußen im Wasser ({weitDraussen}) - mehr als eine Kachel vom Strand");
+        var amStrandNass = kacheln.Where(p => Nass(p) && Strand(p)).ToList();
+        if (amStrandNass.Count > 0 && !amStrandNass.Any(p => map.CanPlaceDock(p.X, p.Y, 3)))
+            verstoesse.Add($"{wer}: kein Hafen ganz im Wasser direkt am Strand möglich ({amStrandNass.Count} Kandidaten)");
+
+        // 2. Bauen: 150 Holz, zwei Dorfbewohner, fertig nach höchstens 60 s
+        var dorfFuss = Zufuss(0);
+        var dorf = w.Dorfbewohner().Where(u => dorfFuss.Contains(new Point((int)map.WorldToGrid(u.Position).X, (int)map.WorldToGrid(u.Position).Y)))
+            .OrderBy(u => Vector2.Distance(u.Position, new Vector2(hp.X * T, hp.Y * T))).Take(2).ToList();
+        int holz = w.P1.Resources[Resource.Wood];
+        // Wie der Spieler: Dorfbewohner wählen, im Baumenü D (Hafen), Linksklick auf den Strand
+        w.Waehle(dorf);
+        w.Call("LayoutButtons");
+        var hafenTaste = w.Tasten().FirstOrDefault(t => t.Label == "D");
+        if (hafenTaste.Label == null)
+            verstoesse.Add($"{wer}: Dorfbewohner ohne Taste D für den Hafen (da: {string.Join(" ", w.Tasten().Select(t => t.Label))})");
+        else
+            w.Klick(hafenTaste.Rect.Center);
+        if (!Equals(w.Get("placing"), BuildingType.Dock))
+        {
+            verstoesse.Add($"{wer}: nach Taste D Setzmodus {w.Get("placing") ?? "aus"}, erwartet Dock");
+            w.Set("placing", BuildingType.Dock);
+        }
+        bool vorschauGruen = (bool)w.Call("CanPlace", BuildingType.Dock, new Vector2(hp.X, hp.Y));
+        // Den Strand so anklicken, wie er auf dem Bildschirm liegt (die Kamera zentriert kleine Karten)
+        var strand = (Vector2)w.Call("WorldToScreen", new Vector2(hp.X * T + T / 2, hp.Y * T + T / 2));
+        w.Klick(new Point((int)strand.X, (int)strand.Y));
+        if (!map.Buildings.Any(b => b.OwnerId == 0 && b.Core.BuildingType == BuildingType.Dock && b.X == hp.X && b.Y == hp.Y))
+        {
+            verstoesse.Add($"{wer}: Klick auf den Strand bei {hp} setzt keinen Hafen (Vorschau grün {vorschauGruen}, Meldung '{w.Get("hudMessage")}', Kamera {w.Get("cameraPosition")} Zoom {w.Get("cameraZoom")}, Zeiger auf {w.Get("mouseGridCell")})");
+            if (!(bool)w.Call("PlaceBuildingFor", 0, BuildingType.Dock, new Vector2(hp.X, hp.Y), dorf))
+                return;
+        }
+        if (holz - w.P1.Resources[Resource.Wood] != 150)
+            verstoesse.Add($"{wer}: Hafen kostete {holz - w.P1.Resources[Resource.Wood]} Holz, erwartet 150");
+        var hafen = map.Buildings.Last(b => b.OwnerId == 0);
+        if (hafen.Core.BuildingType != BuildingType.Dock || hafen.Type != "Hafen")
+            verstoesse.Add($"{wer}: Baustelle ist {hafen.Type}/{hafen.Core.BuildingType}, erwartet Hafen/Dock");
+        float bau = w.LaufeBis(() => hafen.IsComplete, 90f);
+        if (!hafen.IsComplete)
+        {
+            var fuss = Zufuss(0);
+            verstoesse.Add($"{wer}: Hafen bei {hp} nach {bau:0} s nicht fertig (Dorfbewohner: {string.Join(", ", dorf.Select(d => d.State + "@" + map.WorldToGrid(d.Position) + "/I" + InselVon(d)))}; Rand begehbar: {string.Join(" ", Enumerable.Range(-1, 5).SelectMany(x => Enumerable.Range(-1, 5).Select(y => (x, y))).Where(q => map.IsWalkable(hp.X + q.x, hp.Y + q.y)).Select(q => $"({hp.X + q.x},{hp.Y + q.y}) zu Fuß {fuss.Contains(new Point(hp.X + q.x, hp.Y + q.y))} Weg {map.FindPath(dorf[0].Position, map.GridToWorld(new Vector2(hp.X + q.x, hp.Y + q.y))).Count}"))})");
+            return;
+        }
+        notiz.Add($"Hafen bei {hp} in {bau:0} s");
+        for (int x = 0; x < 3; x++)
+            for (int y = 0; y < 3; y++)
+                if (map.IsWalkable(hp.X + x, hp.Y + y) || map.IsNavigable(hp.X + x, hp.Y + y))
+                    verstoesse.Add($"{wer}: unter dem Hafen ist ({hp.X + x},{hp.Y + y}) begehbar oder befahrbar");
+
+        // 3. Ausbildung: Q Transportschiff, W Kriegsschiff
+        w.Set("selectedBuilding", hafen);
+        w.Call("LayoutButtons");
+        var tasten = w.Tasten().Select(t => t.Label).ToList();
+        if (!tasten.Contains("Q") || !tasten.Contains("W"))
+            verstoesse.Add($"{wer}: Tasten am Hafen {string.Join(" ", tasten)}, erwartet Q (Transportschiff) und W (Kriegsschiff)");
+        Unit Ausbilden(Keys taste, UnitType typ, float sekunden)
+        {
+            int vor = map.Units.Count(u => u.Type == typ);
+            Taste(taste);
+            float t = w.LaufeBis(() => map.Units.Count(u => u.Type == typ) > vor, sekunden + 5f);
+            var schiff = map.Units.LastOrDefault(u => u.Type == typ && u.OwnerId == 0);
+            if (schiff == null || map.Units.Count(u => u.Type == typ) <= vor)
+            {
+                var wartend = (System.Collections.IDictionary)w.Get("_waitingSpawn");
+                verstoesse.Add($"{wer}: {typ} nach {t:0} s nicht ausgebildet (Ausbildung {hafen.Training.Count}, Bevölkerung {w.P1.PopulationCount}/{w.P1.PopulationLimit}, Platz {w.Call("ShipSpawnCell", hafen) ?? "keiner"}, wartet {(wartend.Contains(hafen) ? wartend[hafen] : "-")}, Schiffe {string.Join(" ", map.Units.Where(u => u.IsShip).Select(u => $"{u.Type}@{map.WorldToGrid(u.Position)}"))})");
+                return null;
+            }
+            var c = map.WorldToGrid(schiff.Position);
+            if (!map.IsNavigable((int)c.X, (int)c.Y))
+                verstoesse.Add($"{wer}: {typ} erscheint auf ({c.X},{c.Y}) - kein befahrbares Wasser");
+            if (!schiff.IsShip)
+                verstoesse.Add($"{wer}: {typ} ist kein Schiff (IsShip)");
+            notiz.Add($"{typ} {t:0} s");
+            return schiff;
+        }
+        var faehre = Ausbilden(Keys.Q, UnitType.TransportShip, 46f);
+        if (faehre == null) return;
+        if (faehre.Core is not AoE.Core.Entities.TransportShip)
+            verstoesse.Add($"{wer}: das Transportschiff ist im Kern {faehre.Core.GetType().Name}");
+
+        // 4. Einsteigen: sechs Milizen, fünf passen hinein
+        var milizen = Land(insel1, new Point(hp.X + 1, hp.Y + 1), 6).Select(p => Neu(UnitType.Militia, 0, p)).ToList();
+        int bevoelkerung = w.P1.PopulationCount;
+        w.Waehle(milizen);
+        w.Call("IssueCommand", 0, new List<Unit>(milizen), map.WorldToGrid(faehre.Position));
+        float ein = w.LaufeBis(() => faehre.Passengers.Count >= 5 && milizen.All(m => m.BoardShip == null), 60f);
+        if (faehre.Passengers.Count != 5)
+            verstoesse.Add($"{wer}: nach {ein:0} s {faehre.Passengers.Count} an Bord, erwartet 5 (Zustände: {string.Join(", ", milizen.Select(m => m.State + (m.BoardShip != null ? "+Bord" : "")))})");
+        var draussen = milizen.Where(m => !faehre.Passengers.Contains(m)).ToList();
+        if (draussen.Count != 1 || !map.Units.Contains(draussen[0]))
+            verstoesse.Add($"{wer}: {draussen.Count} Milizen an Land, erwartet genau eine");
+        if (!hud().Contains("Schiff voll"))
+            verstoesse.Add($"{wer}: Meldung '{hud()}', erwartet 'Schiff voll ...' für die sechste");
+        if (faehre.Passengers.Any(p => map.Units.Contains(p) || w.Auswahl().Contains(p)))
+            verstoesse.Add($"{wer}: Passagiere stehen noch in der Einheitenliste oder Auswahl");
+        if (w.P1.PopulationCount != bevoelkerung || faehre.Passengers.Any(p => !w.P1.Units.Contains(p)))
+            verstoesse.Add($"{wer}: Bevölkerung {bevoelkerung} -> {w.P1.PopulationCount} - Passagiere zählen weiter");
+
+        // 5. Spielstand: die Passagiere kommen an Bord zurück
+        var stand = (SaveGame)w.Call("CaptureSave");
+        var geladen = new Welt(SaveGameStore.Deserialize(SaveGameStore.Serialize(stand)));
+        var faehre2 = geladen.Map.Units.FirstOrDefault(u => u.Id == faehre.Id);
+        if (faehre2 == null || faehre2.Passengers.Count != 5
+            || faehre2.Passengers.Any(p => geladen.Map.Units.Contains(p))
+            || geladen.P1.PopulationCount != w.P1.PopulationCount)
+            verstoesse.Add($"{wer}: nach dem Laden {faehre2?.Passengers.Count} an Bord (erwartet 5), Bevölkerung {geladen.P1.PopulationCount} (erwartet {w.P1.PopulationCount})");
+
+        // 6. Untergang (im geladenen Stand): alle an Bord ertrinken
+        if (faehre2 != null)
+        {
+            int vorUntergang = geladen.P1.PopulationCount;
+            var bord = faehre2.Passengers.ToList();
+            faehre2.Health = 0;
+            faehre2.State = AoE.Core.Entities.UnitState.Dead;
+            geladen.LaufeBis(() => false, 0.1f);
+            if (geladen.Map.Units.Contains(faehre2) || bord.Any(p => p.State != AoE.Core.Entities.UnitState.Dead)
+                || geladen.P1.PopulationCount != vorUntergang - 6)
+                verstoesse.Add($"{wer}: Untergang - Bevölkerung {vorUntergang} -> {geladen.P1.PopulationCount}, erwartet {vorUntergang - 6} (Schiff und fünf an Bord)");
+        }
+
+        // 7. Übersetzen: Linksklick des Schiffs auf die Gegnerinsel
+        var ziel = Land(insel2, tc1, 1, zuFuss: false).First();
+        w.Waehle(new List<Unit> { faehre });
+        w.Call("IssueCommand", 0, new List<Unit> { faehre }, new Vector2(ziel.X, ziel.Y));
+        if (faehre.UnloadAt == null)
+        {
+            var sc = map.WorldToGrid(faehre.Position);
+            var seen = new HashSet<Point>(); var q = new Queue<Point>(); var s0 = new Point((int)sc.X, (int)sc.Y);
+            if (map.IsNavigable(s0.X, s0.Y)) { seen.Add(s0); q.Enqueue(s0); }
+            while (q.Count > 0) { var c = q.Dequeue(); foreach (var (dx, dy) in new[] { (1, 0), (-1, 0), (0, 1), (0, -1) }) { var n = new Point(c.X + dx, c.Y + dy); if (map.IsNavigable(n.X, n.Y) && seen.Add(n)) q.Enqueue(n); } }
+            int wasserGesamt = Enumerable.Range(0, map.Width).Sum(x => Enumerable.Range(0, map.Height).Count(y => map.IsNavigable(x, y)));
+            verstoesse.Add($"{wer}: Klick auf die Gegnerinsel ({ziel}) - das Schiff plant keine Anlegestelle (Schiff bei {sc}, Hafen bei {hp}, erreicht {seen.Count} von {wasserGesamt} Wasserkacheln, Karte {map.Width}x{map.Height})");
+        }
+        var bord7 = faehre.Passengers.ToList();
+        float fahrt = w.LaufeBis(() => faehre.Passengers.Count == 0, 240f);
+        if (faehre.Passengers.Count > 0)
+        {
+            verstoesse.Add($"{wer}: nach {fahrt:0} s noch {faehre.Passengers.Count} an Bord (Schiff {faehre.State} bei {map.WorldToGrid(faehre.Position)}, Weg {faehre.Path.Count}, UnloadAt {faehre.UnloadAt}, Ziel {ziel}, abgesetzt: {string.Join(" ", bord7.Where(p => map.Units.Contains(p)).Select(p => map.WorldToGrid(p.Position)))})");
+            Console.WriteLine("     Karte (Ziffer = Landmasse, . Wasser, H Hafen, T Gebäude, Z Ziel, S Schiff, W Wald, M Fels, G Gold):");
+            var sz = map.WorldToGrid(faehre.Position);
+            for (int y = 0; y < map.Height; y++)
+                Console.WriteLine("       " + new string(Enumerable.Range(0, map.Width).Select(x =>
+                    x == ziel.X && y == ziel.Y ? 'Z' : new Vector2(x, y) == sz ? 'S'
+                    : map.GetTile(x, y) is { } kt && !string.IsNullOrEmpty(kt.Building) ? (kt.Type == TileType.Water ? 'H' : 'T')
+                    : map.GetTile(x, y) is { Type: TileType.Forest } ? 'W' : map.GetTile(x, y) is { Type: TileType.Mountain } ? 'M'
+                    : map.GetTile(x, y) is { Type: TileType.GoldMine } ? 'G'
+                    : map.LandRegion(x, y) is var r && r == 0 ? '.' : (char)('0' + r % 10)).ToArray()));
+        }
+        else
+        {
+            notiz.Add($"übergesetzt in {fahrt:0} s");
+            var falsch = bord7.Where(p => !map.Units.Contains(p) || InselVon(p) != insel2).ToList();
+            if (falsch.Count > 0)
+                verstoesse.Add($"{wer}: {falsch.Count} Abgesetzte nicht auf der Gegnerinsel {insel2} (Inseln {string.Join(",", bord7.Select(InselVon))})");
+            var felder = bord7.Select(p => map.WorldToGrid(p.Position)).Distinct().Count();
+            if (felder < bord7.Count)
+                verstoesse.Add($"{wer}: Abgesetzte stehen auf {felder} Kacheln für {bord7.Count} Einheiten");
+        }
+        // Nahkämpfer greifen kein Schiff an
+        var gegnerSchiff = Neu(UnitType.TransportShip, 1, new Point((int)map.WorldToGrid(faehre.Position).X, (int)map.WorldToGrid(faehre.Position).Y));
+        gegnerSchiff.Position = faehre.Position + new Vector2(T, 0);
+        if (!map.IsNavigable((int)(gegnerSchiff.Position.X / T), (int)(gegnerSchiff.Position.Y / T)))
+            gegnerSchiff.Position = faehre.Position;
+        var nah = bord7.FirstOrDefault(p => map.Units.Contains(p));
+        if (nah != null)
+        {
+            w.Call("AttackUnit", new List<Unit> { nah }, gegnerSchiff);
+            if (nah.UnitTarget != null)
+                verstoesse.Add($"{wer}: eine Miliz (Nahkampf) greift ein Schiff an");
+        }
+
+        // 8. Kriegsschiff gegen einen Gegner am Ufer
+        w.Waehle(new List<Unit>());
+        w.Set("selectedBuilding", hafen);
+        var krieg = Ausbilden(Keys.W, UnitType.WarShip, 60f);
+        if (krieg != null)
+        {
+            if (krieg.Core is not AoE.Core.Entities.WarShip || krieg.AttackRange < 4)
+                verstoesse.Add($"{wer}: Kriegsschiff im Kern {krieg.Core.GetType().Name}, Reichweite {krieg.AttackRange}");
+            // ein Gegner auf der eigenen Insel an der Küste nahe dem Hafen
+            var kueste = Land(insel1, new Point(hp.X + 1, hp.Y + 1), 12)
+                .First(p => Enumerable.Range(-1, 3).Any(dx => Enumerable.Range(-1, 3).Any(dy => map.IsNavigable(p.X + dx, p.Y + dy))));
+            var feind = Neu(UnitType.Militia, 1, kueste);
+            int lp = feind.Health;
+            w.Call("IssueCommand", 0, new List<Unit> { krieg }, new Vector2(kueste.X, kueste.Y));
+            float kampf = w.LaufeBis(() => feind.Health < lp || feind.State == AoE.Core.Entities.UnitState.Dead, 40f);
+            if (feind.Health >= lp && feind.State != AoE.Core.Entities.UnitState.Dead)
+                verstoesse.Add($"{wer}: das Kriegsschiff trifft den Gegner am Ufer in {kampf:0} s nicht (Ziel {krieg.UnitTarget != null}, {krieg.State})");
+            else
+                notiz.Add($"Kriegsschiff trifft nach {kampf:0} s");
+        }
+        // Die Kriegsschiffe liegen jetzt vor der Gegnerküste und schössen in den nächsten Schritten
+        // Häuser und Hafen der KI zusammen - sie verlassen die Karte, damit Fähre und Werft der KI
+        // ungestört gemessen werden
+        foreach (var k in map.Units.Where(u => u.OwnerId == 0 && u.Type == UnitType.WarShip).ToList())
+            w.Call("DestroyUnit", k);
+
+        // 9. Sammeln bleibt auf der eigenen Insel
+        var gather = (TileMapGatherWorld)w.Get("gatherWorld");
+        foreach (var res in new[] { Resource.Wood, Resource.Stone, Resource.Gold })
+        {
+            if (gather.FindNearestSource(new AoE.Core.Entities.Position(tc1.X, tc1.Y), res, 200) is { } q
+                && map.LandRegion(q.X, q.Y) != insel1)
+                verstoesse.Add($"{wer}: Sammeln von {res} führt auf Insel {map.LandRegion(q.X, q.Y)} statt der eigenen ({insel1})");
+        }
+
+        // 10. Fährdienst der KI: Angriffsbefehl auf die Gegnerinsel -> Schiff, absetzen, weiter
+        var bruecke = w.KiBruecke(0);
+        bruecke.UseFerry = true;
+        var fahrLog = new List<string>();
+        bruecke.Ferry.Log = s => fahrLog.Add(s);
+        var welle = Land(insel1, new Point(hp.X + 1, hp.Y + 1), 3).Select(p => Neu(UnitType.Militia, 0, p)).ToList();
+        foreach (var m in welle)
+            bruecke.Attack(m.Id.GetHashCode(), tc2.X, tc2.Y);
+        if (bruecke.Ferry.Waiting != 3)
+            verstoesse.Add($"{wer}: Fährdienst - {bruecke.Ferry.Waiting} warten, erwartet 3");
+        float takt = 0f;
+        float ueber = w.LaufeBis(() =>
+        {
+            takt += 1f / 60f;
+            if (takt >= 0.5f) { takt = 0f; bruecke.Ferry.Tick(0.5f); }
+            return Angekommen();
+        }, 300f);
+        // Alle Überlebenden sind drüben, mindestens zwei (eine Miliz kann unterwegs fallen - Raubtiere,
+        // Soldaten der KI)
+        bool Angekommen() => welle.Count(m => map.Units.Contains(m) && InselVon(m) == insel2) >= 2
+                             && welle.All(m => m.State == AoE.Core.Entities.UnitState.Dead || map.Units.Contains(m) && InselVon(m) == insel2);
+        if (!Angekommen())
+        {
+            verstoesse.Add($"{wer}: Fährdienst - nach {ueber:0} s sind {welle.Count(m => map.Units.Contains(m) && InselVon(m) == insel2)} von 3 auf der Gegnerinsel (Schiff {faehre.State} bei {map.WorldToGrid(faehre.Position)}, an Bord {faehre.Passengers.Count}, warten {bruecke.Ferry.Waiting}; Inseln zu Beginn {insel1}/{insel2}, jetzt {map.LandRegion(tc1.X, tc1.Y)}/{map.LandRegion(tc2.X, tc2.Y)}; Einheiten: {string.Join("; ", welle.Select(m => $"{m.State} {map.WorldToGrid(m.Position)} Insel {InselVon(m)} in Liste {map.Units.Contains(m)} Bord {m.BoardShip != null} LP {m.Health} braucht Fähre {bruecke.Ferry.NeedsFerry(m, tc2.X, tc2.Y)}"))})");
+            Console.WriteLine("     Karte (Ziffer = Landmasse, . Wasser, H Hafen, T Gebäude, m Miliz der Welle):");
+            for (int y = 0; y < map.Height; y++)
+                Console.WriteLine("       " + new string(Enumerable.Range(0, map.Width).Select(x =>
+                    welle.Any(m => map.WorldToGrid(m.Position) == new Vector2(x, y)) ? 'm'
+                    : map.GetTile(x, y) is { } kt && !string.IsNullOrEmpty(kt.Building) ? (kt.Type == TileType.Water ? 'H' : 'T')
+                    : map.LandRegion(x, y) is var r && r == 0 ? '.' : (char)('0' + r % 10)).ToArray()));
+            foreach (var zeile in fahrLog.TakeLast(25))
+                Console.WriteLine("     " + zeile);
+        }
+        else
+            notiz.Add($"KI-Fähre {ueber:0} s");
+
+        // 11. Die KI baut selbst Hafen und zwei Transportschiffe (Spieler 2). Die Milizen des Spielers
+        //     aus dem Übersetzen und der Fähre stehen auf der Gegnerinsel und rissen Häuser und Hafen
+        //     der KI ein - sie verlassen die Karte, damit der Schritt nur die Werft misst
+        foreach (var m in map.Units.Where(u => u.OwnerId == 0 && !u.IsShip && InselVon(u) == insel2).ToList())
+            w.Call("DestroyUnit", m);
+        foreach (var r in new[] { Resource.Food, Resource.Wood, Resource.Gold, Resource.Stone })
+            w.P2.Resources.Add(r, 5000);
+        foreach (var p in Land(insel2, tc2, 12).Take(8))
+            Neu(UnitType.Villager, 1, p);
+        var ki = w.KiBruecke(1);
+        ki.UseFerry = true;
+        var werftLog = new List<string>();
+        ki.Ferry.Log = s => werftLog.Add(s);
+        takt = 0f;
+        float werft = w.LaufeBis(() =>
+        {
+            takt += 1f / 60f;
+            if (takt >= 0.5f) { takt = 0f; ki.Ferry.Tick(0.5f); }
+            return map.Units.Count(u => u.OwnerId == 1 && u.Type == UnitType.TransportShip) >= 2;
+        }, 300f);
+        var kiHafen = map.Buildings.FirstOrDefault(b => b.OwnerId == 1 && b.Core.BuildingType == BuildingType.Dock);
+        int kiSchiffe = map.Units.Count(u => u.OwnerId == 1 && u.Type == UnitType.TransportShip);
+        if (kiHafen == null || kiSchiffe < 2)
+        {
+            var wartend = (System.Collections.IDictionary)w.Get("_waitingSpawn");
+            verstoesse.Add($"{wer}: KI nach {werft:0} s - Hafen {(kiHafen == null ? "fehlt" : kiHafen.IsComplete ? "fertig" : "im Bau")}"
+                + $"{(kiHafen != null ? $" bei ({kiHafen.X},{kiHafen.Y}), Ausbildung {kiHafen.Training.Count}, Platz {w.Call("ShipSpawnCell", kiHafen) ?? "keiner"}, wartet {(wartend.Contains(kiHafen) ? wartend[kiHafen] : "-")}" : "")}"
+                + $", {kiSchiffe} Transportschiffe (erwartet 2); Bevölkerung {w.P2.PopulationCount}/{w.P2.PopulationLimit}, Holz {w.P2.Resources[Resource.Wood]}"
+                + $"; Schiffe: {string.Join(" ", map.Units.Where(u => u.IsShip).Select(u => $"{u.Type}/{u.OwnerId}@{map.WorldToGrid(u.Position)}"))}"
+                + $"; Hafen Spieler 2: {map.Buildings.Count(b => b.OwnerId == 1 && b.Core.BuildingType == BuildingType.Dock)}"
+                + $"; Häuser zu Beginn {hausStart}; jetzt P2: {HausListe(1)}");
+            foreach (var zeile in werftLog.TakeLast(12))
+                Console.WriteLine("     " + zeile);
+        }
+        else
+        {
+            notiz.Add($"KI-Werft {werft:0} s");
+            if (Math.Abs(kiHafen.X - tc2.X) > AgeOfEvolutions.Core.AI.AiFerry.DOCK_SEARCH_RADIUS + 3
+                || Math.Abs(kiHafen.Y - tc2.Y) > AgeOfEvolutions.Core.AI.AiFerry.DOCK_SEARCH_RADIUS + 3)
+                verstoesse.Add($"{wer}: KI-Hafen bei ({kiHafen.X},{kiHafen.Y}) weit weg vom Stadtzentrum {tc2}");
+        }
+    }
+    finally
+    {
+        TileMap.TestNoFog = false;
+    }
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: {string.Join(", ", notiz)}");
+}
+
+    // Anlegen: Auswahl + Klick aufs Transportschiff — die Dorfbewohner laufen zum Ufer,
+    // das Schiff fährt herbei (auch aus freiem Wasser) und sie steigen ein; am Schiffsrand
+    // anklicken zählt auch, und ein volles Schiff meldet sich statt zu schweigen.
+    // (Wiking-Karte, Karte 1)
+    static void Anlegen(List<string> verstoesse)
+    {
+        string wer = "Anlegen";
+        int vorher = verstoesse.Count;
+        // Standardgröße: auf der winzigen Testkarte ist die Startinsel zu klein,
+        // um „aus dem Inselinneren“ und „verstreut“ zu testen
+        var w = new Welt(MapSize.Standard, 1f, MapStyle.Wiking);
+        var map = w.Map;
+        int T = map.TileSize;
+        w.Set("screenBounds", new Rectangle(0, 0, map.Width * T, map.Height * T));
+        w.Set("cameraZoom", 1f);
+        w.Set("cameraPosition", Vector2.Zero);
+        foreach (var r in new[] { Resource.Food, Resource.Wood, Resource.Gold, Resource.Stone })
+            w.P1.Resources.Add(r, 20000);
+        var ages = (AgeProgress)typeof(Player).GetProperty("Ages")!.GetValue(w.P1)!;
+        ages.TryStart(w.P1.Resources);
+        ages.Update(1000f);
+        string hud() => (string)w.Get("hudMessage") ?? "";
+        int cap = AoE.Core.Entities.TransportShip.CAPACITY;
+        TileMap.TestNoFog = true;
+        try
+        {
+            Unit Neu(int owner, Point kachel)
+            {
+                var u = map.AddUnit(UnitType.Villager, kachel.X, kachel.Y, owner);
+                u.TargetPosition = u.Position;
+                u.State = UnitState.Idle;
+                w.P1.AddUnit(u);
+                return u;
+            }
+
+            int WasserDistanz(Point p)
+            {
+                int best = 9999;
+                for (int x = Math.Max(0, p.X - 40); x <= Math.Min(map.Width - 1, p.X + 40); x++)
+                    for (int y = Math.Max(0, p.Y - 40); y <= Math.Min(map.Height - 1, p.Y + 40); y++)
+                    {
+                        if (map.GetTile(x, y)?.Type != TileType.Water)
+                            continue;
+                        best = Math.Min(best, Math.Max(Math.Abs(x - p.X), Math.Abs(y - p.Y)));
+                    }
+                return best;
+            }
+
+            var tcB = map.Buildings.First(b => b.OwnerId == 0 && b.Core.BuildingType == BuildingType.TownCenter);
+            var tcPos = new Point(tcB.X + tcB.Width / 2, tcB.Y + tcB.Height / 2);
+            int insel1 = map.LandRegion(tcPos.X, tcPos.Y);
+            // Keine Dorfbewohner ins Raubtier-Territorium: Wölfe in Rudeln (oder ein Bär)
+            // würden sie auf dem Weg ans Schiff erledigen
+            bool Raubtiere(int x, int y)
+            {
+                for (int dx = -12; dx <= 12; dx++)
+                    for (int dy = -12; dy <= 12; dy++)
+                        if (map.IsLivePredator(x + dx, y + dy))
+                            return true;
+                return false;
+            }
+            var land = new List<(Point p, int dist)>();
+            for (int x = 0; x < map.Width; x++)
+                for (int y = 0; y < map.Height; y++)
+                {
+                    if (map.LandRegion(x, y) != insel1 || !map.IsWalkable(x, y))
+                        continue;
+                    var tile = map.GetTile(x, y)!;
+                    if (tile.Building != null || tile.Type == TileType.Forest || tile.ResourceType != null)
+                        continue;
+                    if (Raubtiere(x, y))
+                        continue;
+                    if (map.Units.Any(u => !u.IsShip && Vector2.Distance(u.Position, new Vector2(x * T + T / 2, y * T + T / 2)) <= T))
+                        continue;
+                    land.Add((new Point(x, y), WasserDistanz(new Point(x, y))));
+                }
+            var kueste = land.Where(t => t.dist >= 1 && t.dist <= 3).Select(t => t.p).ToList();
+            var mittig = land.Where(t => t.dist >= 4 && t.dist <= 8).Select(t => t.p).ToList();
+            var tief = land.Where(t => t.dist >= 9).Select(t => t.p).ToList();
+            if (kueste.Count < 3 || mittig.Count == 0 || tief.Count == 0)
+            {
+                verstoesse.Add($"{wer}: die Startinsel der Testkarte hat nicht genug freie Landkacheln (Küste {kueste.Count}, Mitte {mittig.Count}, innen {tief.Count})");
+                return;
+            }
+
+            // 1) Hafen und Transportboot am Ufer (Schnellweg wie die KI)
+            Point? hafenKachel = null;
+            for (int x = 0; x < map.Width && hafenKachel == null; x++)
+                for (int y = 0; y < map.Height && hafenKachel == null; y++)
+                {
+                    if (map.LandRegion(x, y) != insel1 || !map.CanPlaceDock(x, y, 3))
+                        continue;
+                    if (!(bool)w.Call("CanPlace", BuildingType.Dock, new Vector2(x, y)))
+                        continue;
+                    hafenKachel = new Point(x, y);
+                }
+            if (hafenKachel == null)
+            {
+                verstoesse.Add($"{wer}: kein Hafen-Platz an der Startinsel");
+                return;
+            }
+            var dorf = w.Dorfbewohner().OrderBy(u => Vector2.Distance(u.Position, new Vector2(hafenKachel.Value.X * T, hafenKachel.Value.Y * T))).Take(2).ToList();
+            if (dorf.Count == 0)
+            {
+                dorf = new List<Unit> { Neu(0, tcPos), Neu(0, tcPos) };
+            }
+            w.Waehle(dorf);
+            if (!(bool)w.Call("PlaceBuildingFor", 0, BuildingType.Dock, new Vector2(hafenKachel.Value.X, hafenKachel.Value.Y), dorf))
+            {
+                verstoesse.Add($"{wer}: der Hafen lässt sich nicht bauen (Meldung '{hud()}')");
+                return;
+            }
+            var hafenB = map.Buildings.Last(b => b.OwnerId == 0);
+            w.LaufeBis(() => hafenB.IsComplete, 90f);
+            if (!hafenB.IsComplete)
+            {
+                verstoesse.Add($"{wer}: der Hafen ist nach 90 s nicht fertig");
+                return;
+            }
+            if (!(bool)w.Call("TrainSoldierForOwner", 0, hafenB, UnitType.TransportShip))
+            {
+                verstoesse.Add($"{wer}: das Transportschiff lässt sich nicht ausbilden (Meldung '{hud()}')");
+                return;
+            }
+            w.LaufeBis(() => map.Units.Any(u => u.Type == UnitType.TransportShip && u.OwnerId == 0), 60f);
+            var schiff = map.Units.LastOrDefault(u => u.Type == UnitType.TransportShip && u.OwnerId == 0);
+            if (schiff == null)
+            {
+                verstoesse.Add($"{wer}: das Transportschiff erscheint nicht");
+                return;
+            }
+
+            // 2) Aus dem Inselinneren: auswählen, aufs Schiff klicken → läuft ans Ufer und steigt ein
+            var innen = Neu(0, tief[tief.Count - 1]);
+            w.Waehle(new List<Unit> { innen });
+            w.Call("IssueCommand", 0, new List<Unit> { innen }, map.WorldToGrid(schiff.Position));
+            w.LaufeBis(() => schiff.Passengers.Contains(innen), 120f);
+            if (!schiff.Passengers.Contains(innen))
+                verstoesse.Add($"{wer}: der Dorfbewohner aus dem Inselinneren ({map.WorldToGrid(innen.Position)}) ist nach 120 s nicht an Bord (Zustand {innen.State}, BoardShip={(innen.BoardShip != null ? "gesetzt" : "leer")}, Schiff {schiff.State} @ {map.WorldToGrid(schiff.Position)}, Route {schiff.Path.Count}, Meldung '{hud()}')");
+
+            // 3) Drei verstreute Dorfbewohner (Küste, Mitte, innen) steigen gemeinsam ein
+            var k = Neu(0, kueste[0]);
+            var m = Neu(0, mittig[0]);
+            var i2 = Neu(0, tief[Math.Min(1, tief.Count - 1)]);
+            var drey = new List<Unit> { k, m, i2 };
+            w.Waehle(drey);
+            w.Call("IssueCommand", 0, drey, map.WorldToGrid(schiff.Position));
+            w.LaufeBis(() => schiff.Passengers.Count >= 4, 150f);
+            foreach (var g in drey.Where(u => !schiff.Passengers.Contains(u)))
+                verstoesse.Add($"{wer}: der verstreute Dorfbewohner bei {map.WorldToGrid(g.Position)} ist nicht an Bord (Zustand {g.State}, BoardShip={(g.BoardShip != null ? "gesetzt" : "leer")}, Meldung '{hud()}')");
+
+            // 4) Schiff in freiem Wasser: es kommt zum Ufer, die Einheiten steigen ein
+            Point schiffKachel = new Point((int)map.WorldToGrid(schiff.Position).X, (int)map.WorldToGrid(schiff.Position).Y);
+            var seePunkte = new List<Point>();
+            for (int x = 0; x < map.Width; x++)
+                for (int y = 0; y < map.Height; y++)
+                {
+                    if (!map.IsNavigable(x, y))
+                        continue;
+                    int d = Math.Max(Math.Abs(x - schiffKachel.X), Math.Abs(y - schiffKachel.Y));
+                    if (d >= 8 && d <= 14)
+                        seePunkte.Add(new Point(x, y));
+                }
+            if (seePunkte.Count == 0)
+            {
+                verstoesse.Add($"{wer}: kein freies Wasser in 8–14 Kacheln um den Hafen ({schiffKachel})");
+                return;
+            }
+            Point see = seePunkte[seePunkte.Count / 2];
+            var seeZiel = new Vector2(see.X * T + T / 2, see.Y * T + T / 2);
+            w.Waehle(new List<Unit> { schiff });
+            w.Call("CommandShips", new List<Unit> { schiff }, new Vector2(see.X, see.Y));
+            w.LaufeBis(() => schiff.State == UnitState.Idle && schiff.Path.Count == 0, 60f);
+            if (Vector2.Distance(schiff.Position, seeZiel) > T * 1.5f)
+                verstoesse.Add($"{wer}: das Schiff mit {schiff.Passengers.Count} Passagieren ist nicht im freien Wasser angekommen ({map.WorldToGrid(schiff.Position)} statt {see})");
+            var fuenfte = Neu(0, tief[2 % tief.Count]);
+            w.Waehle(new List<Unit> { fuenfte });
+            w.Call("IssueCommand", 0, new List<Unit> { fuenfte }, map.WorldToGrid(schiff.Position));
+            w.LaufeBis(() => schiff.Passengers.Contains(fuenfte), 150f);
+            if (!schiff.Passengers.Contains(fuenfte))
+                verstoesse.Add($"{wer}: der fünfte Dorfbewohner steigt nicht ins Schiff, das aus dem freien Wasser heranfährt (Zustand {fuenfte.State}, Schiff {schiff.State} @ {map.WorldToGrid(schiff.Position)}, Meldung '{hud()}')");
+
+            // 5) Am Schiffsrand anklicken (Bug-Kachel, Bug zeigt aufs offene Wasser) → zählt aufs Schiff;
+            //    das Schiff ist voll → "Schiff voll", statt dass der Klick in ein Leerlaufen mündet
+            if (schiff.Passengers.Count < cap)
+            {
+                var fuell = Neu(0, kueste[1]);
+                w.Waehle(new List<Unit> { fuell });
+                w.Call("IssueCommand", 0, new List<Unit> { fuell }, map.WorldToGrid(schiff.Position));
+                w.LaufeBis(() => schiff.Passengers.Count == cap, 90f);
+            }
+            var vorHinfahrt = schiff.Position;
+            w.Waehle(new List<Unit> { schiff });
+            w.Call("CommandShips", new List<Unit> { schiff }, new Vector2(see.X, see.Y));
+            w.LaufeBis(() => schiff.State == UnitState.Idle && schiff.Path.Count == 0, 60f);
+            var richtung = Vector2.Normalize(seeZiel - vorHinfahrt);
+            var bugKachel = map.WorldToGrid(schiff.Position + richtung * T);
+            var sechste = Neu(0, kueste[2]);
+            w.Waehle(new List<Unit> { sechste });
+            w.Call("IssueCommand", 0, new List<Unit> { sechste }, bugKachel);
+            w.LaufeBis(() => hud().Contains("Schiff voll"), 150f);
+            if (!hud().Contains("Schiff voll"))
+                verstoesse.Add($"{wer}: der Klick auf die Bug-Kachel ({bugKachel}) wird nicht als Schiff erkannt (Dorfbewohner {map.WorldToGrid(sechste.Position)}, Zustand {sechste.State}, Meldung '{hud()}')");
+
+            // Zusammenfassung
+            Console.WriteLine($"{wer}: {schiff.Passengers.Count}/{cap} an Bord, " +
+                $"Schiff {map.WorldToGrid(schiff.Position)}, {verstoesse.Count - vorher} Verstöße");
+        }
+        finally
+        {
+            TileMap.TestNoFog = false;
+        }
+    }
+
 static void Werkstatt(int karte, List<string> verstoesse)
 {
     const int bw = 2406, bh = 1353;
@@ -9148,7 +9942,8 @@ static void Beschuss(int karte, List<string> verstoesse)
 }
 // Landart (Nutzer 2026-11-07): die drei Karten ziehen je eine Landart — Karte 1
 // Ägypten (Wüste, Palmen statt Wald, kein Wasser), Karte 2 Wiking (mehr als die
-// Hälfte Wasser, alle Inseln per Brücke verbunden, Startplätze auf Land),
+// Hälfte Wasser, Inseln ganz von Wasser umgeben - kein Landweg zwischen den
+// Startinseln, nur per Schiff; Rohstoffe und ein Hafenplatz auf jeder Startinsel),
 // Karte 3 Europa als Referenz (unverändert). Die Startplätze der Kacheln kommen
 // aus den Gebäude-Listen — das private Start-Feld des TileMaps ist nicht sichtbar.
 static void Landart(int karte, List<string> verstoesse)
@@ -9195,14 +9990,64 @@ static void Landart(int karte, List<string> verstoesse)
     switch (style)
     {
         case MapStyle.Egypten:
-            if (wasser > 0)
-                verstoesse.Add($"{wer}: Ägypten trägt {wasser} Wasserkacheln (erwartet: keine — Wüste ohne Seen)");
+            // Oasen (Nutzer 2026-11-07: „auf der Egypt Karte sollte in der nähe von
+            // Palmen auch meist etwas Wasser sein“, „und um das wasser etwas mehr grün
+            // drum herum“): Wasser in der Wüste, Palmen meist am Ufer, Wiese rund um
+            // das Wasser.
+            if (wasser <= 0)
+                verstoesse.Add($"{wer}: Ägypten hat kein Wasser (erwartet: Oasen in der Nähe der Palmen)");
             if (sand < total * 0.4)
                 verstoesse.Add($"{wer}: Ägypten hat nur {sand} Sandkacheln ({sand / total:P0}, erwartet mindestens 40 %)");
             if (wald == 0)
                 verstoesse.Add($"{wer}: Ägypten hat keinen Wald (Palmen)");
             if (schafe == 0)
                 verstoesse.Add($"{wer}: Ägypten hat keine Schafe (Nahrung)");
+            // mehr grün um das Wasser: kein Sand direkt am Wasser — statt einer
+            // Sandlippe eine zweikacheln dicke Wiese (TileMap.AddGreenBanks). Tiefe
+            // Seemitte ist erlaubt, sie grenzt an Wasser, nicht an Land.
+            // Palmen meist am Wasser: mindestens die Hälfte der Palmenhaine (zusammenhängende
+            // Wälderkacheln) steht in 6 Kacheln am Wasser.
+            int sandAmUfer = 0;
+            var waldkacheln = alle.Where(p => map.GetTile(p.Item1, p.Item2) is { Type: TileType.Forest }).ToList();
+            int haine = 0, haineAmWasser = 0;
+            var besucht = new HashSet<(int, int)>();
+            foreach (var start in waldkacheln)
+            {
+                if (!besucht.Add(start)) continue;
+                var warte = new Queue<(int, int)>(new[] { start });
+                bool nahWasser = false;
+                while (warte.Count > 0 && !nahWasser)
+                {
+                    var (x, y) = warte.Dequeue();
+                    for (int dx = -6; dx <= 6 && !nahWasser; dx++)
+                        for (int dy = -6; dy <= 6; dy++)
+                            if (map.GetTile(x + dx, y + dy) is { Type: TileType.Water }) { nahWasser = true; break; }
+                    if (nahWasser) continue;
+                    for (int dx = -1; dx <= 1; dx++)
+                        for (int dy = -1; dy <= 1; dy++)
+                        {
+                            if (dx == 0 && dy == 0) continue;
+                            if (waldkacheln.Contains((x + dx, y + dy)) && besucht.Add((x + dx, y + dy)))
+                                warte.Enqueue((x + dx, y + dy));
+                        }
+                }
+                haine++;
+                if (nahWasser) haineAmWasser++;
+            }
+            foreach (var (x, y) in alle)
+            {
+                if (map.GetTile(x, y) is not { Type: TileType.Water }) continue;
+                for (int dx = -1; dx <= 1 && sandAmUfer == 0; dx++)
+                    for (int dy = -1; dy <= 1; dy++)
+                    {
+                        if (dx == 0 && dy == 0) continue;
+                        if (map.GetTile(x + dx, y + dy) is { Type: TileType.Sand }) { sandAmUfer++; break; }
+                    }
+            }
+            if (sandAmUfer > 0)
+                verstoesse.Add($"{wer}: Sand direkt am Wasser in Ägypten ({sandAmUfer} Wasserkacheln berühren Sand, erwartet: grünes Oasenufer)");
+            if (haine > 0 && haineAmWasser < (haine + 1) / 2)
+                verstoesse.Add($"{wer}: zu wenige Palmen stehen am Wasser ({haineAmWasser} von {haine} Hainen in 6 Kacheln am Wasser, erwartet die Hälfte oder mehr)");
             break;
         case MapStyle.Wiking:
             if (wasser < total * 0.5)
@@ -9213,49 +10058,105 @@ static void Landart(int karte, List<string> verstoesse)
                 verstoesse.Add($"{wer}: Wiking hat keinen Wald");
             if (fisch == 0)
                 verstoesse.Add($"{wer}: Wiking hat keinen Fisch an der Küste");
-            // Erreichbarkeit: die TCs selbst sind Gebäude (nicht begehbar) — der Weg
-            // läuft über die begehbare Kachel direkt daneben. Von einer begehbaren
-            // Startkachel von TC1 aus muss eine von TC2 erreichbar sein (die Brücken).
-            Point? seedNear(Point tcMitte)
+            // Inseln (Nutzer 2026-11-07: „Die Inseln müssen da komplett von Wasser umgeben sein und
+            // man wird nur mit booten von einer zur nächsten insel kommen“): die Startinseln sind
+            // verschiedene Landmassen, am Kartenrand liegt nur Wasser
+            int insel1 = map.LandRegion(tc1.Value.X, tc1.Value.Y);
+            int insel2 = map.LandRegion(tc2.Value.X, tc2.Value.Y);
+            if (insel1 == 0 || insel2 == 0)
+                verstoesse.Add($"{wer}: ein Stadtzentrum steht auf keiner Landmasse (Insel 1: {insel1}, Insel 2: {insel2})");
+            else if (insel1 == insel2)
+                verstoesse.Add($"{wer}: beide Stadtzentren stehen auf derselben Landmasse ({insel1}) - es gibt einen Landweg, die Inseln sind nicht von Wasser getrennt");
+            // Inselzahl je Menügröße (Nutzer 2026-11-07: „die Anzahl inseln würde ich so zwischen
+            // 4-12 halten“, „12 nur bei der grössten Karte“, „10 bei den anderen beiden“) - je
+            // Größe drei frische Karten im 16:9-Format, gezählt werden alle Landmassen
+            foreach (var groesse in new[] { MapSize.Standard, MapSize.Continent, MapSize.World })
             {
-                for (int r = 1; r <= 5; r++)
+                int hoechstens = groesse == MapSize.World ? 12 : 10;
+                var (bw, bh) = MapSizes.Dimensions(groesse, 16f / 9f);
+                var zahlen = new List<int>();
+                for (int n = 0; n < 3; n++)
                 {
-                    for (int dx = -r; dx <= r; dx++)
-                        for (int dy = -r; dy <= r; dy++)
-                        {
-                            if (Math.Max(Math.Abs(dx), Math.Abs(dy)) != r) continue; // nur den Ring
-                            var n = new Point(tcMitte.X + dx, tcMitte.Y + dy);
-                            if (map.GetTile(n.X, n.Y) is { } nt && nt.Walkable)
-                                return n;
-                        }
+                    var probe = new TileMap(bw, bh, 32, MapSettings.ForStyle(MapStyle.Wiking, groesse), MapStyle.Wiking);
+                    var inseln = new HashSet<int>();
+                    for (int x = 0; x < bw; x++)
+                        for (int y = 0; y < bh; y++)
+                            if (probe.LandRegion(x, y) is var r && r != 0) inseln.Add(r);
+                    zahlen.Add(inseln.Count);
                 }
-                return null;
+                if (zahlen.Any(z => z < 4 || z > hoechstens))
+                    verstoesse.Add($"{wer}: {groesse} ({bw}x{bh}) hat {string.Join(", ", zahlen)} Inseln, erwartet 4 bis {hoechstens}");
+                else
+                    Console.WriteLine($"     Inseln {groesse} {bw}x{bh}: {string.Join(", ", zahlen)}");
             }
-            var seed1 = seedNear(tc1.Value);
-            var seed2 = seedNear(tc2.Value);
-            if (seed1 == null || seed2 == null)
+            // Tiere (Nutzer 2026-11-07: „achte darauf das auf den inseln nicht zu viele Tiere sind“):
+            // je Landkachel höchstens 1,3-mal so viele wie auf Europa - je drei Standardkarten
             {
-                verstoesse.Add($"{wer}: um ein Stadtzentrum herum ist kein begehbares Land (seed1 {seed1}, seed2 {seed2})");
-            }
-            else
-            {
-                var warte = new Queue<Point>();
-                warte.Enqueue(seed1.Value);
-                var gesehen = new HashSet<Point> { seed1.Value };
-                while (warte.Count > 0 && !gesehen.Contains(seed2.Value))
+                var (sw, sh) = MapSizes.Dimensions(MapSize.Standard, 16f / 9f);
+                (double Dichte, string Text) Tiere(MapStyle stil)
                 {
-                    var p = warte.Dequeue();
-                    foreach (var (dx, dy) in new[] { (1, 0), (-1, 0), (0, 1), (0, -1) })
+                    int tiere = 0, land = 0;
+                    var arten = new Dictionary<FoodSource, int>();
+                    for (int n = 0; n < 3; n++)
                     {
-                        var n = new Point(p.X + dx, p.Y + dy);
-                        if (n.X < 0 || n.Y < 0 || n.X >= map.Width || n.Y >= map.Height) continue;
-                        if (!gesehen.Add(n)) continue;
-                        if (map.GetTile(n.X, n.Y) is { } nt && nt.Walkable)
-                            warte.Enqueue(n);
+                        var probe = new TileMap(sw, sh, 32, MapSettings.ForStyle(stil, MapSize.Standard), stil);
+                        for (int x = 0; x < sw; x++)
+                            for (int y = 0; y < sh; y++)
+                            {
+                                var kt = probe.GetTile(x, y);
+                                if (kt.Type != TileType.Water) land++;
+                                if (kt.Food is FoodSource.Sheep or FoodSource.Deer or FoodSource.Boar or FoodSource.Rabbit
+                                    or FoodSource.Bear or FoodSource.Wolf)
+                                {
+                                    tiere++;
+                                    arten[kt.Food] = arten.GetValueOrDefault(kt.Food) + 1;
+                                }
+                            }
+                    }
+                    double d = tiere * 1000.0 / Math.Max(1, land);
+                    return (d, $"{d:0.0} je 1000 Landkacheln ({string.Join(", ", arten.OrderBy(a => a.Key.ToString()).Select(a => $"{a.Key} {a.Value / 3.0:0}"))} je Karte)");
+                }
+                var europa = Tiere(MapStyle.Europa);
+                var wiking = Tiere(MapStyle.Wiking);
+                if (wiking.Dichte > europa.Dichte * 1.3)
+                    verstoesse.Add($"{wer}: zu viele Tiere auf den Inseln - Wiking {wiking.Text}, Europa {europa.Text}");
+                else
+                    Console.WriteLine($"     Tiere Wiking {wiking.Text}; Europa {europa.Text}");
+            }
+            int randLand = alle.Count(q => (q.Item1 == 0 || q.Item2 == 0 || q.Item1 == map.Width - 1 || q.Item2 == map.Height - 1)
+                                           && map.GetTile(q.Item1, q.Item2) is { Type: not TileType.Water });
+            if (randLand > 0)
+                verstoesse.Add($"{wer}: {randLand} Landkacheln am Kartenrand - die Inseln sollen ganz von Wasser umgeben sein");
+            // Jede Startinsel trägt Holz, Stein und Gold und hat einen Hafenplatz am Ufer
+            foreach (var (name, insel, mitte) in new[] { ("Spieler 1", insel1, tc1.Value), ("Spieler 2", insel2, tc2.Value) })
+            {
+                if (insel == 0) continue;
+                foreach (var (rohstoff, art) in new[] { ("Holz", TileType.Forest), ("Stein", TileType.Mountain), ("Gold", TileType.GoldMine) })
+                {
+                    if (!alle.Any(q => map.GetTile(q.Item1, q.Item2) is { } kt && kt.Type == art && map.LandRegion(q.Item1, q.Item2) == insel))
+                    {
+                        verstoesse.Add($"{wer}: auf der Startinsel von {name} gibt es kein {rohstoff}");
+                        // Textbild der Startinsel: . Wasser, g Wiese, s Sand, W Wald, M Stein, G Gold, T Stadtzentrum
+                        var zeilen = new List<string>();
+                        for (int y = Math.Max(0, mitte.Y - 12); y <= Math.Min(map.Height - 1, mitte.Y + 12); y++)
+                            zeilen.Add(new string(Enumerable.Range(Math.Max(0, mitte.X - 12), Math.Min(map.Width - 1, mitte.X + 12) - Math.Max(0, mitte.X - 12) + 1)
+                                .Select(x => map.GetTile(x, y) is not { } kt ? ' ' : !string.IsNullOrEmpty(kt.Building) ? 'T'
+                                    : kt.Type switch { TileType.Water => '.', TileType.Grassland => 'g', TileType.Sand => 's', TileType.Forest => 'W', TileType.Mountain => 'M', TileType.GoldMine => 'G', _ => '?' })
+                                .ToArray()));
+                        Console.WriteLine($"     Startinsel {name} um {mitte}:\n       " + string.Join("\n       ", zeilen));
                     }
                 }
-                if (!gesehen.Contains(seed2.Value))
-                    verstoesse.Add($"{wer}: vom Land bei TC1 ({seed1}) ist das Land bei TC2 ({seed2}) nicht erreichbar — es fehlt eine Brücke");
+                bool hafen = false;
+                for (int x = mitte.X - 26; x <= mitte.X + 26 && !hafen; x++)
+                    for (int y = mitte.Y - 26; y <= mitte.Y + 26 && !hafen; y++)
+                        if (map.CanPlaceDock(x, y, 3)
+                            && Enumerable.Range(0, 3).Any(i => map.IsWalkable(x + i, y - 1) && map.LandRegion(x + i, y - 1) == insel
+                                                              || map.IsWalkable(x + i, y + 3) && map.LandRegion(x + i, y + 3) == insel
+                                                              || map.IsWalkable(x - 1, y + i) && map.LandRegion(x - 1, y + i) == insel
+                                                              || map.IsWalkable(x + 3, y + i) && map.LandRegion(x + 3, y + i) == insel))
+                            hafen = true;
+                if (!hafen)
+                    verstoesse.Add($"{wer}: an der Startinsel von {name} ist kein Platz für einen Hafen");
             }
             break;
         default: // Europa bleibt die Referenz: überwiegend Wiese, Wald und Schafe da
@@ -9344,7 +10245,8 @@ class Welt
         P1 = (Player)Get("player1");
         P2 = (Player)Get("player2");
         _units = Map.Units;
-        foreach (var u in _units)
+        // wie LoadContent: auch wer an Bord eines Schiffs ist, zählt zur Bevölkerung
+        foreach (var u in _units.Concat(_units.Where(s => s.IsShip).SelectMany(s => s.Passengers)).ToList())
             (u.OwnerId == 0 ? P1 : P2).AddUnit(u);
         Set("gatherWorld", new TileMapGatherWorld(Map));
         Set("units", _units);

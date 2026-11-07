@@ -14,8 +14,10 @@
 //     beide Seiten sammeln Kartenressourcen (Sammelzustand oder Nettogewinn)
 //   * Kampf: Sieg, zerstörtes Gebäude oder beobachteter Angriff — bei ausbleibendem
 //     Kampf nur eine Warnung, denn ob die KIs greifen, ist ihre Angelegenheit
-//   * Landart-spezifisch: Ägypten ohne Wasser, Wiking mit beiden Dorfzentren auf Land
-//     und durch Brücken erreichbar
+//   * Landart-spezifisch: Ägypten mit Oasen (Wasser da, meist bei den Palmen);
+//     Wiking mit beiden Dorfzentren auf verschiedenen Inseln (kein Landweg, nur per
+//     Schiff - Nutzer 2026-11-07), jede KI baut einen Hafen und Transportschiffe, und
+//     mindestens eine setzt Soldaten auf die Gegnerinsel über
 //
 // Exit 0 = alles ok, 1 = Verstöße.
 using System.Reflection;
@@ -166,52 +168,23 @@ static class Karten
             }
         double total = map.Width * (double)map.Height;
         Console.WriteLine($"  {wer}: Karte {map.Width}x{map.Height} — Wasser {wasser / total:P0}, Sand {sand / total:P0}, Wiese {wiese / total:P0}");
-        string? egyptProblem = style == MapStyle.Egypten && wasser > 0 ? "Ägypten trägt Wasser (Wüste ohne Seen erwartet)" : null;
         string? wikingProblem = null;
-        bool wikingBruecke = false;
+        // Wiking: die Inseln der beiden Dorfzentren - ein Landweg darf nicht bestehen
+        int inselP0 = 0, inselP1 = 0;
+        var maxHafen = new int[2];
+        var maxTransport = new int[2];
+        var maxKrieg = new int[2];
+        var uebergesetzt = new double[] { -1, -1 };   // Spielsekunde, ab der Soldaten drüben standen
         if (style == MapStyle.Wiking)
         {
-            void PunktNear(Point mitte, out Point? ziel)
-            {
-                for (int r = 1; r <= 5; r++)
-                    for (int dx = -r; dx <= r; dx++)
-                        for (int dy = -r; dy <= r; dy++)
-                        {
-                            if (Math.Max(Math.Abs(dx), Math.Abs(dy)) != r) continue;
-                            var n = new Point(mitte.X + dx, mitte.Y + dy);
-                            if (map.GetTile(n.X, n.Y) is { } nt && nt.Walkable) { ziel = n; return; }
-                        }
-                ziel = null;
-            }
             var (cx1, cy1) = tc(0)!.Value;
             var (cx2, cy2) = tc(1)!.Value;
-            PunktNear(new Point(cx1, cy1), out var s1);
-            PunktNear(new Point(cx2, cy2), out var s2);
-            if (s1 == null || s2 == null)
-            {
-                wikingProblem = "um ein Dorfzentrum ist kein begehbares Land";
-            }
-            else
-            {
-                var warte = new Queue<Point>();
-                warte.Enqueue(s1.Value);
-                var erreicht = new HashSet<Point> { s1.Value };
-                while (warte.Count > 0 && !erreicht.Contains(s2.Value))
-                {
-                    var p = warte.Dequeue();
-                    foreach (var (dx, dy) in new[] { (1, 0), (-1, 0), (0, 1), (0, -1) })
-                    {
-                        var n = new Point(p.X + dx, p.Y + dy);
-                        if (n.X < 0 || n.Y < 0 || n.X >= map.Width || n.Y >= map.Height) continue;
-                        if (!erreicht.Add(n)) continue;
-                        if (map.GetTile(n.X, n.Y) is { } nt && nt.Walkable)
-                            warte.Enqueue(n);
-                    }
-                }
-                wikingBruecke = erreicht.Contains(s2.Value);
-                if (!wikingBruecke)
-                    wikingProblem = "vom Land bei TC1 ist das Land bei TC2 nicht erreichbar — Brücken fehlen";
-            }
+            inselP0 = map.LandRegion(cx1, cy1);
+            inselP1 = map.LandRegion(cx2, cy2);
+            if (inselP0 == 0 || inselP1 == 0)
+                wikingProblem = "ein Dorfzentrum steht auf keiner Insel";
+            else if (inselP0 == inselP1)
+                wikingProblem = "beide Dorfzentren stehen auf derselben Landmasse - es gibt einen Landweg";
         }
 
         // ---- Laufschleife: dieselben Update-Rufe wie im Spiel; endet beim Sieg
@@ -278,6 +251,22 @@ static class Karten
             if (a0s > attackSeenP0) attackSeenP0 = a0s;
             if (a1s > attackSeenP1) attackSeenP1 = a1s;
 
+            if (style == MapStyle.Wiking && inselP0 != 0 && inselP1 != 0)
+            {
+                for (int o = 0; o < 2; o++)
+                {
+                    maxHafen[o] = Math.Max(maxHafen[o], map.Buildings.Count(b => b.OwnerId == o && b.IsComplete
+                                                                                  && b.Core.BuildingType == BuildingType.Dock));
+                    maxTransport[o] = Math.Max(maxTransport[o], units.Count(u => u.OwnerId == o && u.Type == UnitType.TransportShip));
+                    maxKrieg[o] = Math.Max(maxKrieg[o], units.Count(u => u.OwnerId == o && u.Type == UnitType.WarShip));
+                    int feindInsel = o == 0 ? inselP1 : inselP0;
+                    if (uebergesetzt[o] < 0 && units.Any(u => u.OwnerId == o && !u.IsShip && u.Type != UnitType.Villager
+                            && u.State != UnitState.Dead
+                            && map.LandRegionAround((int)map.WorldToGrid(u.Position).X, (int)map.WorldToGrid(u.Position).Y) == feindInsel))
+                        uebergesetzt[o] = zeit;
+                }
+            }
+
             maxSumP0 = Math.Max(maxSumP0, summe(p1));
             maxSumP1 = Math.Max(maxSumP1, summe(p2));
 
@@ -301,8 +290,10 @@ static class Karten
                 zerstoert.AddRange(weg);
                 gesehen.ExceptWith(weg);
                 gesehen.UnionWith(map.Buildings);
-                if (zerstoert.Count > 0 && zeit >= 30)
-                    break;   // erste Zerstörung — der Kampf hat Wirkung gezeigt
+                // erste Zerstörung — der Kampf hat Wirkung gezeigt; auf Wiking erst, wenn auch
+                // übergesetzt wurde (ein Kriegsschiff kann vorher schon ein Haus am Ufer treffen)
+                if (zerstoert.Count > 0 && zeit >= 30 && (style != MapStyle.Wiking || uebergesetzt[0] >= 0 || uebergesetzt[1] >= 0))
+                    break;
             }
         }
         if (loser >= 0)
@@ -362,8 +353,33 @@ static class Karten
         switch (style)
         {
             case MapStyle.Egypten:
-                if (egyptProblem != null) Meld(egyptProblem);
-                else Ok("keine Wasserkacheln (Wüste)");
+                // Oasen (Nutzer 2026-11-07: „auf der Egypt Karte sollte in der nähe von
+                // Palmen auch meist etwas Wasser sein“, „und um das wasser etwas mehr
+                // grün drum herum“)
+                if (wasser <= 0)
+                    Meld("Ägypten hat kein Wasser (erwartet: Oasen in der Nähe der Palmen)");
+                else
+                    Ok($"Oasen: {wasser} Wasserkacheln ({wasser / total:P0}) — die Palmen stehen meist am Ufer");
+                if (wasser > 0)
+                {
+                    // grünes Oasenufer: kein Sand direkt am Wasser (TileMap.AddGreenBanks)
+                    int sandAmUfer = 0;
+                    for (int x = 0; x < map.Width; x++)
+                        for (int y = 0; y < map.Height; y++)
+                        {
+                            if (map.GetTile(x, y)?.Type != TileType.Water) continue;
+                            for (int dx = -1; dx <= 1 && sandAmUfer == 0; dx++)
+                                for (int dy = -1; dy <= 1; dy++)
+                                {
+                                    if (dx == 0 && dy == 0) continue;
+                                    if (map.GetTile(x + dx, y + dy) is { Type: TileType.Sand }) { sandAmUfer++; break; }
+                                }
+                        }
+                    if (sandAmUfer > 0)
+                        Meld($"Sand direkt am Wasser in Ägypten ({sandAmUfer} Wasserkacheln berühren Sand — erwartet: grünes Oasenufer)");
+                    else
+                        Ok($"grünes Oasenufer um das Wasser (kein Sand direkt am Ufer)");
+                }
                 break;
             case MapStyle.Wiking:
                 if (wasser < total * 0.5)
@@ -371,9 +387,23 @@ static class Karten
                 else
                     Ok($"überwiegend Wasser ({wasser / total:P0})");
                 if (wikingProblem != null)
+                {
                     Meld(wikingProblem);
-                else if (wikingBruecke)
-                    Ok("beide Dorfzentren auf Land und per Brücke verbunden");
+                    break;
+                }
+                Ok($"die Dorfzentren stehen auf verschiedenen Inseln ({inselP0} und {inselP1}) - nur per Schiff erreichbar");
+                Console.WriteLine($"  {wer}: Hafen {maxHafen[0]}/{maxHafen[1]}, Transportschiffe {maxTransport[0]}/{maxTransport[1]}, "
+                                + $"Kriegsschiffe {maxKrieg[0]}/{maxKrieg[1]}, übergesetzt ab {(uebergesetzt[0] < 0 ? "-" : $"{uebergesetzt[0]:0}s")}/"
+                                + $"{(uebergesetzt[1] < 0 ? "-" : $"{uebergesetzt[1]:0}s")} (Owner 0/1)");
+                for (int o = 0; o < 2; o++)
+                {
+                    if (maxHafen[o] == 0) Meld($"Owner {o} baut keinen Hafen - ohne ihn kommt niemand von der Insel");
+                    else if (maxTransport[o] == 0) Meld($"Owner {o} hat einen Hafen, aber kein Transportschiff");
+                }
+                if (uebergesetzt[0] < 0 && uebergesetzt[1] < 0)
+                    Console.WriteLine($"  !    {wer}: keine Seite setzt Soldaten auf die Gegnerinsel über - die Fähre der KI fährt nicht (Aussage über die KIs, kein Kartenmangel)");
+                else
+                    Ok($"Soldaten übergesetzt (Owner 0 {(uebergesetzt[0] < 0 ? "nein" : $"ab {uebergesetzt[0]:0}s")}, Owner 1 {(uebergesetzt[1] < 0 ? "nein" : $"ab {uebergesetzt[1]:0}s")})");
                 break;
             default: // Europa — die Referenz bleibt unverändert
                 if (wiese < total * 0.5)

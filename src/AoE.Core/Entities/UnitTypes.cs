@@ -389,3 +389,73 @@ public sealed class Monk : UnitEntity
         return stats;
     }
 }
+
+/// <summary>
+/// Transportschiff (Hafen, Wiking-Karte): fährt nur auf Wasser und trägt bis zu
+/// <see cref="CAPACITY"/> Landeinheiten von Insel zu Insel. Kein Angriff; Werte nach
+/// AoE II (100 Lebenspunkte, Rüstung 4, etwa doppelt so schnell wie ein Dorfbewohner).
+/// </summary>
+public sealed class TransportShip : UnitEntity
+{
+    public override string Type => "TransportShip";
+
+    /// <summary>So viele Einheiten fasst ein Transportschiff (AoE II: 5).</summary>
+    public const int CAPACITY = 5;
+
+    private const int BASE_HP = 100;
+
+    public TransportShip(int ownerId, Position position)
+        : base(ownerId, position, CreateStats())
+    {
+        State = UnitState.Idle;
+    }
+
+    private static UnitStats CreateStats()
+    {
+        var stats = new UnitStats
+        {
+            HitPoints = BASE_HP,
+            BaseAttack = 0,
+            BaseArmor = 4,
+            Range = 0,
+            Speed = 1.6f,
+            VisionRange = 5
+        };
+        return stats;
+    }
+}
+
+/// <summary>
+/// Kriegsschiff (Hafen, ab der Feudalzeit): fährt nur auf Wasser und schießt Pfeile auf
+/// Schiffe, Einheiten und Gebäude in Reichweite - auch an Land, solange sie nah am Ufer
+/// stehen. Werte nach der Galeere aus AoE II (120 Lebenspunkte, Angriff 6, Reichweite 5).
+/// </summary>
+public sealed class WarShip : UnitEntity
+{
+    public override string Type => "WarShip";
+
+    private const int BASE_HP = 120;
+    private const int BASE_ATTACK = 6;
+
+    public WarShip(int ownerId, Position position)
+        : base(ownerId, position, CreateStats())
+    {
+        State = UnitState.Idle;
+    }
+
+    private static UnitStats CreateStats()
+    {
+        var stats = new UnitStats
+        {
+            HitPoints = BASE_HP,
+            BaseAttack = BASE_ATTACK,
+            BaseArmor = 0,
+            Range = 5,
+            Speed = 1.5f,
+            VisionRange = 7
+        };
+        // Schiffe versenken Schiffe: Bonus gegen Schiffe wie die Galeere gegen Boote
+        stats.AddAttackBonus(UnitClass.Ship, 4);
+        return stats;
+    }
+}

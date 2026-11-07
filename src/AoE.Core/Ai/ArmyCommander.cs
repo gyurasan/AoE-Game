@@ -13,6 +13,9 @@ public enum ArmyPhase
     Siege,
     /// <summary>Zu viele Verluste: die Welle zieht sich zum Sammelpunkt zurück.</summary>
     Retreat,
+    /// <summary>Das Ziel liegt auf einer anderen Insel (Wiking-Karte): die Welle setzt per Schiff über
+    /// und sammelt sich drüben am Brückenkopf, bevor sie in Aufstellung weitermarschiert.</summary>
+    Cross,
 }
 
 /// <summary>Abschnitt im Kreislauf der Reiter: angreifen, zurückziehen, sammeln.</summary>
@@ -175,6 +178,19 @@ public sealed class ArmyCommander
     /// wartete eine KI, deren Bevölkerung das Soll nie erreicht, für immer.</summary>
     public const double BeatenForgetSeconds = 300;
 
+    /// <summary>Überfahrt: so lange (Sekunden ab der ersten Landung) wartet der Brückenkopf höchstens
+    /// auf <see cref="InPlaceShare"/> der Welle, dann geht der Marsch mit denen weiter, die drüben sind.
+    /// Ein Transportschiff fasst fünf - eine größere Welle braucht zwei Fahrten.</summary>
+    public const double CrossWaitSeconds = 150;
+
+    /// <summary>Überfahrt: kommt in so vielen Sekunden niemand drüben an (kein Schiff, kein Hafen), endet
+    /// die Welle.</summary>
+    public const double CrossGiveUpSeconds = 300;
+
+    /// <summary>Ein Rückzug, der so lange (Sekunden) nicht am Sammelpunkt ankommt (auf der Wiking-Karte
+    /// fehlt das Schiff zurück), löst die Welle auf - sonst bliebe die Armee für immer im Rückzug.</summary>
+    public const double RetreatGiveUpSeconds = 240;
+
     private readonly AiProfile _profile;
 
     /// <summary>Der Abschnitt der Angriffswelle.</summary>
@@ -216,6 +232,9 @@ public sealed class ArmyCommander
     private double _lastRaidEnd = -1e9;
     private int _beaten;
     private double _beatenAt;
+    private double _crossSince = -1;
+    private (int X, int Y)? _beachhead;
+    private double _retreatSince = -1;
     private readonly Dictionary<(int X, int Y), EnemyInfo> _knownBuildings = new();
     private readonly Dictionary<int, ((int X, int Y) Slot, double At)> _ordered = new();
     private readonly Dictionary<int, double> _kitedAt = new();
@@ -303,7 +322,7 @@ public sealed class ArmyCommander
         // Rückruf: ein feindlicher Trupp im Dorf geht vor - die Welle kehrt heim und hilft auf dem Weg
         // (gemessen 2026-11-07: Normal zerstörte drei Sparta-Gebäude, während die Welle draußen stand)
         int armed = intruders.Count(e => !e.IsBuilding && e.Kind is not UnitKind.Villager);
-        if (armed >= HomeRecall && Phase is ArmyPhase.March or ArmyPhase.Engage or ArmyPhase.Siege)
+        if (armed >= HomeRecall && Phase is ArmyPhase.March or ArmyPhase.Engage or ArmyPhase.Siege or ArmyPhase.Cross)
         {
             Phase = ArmyPhase.Retreat;
             ctx.Log?.Invoke($"RÜCKZUG: {armed} Feinde im Dorf, die Welle kehrt heim");
@@ -385,6 +404,12 @@ public sealed class ArmyCommander
         }
         if (Phase == ArmyPhase.Retreat)
         {
+            if (_retreatSince < 0) _retreatSince = now;
+            if (now - _retreatSince >= RetreatGiveUpSeconds)
+            {
+                EndWave(ctx, "Rückzug kommt nicht an");
+                return;
+            }
             var back = Formation.Slots(Rally, HomeFacing, wave, state.IsWalkable);
             foreach (var u in wave)
             {
@@ -445,6 +470,13 @@ public sealed class ArmyCommander
             if (Phase == ArmyPhase.Siege) Phase = ArmyPhase.March;
             _stepAt = now;
             ctx.Log?.Invoke($"WELLE: nächstes Ziel ({target.X},{target.Y})");
+        }
+
+        // Überfahrt: Ziel auf einer anderen Insel als der Anker
+        if (Phase is ArmyPhase.March or ArmyPhase.Cross && !state.SameLand(Anchor.X, Anchor.Y, target.X, target.Y))
+        {
+            Cross(state, actions, ctx, wave, target, now);
+            return;
         }
 
         if (Phase == ArmyPhase.Siege)
@@ -531,6 +563,72 @@ public sealed class ArmyCommander
         return busy;
     }
 
+    /// <summary>
+    /// Überfahrt (Wiking-Karte): das Ziel liegt auf einer anderen Insel als der Anker.
+    /// VERTRAG:
+    /// - Beim ersten Takt: Phase Cross, Uhr ab jetzt, kein Brückenkopf; Meldung „ÜBERFAHRT“.
+    /// - Drüben ist, wer mit dem Ziel auf derselben Landmasse steht (IWorldState.SameLand) - wer an
+    ///   Bord ist, steht auf keiner.
+    /// - Ist niemand drüben: alle bekommen einen Laufbefehl auf den Brückenkopf (vor der ersten Landung
+    ///   aufs Ziel) - den übernimmt der Fährdienst des Spiels. Nach CrossGiveUpSeconds ohne Landung
+    ///   endet die Welle.
+    /// - Sonst ist der Brückenkopf der Platz des Gelandeten, der der Mitte der Gelandeten am nächsten
+    ///   steht (einmal gewählt, bleibt er, solange er drüben liegt). Die Gelandeten stellen sich dort in
+    ///   Aufstellung mit Blick zum Ziel auf, die anderen fahren dorthin nach.
+    /// - Sind InPlaceShare der Welle drüben, oder ist seit Beginn CrossWaitSeconds vergangen, wird der
+    ///   Brückenkopf zum Anker und die Welle marschiert in Aufstellung weiter (Phase March, Meldung
+    ///   „BRÜCKENKOPF“); Nachzügler fährt der Fährdienst auf ihre Plätze nach.
+    /// </summary>
+    private void Cross(IWorldState state, IWorldActions actions, AiContext ctx, List<UnitSnapshot> wave,
+                       (int X, int Y) target, double now)
+    {
+        if (Phase != ArmyPhase.Cross)
+        {
+            Phase = ArmyPhase.Cross;
+            _crossSince = now;
+            _beachhead = null;
+            ctx.Log?.Invoke($"ÜBERFAHRT: {wave.Count} Soldaten setzen nach ({target.X},{target.Y}) über");
+        }
+        var landed = wave.Where(u => state.SameLand(u.X, u.Y, target.X, target.Y)).ToList();
+        if (_beachhead is { } old && !state.SameLand(old.X, old.Y, target.X, target.Y))
+            _beachhead = null;
+        if (landed.Count == 0 && _beachhead is null)
+        {
+            if (now - _crossSince >= CrossGiveUpSeconds)
+            {
+                EndWave(ctx, "keine Überfahrt");
+                return;
+            }
+            foreach (var u in wave)
+                MoveTo(actions, u, target, now);
+            return;
+        }
+        if (_beachhead is null)
+        {
+            var mid = Centroid(landed);
+            var head = landed.OrderBy(u => Cheb(u.X, u.Y, mid.X, mid.Y)).ThenBy(u => u.Id).First();
+            _beachhead = (head.X, head.Y);
+        }
+        var beach = _beachhead.Value;
+        Facing = Direction(beach, target, Facing);
+        var slots = Formation.Slots(beach, Facing, landed, state.IsWalkable);
+        foreach (var u in landed)
+        {
+            _slots[u.Id] = slots[u.Id];
+            if (!u.HasAttack) MoveTo(actions, u, slots[u.Id], now);
+        }
+        foreach (var u in wave.Where(u => !landed.Contains(u)))
+            MoveTo(actions, u, beach, now);
+        bool enough = landed.Count >= Math.Ceiling(wave.Count * InPlaceShare);
+        if (landed.Count > 0 && (enough || now - _crossSince >= CrossWaitSeconds))
+        {
+            Anchor = beach;
+            Phase = ArmyPhase.March;
+            _stepAt = now;
+            ctx.Log?.Invoke($"BRÜCKENKOPF bei ({beach.X},{beach.Y}): {landed.Count} von {wave.Count} drüben, weiter in Aufstellung");
+        }
+    }
+
     /// <summary>Belagerung: alle greifen das Zielgebäude an; Reiter jagen sichtbare Dorfbewohner in der Nähe.</summary>
     private void Siege(IWorldActions actions, List<UnitSnapshot> wave, IReadOnlyList<EnemyInfo> visible, (int X, int Y) target)
     {
@@ -552,6 +650,9 @@ public sealed class ArmyCommander
     private void EndWave(AiContext ctx, string why)
     {
         _wave.Clear();
+        _crossSince = -1;
+        _beachhead = null;
+        _retreatSince = -1;
         Phase = ArmyPhase.Gather;
         Target = null;
         _lastRaidEnd = ctx.Time;

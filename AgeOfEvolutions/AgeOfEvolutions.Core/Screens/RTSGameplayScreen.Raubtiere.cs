@@ -83,9 +83,12 @@ public partial class RTSGameplayScreen
     /// <summary>
     /// Raubtiere takten und ihre Schläge beantworten. UpdateUnits ruft es jedes Bild direkt
     /// nach AutoRespond auf.
-    /// VERTRAG: strikes = tileMap.UpdatePredators(dt, units). Für jeden Schlag s:
-    /// EmitSound("treffer", s.Victim.Position); RegisterDamageTaken(s.Victim.OwnerId). Gegenwehr nur
-    /// für Soldaten: ist s.Killed false, s.Victim.AttackPower größer 0, s.Victim.Category weder
+    /// VERTRAG: strikes = tileMap.UpdatePredators(dt, units). Für jeden Schlag s mit Damage
+    /// größer 0: EmitSound("treffer", s.Victim.Position); RegisterDamageTaken(s.Victim.OwnerId).
+    /// Der Schaden selbst ist im Kern schon auf die Zuleitung begrenzt (Zivilistenschaden:
+    /// Wolf und Wildschwein beißen einen Dorfbewohner gedämpft, mindestens 1), daher ist jeder
+    /// hier sichtbare Schlag hörbar und meldet Beschuss. Gegenwehr nur für Soldaten:
+    /// ist s.Killed false, s.Victim.AttackPower größer 0, s.Victim.Category weder
     /// UnitCategory.Worker noch UnitCategory.Civilian und sind UnitTarget, AttackTarget und
     /// PreyTarget des Opfers alle null, dann AttackAnimal(new List&lt;Unit&gt; { s.Victim }, s.X, s.Y).
     /// Dorfbewohner wehren sich nicht von selbst - sie arbeiten weiter, der Spieler kann sie auf
@@ -96,8 +99,12 @@ public partial class RTSGameplayScreen
         List<PredatorStrike> strikes = tileMap.UpdatePredators(dt, units);
         foreach (PredatorStrike s in strikes)
         {
-            EmitSound("treffer", s.Victim.Position);
-            RegisterDamageTaken(s.Victim.OwnerId);
+            // Jeder Schlag trägt (gedämpften) Schaden ab - Trefferklang und Beschussmeldung.
+            if (s.Damage > 0)
+            {
+                EmitSound("treffer", s.Victim.Position);
+                RegisterDamageTaken(s.Victim.OwnerId);
+            }
             // Gegenwehr nur für Soldaten: Dorfbewohner wehren sich nicht von selbst.
             if (!s.Killed
                 && s.Victim.AttackPower > 0

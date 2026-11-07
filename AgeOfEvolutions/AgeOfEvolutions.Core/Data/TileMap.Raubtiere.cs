@@ -87,6 +87,20 @@ public partial class TileMap
     }
 
     /// <summary>
+    /// Schaden, den ein Wolf oder Wildschwein auf <paramref name="victim"/> trägt
+    /// (Nutzer 2026-11-07): für Dorfbewohner (Arbeiter, Zivilist) höchstens die Hälfte
+    /// ihres eigenen Schlages - der Dorfbewohner wehrt sich also mindestens doppelt so
+    /// stark, wie das Tier sich ihm gegenüber. Mindestens 1, damit der Biss auch was tut.
+    /// Soldaten und Bären gehen durch diese Funktion nicht (volle Artenschläge).
+    /// </summary>
+    private static int Zivilistenschaden(Unit victim, int damage)
+    {
+        if (victim.Category is not (UnitCategory.Worker or UnitCategory.Civilian))
+            return damage;
+        return Math.Max(1, Math.Min(damage, victim.AttackPower / 2));
+    }
+
+    /// <summary>
     /// Steht auf (x, y) ein Tier, das erst erlegt werden muss - Raubtier (Bär, Wolf) oder
     /// Jagdwild (Reh, Wildschwein, F11) - und lebt es? Das ist die Frage aller Jagd- und
     /// Gegenwehrpfade (AttackAnimal, LivePrey, Gesundheitsbalken).
@@ -160,8 +174,8 @@ public partial class TileMap
     /// Bären und Wolfsrudel beim Erzeugen der Karte; InitializeRandomMap ruft es zuletzt auf, nach
     /// PlaceStartingPositions - dann stehen die Stadtzentren schon, und BuildingDistance hält die
     /// Raubtiere auch von ihnen fern. Sie stehen weit weg von beiden Startplätzen und jedem Gebäude.
-    /// VERTRAG: erst die Bären, dann die Wölfe. Bären: groups = _random.Next(Settings.BearGroupsMin,
-    /// Settings.BearGroupsMax + 1), je Gruppe count = _random.Next(Settings.BearsPerGroupMin,
+    /// VERTRAG: erst die Bären, dann die Wölfe. Bären: groups = LandScaled(_random.Next(Settings.BearGroupsMin,
+    /// Settings.BearGroupsMax + 1)) (auf der Wiking-Karte nur der Landanteil), je Gruppe count = _random.Next(Settings.BearsPerGroupMin,
     /// Settings.BearsPerGroupMax + 1). Wölfe ebenso mit WolfPacksMin/Max und WolvesPerPackMin/Max.
     /// Je Gruppe bis zu 40 Versuche: cx = _random.Next(2, Width - 2), cy = _random.Next(2, Height - 2);
     /// verwerfen (nächster Versuch), wenn TooCloseToStart(cx, cy, Settings.PredatorStartDistance),
@@ -175,10 +189,10 @@ public partial class TileMap
     {
         // Erst die Bären, dann die Wölfe; je Gruppe ein Zentrum und ein Rudel drumherum.
         PlacePredatorGroup(FoodSource.Bear,
-            _random.Next(Settings.BearGroupsMin, Settings.BearGroupsMax + 1),
+            LandScaled(_random.Next(Settings.BearGroupsMin, Settings.BearGroupsMax + 1)),
             () => _random.Next(Settings.BearsPerGroupMin, Settings.BearsPerGroupMax + 1));
         PlacePredatorGroup(FoodSource.Wolf,
-            _random.Next(Settings.WolfPacksMin, Settings.WolfPacksMax + 1),
+            LandScaled(_random.Next(Settings.WolfPacksMin, Settings.WolfPacksMax + 1)),
             () => _random.Next(Settings.WolvesPerPackMin, Settings.WolvesPerPackMax + 1));
 
         // Eine Gruppe: bis zu 40 Zentren suchen, dann das Rudel drumherum aufstellen.
@@ -232,7 +246,11 @@ public partial class TileMap
     ///    tier.Engaged = (es gibt ein Opfer).
     /// 3. Mit Opfer: ist victim.Position.X != center.X, dann tier.FacingLeft = victim.Position.X
     ///    kleiner center.X. Ist tier.AttackCooldown kleiner oder gleich 0: damage = Math.Max(1,
-    ///    (Bear: Settings.BearDamage, Wolf: Settings.WolfDamage) - victim.Armor); victim.Health =
+    ///    (Bear: Settings.BearDamage, Wolf: Settings.WolfDamage) - victim.Armor), und bei Wolf
+    ///    danach Zivilistenschaden(victim, damage): für Arbeiter und Zivilisten höchstens
+    ///    victim.AttackPower / 2 (mindestens 1) - der Dorfbewohner wehrt sich mindestens
+    ///    doppelt so stark wie das Tier sich ihm gegenüber. Bären und Soldaten unbeeinflusst.
+    ///    victim.Health =
     ///    Math.Max(0, victim.Health - damage); ist sie 0, victim.State = UnitState.Dead;
     ///    tier.AttackCooldown = Settings.BearReloadSeconds bzw. Settings.WolfReloadSeconds;
     ///    tier.Strike = PREDATOR_STRIKE_SECONDS; strikes.Add(new PredatorStrike(kind, sx, sy, victim,
@@ -301,6 +319,13 @@ public partial class TileMap
                     {
                         int raw = kind == FoodSource.Bear ? Settings.BearDamage : Settings.WolfDamage;
                         int damage = Math.Max(1, raw - victim.Armor);
+                        // Zivilisten-Regel (Nutzer 2026-11-07): Wolf und Wildschwein dürfen
+                        // einem Dorfbewohner (Arbeiter, Zivilist) höchstens die Hälfte dessen
+                        // abtragen, was der Dorfbewohner dem Tier je Schlag zufügt - er wehrt
+                        // sich also mindestens doppelt so stark wie umgekehrt. Der Biss trägt
+                        // weiterhin Schaden ab (mindestens 1); Bär und Soldaten sind ausgenommen.
+                        if (kind == FoodSource.Wolf)
+                            damage = Zivilistenschaden(victim, damage);
                         victim.Health = Math.Max(0, victim.Health - damage);
                         if (victim.Health == 0)
                             victim.State = UnitState.Dead;
@@ -344,7 +369,8 @@ public partial class TileMap
     /// (Chebyshev-Kachelabstand) entfernt, ist sie vergessen. Opfer = verfolgte Einheit,
     /// sonst die nächste lebende Einheit in Settings.PredatorReachTiles (wie die Raubtiere).
     /// Mit Opfer: zugewandt; in Reichweite und AttackCooldown <= 0 ⇒ Schlag
-    /// (Settings.BoarDamage - Rüstung, mindestens 1), AttackCooldown = BoarReloadSeconds,
+    /// (Settings.BoarDamage - Rüstung, mindestens 1, für Arbeiter/Zivilisten danach
+    /// Zivilistenschaden: höchstens victim.AttackPower / 2), AttackCooldown = BoarReloadSeconds,
     /// Strike = PREDATOR_STRIKE_SECONDS, Eintrag in strikes. Außerhalb der Reichweite und
     /// nur während der Verfolgung: alle 0,6 s ein Schritt auf die freie Nachbarkachel mit
     /// dem kleinsten Abstand zum Opfer (BoarStep). Ohne Opfer: Wandertakt wie zuvor
@@ -417,7 +443,9 @@ public partial class TileMap
                         <= Settings.PredatorReachTiles * TileSize && tier.Glide == 0);
                 if (reachable && tier.AttackCooldown <= 0)
                 {
-                    int damage = Math.Max(1, Settings.BoarDamage - victim.Armor);
+                    // Zivilisten-Regel wie beim Wolf: höchstens die Hälfte des Dorfbewohners
+                    // eigenen Schlages (siehe Zivilistenschaden)
+                    int damage = Zivilistenschaden(victim, Math.Max(1, Settings.BoarDamage - victim.Armor));
                     victim.Health = Math.Max(0, victim.Health - damage);
                     if (victim.Health == 0)
                         victim.State = AoE.Core.Entities.UnitState.Dead;

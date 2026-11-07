@@ -2322,7 +2322,6 @@
    {
     "name": "sand",
     "seed": 5103,
-    "ziel": "Boden/sand.png",
     "prompt": "Fine dry light golden beach sand with soft shallow wind ripples and a very few tiny pebbles scattered evenly."
    },
    {
@@ -2398,6 +2397,31 @@
     "seed": 6471,
     "ziel": "Baeume/birke.png",
     "prompt": "A slender birch tree with a light grey bark trunk with black marks, thin hanging branches and a sparse crown of small green leaves, gaps in the crown where the white background shows through."
+   },
+   {
+    "name": "palme",
+    "seed": 6502,
+    "ziel": "Baeume/palme.png",
+    "prompt": "A tall date palm tree: a straight rough brown trunk covered in a diamond pattern of old leaf bases, at the top a crown of long feathery green fronds arching out and drooping down, clear gaps between the fronds where the white background shows through, clusters of orange-brown dates hanging under the crown, a few short roots at the foot of the trunk."
+   },
+   {
+    "name": "palme_gruppe",
+    "seed": 6511,
+    "ziel": "Baeume/palme_gruppe.png",
+    "prompt": "A clump of three young date palms growing together from one root base: three slender rough brown trunks of different heights leaning slightly apart, each ending in a crown of long feathery green fronds, clear gaps between the fronds where the white background shows through.",
+    "negativ": "forest, grove, many trees, separate trees, fan leaves"
+   },
+   {
+    "name": "palme_dum",
+    "seed": 6522,
+    "ziel": "Baeume/palme_dum.png",
+    "prompt": "A doum palm tree from the Nile valley: a single grey-brown trunk that forks into two branches halfway up, each branch forking once more and ending in a tuft of stiff fan-shaped green leaves, gaps between the leaf tufts where the white background shows through, bunches of brown fruits under the leaves."
+   },
+   {
+    "name": "palme_kokos",
+    "seed": 6532,
+    "ziel": "Baeume/palme_kokos.png",
+    "prompt": "A tall coconut palm tree: a slender ringed grey-brown trunk with a gentle curve, the crown of long bright green feathery fronds standing above the foot of the trunk, clear gaps between the fronds where the white background shows through, a cluster of green and brown coconuts under the crown."
    }
   ],
   "loecher": true
@@ -10526,6 +10550,34 @@
     "seed": 11172,
     "prompt": "A tall medieval counterweight trebuchet: a high wooden frame with a long throwing arm, a heavy wooden box counterweight and a rope sling.",
     "ziel": "Icons/trebuchet.png"
+   },
+   {
+    "name": "transportschiff",
+    "seed": 13201,
+    "ziel": "Icons/transportschiff.png",
+    "prompt": "A medieval wooden cargo ship with a round hull and one big square sail with bright blue and white stripes, seen from the side.",
+    "negativ": "water splash, people"
+   },
+   {
+    "name": "kriegsschiff",
+    "seed": 13212,
+    "ziel": "Icons/kriegsschiff.png",
+    "prompt": "A medieval longship war galley with a carved dragon head prow, a row of oars and bright blue round shields along its side, a blue square sail, seen from the side.",
+    "negativ": "people"
+   },
+   {
+    "name": "hafen",
+    "seed": 13221,
+    "ziel": "Icons/hafen.png",
+    "prompt": "A small medieval wooden harbor dock: a plank pier on wooden stilts with a little thatched boathouse, barrels and a rope coil.",
+    "negativ": "people, ships"
+   },
+   {
+    "name": "fischerboot",
+    "seed": 13231,
+    "ziel": "Icons/fischerboot.png",
+    "prompt": "A small medieval wooden fishing boat with one small square sail with bright blue and white stripes, a brown fishing net hanging over its side and a basket of silver fish on deck, seen from the side.",
+    "negativ": "people"
    }
   ]
  },
@@ -11248,6 +11300,99 @@
     "prompt": "Shallow clear water over a sandy bottom in classic 16-bit RPG style: light turquoise and pale teal water through which pale golden sand and a few small pebbles show, many small curved light cyan ripple lines scattered evenly, the same brightness everywhere.",
     "negativ": "sun, sun glare, bright spot, light gradient, light rays, horizontal stripes, straight lines, scanlines, foam, big waves, deep blue",
     "ziel": "Boden/untiefe.png"
+   }
+  ]
+ },
+ "schiffe": {
+  "groesse": [
+   1328,
+   1024
+  ],
+  "schritte": 40,
+  "cfg": 3.0,
+  "freistellen": true,
+  "zuschneiden": true,
+  "zielbreite": 512,
+  "spielerfarben": true,
+  "blau_saettigung": 0.6,
+  "stil": "Game sprite of a medieval ship for a top-down 2D strategy game, seen from the side and slightly from above, the bow pointing to the right, the whole ship fully visible from the top of the mast down to the keel, detailed 16-bit pixel art, crisp pixels, realistic proportions, natural wood colors, soft light from the upper left. One single ship centered, isolated on a plain white background, no water, no waves, no shadow on the background, no text.",
+  "negativ": "text, letters, logo, watermark, frame, border, water, sea, waves, splash, sky, clouds, landscape, coast, people, crew, sailors, multiple ships, cut off, cropped, blurry, photo, 3d render, black background, dark background",
+  "bilder": [
+   {
+    "name": "transportschiff",
+    "seed": 13002,
+    "ziel": "Einheiten/transportschiff.png",
+    "figur": "transportschiff",
+    "prompt": "A medieval cargo transport ship: a broad round-bellied wooden knarr with a clinker-built hull of overlapping planks, a high curved bow and stern, one mast with a large square sail with bright blue and white vertical stripes, a steering oar at the stern, an open deck loaded with crates and barrels."
+   },
+   {
+    "name": "kriegsschiff",
+    "seed": 13011,
+    "ziel": "Einheiten/kriegsschiff.png",
+    "figur": "kriegsschiff",
+    "prompt": "A medieval war galley: a long narrow wooden longship with a clinker-built hull, a row of oars along its side, a carved dragon head on the high curved prow, one mast with a bright blue square sail, a row of round wooden shields painted bright blue along the gunwale."
+   },
+   {
+    "name": "fischerboot",
+    "seed": 13021,
+    "ziel": "Einheiten/fischerboot.png",
+    "figur": "fischerboot",
+    "prompt": "A small medieval fishing boat: a short open wooden boat with a clinker-built hull of overlapping planks, a low curved bow and stern, one short mast with a small square sail with bright blue and white vertical stripes, a brown fishing net draped over the side of the hull, a wicker basket full of silver fish and a pair of oars on deck."
+   }
+  ]
+ },
+ "hafen": {
+  "groesse": [
+   1024,
+   1024
+  ],
+  "schritte": 30,
+  "cfg": 3.0,
+  "freistellen": true,
+  "zuschneiden": true,
+  "zielbreite": 384,
+  "spielerfarben": true,
+  "blau_saettigung": 0.6,
+  "stil": "Game sprite for a top-down 2D strategy game, three-quarter top-down view from the south: the front facade faces the viewer and the roof is seen from above. Detailed 16-bit pixel art, crisp pixels, soft light from the upper left. Realistic proportions, believable building materials and natural colors, finely detailed pixel shading. One single building centered, fully visible, isolated on a plain white background, no ground plate, no shadow on the background, no text. Clearly visible square pixels, hard pixel edges, like a classic late 1990s strategy game sprite.",
+  "negativ": "text, letters, logo, watermark, frame, border, isometric diamond grid, multiple buildings, people, trees, landscape, scenery, cut off, cropped, blurry, photo, 3d render, realistic, painterly, digital painting, brush strokes, fine hair strands, smooth gradients, smoke, ground, grass, black background, dark background, horses, animals, blue roof, blue walls, water, sea, waves, ships, boats",
+  "bilder": [
+   {
+    "name": "hafen",
+    "seed": 13101,
+    "ziel": "Gebaeude/hafen.png",
+    "prompt": "A medieval wooden harbor dock: a large square wooden pier platform of thick planks standing on many wooden stilts, a small timber boathouse with a thatched roof on the back half of the platform, coils of rope, barrels and crates on the planks, a wooden crane beam, and a small blue flag on a tall pole beside the boathouse, the flag flying to the right."
+   }
+  ]
+ },
+ "sand": {
+  "groesse": [
+   1328,
+   1328
+  ],
+  "schritte": 50,
+  "cfg": 3.0,
+  "stil": "Seamless ground texture for a top-down 2D strategy game, seen from above, finely detailed hand-painted pixel art realistic, natural colors, soft even lighting, uniform density edge to edge, no objects, no paths, no shadows on the ground, no horizon, no text.",
+  "negativ": "text, letters, logo, watermark, frame, border, perspective, horizon, sky, plants, grass, cactus, trees, big rocks, boulders, path, road, footprints, tracks, objects, vignette, blurry, 3d render, close-up, macro, photo, swirl, vortex, spiral, radial, center, circle, bright spot",
+  "kachelbar": true,
+  "ausgleichen": 0.06,
+  "bilder": [
+   {
+    "name": "sand",
+    "seed": 13301,
+    "ziel": "Boden/sand.png",
+    "prompt": "Fine dry golden desert sand seen from above: tiny grains in warm light ochre, pale gold and soft beige, very faint low wind ripples in irregular short waves, a very few tiny pebbles, spread evenly."
+   },
+   {
+    "name": "sand_duene",
+    "seed": 13311,
+    "ziel": "Boden/sand_duene.png",
+    "prompt": "Wind-swept desert sand seen from directly above: many small irregular ripple marks in warm orange-gold and light ochre, slightly darker sand in the ripple troughs, the ripples curve in different directions, spread evenly over the whole image."
+   },
+   {
+    "name": "sand_kies",
+    "seed": 13321,
+    "ziel": "Boden/sand_kies.png",
+    "prompt": "Coarse pale desert ground seen from above: light beige and grey-tan sand mixed with many small scattered pebbles and grit in sandy brown and grey, a few tiny dry twigs, spread evenly."
    }
   ]
  }

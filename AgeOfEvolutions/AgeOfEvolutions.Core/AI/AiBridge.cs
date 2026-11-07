@@ -44,7 +44,8 @@ public sealed class AiBridge : IWorldState, IWorldActions
     public int Height => _screen.tileMap.Height;
 
     private Player OwnerPlayer => Owner == 0 ? _screen.player1 : _screen.player2;
-    private IEnumerable<Unit> OwnUnits => _screen.units.Where(u => u.OwnerId == Owner);
+    // Schiffe führt die KI (noch) nicht wie Soldaten - sie fahren nur auf Wasser
+    private IEnumerable<Unit> OwnUnits => _screen.units.Where(u => u.OwnerId == Owner && !u.IsShip);
     private IEnumerable<Building> OwnBuildings => _screen.tileMap.Buildings.Where(b => b.OwnerId == Owner);
 
     public ResourceVector Resources
@@ -79,8 +80,27 @@ public sealed class AiBridge : IWorldState, IWorldActions
         => OwnBuildings.FirstOrDefault(b => b.Core.BuildingType == BuildingType.TownCenter)
             is { } b ? ToBuilding(b) : null;
 
+    // Wer an Bord eines eigenen Transportschiffs ist, steht nicht in _screen.units - für die KI
+    // bleibt er da (an der Stelle des Schiffs, unterwegs), sonst hielte die Armeeführung die Welle
+    // auf See für aufgerieben
     public IReadOnlyList<UnitSnapshot> Units
-        => OwnUnits.Select(ToUnit).ToList();
+        => OwnUnits.Select(u => ToUnit(u)).Concat(Riders().Select(r => ToUnit(r.Rider, r.Ship))).ToList();
+
+    /// <summary>Die Fahrgäste der eigenen Schiffe, je mit ihrem Schiff.</summary>
+    private IEnumerable<(Unit Rider, Unit Ship)> Riders()
+        => _screen.units.Where(s => s.OwnerId == Owner && s.IsShip && s.Passengers.Count > 0)
+                        .SelectMany(s => s.Passengers.Select(p => (p, s)));
+
+    /// <summary>
+    /// Landmasse nach TileMap.LandRegionAround: eine Wasserkachel am Strand (Hafenfläche, ein Schiff
+    /// beim Anlegen) zählt zur Insel daneben, offene See zu keiner (false).
+    /// </summary>
+    public bool SameLand(int ax, int ay, int bx, int by)
+    {
+        var map = _screen.tileMap;
+        int a = map.LandRegionAround(ax, ay);
+        return a != 0 && a == map.LandRegionAround(bx, by);
+    }
 
     public IReadOnlyList<BuildingSnapshot> Buildings
         => OwnBuildings.Select(ToBuilding).ToList();
@@ -88,7 +108,41 @@ public sealed class AiBridge : IWorldState, IWorldActions
     public bool IsExplored(int x, int y) => _screen.tileMap.IsTileExplored(x, y, Owner);
 
     public bool CanPlace(BuildingType type, int x, int y, int size)
-        => _screen.CanPlace(Owner, type, new Vector2(x, y));
+    {
+        if (!_screen.CanPlace(Owner, type, new Vector2(x, y)))
+            return false;
+        // Auf einer fremden Insel erreichen die Dorfbewohner die Baustelle nicht (Wiking-Karte)
+        if (TownCenter is { } tc && type != BuildingType.Dock)
+            return _screen.tileMap.SameLand(x, y, tc.X + tc.Width / 2, tc.Y + tc.Height / 2);
+        return true;
+    }
+
+    /// <summary>
+    /// Ob Move und Attack auf eine andere Insel über den Fährdienst laufen (AiFerry). Nur der
+    /// AiAgent schaltet ihn ein - er tickt ihn auch; eine Brücke der REST-Schnittstelle lebt nur
+    /// für einen Aufruf.
+    /// </summary>
+    public bool UseFerry { get; set; }
+
+    private AiFerry? _ferry;
+
+    /// <summary>Der Fährdienst dieses Spielers (Hafen, Transportschiffe, Übersetzen).</summary>
+    public AiFerry Ferry => _ferry ??= new AiFerry(_screen, Owner);
+
+    // Liegt das Ziel auf einer anderen Insel, übernimmt der Fährdienst den Befehl; sonst fährt die
+    // Einheit nicht (mehr) mit
+    private bool Ferried(Unit u, int x, int y)
+    {
+        if (!UseFerry)
+            return false;
+        if (Ferry.NeedsFerry(u, x, y))
+        {
+            Ferry.Request(u, x, y);
+            return true;
+        }
+        Ferry.Cancel(u);
+        return false;
+    }
 
     /// <summary>Begehbar nach dem Wissen des Owners (Nebel gilt als begehbar) - wie die
     /// Wegsuche der Laufbefehle (<see cref="TileMap.IsKnownWalkable"/>).</summary>
@@ -126,6 +180,8 @@ public sealed class AiBridge : IWorldState, IWorldActions
         foreach (var u in _screen.units)
         {
             if (u.OwnerId == Owner || u.State == AoE.Core.Entities.UnitState.Dead) continue;
+            // Schiffe erreicht die Landarmee nicht - die KI jagt ihnen nicht nach
+            if (u.IsShip) continue;
             var grid = _screen.tileMap.WorldToGrid(u.Position);
             int x = (int)grid.X, y = (int)grid.Y;
             if (!_screen.tileMap.IsTileVisible(x, y, Owner)) continue;
@@ -186,8 +242,15 @@ public sealed class AiBridge : IWorldState, IWorldActions
 
     public void Move(int unitId, int x, int y)
     {
+        if (RiderOf(unitId) is { } rider)
+        {
+            // an Bord: nur das Ziel der Fahrt ändert sich (gilt beim nächsten Anlegen)
+            if (UseFerry) Ferry.Request(rider, x, y);
+            return;
+        }
         var u = UnitOf(unitId);
         if (u is null) return;
+        if (Ferried(u, x, y)) return;
         // Lauf = IssueCommand auf eine Kachel, die keine Quelle ist — der
         // Screen erkennt das selbst (tile.ResourceType ist null).
         _screen.IssueCommand(Owner, new List<Unit> { u }, new Vector2(x, y));
@@ -234,8 +297,14 @@ public sealed class AiBridge : IWorldState, IWorldActions
     /// </summary>
     public void Attack(int unitId, int x, int y)
     {
+        if (RiderOf(unitId) is { } rider)
+        {
+            if (UseFerry) Ferry.Request(rider, x, y);
+            return;
+        }
         var u = UnitOf(unitId);
         if (u is null) return;
+        if (Ferried(u, x, y)) return;
         _screen.IssueCommand(Owner, new List<Unit> { u }, new Vector2(x, y));
         DebugLog?.Invoke($"Attack: Einheit {unitId} auf ({x},{y})");
     }
@@ -275,9 +344,29 @@ public sealed class AiBridge : IWorldState, IWorldActions
     private Unit UnitOf(int unitId)
         => _screen.units.FirstOrDefault(u => u.OwnerId == Owner && u.Id.GetHashCode() == unitId);
 
-    private UnitSnapshot ToUnit(Unit u)
+    /// <summary>Der Fahrgast mit dieser Id an Bord eines eigenen Schiffs, oder null.</summary>
+    private Unit? RiderOf(int unitId)
+        => Riders().Select(r => r.Rider).FirstOrDefault(u => u.Id.GetHashCode() == unitId);
+
+    /// <summary>Die Einheit aus Sicht der KI; an Bord (<paramref name="ship"/> nicht null) an der Stelle
+    /// des Schiffs, unterwegs, ohne Auftrag.</summary>
+    private UnitSnapshot ToUnit(Unit u, Unit? ship = null)
     {
-        var grid = _screen.tileMap.WorldToGrid(u.Position);
+        var grid = _screen.tileMap.WorldToGrid((ship ?? u).Position);
+        if (ship != null)
+        {
+            return new UnitSnapshot
+            {
+                Id = u.Id.GetHashCode(),
+                Owner = u.OwnerId,
+                Kind = KindOf(u),
+                X = (int)grid.X,
+                Y = (int)grid.Y,
+                State = UnitStateKind.Moving,
+                Health = u.Health,
+                MaxHealth = u.MaxHealth,
+            };
+        }
 
         (int X, int Y, Resource)? gathering = (u.Job is { } job)
             && (u.State == AoE.Core.Entities.UnitState.Gathering

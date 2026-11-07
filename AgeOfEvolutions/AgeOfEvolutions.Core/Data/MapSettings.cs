@@ -279,11 +279,23 @@ public class MapSettings
     /// <summary>
     /// Die Ausstattung einer Karte der Größe <paramref name="size"/> im Stil
     /// <paramref name="style"/>. Europa bleibt <see cref="ForSize"/> unverändert.
-    /// Ägypten: keine Seen und Fische (Wüste), deutlich weniger Wald (die Palmen),
-    /// dafür 50 % mehr Schafherden (die Wiese wird knapp). Wiking: keine Seen
+    /// Ägypten: wenige Seen ohne Fische (Oasen), die Palmen stehen am Ufer, rund um
+    /// das Wasser mehr Wiese als sonst (Nutzer 2026-11-07: „auf der Egypt Karte sollte
+    /// in der nähe von Palmen auch meist etwas Wasser sein“, „und um das wasser etwas
+    /// mehr grün drum herum“), deutlich weniger Wald (die Palmen), dafür 50 % mehr
+    /// Schafherden (die Wiese wird knapp). Wiking: keine Seen
     /// (die Karte ist selbst Wasser), mehr Fische an der Küste, kleinere Wälder,
     /// dazu die zusätzlichen Inseln (Anzahl und Radien wachsen mit der Fläche).
     /// </summary>
+    /// <summary>Inseln auf der Wiking-Karte insgesamt, Startinseln eingeschlossen: mindestens so viele.</summary>
+    public const int WIKING_ISLANDS_MIN = 4;
+
+    /// <summary>Höchstens so viele Inseln insgesamt auf Standard und Kontinent.</summary>
+    public const int WIKING_ISLANDS_MAX = 10;
+
+    /// <summary>Höchstens so viele Inseln insgesamt auf der größten Karte (World).</summary>
+    public const int WIKING_ISLANDS_MAX_WORLD = 12;
+
     public static MapSettings ForStyle(MapStyle style, MapSize size)
     {
         var s = ForSize(size);
@@ -294,8 +306,12 @@ public class MapSettings
                 s.WoodClustersMax = Math.Max(3, s.WoodClustersMax / 3);
                 s.WoodRadiusMin = 2;
                 s.WoodRadiusMax = 3;
-                s.LakesMin = 0;
-                s.LakesMax = 0;
+                // Oasen (Nutzer 2026-11-07): die Wüste trägt ein paar Seen, an deren
+                // Ufer die Palmen stehen; rund um das Wasser wächst mehr Wiese
+                // (TileMap.AddGreenBanks). Fische fehlen weiter (Fang im Sand wäre
+                // seltsam).
+                s.LakesMin = Math.Max(1, s.LakesMin / 2);
+                s.LakesMax = Math.Max(2, s.LakesMax / 2);
                 s.FishChance = 0f;
                 s.SheepHerdsMin = Math.Max(1, (int)Math.Ceiling(s.SheepHerdsMin * 1.5f));
                 s.SheepHerdsMax = Math.Max(1, (int)Math.Ceiling(s.SheepHerdsMax * 1.5f));
@@ -306,12 +322,14 @@ public class MapSettings
                 s.FishChance = 0.35f;
                 s.WoodRadiusMin = 2;
                 s.WoodRadiusMax = 3;
-                // Inseln und Radien wachsen mit der Seitenlänge (Längenmaßstab),
-                // die Radien nur mit deren Wurzel - sonst wächse die Landfläche
-                // mit dem Kubus der Karte, und Wiking wäre Land statt Wasser
+                // Inseln insgesamt (Nutzer 2026-11-07): „die Anzahl inseln würde ich so
+                // zwischen 4-12 halten“, „12 nur bei der grössten Karte“, „10 bei den anderen
+                // beiden“ - mit den beiden Startinseln also 2 bis 8 zusätzliche, auf World bis 10.
+                // Die Radien wachsen mit der Wurzel der Seitenlänge - sonst wächse die
+                // Landfläche mit der Karte schneller als das Wasser, und Wiking wäre Land
                 float f = Math.Clamp(MapSizes.Side(size) / (float)MapSizes.BaseSide, 0.5f, 2.5f);
-                s.IslandsMin = Math.Max(2, (int)Math.Round(5 * f));
-                s.IslandsMax = Math.Max(3, (int)Math.Round(7 * f));
+                s.IslandsMin = WIKING_ISLANDS_MIN - 2;
+                s.IslandsMax = (size == MapSize.World ? WIKING_ISLANDS_MAX_WORLD : WIKING_ISLANDS_MAX) - 2;
                 s.IslandRadiusMin = Math.Max(3, (int)Math.Round(6 * MathF.Sqrt(f)));
                 s.IslandRadiusMax = Math.Max(4, (int)Math.Round(9 * MathF.Sqrt(f)));
                 break;

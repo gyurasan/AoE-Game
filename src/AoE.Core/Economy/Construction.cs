@@ -32,6 +32,7 @@ public static class BuildingRules
         BuildingType.PalisadeWall => new Dictionary<Resource, int> { [Resource.Wood] = 2 },
         BuildingType.StoneWall => new Dictionary<Resource, int> { [Resource.Stone] = 5 },
         BuildingType.Wonder => new Dictionary<Resource, int> { [Resource.Wood] = 1000, [Resource.Stone] = 1000, [Resource.Gold] = 1000 },
+        BuildingType.Dock => new Dictionary<Resource, int> { [Resource.Wood] = 150 },
         _ => new Dictionary<Resource, int>()
     };
 
@@ -46,7 +47,7 @@ public static class BuildingRules
     public static float BuildSecondsOf(BuildingType type) => type switch
     {
         BuildingType.House => 25f,
-        BuildingType.Mill or BuildingType.LumberCamp or BuildingType.MiningCamp => 35f,
+        BuildingType.Mill or BuildingType.LumberCamp or BuildingType.MiningCamp or BuildingType.Dock => 35f,
         BuildingType.Farm => 15f,
         BuildingType.PalisadeWall => 5f,
         BuildingType.StoneWall => 8f,
@@ -70,7 +71,8 @@ public static class BuildingRules
     public static int SizeOf(BuildingType type) => type switch
     {
         BuildingType.PalisadeWall or BuildingType.StoneWall => 1,
-        BuildingType.Farm or BuildingType.Barracks or BuildingType.ArcheryRange or BuildingType.Stable or BuildingType.Blacksmith or BuildingType.Monastery => 3,
+        BuildingType.Farm or BuildingType.Barracks or BuildingType.ArcheryRange or BuildingType.Stable or BuildingType.Blacksmith or BuildingType.Monastery
+            or BuildingType.Dock => 3,
         BuildingType.TownCenter or BuildingType.Market or BuildingType.SiegeWorkshop or BuildingType.University or BuildingType.Castle => 4,
         BuildingType.Wonder => 5,
         _ => 2

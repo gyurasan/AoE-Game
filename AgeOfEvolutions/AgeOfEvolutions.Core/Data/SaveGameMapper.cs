@@ -42,7 +42,9 @@ public static class SaveGameMapper
     ///   PointSave(p.X, p.Y), Pace, State, Health, AttackTimer, Job = unit.Job?.ToState();
     ///   BuildSite und AttackTarget = Index des Gebäudes in map.Buildings (IndexOf), UnitTarget =
     ///   Index der Einheit in map.Units - jeweils null, wenn kein Ziel gesetzt ist oder es nicht
-    ///   (mehr) in der Liste steht; AutoTarget.
+    ///   (mehr) in der Liste steht; AutoTarget; UnloadX/UnloadY = UnloadAt des Schiffs oder null.
+    ///   Danach die Passagiere aller Schiffe (Unit.Passengers, nicht in map.Units), je Schiff in
+    ///   dessen Reihenfolge, mit denselben Werten und Aboard = Index des Schiffs.
     /// - Market = map.Market.ToState() (F8).
     /// </summary>
     /// <exception cref="ArgumentNullException">map, player1 oder player2 ist null.</exception>
@@ -175,7 +177,32 @@ public static class SaveGameMapper
                 AttackTarget = IndexOf(map.Buildings, unit.AttackTarget),
                 UnitTarget = IndexOf(map.Units, unit.UnitTarget),
                 AutoTarget = unit.AutoTarget,
+                UnloadX = unit.UnloadAt?.X,
+                UnloadY = unit.UnloadAt?.Y,
             });
+        }
+        // Passagiere an Bord: hinter allen Einheiten der Karte, mit dem Index ihres Schiffs
+        for (int s = 0; s < map.Units.Count; s++)
+        {
+            Unit ship = map.Units[s];
+            if (!ship.IsShip)
+                continue;
+            foreach (Unit p in ship.Passengers)
+            {
+                save.Units.Add(new UnitSave
+                {
+                    Id = p.Id,
+                    Type = p.Type,
+                    OwnerId = p.OwnerId,
+                    X = ship.Position.X,
+                    Y = ship.Position.Y,
+                    TargetX = ship.Position.X,
+                    TargetY = ship.Position.Y,
+                    State = AoE.Core.Entities.UnitState.Idle,
+                    Health = p.Health,
+                    Aboard = s,
+                });
+            }
         }
 
         return save;
@@ -215,6 +242,8 @@ public static class SaveGameMapper
     /// 7. Querverweise, erst wenn alle Gebäude und Einheiten stehen: BuildSite und
     ///    AttackTarget = map.Buildings[Index], UnitTarget = map.Units[Index]; null, wenn der
     ///    Index null ist oder außerhalb der Liste liegt. AutoTarget nur mit UnitTarget.
+    /// 7b. Passagiere (Aboard = Index eines Schiffs): aus map.Units in die Passagierliste des
+    ///    Schiffs, Position = Lage des Schiffs; UnloadAt aus UnloadX/UnloadY.
     /// 8. map.RebuildWildAnimals(); map.RestoreExplored(Id, Explored) je Spieler;
     ///    map.InvalidateNavigation().
     /// Rückgabe: die Karte und die beiden Spieler in der gespeicherten Reihenfolge.
@@ -354,6 +383,22 @@ public static class SaveGameMapper
             unit.UnitTarget = us.UnitTarget is null || us.UnitTarget < 0 || us.UnitTarget >= map.Units.Count
                 ? null : map.Units[us.UnitTarget.Value];
             unit.AutoTarget = unit.UnitTarget != null && us.AutoTarget;
+            if (us.UnloadX is int ux && us.UnloadY is int uy)
+                unit.UnloadAt = new Point(ux, uy);
+        }
+
+        // 7b. Passagiere an Bord (Aboard): aus map.Units heraus in die Passagierliste ihres Schiffs
+        var aboard = new List<(Unit Passenger, Unit Ship)>();
+        for (int i = 0; i < save.Units.Count; i++)
+        {
+            if (save.Units[i].Aboard is int s && s >= 0 && s < save.Units.Count && map.Units[s].IsShip)
+                aboard.Add((map.Units[i], map.Units[s]));
+        }
+        foreach (var (passenger, ship) in aboard)
+        {
+            map.Units.Remove(passenger);
+            passenger.Position = ship.Position;
+            ship.Passengers.Add(passenger);
         }
 
         // 8. Tiere, Erkundung und Navigation.

@@ -221,4 +221,11 @@ public sealed class UnitSave
 
     /// <summary>Die Einheit hat UnitTarget von selbst gewählt (Unit.AutoTarget); fehlt in alten Ständen = false.</summary>
     public bool AutoTarget { get; set; }
+
+    /// <summary>Passagier: Index seines Schiffs in <see cref="SaveGame.Units"/>, oder null (an Land).</summary>
+    public int? Aboard { get; set; }
+
+    /// <summary>Schiff: die Landkachel, an der es absetzen soll (Unit.UnloadAt), oder null.</summary>
+    public int? UnloadX { get; set; }
+    public int? UnloadY { get; set; }
 }

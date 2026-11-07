@@ -53,6 +53,10 @@ public static class CoreUnits
             UnitType.Catapult => new Mangonel(ownerId, at),
             UnitType.Trebuchet => new Trebuchet(ownerId, at),
 
+            // Schiffe
+            UnitType.TransportShip => new TransportShip(ownerId, at),
+            UnitType.WarShip => new WarShip(ownerId, at),
+
             _ => new Villager(ownerId, at),
         };
     }
@@ -82,6 +86,8 @@ public static class CoreUnits
         UnitType.Catapult => "Katapult",
         UnitType.Trebuchet => "Tribok",
         UnitType.Monk => "Mönch",
+        UnitType.TransportShip => "Transportschiff",
+        UnitType.WarShip => "Kriegsschiff",
         _ => type.ToString(),
     };
 
@@ -100,6 +106,7 @@ public static class CoreUnits
         UnitType.Scout or UnitType.Cavalry or UnitType.Paladin or UnitType.CamelRider
             or UnitType.ImperialCamel => UnitCategory.Cavalry,
         UnitType.Ram or UnitType.Catapult or UnitType.Trebuchet => UnitCategory.Siege,
+        UnitType.TransportShip or UnitType.WarShip => UnitCategory.Ship,
         _ => UnitCategory.Worker,
     };
 }

@@ -25,7 +25,7 @@ public sealed class AiAgent
 {
     public AiAgent(RTSGameplayScreen screen, IAi ai, int owner = 1, float tickInterval = 0.5f)
     {
-        _bridge = new AiBridge(screen) { Owner = owner };
+        _bridge = new AiBridge(screen) { Owner = owner, UseFerry = true };
         _ai = ai ?? throw new ArgumentNullException(nameof(ai));
         _tickInterval = Math.Max(0.05f, tickInterval);
     }
@@ -58,7 +58,10 @@ public sealed class AiAgent
             {
                 _ctx.Log = log;
                 _bridge.DebugLog = log;
+                _bridge.Ferry.Log = log;
             }
+            // Hafen, Schiffe und Übersetzen auf Inselkarten (AiFerry)
+            _bridge.Ferry.Tick(_tickInterval);
             _ai.Tick(_bridge, _bridge, _tickInterval, _ctx);
         }
     }

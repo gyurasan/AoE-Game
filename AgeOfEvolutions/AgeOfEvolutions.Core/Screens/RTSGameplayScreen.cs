@@ -264,6 +264,12 @@ public partial class RTSGameplayScreen : GameScreen
          new Dictionary<Resource, int> { [Resource.Wood] = 200, [Resource.Gold] = 200 }, 50f, Age.Imperial),
         (BuildingType.Castle, Keys.Q, UnitType.Trebuchet,
          new Dictionary<Resource, int> { [Resource.Wood] = 200, [Resource.Gold] = 200 }, 50f, Age.Imperial),
+        // Hafen (Wiking-Karte, Nutzer 2026-11-07): Transportschiff schon in der Dunklen Zeit (AoE II:
+        // 125 Holz, 46 s), das Kriegsschiff (Galeere: 90 Holz + 30 Gold, 60 s) ab der Feudalzeit
+        (BuildingType.Dock, Keys.Q, UnitType.TransportShip,
+         new Dictionary<Resource, int> { [Resource.Wood] = 125 }, 46f, Age.Dark),
+        (BuildingType.Dock, Keys.W, UnitType.WarShip,
+         new Dictionary<Resource, int> { [Resource.Wood] = 90, [Resource.Gold] = 30 }, 60f, Age.Feudal),
     };
 
     // Forschungen (P2): je Forschung ihre Taste im ausgewählten Gebäude. Gebäude, Kosten,
@@ -288,6 +294,7 @@ public partial class RTSGameplayScreen : GameScreen
         ("Dorfbewohner", "Icons/dorfbewohner"), ("Miliz", "Icons/miliz"),
         ("Bogenschütze", "Icons/bogenschuetze"), ("Späher", "Icons/spaeher"),
         ("Rammbock", "Icons/rammbock"), ("Katapult", "Icons/mangonel"), ("Tribok", "Icons/trebuchet"),
+        ("Transportschiff", "Icons/transportschiff"), ("Kriegsschiff", "Icons/kriegsschiff"),
         ("Webstuhl", "Icons/webstuhl"), ("Pferdekummet", "Icons/pferdekummet"),
         ("Doppelaxt", "Icons/doppelaxt"), ("Goldbergbau", "Icons/goldbergbau"),
         ("Schmiedekunst", "Icons/schmiedekunst"), ("Befiederte Pfeile", "Icons/befiederte_pfeile"),
@@ -430,7 +437,7 @@ public partial class RTSGameplayScreen : GameScreen
         ("L", "Icons/stall"), ("E", "Icons/schmiede"), ("R", "Icons/markt"),
         ("W", "Icons/steinmauer"), ("Z", "Icons/stadtzentrum"), ("X", "Icons/belagerungswerkstatt"),
         ("U", "Icons/universitaet"), ("O", "Icons/kloster"), ("C", "Icons/burg"),
-        ("N", "Icons/wunder"),
+        ("N", "Icons/wunder"), ("D", "Icons/hafen"),
     };
     private readonly Dictionary<string, Texture2D> _buttonIcons = new();
 
@@ -450,6 +457,7 @@ public partial class RTSGameplayScreen : GameScreen
         ("Schießstand", "Gebaeude/schiessstand"), ("Stall", "Gebaeude/stall"),
         ("Schmiede", "Gebaeude/schmiede"), ("Markt", "Gebaeude/markt"),
         ("Steinmauer", "Gebaeude/steinmauer"), ("Belagerungswerkstatt", "Gebaeude/belagerungswerkstatt"),
+        ("Hafen", "Gebaeude/hafen"),
         ("Universität", "Gebaeude/universitaet"), ("Kloster", "Gebaeude/kloster"),
         ("Burg", "Gebaeude/burg"), ("Wunder", "Gebaeude/wunder"),
     };
@@ -678,6 +686,15 @@ public partial class RTSGameplayScreen : GameScreen
         ("Baeume/buche", 74f, false), ("Baeume/birke", 68f, false),
         ("Baeume/nadelbaum", 82f, true), ("Baeume/nadelbaum2", 78f, true), ("Baeume/kiefer", 86f, true),
     };
+    // Palmen der Ägypten-Karte statt der europäischen Bäume (Nutzer 2026-11-07: „Für Egypt brauch es
+    // Palmen keine Bäume“): Dattelpalme und Dattelpalmen-Gruppe bilden die einen Haine, Dumpalme
+    // (Oberägypten, gegabelter Stamm) und Kokospalme die anderen - TreeSpot mischt sie wie Laub- und
+    // Nadelbäume über das dritte Feld
+    private static readonly (string Asset, float Height, bool Conifer)[] PalmAssets =
+    {
+        ("Baeume/palme", 90f, false), ("Baeume/palme_gruppe", 80f, false),
+        ("Baeume/palme_dum", 84f, true), ("Baeume/palme_kokos", 92f, true),
+    };
     // Fällstufen je Baumart (tools/bilder/faellen.py), in der Reihenfolge von Tile.TreeStage 1-4:
     // gefällt mit Krone, zwei Stammstücke, eines, Stumpf. Alle vier Bilder einer Art sind gleich
     // groß; der Stammfuß liegt bei FELL_ANCHOR (Bildpunkte), ein Bildpunkt ist 1 / FELL_TEX_SCALE
@@ -838,6 +855,7 @@ public partial class RTSGameplayScreen : GameScreen
         (Keys.B, BuildingType.MiningCamp, "Bergbaulager", 0),
         (Keys.G, BuildingType.Farm, "Farm", 0),
         (Keys.T, BuildingType.Tower, "Wachturm", 0),   // ab der Feudalzeit
+        (Keys.D, BuildingType.Dock, "Hafen", 0),       // am Strand, halb im Wasser (Wiking-Karte)
         (Keys.K, BuildingType.Barracks, "Kaserne", 1),
         (Keys.P, BuildingType.PalisadeWall, "Palisadenmauer", 1),
         (Keys.S, BuildingType.ArcheryRange, "Schießstand", 1),
@@ -933,7 +951,7 @@ public partial class RTSGameplayScreen : GameScreen
         units = tileMap.Units;
 
         // Assign units to players
-        foreach (var unit in units)
+        foreach (var unit in units.Concat(units.Where(u => u.IsShip).SelectMany(u => u.Passengers)).ToList())
         {
             if (unit.OwnerId == 0) player1.AddUnit(unit);
             else player2.AddUnit(unit);
@@ -1094,24 +1112,17 @@ public partial class RTSGameplayScreen : GameScreen
             RefreshGroundLive(true);
         }
         // Je Eintrag ein Tupel (Bild, Höhe, Nadelbaum); fehlt ein Bild, fällt nur diese Baumart weg.
-        var trees = TreeAssets
-            .Select(a => (Tex: LoadOptional(a.Asset), a.Asset, a.Height, a.Conifer))
-            .Where(t => t.Tex != null)
-            .ToArray();
+        // Ägypten: die Palmen statt der europäischen Baumarten (PalmAssets), mit Fällstufen wie
+        // jeder andere Baum; fehlen alle Palmenbilder, bleibt der europäische Bestand als Ersatz.
+        (Texture2D Tex, string Asset, float Height, bool Conifer)[] LoadTrees((string Asset, float Height, bool Conifer)[] assets)
+            => assets.Select(a => (Tex: LoadOptional(a.Asset), a.Asset, a.Height, a.Conifer))
+                     .Where(t => t.Tex != null)
+                     .ToArray();
+        var trees = _mapStyle == MapStyle.Egypten ? LoadTrees(PalmAssets) : Array.Empty<(Texture2D Tex, string Asset, float Height, bool Conifer)>();
+        if (trees.Length == 0)
+            trees = LoadTrees(TreeAssets);
         _treeSprites = trees.Select(t => (t.Tex, t.Height, t.Conifer)).ToArray();
         _treeFellSprites = trees.Select(t => FellStageSuffixes.Select(s => LoadOptional(t.Asset + s)).ToArray()).ToArray();
-        // Ägypten: statt der europäischen Baumarten nur die Palme — ein Eintrag, der
-        // Fällstufen trägt wie jeder andere. Fehlt das Bild noch, bleibt der europäische
-        // Bestand als Ersatz stehen.
-        if (_mapStyle == MapStyle.Egypten)
-        {
-            var palm = LoadOptional("Baeume/palme");
-            if (palm != null)
-            {
-                _treeSprites = new[] { (palm, 88f, false) };
-                _treeFellSprites = new[] { FellStageSuffixes.Select(s => LoadOptional("Baeume/palme" + s)).ToArray() };
-            }
-        }
         // Leistenbilder je Zeitalter laden; fehlt eines, bleibt die Leiste in diesem Zeitalter braun
         for (var i = 0; i < PanelAssets.Length; i++)
             _panelTex[i] = LoadOptional(PanelAssets[i]);
@@ -1201,6 +1212,8 @@ public partial class RTSGameplayScreen : GameScreen
                 }
             }
         }
+        // Transport- und Kriegsschiff (RTSGameplayScreen.Schiffe)
+        LoadShipSprites();
 
         // Start the camera on player 1's town center instead of the map corner.
         // Startzoom wie die Zoomgrenzen an der Fensterhöhe ausgerichtet; die
@@ -2409,6 +2422,9 @@ public partial class RTSGameplayScreen : GameScreen
     /// </summary>
     private static Rectangle UnitWorldRect(Unit unit)
     {
+        // Schiffe sind etwa zwei Kacheln lang (RTSGameplayScreen.Schiffe)
+        if (unit.IsShip)
+            return ShipWorldRect(unit);
         // Maßstab der Figur aus SoldierSprites (der Späher zu Pferd 1,35);
         // ohne Eintrag gilt 1
         float scale = 1f;
@@ -2860,7 +2876,8 @@ public partial class RTSGameplayScreen : GameScreen
             }
 
             unit.TargetPosition = stand.Value;
-            unit.Path = tileMap.FindPath(unit.Position, unit.TargetPosition);
+            unit.Path = unit.IsShip ? tileMap.FindShipPath(unit.Position, unit.TargetPosition)
+                                    : tileMap.FindPath(unit.Position, unit.TargetPosition);
             // FindPath liefert innerhalb einer Kachel keinen Weg — die Einheit
             // steht aber schon auf der Kachel des Standplatzes. Dann wird der
             // Standplatz der einzige Wegpunkt: sie läuft die letzten Pixel,
@@ -2899,6 +2916,9 @@ public partial class RTSGameplayScreen : GameScreen
     {
         int ts = tileMap.TileSize;
         int ring = Math.Max(1, unit.AttackRange);
+        // Ein Schiff steht auf befahrbarem Wasser seines Gewässers statt auf begehbarem Land
+        var shipCell = tileMap.WorldToGrid(unit.Position);
+        int water = unit.IsShip ? tileMap.WaterRegion((int)shipCell.X, (int)shipCell.Y) : 0;
 
         // Begehbare Kacheln im Ring um die Grundfläche, deren Mitte der
         // Einheit am nächsten liegt
@@ -2911,7 +2931,10 @@ public partial class RTSGameplayScreen : GameScreen
                 // Nur der Ring selbst, nicht das Innere der Grundfläche
                 bool onRing = x < target.X || x >= target.X + target.Width
                             || y < target.Y || y >= target.Y + target.Height;
-                if (!onRing || !tileMap.IsWalkable(x, y))
+                bool standable = unit.IsShip
+                    ? tileMap.IsNavigable(x, y) && tileMap.WaterRegion(x, y) == water
+                    : tileMap.IsWalkable(x, y);
+                if (!onRing || !standable)
                     continue;
 
                 var cell = new Vector2(x, y);
@@ -3024,8 +3047,12 @@ public partial class RTSGameplayScreen : GameScreen
         {
             if (a.AttackPower <= 0)
                 continue;
+            // Ein Schiff erreicht vom Land aus nur ein Fernkämpfer
+            if (target.IsShip && !a.IsShip && a.AttackRange <= 0)
+                continue;
 
             // Sammelauftrag und Baustelle ab
+            a.BoardShip = null;
             a.Job = null;
             a.BuildSite = null;
             a.AttackTarget = null;     // Gebäude-Angriff endet
@@ -3216,6 +3243,9 @@ public partial class RTSGameplayScreen : GameScreen
     /// </summary>
     private List<Vector2> PathToStand(Unit unit, Vector2 stand)
     {
+        // Ein Schiff fährt an die erreichbare Wasserkachel, die dem Standpunkt am nächsten liegt
+        if (unit.IsShip)
+            return tileMap.FindShipPath(unit.Position, stand);
         var path = tileMap.FindPath(unit.Position, stand);
         if (path.Count == 0 && tileMap.WorldToGrid(unit.Position) == tileMap.WorldToGrid(stand)
             && Vector2.Distance(unit.Position, stand) >= 2f)
@@ -3260,6 +3290,9 @@ public partial class RTSGameplayScreen : GameScreen
         EmitSound("tod", victim.Position);
         victim.State = UnitState.Dead;
         var owner = victim.OwnerId == 0 ? player1 : player2;
+        // Sinkt ein Schiff, ertrinken alle an Bord
+        if (victim.IsShip)
+            SinkPassengers(victim, owner);
 
         // Aus allen Listen nehmen. Achtung: units ist alias auf
         // tileMap.Units (ein und dieselbe Liste) — daher nur ein Remove.
@@ -3391,6 +3424,20 @@ public partial class RTSGameplayScreen : GameScreen
     /// </summary>
     internal void IssueCommand(int ownerId, List<Unit> selectedUnits, Vector2 gridPos)
     {
+        // Jeder Befehl beendet ein laufendes Einsteigen und ein geplantes Absetzen
+        foreach (var u in selectedUnits)
+        {
+            u.BoardShip = null;
+            if (u.IsShip)
+                u.UnloadAt = null;
+        }
+        // Klick der Landeinheiten auf das eigene Transportschiff: sie steigen ein
+        if (selectedUnits.Any(u => !u.IsShip) && OwnTransportAt(gridPos, ownerId) is { } ferry)
+        {
+            BoardUnits(selectedUnits.Where(u => !u.IsShip).ToList(), ferry);
+            return;
+        }
+
         // Linksklick auf ein erkundetes fremdes Gebäude: die Auswahl greift es an
         var attackTarget = BuildingAt(gridPos);
         if (attackTarget != null && attackTarget.OwnerId != ownerId
@@ -3423,6 +3470,15 @@ public partial class RTSGameplayScreen : GameScreen
             unit.AttackTarget = null;
             unit.UnitTarget = null;
             unit.PreyTarget = null;
+        }
+
+        // Schiffe fahren nur auf Wasser und setzen an Land ab (RTSGameplayScreen.Schiffe)
+        if (selectedUnits.Any(u => u.IsShip))
+        {
+            CommandShips(selectedUnits.Where(u => u.IsShip).ToList(), gridPos);
+            selectedUnits = selectedUnits.Where(u => !u.IsShip).ToList();
+            if (selectedUnits.Count == 0)
+                return;
         }
 
         var tile = tileMap.GetTile((int)gridPos.X, (int)gridPos.Y);
@@ -3647,8 +3703,12 @@ public partial class RTSGameplayScreen : GameScreen
                 }
 
                 var cellVector = stand.Value;
-                unit.TargetPosition = GridToWorld(cellVector);
-                unit.Path = tileMap.FindPath(unit.Position, unit.TargetPosition);
+                // Der Arbeitsstandpunkt: auf der Kachel der Quelle (Feld, Tier) die
+                // Kachelmitte wie bisher; sonst eine halbe Kachel von der Quellenmitte
+                // entfernt — näher als die frühere volle Kachel.
+                var standPoint = WorkStandPoint(cellVector, new Vector2(job.Destination.Value.X, job.Destination.Value.Y));
+                unit.TargetPosition = standPoint;
+                unit.Path = tileMap.FindPath(unit.Position, standPoint);
 
                 if (unit.Path.Count > 0)
                 {
@@ -3656,8 +3716,14 @@ public partial class RTSGameplayScreen : GameScreen
                 }
                 else if (WorldToGrid(unit.Position) == cellVector)
                 {
-                    // Kein Weg nötig, die Einheit steht schon auf dem Ziel.
-                    ArriveWithJob(unit);
+                    // Schon auf der richtigen Kachel: die letzten Pixel direkt,
+                    // sonst beginnt die Arbeit sofort.
+                    if (Vector2.Distance(unit.Position, standPoint) >= 2f)
+                        unit.Path = new List<Vector2> { standPoint };
+                    else
+                        ArriveWithJob(unit);
+                    if (unit.Path.Count > 0)
+                        unit.State = UnitState.Moving;
                 }
                 else
                 {
@@ -3764,7 +3830,8 @@ public partial class RTSGameplayScreen : GameScreen
         if (b == null || !b.IsComplete)
             return null;
         if (b.Core.BuildingType == BuildingType.PalisadeWall
-            || b.Core.BuildingType == BuildingType.StoneWall)
+            || b.Core.BuildingType == BuildingType.StoneWall
+            || b.Core.BuildingType == BuildingType.Dock)
             return null;
         if (TileMap.LevelOfAge(AgeOf(b.OwnerId)) < 1 || tileMap.CurrentRoadLevel < 1)
             return null;
@@ -4014,6 +4081,54 @@ public partial class RTSGameplayScreen : GameScreen
         if (best == null && tileMap.IsWalkable(cell.X, cell.Y))
             return new Vector2(cell.X, cell.Y);
         return best;
+    }
+
+    /// <summary>
+    /// Der Arbeitsstandpunkt des Dorfbewohners an einer Quelle: steht er auf der
+    /// Quellenkachel selbst (Feld, Tier), die Kachelmitte wie bisher. Sonst eine
+    /// halbe Kachel von der Quellenmitte entfernt — der Mittelpunkt zwischen seiner
+    /// Kachel und der Quelle. Das ist näher als die frühere volle Kachel, und die
+    /// Kachel unter dem Punkt ist begehbar, denn Wald, Steinbruch, Goldberg und
+    /// Beerenbusch sind begehbar. Ist die Kachel unter dem Punkt trotzdem nicht
+    /// begehbar (Fisch — Wasser), bleibt es bei der Kachelmitte von <paramref
+    /// name="cell"/>, damit FindPath keinen leeren Weg liefert und der Auftrag nicht
+    /// „unerreichbar" wird.
+    /// VERTRAG: cell == source ? GridToWorld(cell) : midpoint = GridToWorld(cell) +
+    /// (GridToWorld(source) - GridToWorld(cell)) * 0.5; IsWalkable(WorldToGrid(midpoint))
+    /// ? midpoint : GridToWorld(cell).
+    /// </summary>
+    private Vector2 WorkStandPoint(Vector2 cell, Vector2 source)
+    {
+        var cellCenter = GridToWorld(cell);
+        if (cell.X == source.X && cell.Y == source.Y)
+            return cellCenter;
+        var midpoint = cellCenter + (GridToWorld(source) - cellCenter) * 0.5f;
+        var tile = WorldToGrid(midpoint);
+        return tileMap.IsWalkable((int)tile.X, (int)tile.Y) ? midpoint : cellCenter;
+    }
+
+    /// <summary>
+    /// Der Arbeitsstandpunkt eines Bauarbeiters an der Baustelle: eine viertel Kachel
+    /// von der Wand entfernt — näher als die frühere halbe Kachel. Der Punkt liegt
+    /// immer auf der eigenen Ringkachel (begehbar), nie auf einer Kachel des
+    /// Gebäudes (nicht begehbar): je berührter Gebäudekante eine viertel Kachel zur
+    /// Wand hin.
+    /// VERTRAG: p = GridToWorld(cell); cell.X == site.X - 1 → p.X += TileSize/4,
+    /// cell.X == site.X + site.Width → p.X -= TileSize/4; cell.Y == site.Y - 1 →
+    /// p.Y += TileSize/4, cell.Y == site.Y + site.Height → p.Y -= TileSize/4.
+    /// </summary>
+    private Vector2 BuildStandPoint(Building site, Vector2 cell)
+    {
+        var p = GridToWorld(cell);
+        if (cell.X == site.X - 1)
+            p.X += tileMap.TileSize * 0.25f;
+        else if (cell.X == site.X + site.Width)
+            p.X -= tileMap.TileSize * 0.25f;
+        if (cell.Y == site.Y - 1)
+            p.Y += tileMap.TileSize * 0.25f;
+        else if (cell.Y == site.Y + site.Height)
+            p.Y -= tileMap.TileSize * 0.25f;
+        return p;
     }
 
     /// <summary>
@@ -4514,17 +4629,33 @@ public partial class RTSGameplayScreen : GameScreen
         hudMessageTimer = HUD_MESSAGE_SECONDS;
     }
 
+    // Fertige Einheiten, die am Gebäude noch keinen Platz fanden (ein Schiff braucht offenes
+    // Wasser ohne anderes Schiff darauf) - sie erscheinen, sobald einer frei wird
+    private readonly Dictionary<Building, UnitType> _waitingSpawn = new();
+
     /// <summary>
     /// Bildet in allen Gebäuden aus. Ist die Bevölkerungsgrenze erreicht,
     /// steht die Ausbildung still (TrainingQueue.IsBlocked). Ein fertiger
     /// Dorfbewohner erscheint auf der nächsten freien Kachel am Gebäude.
+    /// VERTRAG (zusätzlich): findet die fertige Einheit keinen Platz (SpawnCell bzw. ShipSpawnCell
+    /// null), geht sie nicht verloren - sie wartet am Gebäude (_waitingSpawn), das so lange nicht
+    /// weiter ausbildet, und erscheint im ersten Update, in dem ein Platz frei ist.
     /// </summary>
     private void UpdateTraining(float dt)
     {
         float dts = dt * _productionSpeed;
+        if (_waitingSpawn.Count > 0)
+            foreach (var gone in _waitingSpawn.Keys.Where(b => !tileMap.Buildings.Contains(b)).ToList())
+                _waitingSpawn.Remove(gone);
         foreach (var building in tileMap.Buildings)
         {
             var player = building.OwnerId == 0 ? player1 : player2;
+            if (_waitingSpawn.TryGetValue(building, out var waiting))
+            {
+                if (Spawn(building, waiting, player))
+                    _waitingSpawn.Remove(building);
+                continue;
+            }
             // Während des Aufstiegs forscht das Stadtzentrum und bildet nicht aus
             if (player.Ages.IsResearching && building.Core.BuildingType == BuildingType.TownCenter)
                 continue;
@@ -4535,16 +4666,26 @@ public partial class RTSGameplayScreen : GameScreen
             if (!building.Training.Update(dts, player.PopulationCount, player.PopulationLimit, out var finished))
                 continue;
 
-            // Bisher bildet nur das Stadtzentrum aus, und zwar Dorfbewohner
-            var cell = SpawnCell(building);
-            if (cell == null)
-                continue;   // rundum zugestellt - kommt praktisch nicht vor
-            // Statt eines Dorfbewohners erscheint die ausgebildete Einheit (P1)
-            var unit = tileMap.AddUnit(finished, (int)cell.Value.X, (int)cell.Value.Y, building.OwnerId);
-            player.AddUnit(unit);
-            // Was der Spieler schon erforscht hat, gilt auch für die neue Einheit (P2)
-            TechEffects.ApplyAll(player.Techs, unit.Core);
+            if (!Spawn(building, finished, player))
+                _waitingSpawn[building] = finished;   // rundum zugestellt - sie wartet
         }
+    }
+
+    /// <summary>Setzt eine fertige Einheit an ihr Gebäude (Schiffe aufs Wasser davor); false, wenn
+    /// dort kein Platz frei ist.</summary>
+    private bool Spawn(Building building, UnitType type, Player player)
+    {
+        var cell = type is UnitType.TransportShip or UnitType.WarShip
+            ? ShipSpawnCell(building)
+            : SpawnCell(building);
+        if (cell == null)
+            return false;
+        // Statt eines Dorfbewohners erscheint die ausgebildete Einheit (P1)
+        var unit = tileMap.AddUnit(type, (int)cell.Value.X, (int)cell.Value.Y, building.OwnerId);
+        player.AddUnit(unit);
+        // Was der Spieler schon erforscht hat, gilt auch für die neue Einheit (P2)
+        TechEffects.ApplyAll(player.Techs, unit.Core);
+        return true;
     }
 
     /// <summary>
@@ -4619,7 +4760,8 @@ public partial class RTSGameplayScreen : GameScreen
     internal bool CanPlace(int ownerId, BuildingType type, Vector2 cell)
     {
         int x = (int)cell.X, y = (int)cell.Y, size = BuildingRules.SizeOf(type);
-        if (!tileMap.CanPlaceBuilding(x, y, size))
+        // Der Hafen steht am Strand, halb im Wasser (TileMap.CanPlaceDock), alles andere auf Land
+        if (type == BuildingType.Dock ? !DockFits(cell, size) : !tileMap.CanPlaceBuilding(x, y, size))
             return false;
         for (int bx = x; bx < x + size; bx++)
             for (int by = y; by < y + size; by++)
@@ -4716,6 +4858,9 @@ public partial class RTSGameplayScreen : GameScreen
 
         if (!string.IsNullOrEmpty(BuildingNameOrNull(type)))
         {
+            // Der Hafen verdrängt Fischschwärme auf seiner Grundfläche (TileMap.CanPlaceDock)
+            if (type == BuildingType.Dock)
+                tileMap.ClearFish((int)cell.X, (int)cell.Y, BuildingRules.SizeOf(type));
             var site = tileMap.AddBuilding((int)cell.X, (int)cell.Y, BuildingName(type), ownerId, BuildingRules.SizeOf(type));
             site.Construction = new Construction(BuildingRules.BuildSecondsOf(type));
             // Maurerkunst (P2): gilt auch für neue Gebäude
@@ -4784,16 +4929,26 @@ public partial class RTSGameplayScreen : GameScreen
     /// Schickt einen Dorfbewohner an eine Baustelle: ein laufender
     /// Sammelauftrag endet, er läuft auf eine Kachel am Rand und baut dort
     /// (UpdateConstruction). Ist kein Rand erreichbar, wird er untätig.
+    /// VERTRAG (zusätzlich): unter den Randkacheln zählen zuerst nur die, die er zu Fuß erreicht
+    /// (TileMap.WalkReach von seiner Kachel aus) - am Hafen schneiden Wasser und Gebäude sonst eine
+    /// Seite ab, und er liefe die bevorzugte, aber unerreichbare Seite an; erst wenn keine davon
+    /// begehbar ist, gilt SiteStandCell ohne diese Einschränkung.
     /// </summary>
     internal void AssignBuilder(Unit unit, Building site)
     {
         unit.Job = null;
         unit.BuildSite = site;
-        var stand = SiteStandCell(site, unit);
+        var at = WorldToGrid(unit.Position);
+        var reach = tileMap.WalkReach(new Point((int)at.X, (int)at.Y), WALK_REACH_LIMIT);
+        var stand = SiteStandCell(site, unit, reach) ?? SiteStandCell(site, unit);
         if (stand != null)
         {
-            unit.TargetPosition = GridToWorld(stand.Value);
-            unit.Path = tileMap.FindPath(unit.Position, unit.TargetPosition);
+            // Der Arbeitsstandpunkt: eine viertel Kachel von der Wand entfernt —
+            // näher als die frühere halbe Kachel, immer auf der eigenen
+            // (begehbaren) Ringkachel.
+            var standPoint = BuildStandPoint(site, stand.Value);
+            unit.TargetPosition = standPoint;
+            unit.Path = tileMap.FindPath(unit.Position, standPoint);
             if (unit.Path.Count > 0)
             {
                 unit.State = UnitState.Moving;
@@ -4801,13 +4956,26 @@ public partial class RTSGameplayScreen : GameScreen
             }
             if (WorldToGrid(unit.Position) == stand.Value)
             {
-                unit.State = UnitState.Building;   // steht schon dort
+                // Schon auf der richtigen Kachel: die letzten Pixel direkt,
+                // sonst an die Wand.
+                if (Vector2.Distance(unit.Position, standPoint) >= 2f)
+                {
+                    unit.Path = new List<Vector2> { standPoint };
+                    unit.State = UnitState.Moving;
+                }
+                else
+                    unit.State = UnitState.Building;   // steht schon dort
                 return;
             }
         }
         unit.BuildSite = null;
         unit.State = UnitState.Idle;
     }
+
+    /// <summary>So viele Kacheln sucht AssignBuilder höchstens ab, um zu wissen, was ein
+    /// Dorfbewohner zu Fuß erreicht - mehr als jede Insel und jedes Stück Festland, das er
+    /// sinnvoll ablaufen würde.</summary>
+    private const int WALK_REACH_LIMIT = 20000;
 
     /// <summary>
     /// Begehbare Kachel direkt am Rand einer Baustelle, die dem Dorfbewohner
@@ -4818,9 +4986,10 @@ public partial class RTSGameplayScreen : GameScreen
     /// VERTRAG (zusätzlich): Kacheln links und rechts der Baustelle (Spalten
     /// site.X - 1 und site.X + site.Width) gehen allen anderen vor - die Figuren
     /// zeigen sich nur von der Seite und hämmern sonst ins Leere; erst wenn dort
-    /// keine begehbar ist, kommen die Reihen darüber und darunter dran.
+    /// keine begehbar ist, kommen die Reihen darüber und darunter dran. Ist
+    /// <paramref name="allowed"/> gesetzt, zählen nur Kacheln daraus.
     /// </summary>
-    private Vector2? SiteStandCell(Building site, Unit unit)
+    private Vector2? SiteStandCell(Building site, Unit unit, ISet<Point> allowed = null)
     {
         Vector2? best = null, bestFree = null;
         float bestDistance = float.MaxValue, bestFreeDistance = float.MaxValue;
@@ -4830,7 +4999,7 @@ public partial class RTSGameplayScreen : GameScreen
             {
                 bool onRing = x == site.X - 1 || x == site.X + site.Width
                            || y == site.Y - 1 || y == site.Y + site.Height;
-                if (!onRing || !tileMap.IsWalkable(x, y))
+                if (!onRing || !tileMap.IsWalkable(x, y) || allowed?.Contains(new Point(x, y)) == false)
                     continue;
 
                 var cell = new Vector2(x, y);
@@ -4946,7 +5115,8 @@ public partial class RTSGameplayScreen : GameScreen
         // bleiben ohne Weg
         if (!b.IsComplete || TileMap.LevelOfAge(AgeOf(b.OwnerId)) < 1
             || b.Core.BuildingType == BuildingType.PalisadeWall
-            || b.Core.BuildingType == BuildingType.StoneWall)
+            || b.Core.BuildingType == BuildingType.StoneWall
+            || b.Core.BuildingType == BuildingType.Dock)   // auf dem Wasser kein Weg
             return;
         tileMap.ConnectBuilding(b, Math.Max(tileMap.CurrentRoadLevel, TileMap.LevelOfAge(AgeOf(b.OwnerId))));
         // T16: die Straße endet nicht vor der Tür, sondern führt noch unter das Gebäude
@@ -5440,6 +5610,9 @@ public partial class RTSGameplayScreen : GameScreen
             }
         }
 
+        // Ein- und Aussteigen (Schiffe) - ändert units, deshalb nach der Schleife
+        UpdateShips();
+
         // Tote Einheiten endgültig entfernen. NICHT in der Schleife oben —
         // dann würde units während der Iteration verändert (EnumerationException).
         for (int i = units.Count - 1; i >= 0; i--)
@@ -5502,6 +5675,15 @@ public partial class RTSGameplayScreen : GameScreen
             // nicht auf das Ziel — sonst stapeln sich alle aufeinander,
             // und Bogenschützen ginge die Bogenvorlage verloren.
             unit.Path = PathToStand(unit, AttackStandPoint(unit, target));
+            // Zwischen Wasser und Land führt oft kein Weg in Reichweite: dann aufgeben,
+            // statt jedes Bild neu zu planen (Schiffe, RTSGameplayScreen.Schiffe)
+            if (unit.Path.Count == 0 && (unit.IsShip || target.IsShip))
+            {
+                unit.UnitTarget = null;
+                unit.AutoTarget = false;
+                unit.State = UnitState.Idle;
+                return;
+            }
             unit.State = UnitState.Moving;
             return;
         }
@@ -5794,6 +5976,9 @@ public partial class RTSGameplayScreen : GameScreen
 
     private bool StepAlongPath(Unit unit, float dt)
     {
+        // Schiffe fahren nur auf Wasser (RTSGameplayScreen.Schiffe)
+        if (unit.IsShip)
+            return StepShip(unit, dt);
         if (unit.Path.Count == 0)
         {
             unit.Pace = 0f;
@@ -8112,6 +8297,11 @@ public partial class RTSGameplayScreen : GameScreen
                     var tex = unitTex.GetValueOrDefault(unit.Type);
                     var tint = unit.OwnerId == 0 ? Color.White : new Color(255, 180, 180);
                     bool unitHover = _hover.Kind == HoverKind.Unit && ReferenceEquals(_hover.Unit, unit);
+                    if (unit.IsShip)
+                    {
+                        DrawShip(spriteBatch, unit, screenPos, unitHover);
+                        break;
+                    }
                     if (unit.Type == UnitType.Villager
                         && _villagerSprites.TryGetValue((AgeOf(unit.OwnerId), unit.OwnerId), out var figure))
                     {
@@ -8161,21 +8351,30 @@ public partial class RTSGameplayScreen : GameScreen
             var size = (int)(24 * cameraZoom);
             if (!margin.Contains((int)screenPos.X, (int)screenPos.Y)) continue;
 
+            // Schiffe: Rahmen und Balken über die ganze Trefferfläche (ShipWorldRect)
+            int sizeY = size;
+            if (unit.IsShip)
+            {
+                var shipRect = ShipWorldRect(unit);
+                size = (int)(shipRect.Width * cameraZoom);
+                sizeY = (int)(shipRect.Height * cameraZoom);
+                screenPos = WorldToScreen(new Vector2(shipRect.Center.X, shipRect.Bottom));
+            }
             if (unit.IsSelected)
             {
-                var ringRect = new Rectangle((int)(screenPos.X - size / 2), (int)(screenPos.Y - size), size, size);
+                var ringRect = new Rectangle((int)(screenPos.X - size / 2), (int)(screenPos.Y - sizeY), size, sizeY);
                 int line = Math.Max(1, (int)cameraZoom);
                 var ringColor = new Color(80, 255, 80);
                 spriteBatch.Draw(px, new Rectangle(ringRect.X, ringRect.Y, size, line), null, ringColor);
                 spriteBatch.Draw(px, new Rectangle(ringRect.X, ringRect.Bottom - line, size, line), null, ringColor);
-                spriteBatch.Draw(px, new Rectangle(ringRect.X, ringRect.Y, line, size), null, ringColor);
-                spriteBatch.Draw(px, new Rectangle(ringRect.Right - line, ringRect.Y, line, size), null, ringColor);
+                spriteBatch.Draw(px, new Rectangle(ringRect.X, ringRect.Y, line, sizeY), null, ringColor);
+                spriteBatch.Draw(px, new Rectangle(ringRect.Right - line, ringRect.Y, line, sizeY), null, ringColor);
             }
 
             if (unit.Health < unit.MaxHealth || unit.IsSelected)
             {
                 int barHeight = Math.Max(3, (int)(3 * cameraZoom));
-                var barRect = new Rectangle((int)(screenPos.X - size / 2), (int)(screenPos.Y - size) - barHeight - 2,
+                var barRect = new Rectangle((int)(screenPos.X - size / 2), (int)(screenPos.Y - sizeY) - barHeight - 2,
                                             size, barHeight);
                 spriteBatch.Draw(px, barRect, null, new Color(20, 20, 20));
                 var healthWidth = (int)(barRect.Width * ((float)unit.Health / unit.MaxHealth));
@@ -8734,6 +8933,8 @@ public partial class RTSGameplayScreen : GameScreen
                 infoLine += $"   Traglast {u.CarryingAmount}/{GatherJob.CARRY_CAPACITY} {ResourceName(u.Job.Resource)}";
             if (u.BuildSite is { IsComplete: false } site)
                 infoLine += $"   baut {site.Type} {(int)(site.Construction.Progress * 100)} %";
+            if (u.Type == UnitType.TransportShip)
+                infoLine += $"   an Bord {u.Passengers.Count}/{AoE.Core.Entities.TransportShip.CAPACITY}   Linksklick auf Land: absetzen";
         }
         else if (placing != null)
         {

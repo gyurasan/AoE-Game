@@ -41,6 +41,8 @@ AUSGABE = HIER / "ausgabe" / "faellen"
 ARTEN = {
     "laubbaum": 72, "laubbaum2": 66, "buschbaum": 58, "buche": 74, "birke": 68,
     "nadelbaum": 82, "nadelbaum2": 78, "kiefer": 86,
+    # Palmen der Ägypten-Karte (PalmAssets im Spiel)
+    "palme": 90, "palme_gruppe": 80, "palme_dum": 84, "palme_kokos": 92,
 }
 STUFEN = ["gefaellt", "stamm2", "stamm1", "stumpf"]
 

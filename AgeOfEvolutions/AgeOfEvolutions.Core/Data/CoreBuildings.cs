@@ -44,6 +44,7 @@ public static class CoreBuildings
         "Kloster" => BuildingEntity.Create(BuildingType.Monastery, ownerId, center),
         "Burg" => BuildingEntity.Create(BuildingType.Castle, ownerId, center),
         "Wunder" => BuildingEntity.Create(BuildingType.Wonder, ownerId, center),
+        "Hafen" => BuildingEntity.Create(BuildingType.Dock, ownerId, center),
         _ => throw new ArgumentOutOfRangeException(nameof(buildingType), buildingType,
                  "Für diesen Gebäudetyp gibt es noch kein Core-Gebäude."),
     };

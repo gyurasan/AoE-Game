@@ -275,6 +275,127 @@ public class RaubtiereTests
         Assert.Single(Laufe(karte, new List<Unit> { dorfi }, 0.5f));
     }
 
+    // --- Zivilisten-Regel: Wolf und Wildschwein tragen Dorfbewohnern nur wenig zu -----
+    // Nutzer (2026-11-07): Wölfe und Wildschweine dürfen Dorfbewohnern weiterhin Schaden
+    // zufügen, aber der Dorfbewohner wehrt sich mindestens doppelt so stark wie umgekehrt;
+    // der Bär ist davon ausgenommen, Soldaten bekommen volle Artenschläge.
+
+    [Fact]
+    public void EinWolfBeisstEinenDorfbewohnerAberNurSchwach()
+    {
+        var karte = Leer(wandern: false);
+        karte.PlacePredator(FoodSource.Wolf, 10, 10);
+        var dorfi = Einheit(UnitType.Villager, Mitte(11, 10));
+        var s = Assert.Single(karte.UpdatePredators(1f / 60f, new List<Unit> { dorfi }));
+        int erwartet = System.Math.Max(1, System.Math.Min(karte.Settings.WolfDamage, dorfi.AttackPower / 2));
+        Assert.Equal(erwartet, s.Damage);
+        Assert.True(s.Damage < karte.Settings.WolfDamage, "der Wolfbeiss auf einen Dorfbewohner muss gedämpft sein");
+        Assert.True(dorfi.AttackPower >= 2 * s.Damage, "der Dorfbewohner muss mindestens doppelt so stark zurückschlagen wie der Wolf");
+    }
+
+    [Fact]
+    public void MehrereWölfeBeissenEbensoSchwach()
+    {
+        // keine Rudelverstärkung: jeder Biss trägt die gedämpfte Artenschlagstärke ab
+        var karte = Leer(wandern: false);
+        karte.PlacePredator(FoodSource.Wolf, 10, 10);
+        karte.PlacePredator(FoodSource.Wolf, 11, 10);
+        karte.PlacePredator(FoodSource.Wolf, 11, 9);
+        var dorfi = Einheit(UnitType.Villager, Mitte(12, 10));
+        var schlaege = Laufe(karte, new List<Unit> { dorfi }, 6f);
+        Assert.NotEmpty(schlaege);
+        int erwartet = System.Math.Max(1, System.Math.Min(karte.Settings.WolfDamage, dorfi.AttackPower / 2));
+        Assert.All(schlaege, s => Assert.Equal(erwartet, s.Damage));
+    }
+
+    [Fact]
+    public void WölfeSchlagenSoldatenVollZu()
+    {
+        var karte = Leer(wandern: false);
+        karte.PlacePredator(FoodSource.Wolf, 10, 10);
+        var soldat = Einheit(UnitType.Militia, Mitte(11, 10));
+        var s = Assert.Single(karte.UpdatePredators(1f / 60f, new List<Unit> { soldat }));
+        Assert.Equal(System.Math.Max(1, karte.Settings.WolfDamage - soldat.Armor), s.Damage);
+        Assert.Equal(soldat.MaxHealth - s.Damage, soldat.Health);
+    }
+
+    [Fact]
+    public void EinWildschweinBeisstEinenDorfbewohnerAberNurSchwach()
+    {
+        var karte = Leer(wandern: false);
+        Stelle(karte, FoodSource.Boar);
+        var dorfi = Einheit(UnitType.Villager, Mitte(11, 10));
+        var s = Assert.Single(karte.UpdatePredators(1f / 60f, new List<Unit> { dorfi }));
+        int erwartet = System.Math.Max(1, System.Math.Min(karte.Settings.BoarDamage, dorfi.AttackPower / 2));
+        Assert.Equal(erwartet, s.Damage);
+        Assert.True(s.Damage < karte.Settings.BoarDamage, "der Sauenbiss auf einen Dorfbewohner muss gedämpft sein");
+        Assert.True(dorfi.AttackPower >= 2 * s.Damage, "der Dorfbewohner muss mindestens doppelt so stark zurückschlagen wie das Wildschwein");
+    }
+
+    [Fact]
+    public void EinWildschweinSchlägtSoldatenVollZu()
+    {
+        var karte = Leer(wandern: false);
+        Stelle(karte, FoodSource.Boar);
+        var soldat = Einheit(UnitType.Militia, Mitte(11, 10));
+        var s = Assert.Single(karte.UpdatePredators(1f / 60f, new List<Unit> { soldat }));
+        Assert.Equal(System.Math.Max(1, karte.Settings.BoarDamage - soldat.Armor), s.Damage);
+    }
+
+    /// <summary>Wildschwein auf (10,10) aufstellen (wie JagdTests): Food, Nahrung, Tier mit
+    /// voller Gesundheit, WanderTimer weit in der Zukunft, Koordinaten neu aufbauen.</summary>
+    private static void Stelle(TileMap karte, FoodSource art, int x = 10, int y = 10)
+    {
+        var t = karte.GetTile(x, y);
+        t.Food = art;
+        t.ResourceType = Resource.Food;
+        t.ResourceAmount = karte.Settings.BoarFood;
+        t.Animal = new WildAnimal { Health = karte.PredatorMaxHealth(art), WanderTimer = 1000f };
+        karte.RebuildWildAnimals();
+    }
+
+    [Fact]
+    public void DerBaerSchlaegtEinenDorfbewohnerAlleinZu()
+    {
+        var karte = Leer(wandern: false);
+        karte.PlacePredator(FoodSource.Bear, 10, 10);
+        var dorfi = Einheit(UnitType.Villager, Mitte(11, 10));
+        var s = Assert.Single(karte.UpdatePredators(1f / 60f, new List<Unit> { dorfi }));
+        Assert.Equal(System.Math.Max(1, karte.Settings.BearDamage - dorfi.Armor), s.Damage);
+        Assert.Equal(dorfi.MaxHealth - s.Damage, dorfi.Health);
+    }
+
+    [Fact]
+    public void EinBaerErlegtNurEtwaZweiDorfbewohner()
+    {
+        // Fairen Kampf aus den Artenwerten simulieren: der Bär beisst im Takt der Art
+        // (Settings.BearReloadSeconds), die Dorfbewohner wehren sich im Takt ihrer Art
+        // (RELOAD_SECONDS, AoE.Core). Erwartung nach dem Nutzerwunsch (2026-11-07):
+        // ein Bär besiegt einen Dorfbewohner, höchstens etwa zwei - gegen drei überlebt
+        // mindestens einer.
+        var s = new MapSettings();
+        var dorfi = Einheit(UnitType.Villager, new Vector2());
+        int erlegt(int anzahl)
+        {
+            int baer = s.BearHealth;
+            var lps = Enumerable.Range(0, anzahl).Select(_ => dorfi.MaxHealth).ToList();
+            float t = 0f;
+            while (t < 600f && baer > 0 && lps.Any(l => l > 0))
+            {
+                // ein Takt: der Bär beißt den ersten lebenden, alle Lebenden schlagen zurück
+                t += Math.Max(s.BearReloadSeconds, 1f);
+                int ziel = lps.FindIndex(l => l > 0);
+                if (ziel >= 0)
+                    lps[ziel] = Math.Max(0, lps[ziel] - s.BearDamage);
+                baer -= lps.Count(l => l > 0) * dorfi.AttackPower;
+            }
+            return lps.Count(l => l <= 0);
+        }
+        Assert.Equal(1, erlegt(1));   // ein Bär muss einen einzelnen Dorfbewohner besiegen
+        Assert.Equal(2, erlegt(2));   // ein Bär darf zwei Dorfbewohner besiegen
+        Assert.InRange(erlegt(3), 0, 2);   // gegen drei Dorfbewohner höchstens etwa zwei
+    }
+
     // --- Abstand zu Gebäuden --------------------------------------------------------
 
     [Fact]
