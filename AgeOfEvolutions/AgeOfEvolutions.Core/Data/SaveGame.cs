@@ -29,6 +29,11 @@ public sealed class SaveGame
     public DateTime SavedAt { get; set; }
 
     public MapSize MapSize { get; set; }
+
+    /// <summary>Der Kartenstil (Europa, Ägypten, Wiking) der Karte — ältere Spielstände
+    /// ohne das Feld lesen als Europa (Standardwert 0) ein.</summary>
+    public MapStyle MapStyle { get; set; }
+
     public int Width { get; set; }
     public int Height { get; set; }
     public int TileSize { get; set; }

@@ -23,6 +23,7 @@ public class AgeOfEvolutionsSettings : INotifyPropertyChanged
     private ParticleEffectType particleEffect;
     private int mapSize;
     private int mapSizeVersion;
+    private int mapStyle;
     private int soundVolume = 60;
     private int aiDifficulty = 1;
     private int startingCapital = 1;
@@ -84,6 +85,24 @@ public class AgeOfEvolutionsSettings : INotifyPropertyChanged
             if (mapSizeVersion != value)
             {
                 mapSizeVersion = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Der im Hauptmenü gewählte Kartenstil (Bedeutung: 0 Europa, 1 Ägypten, 2 Wiking;
+    /// <see cref="MapStyle"/>). Standard 0 = Europa; alte Einstellungsdateien ohne
+    /// das Feld lesen als Europa ein.
+    /// </summary>
+    public int MapStyle
+    {
+        get => mapStyle;
+        set
+        {
+            if (mapStyle != value)
+            {
+                mapStyle = value;
                 OnPropertyChanged();
             }
         }

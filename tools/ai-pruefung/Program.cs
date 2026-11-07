@@ -37,6 +37,10 @@ if (args.Contains("entwicklung"))
 // Gruppe stufen: zwei KI-Instanzen gegeneinander, je Stufe eine Paarung - siehe Stufen.cs
 if (args.Contains("stufen"))
     return Stufen.Run(args);
+// Gruppe land: zwei KI-Instanzen gegeneinander auf jeder Landart (Europa, Ägypten, Wiking) -
+// siehe Karten.cs
+if (args.Contains("land"))
+    return Karten.Run(args);
 
 const BindingFlags F = BindingFlags.NonPublic | BindingFlags.Instance;
 Type T = typeof(RTSGameplayScreen);

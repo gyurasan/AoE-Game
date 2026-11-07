@@ -3,6 +3,24 @@ using System;
 namespace AgeOfEvolutions.Core.Data;
 
 /// <summary>
+/// Die Kartenstile (Land) des Hauptmenüs: Europa ist die heutige Standardkarte,
+/// Ägypten die Wüstenkarte (wenig Gras und Bäume, viel Sand, Palmen), Wiking die
+/// Inselkarte (Inseln und Brücken, der größte Teil der Karte ist Wasser).
+/// </summary>
+public enum MapStyle { Europa, Egypten, Wiking }
+
+/// <summary>Name des Stils im Hauptmenü.</summary>
+public static class MapStyles
+{
+    public static string Name(MapStyle style) => style switch
+    {
+        MapStyle.Egypten => "Ägypten",
+        MapStyle.Wiking => "Wiking",
+        _ => "Europa",
+    };
+}
+
+/// <summary>
 /// Wie viel von jedem abbaubaren Rohstoff eine zufällige Karte trägt. Die
 /// Kartengenerator-Funktionen (AddResourcePatches &amp; Co.) lesen ausschließlich
 /// diese Werte, ein Menü kann sie also ändern und daraus eine neue Karte bauen,
@@ -44,6 +62,15 @@ public class MapSettings
     /// <summary>Seen auf der Karte (Min/Max, inclusive).</summary>
     public int LakesMin { get; set; } = 2;
     public int LakesMax { get; set; } = 4;
+
+    // --- Wiking: Inseln (nur im Stil Wiking wirksam) ---------------------
+    /// <summary>Zusätzliche Inseln auf der Wiking-Karte (Min/Max, inclusive) —
+    /// die beiden Startinseln kommen dazu.</summary>
+    public int IslandsMin { get; set; } = 0;
+    public int IslandsMax { get; set; } = 0;
+    /// <summary>Radius einer zusätzlichen Wiking-Insel (Min/Max, inclusive, Kacheln).</summary>
+    public int IslandRadiusMin { get; set; } = 5;
+    public int IslandRadiusMax { get; set; } = 9;
 
     // --- Beeren --------------------------------------------------------
     /// <summary>Wahrscheinlichkeit (0..1), dass an einem Wald Büsche wachsen —
@@ -246,6 +273,49 @@ public class MapSettings
         s.BearGroupsMax = Mehr(s.BearGroupsMax);
         s.WolfPacksMin = Mehr(s.WolfPacksMin);
         s.WolfPacksMax = Mehr(s.WolfPacksMax);
+        return s;
+    }
+
+    /// <summary>
+    /// Die Ausstattung einer Karte der Größe <paramref name="size"/> im Stil
+    /// <paramref name="style"/>. Europa bleibt <see cref="ForSize"/> unverändert.
+    /// Ägypten: keine Seen und Fische (Wüste), deutlich weniger Wald (die Palmen),
+    /// dafür 50 % mehr Schafherden (die Wiese wird knapp). Wiking: keine Seen
+    /// (die Karte ist selbst Wasser), mehr Fische an der Küste, kleinere Wälder,
+    /// dazu die zusätzlichen Inseln (Anzahl und Radien wachsen mit der Fläche).
+    /// </summary>
+    public static MapSettings ForStyle(MapStyle style, MapSize size)
+    {
+        var s = ForSize(size);
+        switch (style)
+        {
+            case MapStyle.Egypten:
+                s.WoodClustersMin = Math.Max(2, s.WoodClustersMin / 3);
+                s.WoodClustersMax = Math.Max(3, s.WoodClustersMax / 3);
+                s.WoodRadiusMin = 2;
+                s.WoodRadiusMax = 3;
+                s.LakesMin = 0;
+                s.LakesMax = 0;
+                s.FishChance = 0f;
+                s.SheepHerdsMin = Math.Max(1, (int)Math.Ceiling(s.SheepHerdsMin * 1.5f));
+                s.SheepHerdsMax = Math.Max(1, (int)Math.Ceiling(s.SheepHerdsMax * 1.5f));
+                break;
+            case MapStyle.Wiking:
+                s.LakesMin = 0;
+                s.LakesMax = 0;
+                s.FishChance = 0.35f;
+                s.WoodRadiusMin = 2;
+                s.WoodRadiusMax = 3;
+                // Inseln und Radien wachsen mit der Seitenlänge (Längenmaßstab),
+                // die Radien nur mit deren Wurzel - sonst wächse die Landfläche
+                // mit dem Kubus der Karte, und Wiking wäre Land statt Wasser
+                float f = Math.Clamp(MapSizes.Side(size) / (float)MapSizes.BaseSide, 0.5f, 2.5f);
+                s.IslandsMin = Math.Max(2, (int)Math.Round(5 * f));
+                s.IslandsMax = Math.Max(3, (int)Math.Round(7 * f));
+                s.IslandRadiusMin = Math.Max(3, (int)Math.Round(6 * MathF.Sqrt(f)));
+                s.IslandRadiusMax = Math.Max(4, (int)Math.Round(9 * MathF.Sqrt(f)));
+                break;
+        }
         return s;
     }
 }

@@ -19,7 +19,8 @@ public static class SaveGameMapper
     /// <summary>
     /// Hält die Welt in einem Spielstand fest. Ändert nichts an der Welt.
     /// VERTRAG:
-    /// - Version = SaveGame.CURRENT_VERSION, MapSize = <paramref name="mapSize"/>, Width, Height
+    /// - Version = SaveGame.CURRENT_VERSION, MapSize = <paramref name="mapSize"/>,
+    ///   MapStyle = map.Style, Width, Height
     ///   und TileSize von <paramref name="map"/>. SavedAt, GameSeconds, AnimationTime, Kamera
     ///   und KI bleiben auf ihren Standardwerten (die setzt der Spielbildschirm).
     /// - Players: genau zwei, erst <paramref name="player1"/>, dann <paramref name="player2"/>:
@@ -59,6 +60,7 @@ public static class SaveGameMapper
         {
             Version = SaveGame.CURRENT_VERSION,
             MapSize = mapSize,
+            MapStyle = map.Style,
             Width = map.Width,
             Height = map.Height,
             TileSize = map.TileSize,

@@ -37,6 +37,7 @@ public class MainMenuScreen : GameScreen
         ("Neues Spiel", true),
         ("Karte", true),
         ("KI", true),
+        ("Land", true),
         ("Spiel laden", false),
         ("Einstellungen", true),
         ("Beenden", true),
@@ -57,15 +58,21 @@ public class MainMenuScreen : GameScreen
     private const int AI_ENTRY = 2;
     int aiLevel = 1;
 
+    // Der Landeintrag (Nutzer 2026-11-07: „unter KI typ zur Auswahl“): jede Wahl
+    // wechselt Europa, Ägypten, Wiking im Kreis und speichert sie in den
+    // Einstellungen (MapStyle). „Neues Spiel“ baut die Karte in diesem Stil.
+    private const int LAND_ENTRY = 3;
+    MapStyle land = MapStyle.Europa;
+
     // „Spiel laden": öffnet die Liste aller Spielstände (LoadGameScreen)
-    private const int LOAD_ENTRY = 3;
-    private const int SETTINGS_ENTRY = 4, EXIT_ENTRY = 5;
+    private const int LOAD_ENTRY = 4;
+    private const int SETTINGS_ENTRY = 5, EXIT_ENTRY = 6;
 
     // Update (Nutzer 2026-10-18, Aussehen 2026-10-20: „nicht wie die anderen
-    // menüs"): ein gewöhnlicher Menüeintrag unter „Beenden", nur sichtbar, wenn
+    // menüs“): ein gewöhnlicher Menüeintrag unter „Beenden“, nur sichtbar, wenn
     // GitHubs neueste Version neuer ist; darunter eine kleine Zeile mit der
     // Version dieser Installation (UpdateService.VersionLine)
-    private const int UPDATE_ENTRY = 6;
+    private const int UPDATE_ENTRY = 7;
     readonly UpdateService updater = new UpdateService();
     bool updateEntryVisible;
     // Nach dem Update (Phase Done) beendet sich diese Version genau einmal
@@ -112,6 +119,8 @@ public class MainMenuScreen : GameScreen
             mapSize = (MapSize)roh;
             // Ältere Dateien kennen noch Stufe 3 (Extrem) - das ist heute This is Sparta
             aiLevel = Math.Clamp(settingsManager.Settings.AiDifficulty, 0, GameplayOptions.AiNames.Length - 1);
+            // Die zuletzt gewählte Landart; Dateien ohne das Feld lesen als Europa ein
+            land = (MapStyle)Math.Clamp(settingsManager.Settings.MapStyle, 0, 2);
         }
 
         // „Spiel laden" nur, wenn es einen Spielstand gibt
@@ -250,11 +259,12 @@ public class MainMenuScreen : GameScreen
 
     private static float UiScale(int height) => height / DESIGN_HEIGHT;
 
-    /// <summary>Text eines Eintrags; Karte und KI nennen die gewählte Größe und Stufe.</summary>
+    /// <summary>Text eines Eintrags; Karte, KI und Land nennen die gewählte Größe, Stufe und Landart.</summary>
     private string EntryText(int index) => index switch
     {
         MAP_ENTRY => $"Karte: {MapSizes.Name(mapSize)}",
         AI_ENTRY => $"KI: {GameplayOptions.AiName(aiLevel)}",
+        LAND_ENTRY => $"Land: {MapStyles.Name(land)}",
         _ => menuOptions[index].Text,
     };
 
@@ -263,6 +273,9 @@ public class MainMenuScreen : GameScreen
 
     /// <summary>Die nächste KI-Stufe im Wechsel Defense, Normal, This is Sparta.</summary>
     private static int NextAiLevel(int level) => (level + 1) % GameplayOptions.AiNames.Length;
+
+    /// <summary>Die nächste Landart im Wechsel Europa, Ägypten, Wiking.</summary>
+    private static MapStyle NextLand(MapStyle style) => (MapStyle)(((int)style + 1) % 3);
 
     /// <summary>Platte eines Eintrags im Fenster - dieselbe zum Zeichnen und Klicken.</summary>
     private static Rectangle EntryRect(int index, int width, int height)
@@ -327,7 +340,7 @@ public class MainMenuScreen : GameScreen
         {
             case 0: // New Game
                 // Via LoadingScreen so the menu transitions off before the map is built.
-                LoadingScreen.Load(ScreenManager, true, ControllingPlayer, new RTSGameplayScreen(mapSize));
+                LoadingScreen.Load(ScreenManager, true, ControllingPlayer, new RTSGameplayScreen(mapSize, land));
                 break;
             case MAP_ENTRY: // Kartengröße wechseln und merken
                 mapSize = NextMapSize(mapSize);
@@ -342,6 +355,14 @@ public class MainMenuScreen : GameScreen
                 if (settingsManager != null)
                 {
                     settingsManager.Settings.AiDifficulty = aiLevel;
+                    settingsManager.Save();
+                }
+                break;
+            case LAND_ENTRY: // Landart wechseln und merken
+                land = NextLand(land);
+                if (settingsManager != null)
+                {
+                    settingsManager.Settings.MapStyle = (int)land;
                     settingsManager.Save();
                 }
                 break;

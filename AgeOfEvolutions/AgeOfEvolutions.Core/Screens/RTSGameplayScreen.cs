@@ -856,6 +856,7 @@ public partial class RTSGameplayScreen : GameScreen
     private Vector2 mouseGridCell;
 
     private readonly MapSize _mapSize;   // Kartengröße aus dem Hauptmenü
+    private readonly MapStyle _mapStyle; // Landart aus dem Hauptmenü (Europa, Ägypten, Wiking)
 
     /// <summary>
     /// Eingebaute KI als Gegner (Spieler 1). Standardmäßig an — so hat ein
@@ -872,9 +873,10 @@ public partial class RTSGameplayScreen : GameScreen
     /// </summary>
     public bool BothSidesAi { get; set; } = false;
 
-    public RTSGameplayScreen(MapSize mapSize = MapSize.Standard)
+    public RTSGameplayScreen(MapSize mapSize = MapSize.Standard, MapStyle style = MapStyle.Europa)
     {
         _mapSize = mapSize;
+        _mapStyle = style;
         TransitionOnTime = TimeSpan.FromSeconds(1.5);
         TransitionOffTime = TimeSpan.FromSeconds(0.5);
     }
@@ -882,9 +884,10 @@ public partial class RTSGameplayScreen : GameScreen
     // Spielstand, aus dem LoadContent die Welt baut (Spiel laden); null bei einem neuen Spiel
     private readonly SaveGame _loadedSave;
 
-    /// <summary>Setzt ein gespeichertes Spiel fort (Hauptmenü → Spiel laden).</summary>
+    /// <summary>Setzt ein gespeichertes Spiel fort (Hauptmenü → Spiel laden); Größe UND Landart
+    /// kommen aus dem Spielstand, falls er sie trägt (ältere Stände: Europa).</summary>
     public RTSGameplayScreen(SaveGame save)
-        : this(save?.MapSize ?? MapSize.Standard)
+        : this(save?.MapSize ?? MapSize.Standard, save?.MapStyle ?? MapStyle.Europa)
     {
         _loadedSave = save ?? throw new ArgumentNullException(nameof(save));
     }
@@ -920,7 +923,7 @@ public partial class RTSGameplayScreen : GameScreen
         }
         else
         {
-            tileMap = new TileMap(mapDims.Width, mapDims.Height, 32, MapSettings.ForSize(_mapSize));
+            tileMap = new TileMap(mapDims.Width, mapDims.Height, 32, MapSettings.ForStyle(_mapStyle, _mapSize), _mapStyle);
             player1 = new Data.Player(0, "Player 1", "Briten", _capital);
             player2 = new Data.Player(1, "Player 2", "Azteken", _capital);
         }
@@ -1097,6 +1100,18 @@ public partial class RTSGameplayScreen : GameScreen
             .ToArray();
         _treeSprites = trees.Select(t => (t.Tex, t.Height, t.Conifer)).ToArray();
         _treeFellSprites = trees.Select(t => FellStageSuffixes.Select(s => LoadOptional(t.Asset + s)).ToArray()).ToArray();
+        // Ägypten: statt der europäischen Baumarten nur die Palme — ein Eintrag, der
+        // Fällstufen trägt wie jeder andere. Fehlt das Bild noch, bleibt der europäische
+        // Bestand als Ersatz stehen.
+        if (_mapStyle == MapStyle.Egypten)
+        {
+            var palm = LoadOptional("Baeume/palme");
+            if (palm != null)
+            {
+                _treeSprites = new[] { (palm, 88f, false) };
+                _treeFellSprites = new[] { FellStageSuffixes.Select(s => LoadOptional("Baeume/palme" + s)).ToArray() };
+            }
+        }
         // Leistenbilder je Zeitalter laden; fehlt eines, bleibt die Leiste in diesem Zeitalter braun
         for (var i = 0; i < PanelAssets.Length; i++)
             _panelTex[i] = LoadOptional(PanelAssets[i]);

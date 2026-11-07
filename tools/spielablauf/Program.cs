@@ -8,6 +8,8 @@
 // Stufen), werkstatt (Belagerungswerkstatt: Rammbock und
 // Katapult ab der Ritterzeit, Tribok ab der Imperialzeit, auch in der Burg), warteschlange (Ausbildung abbrechen: Klick
 // aufs Feld der Warteschlange, Shift+Klick fünf, Rechtsklick auf die Ausbildungstaste),
+// land (Landarten: Karte 1 Ägypten — Wüste, Palmen, kein Wasser; Karte 2 Wiking —
+// überwiegend Wasser, alle Inseln per Brücke verbunden; Karte 3 Europa als Referenz),
 // forschung (Forschungen und ihre Wirkung), markt (F8: am eigenen Markt Nahrung, Holz und Stein
 // gegen Gold kaufen und verkaufen, Kurse in der Leiste und im Spielstand, KI handelt),
 // strassen (Wege: Trampelpfade werden beim Zeitaufstieg zu Feldwegen und besser, laufen 20 % schneller),
@@ -269,6 +271,9 @@ for (int karte = 1; karte <= KARTEN; karte++)
     // folgen ihren Angreifern, Aas verdirbt
     if (gruppen.Contains("jagd"))
         Pruefe($"Karte {karte}, Jagd", () => Jagd.Pruefen(karte, verstoesse));
+    // Landart (Nutzer 2026-11-07): Karte 1 Ägypten, Karte 2 Wiking, Karte 3 Europa
+    if (gruppen.Contains("land"))
+        Pruefe($"Karte {karte}, Landart", () => Landart(karte, verstoesse));
     // Mauszeiger-Hervorhebung (C17): was der Linksklick unter dem Zeiger täte, wird leicht heller gezeichnet
     if (gruppen.Contains("hover"))
         Pruefe($"Karte {karte}, Hover", () => Hover.Pruefen(karte, verstoesse));
@@ -6342,7 +6347,7 @@ static void Hauptmenue(List<string> verstoesse)
         (int, bool) Maus2(MouseState jetzt, MouseState zuvor)
             => ((int, bool))Methode("EvaluateMouse").Invoke(menue, new object[] { jetzt, zuvor, bw, bh });
 
-        var platten = Enumerable.Range(0, 6).Select(Platte).ToList();
+        var platten = Enumerable.Range(0, 7).Select(Platte).ToList();
         for (int i = 0; i < platten.Count; i++)
         {
             var r = platten[i];
@@ -6357,13 +6362,13 @@ static void Hauptmenue(List<string> verstoesse)
         }
 
         var abseits = new Point(2, 2);
-        // Einträge: 0 Neues Spiel, 1 Karte, 2 KI, 3 Spiel laden (gesperrt), 4 Einstellungen, 5 Beenden
+        // Einträge: 0 Neues Spiel, 1 Karte, 2 KI, 3 Land, 4 Spiel laden (gesperrt), 5 Einstellungen, 6 Beenden
         auswahl.SetValue(menue, 0);
-        if (Maus2(Maus(platten[4].Center, false), Maus(abseits, false)) != (4, false))
+        if (Maus2(Maus(platten[5].Center, false), Maus(abseits, false)) != (5, false))
             verstoesse.Add($"{fenster}: Zeigen auf „Einstellungen“ wählt sie nicht aus");
-        if (Maus2(Maus(platten[4].Center, false), Maus(platten[4].Center, false)) != (0, false))
+        if (Maus2(Maus(platten[5].Center, false), Maus(platten[5].Center, false)) != (0, false))
             verstoesse.Add($"{fenster}: ruhende Maus überstimmt die Tastaturauswahl");
-        if (Maus2(Maus(platten[5].Center, false), Maus(platten[5].Center, true)) != (5, true))
+        if (Maus2(Maus(platten[6].Center, false), Maus(platten[6].Center, true)) != (6, true))
             verstoesse.Add($"{fenster}: Klick auf „Beenden“ startet ihn nicht");
         if (Maus2(Maus(platten[0].Center, false), Maus(platten[0].Center, true)) != (0, true))
             verstoesse.Add($"{fenster}: Klick auf „Neues Spiel“ startet es nicht");
@@ -6371,7 +6376,9 @@ static void Hauptmenue(List<string> verstoesse)
             verstoesse.Add($"{fenster}: Klick auf „Karte“ wechselt die Größe nicht");
         if (Maus2(Maus(platten[2].Center, false), Maus(platten[2].Center, true)) != (2, true))
             verstoesse.Add($"{fenster}: Klick auf „KI“ wechselt die Stufe nicht");
-        if (Maus2(Maus(platten[3].Center, false), Maus(platten[3].Center, true)) != (0, false))
+        if (Maus2(Maus(platten[3].Center, false), Maus(platten[3].Center, true)) != (3, true))
+            verstoesse.Add($"{fenster}: Klick auf „Land“ wechselt die Landart nicht");
+        if (Maus2(Maus(platten[4].Center, false), Maus(platten[4].Center, true)) != (0, false))
             verstoesse.Add($"{fenster}: der gesperrte Eintrag „Spiel laden“ reagiert auf die Maus");
         if (Maus2(Maus(abseits, false), Maus(abseits, true)) != (0, false))
             verstoesse.Add($"{fenster}: Klick neben das Menü startet etwas");
@@ -6382,11 +6389,14 @@ static void Hauptmenue(List<string> verstoesse)
     if ((int)auswahl.GetValue(menue) != 2)
         verstoesse.Add($"{wer}: Pfeil nach unten von „Karte“ landet auf {auswahl.GetValue(menue)}, erwartet 2 („KI“)");
     Methode("MoveSelection").Invoke(menue, new object[] { 1 });
-    if ((int)auswahl.GetValue(menue) != 4)
-        verstoesse.Add($"{wer}: Pfeil nach unten von „KI“ landet auf {auswahl.GetValue(menue)}, erwartet 4 (über das gesperrte „Spiel laden“ hinweg)");
+    if ((int)auswahl.GetValue(menue) != 3)
+        verstoesse.Add($"{wer}: Pfeil nach unten von „KI“ landet auf {auswahl.GetValue(menue)}, erwartet 3 („Land“)");
+    Methode("MoveSelection").Invoke(menue, new object[] { 1 });
+    if ((int)auswahl.GetValue(menue) != 5)
+        verstoesse.Add($"{wer}: Pfeil nach unten von „Land“ landet auf {auswahl.GetValue(menue)}, erwartet 5 (über das gesperrte „Spiel laden“ hinweg)");
     Methode("MoveSelection").Invoke(menue, new object[] { -1 });
-    if ((int)auswahl.GetValue(menue) != 2)
-        verstoesse.Add($"{wer}: Pfeil nach oben von „Einstellungen“ landet auf {auswahl.GetValue(menue)}, erwartet 2");
+    if ((int)auswahl.GetValue(menue) != 3)
+        verstoesse.Add($"{wer}: Pfeil nach oben von „Einstellungen“ landet auf {auswahl.GetValue(menue)}, erwartet 3 („Land“)");
 
     // Der Karteneintrag nennt die Größe und wechselt Standard, Kontinent, World im Kreis
     var groesse = typ.GetField("mapSize", F)
@@ -6422,6 +6432,21 @@ static void Hauptmenue(List<string> verstoesse)
         verstoesse.Add($"{wer}: der KI-Eintrag zeigt {string.Join(" -> ", stufen)} statt KI: Defense -> KI: Normal -> KI: This is Sparta -> KI: Defense");
     stufe.SetValue(menue, 1);
 
+    // Der Landeintrag unter der KI nennt die Landart und wechselt Europa, Ägypten, Wiking im Kreis
+    var landart = typ.GetField("land", F)
+        ?? throw new InvalidOperationException("Feld MainMenuScreen.land nicht gefunden");
+    var laender = new List<string>();
+    var l = MapStyle.Europa;
+    for (int i = 0; i < 4; i++)
+    {
+        landart.SetValue(menue, l);
+        laender.Add((string)Methode("EntryText").Invoke(menue, new object[] { 3 }));
+        l = (MapStyle)Methode("NextLand").Invoke(null, new object[] { l })!;
+    }
+    if (!laender.SequenceEqual(new[] { "Land: Europa", "Land: Ägypten", "Land: Wiking", "Land: Europa" }))
+        verstoesse.Add($"{wer}: der Landeintrag zeigt {string.Join(" -> ", laender)} statt Land: Europa -> Land: Ägypten -> Land: Wiking -> Land: Europa");
+    landart.SetValue(menue, MapStyle.Europa);
+
     // Spiel laden (SV3, Plätze seit SV5): ohne Spielstand gesperrt - die Auswahl verlässt den
     // Eintrag -, mit Spielstand frei, mit der Maus startbar und mit den Pfeiltasten erreichbar.
     // Der Platz-Ordner kommt über AOE_SPEICHER_ORDNER aus %TEMP% - der echte Ordner neben den
@@ -6430,12 +6455,12 @@ static void Hauptmenue(List<string> verstoesse)
     Directory.CreateDirectory(ordner);
     Environment.SetEnvironmentVariable("AOE_SPEICHER_ORDNER", ordner);
     string pfad = Path.Combine(ordner, SaveGameStore.FILE_NAME);
-    Rectangle Laden() => (Rectangle)Methode("EntryRect").Invoke(null, new object[] { 3, 1920, 1080 });
+    Rectangle Laden() => (Rectangle)Methode("EntryRect").Invoke(null, new object[] { 4, 1920, 1080 });
     (int, bool) Klick(Rectangle r) => ((int, bool))Methode("EvaluateMouse").Invoke(menue,
         new object[] { Maus(r.Center, false), Maus(r.Center, true), 1920, 1080 });
     try
     {
-        auswahl.SetValue(menue, 3);
+        auswahl.SetValue(menue, 4);
         Methode("RefreshLoadEntry").Invoke(menue, null);
         if ((int)auswahl.GetValue(menue) != 0)
             verstoesse.Add($"{wer}: ohne Spielstand bleibt die Auswahl auf dem gesperrten „Spiel laden“");
@@ -6450,12 +6475,12 @@ static void Hauptmenue(List<string> verstoesse)
             Players = { new PlayerSave { Id = 0, Name = "Spieler", Civilization = "Briten" } },
         });
         Methode("RefreshLoadEntry").Invoke(menue, null);
-        if (Klick(Laden()) != (3, true))
+        if (Klick(Laden()) != (4, true))
             verstoesse.Add($"{wer}: mit Spielstand startet ein Klick „Spiel laden“ nicht");
-        auswahl.SetValue(menue, 2);
+        auswahl.SetValue(menue, 3);
         Methode("MoveSelection").Invoke(menue, new object[] { 1 });
-        if ((int)auswahl.GetValue(menue) != 3)
-            verstoesse.Add($"{wer}: mit Spielstand führt Pfeil nach unten von „KI“ auf {auswahl.GetValue(menue)} statt auf „Spiel laden“");
+        if ((int)auswahl.GetValue(menue) != 4)
+            verstoesse.Add($"{wer}: mit Spielstand führt Pfeil nach unten von „Land“ auf {auswahl.GetValue(menue)} statt auf „Spiel laden“");
 
         File.Delete(pfad);
         Methode("RefreshLoadEntry").Invoke(menue, null);
@@ -6470,7 +6495,7 @@ static void Hauptmenue(List<string> verstoesse)
     }
 
     if (verstoesse.Count == vorher)
-        Console.WriteLine($"  ok  {wer}: mittig, wächst mit dem Fenster, Zeigen wählt, Klick startet, „Spiel laden“ nur mit Spielstand, Karte wechselt die Größe, KI die Stufe");
+        Console.WriteLine($"  ok  {wer}: mittig, wächst mit dem Fenster, Zeigen wählt, Klick startet, „Spiel laden“ nur mit Spielstand, Karte wechselt die Größe, KI die Stufe, Land die Landart");
 }
 
 // Update-Hilfen (Gruppe updatehilfen, Teil von updatedienst): die Bausteine des
@@ -6695,7 +6720,7 @@ static void UpdateMenue(List<string> verstoesse, bool mitMenue)
     string Text(MainMenuScreen m, int i) => (string)Methode("EntryText").Invoke(m, new object[] { i });
     bool Sichtbar(MainMenuScreen m, int i) => (bool)Methode("EntryVisible").Invoke(m, new object[] { i });
     void Pfeil(MainMenuScreen m, int von) { auswahl.SetValue(m, von); Methode("MoveSelection").Invoke(m, new object[] { 1 }); }
-    const int UPDATE = 6, BEENDEN = 5, EINSTELLUNGEN = 4;
+    const int UPDATE = 7, BEENDEN = 6, EINSTELLUNGEN = 5;
 
     var up = Neu(out _);
     string aktuell = up.CurrentVersionText;
@@ -9121,6 +9146,132 @@ static void Beschuss(int karte, List<string> verstoesse)
         RTSGameplayScreen.TestBombard = false;
     }
 }
+// Landart (Nutzer 2026-11-07): die drei Karten ziehen je eine Landart — Karte 1
+// Ägypten (Wüste, Palmen statt Wald, kein Wasser), Karte 2 Wiking (mehr als die
+// Hälfte Wasser, alle Inseln per Brücke verbunden, Startplätze auf Land),
+// Karte 3 Europa als Referenz (unverändert). Die Startplätze der Kacheln kommen
+// aus den Gebäude-Listen — das private Start-Feld des TileMaps ist nicht sichtbar.
+static void Landart(int karte, List<string> verstoesse)
+{
+    string wer = $"Landart, Karte {karte}";
+    int vorher = verstoesse.Count;
+    MapStyle style = karte switch { 1 => MapStyle.Egypten, 2 => MapStyle.Wiking, _ => MapStyle.Europa };
+    var w = new Welt(MapSize.Test, 1f, style);
+    var map = w.Map;
+    var alle = Enumerable.Range(0, map.Width * map.Height)
+        .Select(i => (i % map.Width, i / map.Width)).ToList();
+    int zaehe(Func<Tile, bool> trifft) => alle.Count(p => map.GetTile(p.Item1, p.Item2) is { } t && trifft(t));
+    double total = alle.Count;
+
+    Point? tc(int id)
+    {
+        var b = map.Buildings.FirstOrDefault(x => x.OwnerId == id && x.Core.BuildingType == BuildingType.TownCenter);
+        return b == null ? null : new Point(b.X + b.Width / 2, b.Y + b.Height / 2);
+    }
+    var tc1 = tc(0);
+    var tc2 = tc(1);
+    if (tc1 == null || tc2 == null)
+    {
+        verstoesse.Add($"{wer}: nicht beide Stadtzentren vorhanden (Spieler 1: {tc1}, Spieler 2: {tc2})");
+        return;
+    }
+
+    int sand = zaehe(t => t.Type == TileType.Sand);
+    int wasser = zaehe(t => t.Type == TileType.Water);
+    int wiese = zaehe(t => t.Type == TileType.Grassland);
+    int wald = zaehe(t => t.Type == TileType.Forest);
+    int schafe = zaehe(t => t.Food == FoodSource.Sheep);
+    int fisch = zaehe(t => t.Food == FoodSource.Fish);
+
+    // Beide Stadtzentren standen bei der Erzeugung auf Land (G15: der Bodentyp der
+    // Kachel vor dem Bau — die Kachel unter dem fertigen TC ist selbst nicht mehr „bebaubar“)
+    foreach (var (name, p) in new[] { ("Spieler 1", tc1), ("Spieler 2", tc2) })
+    {
+        var t = map.GetTile(p.Value.X, p.Value.Y);
+        if (t == null || t.GroundType == TileType.Water)
+            verstoesse.Add($"{wer}: das Stadtzentrum von {name} ({p}) stand bei der Erzeugung auf Wasser (Boden: {t?.GroundType})");
+    }
+
+    switch (style)
+    {
+        case MapStyle.Egypten:
+            if (wasser > 0)
+                verstoesse.Add($"{wer}: Ägypten trägt {wasser} Wasserkacheln (erwartet: keine — Wüste ohne Seen)");
+            if (sand < total * 0.4)
+                verstoesse.Add($"{wer}: Ägypten hat nur {sand} Sandkacheln ({sand / total:P0}, erwartet mindestens 40 %)");
+            if (wald == 0)
+                verstoesse.Add($"{wer}: Ägypten hat keinen Wald (Palmen)");
+            if (schafe == 0)
+                verstoesse.Add($"{wer}: Ägypten hat keine Schafe (Nahrung)");
+            break;
+        case MapStyle.Wiking:
+            if (wasser < total * 0.5)
+                verstoesse.Add($"{wer}: Wiking hat nur {wasser} Wasserkacheln ({wasser / total:P0}, erwartet mindestens 50 % — die Karte soll überwiegend Wasser sein)");
+            if (wiese + sand < total * 0.15)
+                verstoesse.Add($"{wer}: Wiking hat nur {wiese + sand} Landkacheln (Wiese+Sand, {(wiese + sand) / total:P0}) — zu wenig Land für die Inseln");
+            if (wald == 0)
+                verstoesse.Add($"{wer}: Wiking hat keinen Wald");
+            if (fisch == 0)
+                verstoesse.Add($"{wer}: Wiking hat keinen Fisch an der Küste");
+            // Erreichbarkeit: die TCs selbst sind Gebäude (nicht begehbar) — der Weg
+            // läuft über die begehbare Kachel direkt daneben. Von einer begehbaren
+            // Startkachel von TC1 aus muss eine von TC2 erreichbar sein (die Brücken).
+            Point? seedNear(Point tcMitte)
+            {
+                for (int r = 1; r <= 5; r++)
+                {
+                    for (int dx = -r; dx <= r; dx++)
+                        for (int dy = -r; dy <= r; dy++)
+                        {
+                            if (Math.Max(Math.Abs(dx), Math.Abs(dy)) != r) continue; // nur den Ring
+                            var n = new Point(tcMitte.X + dx, tcMitte.Y + dy);
+                            if (map.GetTile(n.X, n.Y) is { } nt && nt.Walkable)
+                                return n;
+                        }
+                }
+                return null;
+            }
+            var seed1 = seedNear(tc1.Value);
+            var seed2 = seedNear(tc2.Value);
+            if (seed1 == null || seed2 == null)
+            {
+                verstoesse.Add($"{wer}: um ein Stadtzentrum herum ist kein begehbares Land (seed1 {seed1}, seed2 {seed2})");
+            }
+            else
+            {
+                var warte = new Queue<Point>();
+                warte.Enqueue(seed1.Value);
+                var gesehen = new HashSet<Point> { seed1.Value };
+                while (warte.Count > 0 && !gesehen.Contains(seed2.Value))
+                {
+                    var p = warte.Dequeue();
+                    foreach (var (dx, dy) in new[] { (1, 0), (-1, 0), (0, 1), (0, -1) })
+                    {
+                        var n = new Point(p.X + dx, p.Y + dy);
+                        if (n.X < 0 || n.Y < 0 || n.X >= map.Width || n.Y >= map.Height) continue;
+                        if (!gesehen.Add(n)) continue;
+                        if (map.GetTile(n.X, n.Y) is { } nt && nt.Walkable)
+                            warte.Enqueue(n);
+                    }
+                }
+                if (!gesehen.Contains(seed2.Value))
+                    verstoesse.Add($"{wer}: vom Land bei TC1 ({seed1}) ist das Land bei TC2 ({seed2}) nicht erreichbar — es fehlt eine Brücke");
+            }
+            break;
+        default: // Europa bleibt die Referenz: überwiegend Wiese, Wald und Schafe da
+            if (wiese < total * 0.5)
+                verstoesse.Add($"{wer}: Europa hat nur {wiese} Wiesenkacheln ({wiese / total:P0}, erwartet mindestens 50 %)");
+            if (wald == 0)
+                verstoesse.Add($"{wer}: die Europa-Referenz hat keinen Wald");
+            if (schafe == 0)
+                verstoesse.Add($"{wer}: die Europa-Referenz hat keine Schafe");
+            break;
+    }
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: {MapStyles.Name(style)} — Sand {sand / total:P0}, Wasser {wasser / total:P0}, Wiese {wiese / total:P0}, Wald {wald}, Schafe {schafe}, Fisch {fisch}");
+}
+
 class Welt
 {
     const BindingFlags F = BindingFlags.NonPublic | BindingFlags.Instance;
@@ -9137,20 +9288,21 @@ class Welt
     /// damit die Gruppen ihre ursprünglichen Karteninhalte weiter prüfen.
     /// </summary>
     public Welt(float aspect = 1f)
-        : this(MapSizes.Dimensions(MapSizes.BaseSide, aspect), MapSettings.Default) { }
+        : this(MapSizes.Dimensions(MapSizes.BaseSide, aspect), MapSettings.Default, MapStyle.Europa) { }
 
     /// <summary>
     /// Eine Welt in der gewählten Größe (Standard 90², Kontinent 128², World 181²)
-    /// mit dem zum Format passenden Seitenverhältnis.
+    /// mit dem zum Format passenden Seitenverhältnis und (optional) der Landart —
+    /// Europa bleibt exakt die alte Karte, Ägypten und Wiking erzeugen ihren Boden.
     /// </summary>
-    public Welt(MapSize groesse, float aspect = 1f)
-        : this(MapSizes.Dimensions(groesse, aspect), MapSettings.ForSize(groesse)) { }
+    public Welt(MapSize groesse, float aspect = 1f, MapStyle land = MapStyle.Europa)
+        : this(MapSizes.Dimensions(groesse, aspect), MapSettings.ForStyle(land, groesse), land) { }
 
-    private Welt((int Width, int Height) dims, MapSettings settings)
+    private Welt((int Width, int Height) dims, MapSettings settings, MapStyle land)
     {
         P1 = new(0, "P1", "Briten");
         P2 = new(1, "P2", "Azteken");
-        Map = new TileMap(dims.Width, dims.Height, 32, settings);
+        Map = new TileMap(dims.Width, dims.Height, 32, settings, land);
         // F1: Wachtürme, Stadtzentren und Burgen schießen - viele Szenarien stehen
         // neben dem Start-Stadtzentrum und würden beschossen. Die Gruppe beschuss
         // schaltet den Beschuss für sich wieder an.

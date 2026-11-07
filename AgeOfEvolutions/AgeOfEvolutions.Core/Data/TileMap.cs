@@ -38,9 +38,17 @@ public partial class TileMap
     /// </summary>
     public MapSettings Settings { get; }
 
+    /// <summary>
+    /// Der Kartenstil (Europa, Ägypten, Wiking), mit dem die Karte erzeugt wurde.
+    /// Er steuert nur die Erzeugung (Boden, Seen, Inseln) und das Zeichnen
+    /// (Palmen auf Ägypten); ein Spielstand merkt ihn sich im SaveGame.
+    /// </summary>
+    public MapStyle Style { get; }
+
     // Constructor
-    public TileMap(int width, int height, int tileSize = 32, MapSettings settings = null)
-        : this(width, height, tileSize, settings, true)
+    public TileMap(int width, int height, int tileSize = 32, MapSettings settings = null,
+                   MapStyle style = MapStyle.Europa)
+        : this(width, height, tileSize, settings, style, true)
     {
     }
 
@@ -48,12 +56,13 @@ public partial class TileMap
     /// Gemeinsamer Konstruktor: <paramref name="generate"/> true erzeugt eine zufällige
     /// Karte, false eine leere Karte (CreateBlank).
     /// </summary>
-    private TileMap(int width, int height, int tileSize, MapSettings settings, bool generate)
+    private TileMap(int width, int height, int tileSize, MapSettings settings, MapStyle style, bool generate)
     {
         Width = width;
         Height = height;
         TileSize = tileSize;
         Settings = settings ?? MapSettings.Default;
+        Style = style;
         tiles = new Tile[width, height];
         if (generate)
         {
@@ -84,7 +93,7 @@ public partial class TileMap
     /// öffentliche Konstruktor mit generate = true aufruft.
     /// </summary>
     public static TileMap CreateBlank(int width, int height, int tileSize, MapSettings settings)
-        => new TileMap(width, height, tileSize, settings, generate: false);
+        => new TileMap(width, height, tileSize, settings, MapStyle.Europa, generate: false);
 
     /// <summary>
     /// Merkt sich nach der Kartenerzeugung den Boden jeder Kachel (Tile.GroundType, G15):
@@ -167,7 +176,21 @@ public partial class TileMap
                 tiles[x, y] = new Tile(x, y, GetRandomTileType(x, y));
             }
         }
-        
+
+        if (Style == MapStyle.Wiking)
+        {
+            // Wiking: der Boden ist Wasser, das Land sind Inseln. Die Startinseln
+            // stehen auf diagonal gegenüberliegenden Ecken, die Startplätze darauf;
+            // Brücken verbinden alle Inseln, damit jedes Dorf jedes erreichen kann.
+            PlaceIslands();
+            ChooseStartPositionsOnIslands();
+            ConnectIslands();
+            AddResourcePatches();
+            PlaceStartingPositions();
+            PlacePredators();
+            return;
+        }
+
         // Startplätze zuerst würfeln (SZ1) - Seen, Klumpen und Wild umgehen sie.
         ChooseStartPositions();
 
@@ -196,11 +219,189 @@ public partial class TileMap
         // 100 % Wald und der Waldanteil lag bei 47,8 % statt bei 4 %.
         int hash = unchecked(x * 73856093) ^ unchecked(y * 19349663);
         int rand = (hash & 0x7FFFFFFF) % 100;
-        
+
+        if (Style == MapStyle.Wiking)
+            return TileType.Water;
+        if (Style == MapStyle.Egypten)
+            return rand < 15 ? TileType.Grassland : TileType.Sand;
         if (rand < 4) return TileType.Forest;
         return TileType.Grassland;
     }
-    
+
+    // --- Wiking: Inseln und Brücken ----------------------------------------
+
+    /// <summary>Alle Inseln der Wiking-Karte (inkl. der beiden Startinseln an den
+    /// diagonalen Ecken), in der Reihenfolge der Erzeugung — die Startinseln
+    /// stehen auf den ersten beiden Plätzen.</summary>
+    private List<(int x, int y, int radius)> _islands = new();
+
+    /// <summary>
+    /// Stempelt das Land der Wiking-Karte: die beiden Startinseln auf diagonal
+    /// gegenüberliegenden Ecken (je <c>Width / 12</c> Radius, mindestens 5) und
+    /// die zusätzlichen Inseln aus <see cref="MapSettings.IslandsMin"/> bis
+    /// <see cref="MapSettings.IslandsMax"/> (Radien aus IslandRadiusMin/Max),
+    /// verteilt über die Karte, ohne sich mit vorhandenen Inseln zu verbinden.
+    /// Jede Insel ist ein weicher Kreis aus Wiese (begehbar, bebaubar).
+    /// </summary>
+    private void PlaceIslands()
+    {
+        int startRadius = Math.Max(5, Width / 12);
+        int jitter = Math.Max(1, (int)(Width * 0.06f));
+        _islands.Add((jitter + _random.Next(0, jitter), jitter + _random.Next(0, jitter), startRadius));
+        _islands.Add((Width - 1 - (jitter + _random.Next(0, jitter)), Height - 1 - (jitter + _random.Next(0, jitter)), startRadius));
+        int count = _random.Next(Settings.IslandsMin, Settings.IslandsMax + 1);
+        for (int i = 0; i < count; i++)
+        {
+            int r = _random.Next(Settings.IslandRadiusMin, Settings.IslandRadiusMax + 1);
+            int cx = 0, cy = 0, tries = 0;
+            do
+            {
+                int hi = Math.Max(r + 3, Width - r - 2);
+                cx = _random.Next(r + 2, hi);
+                int hiY = Math.Max(r + 3, Height - r - 2);
+                cy = _random.Next(r + 2, hiY);
+            } while (IslandConflict(cx, cy, r) && ++tries < 40);
+            if (IslandConflict(cx, cy, r)) continue;
+            _islands.Add((cx, cy, r));
+        }
+        foreach (var (cx, cy, r) in _islands)
+            StampLand(cx, cy, r);
+    }
+
+    /// <summary>Stoßen die zwei Inseln zusammen (Mittenabstand kleiner als
+    /// Radiussumme minus 2)?</summary>
+    private bool IslandConflict(int cx, int cy, int r)
+    {
+        foreach (var (ox, oy, oradius) in _islands)
+        {
+            double dx = cx - ox, dy = cy - oy;
+            if (Math.Sqrt(dx * dx + dy * dy) < r + oradius - 2) return true;
+        }
+        return false;
+    }
+
+    /// <summary>Stempelt eine Insel: weicher Kreis aus Wiese (begehbar, bebaubar)
+    /// ohne Ressourcen — Wasser und Sand darunter bleiben, was nicht getroffen
+    /// wird, berührt.</summary>
+    private void StampLand(int cx, int cy, int radius)
+    {
+        for (int x = cx - radius; x <= cx + radius; x++)
+        {
+            for (int y = cy - radius; y <= cy + radius; y++)
+            {
+                if (x < 0 || y < 0 || x >= Width || y >= Height) continue;
+                if (!InSoftCircle(x, y, cx, cy, radius, _random)) continue;
+                var t = tiles[x, y];
+                t.Type = TileType.Grassland;
+                t.ResourceType = null;
+                t.ResourceAmount = 0;
+                t.Food = FoodSource.None;
+                t.Walkable = true;
+                t.Buildable = true;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Die Startplätze der Wiking-Karte: jeder auf einer der beiden Startinseln,
+    /// höchstens <c>Radius - 6</c> Kacheln von der Inselmitte — damit ClearStartArea
+    /// (x - 2 bis x + 5) und die Dorfbewohner sicher auf Land stehen. Die zwei
+    /// Startinseln liegen auf diagonalen Ecken, ihr Abstand übersteigt damit die
+    /// halbe Kartenbreite (SZ1) ohne weitere Prüfung.
+    /// </summary>
+    private void ChooseStartPositionsOnIslands()
+    {
+        void Pick((int x, int y, int radius) island, out (int x, int y) pos)
+        {
+            int spread = Math.Max(0, island.radius - 6);
+            for (int tries = 0; tries < 200; tries++)
+            {
+                int dx = _random.Next(-spread, spread + 1);
+                int dy = _random.Next(-spread, spread + 1);
+                if (dx * dx + dy * dy > spread * spread) continue;
+                int px = island.x + dx, py = island.y + dy;
+                // Das 4×4 Stadtzentrum muss vollständig in der Karte bleiben: auf kleinen
+                // Karten rückt die Ecken-Insel zu nah ans Ufer, dann clampen wir Richtung
+                // Kartenmitte (die Kachel bleibt innerhalb des Inselradius)
+                if (px > Width - 4) px = Width - 4;
+                if (py > Height - 4) py = Height - 4;
+                if (px < 0) px = 0;
+                if (py < 0) py = 0;
+                pos = (px, py);
+                return;
+            }
+            pos = (island.x, island.y);
+        }
+        Pick(_islands[0], out var a);
+        Pick(_islands[1], out var b);
+        _startP1 = a;
+        _startP2 = b;
+    }
+
+    /// <summary>
+    /// Verbindet alle Inseln mit bis zu 3 Kacheln breiten Sandbrücken (Seeweger),
+    /// damit jede Insel von jeder anderen erreichbar ist — sonst stünde ein Dorf
+    /// auf einer unbefahrbaren Insel und das Spiel wäre nicht zu gewinnen.
+    /// Prim-Algorithmus über die Inselzentren: immer die nächste Insel zur
+    /// bereits verbundenen Gruppe. Die Brücke stempelt nur WASSERkacheln zu
+    /// Sand (begehbar, bebaubar); Landkacheln berührt sie nicht.
+    /// </summary>
+    private void ConnectIslands()
+    {
+        if (_islands.Count < 2) return;
+        var connected = new HashSet<int> { 0 };
+        while (connected.Count < _islands.Count)
+        {
+            int bestA = -1, bestB = -1;
+            double bestD = double.MaxValue;
+            foreach (int a in connected)
+            {
+                for (int b = 0; b < _islands.Count; b++)
+                {
+                    if (connected.Contains(b)) continue;
+                    double dx = _islands[a].x - _islands[b].x, dy = _islands[a].y - _islands[b].y;
+                    double d = dx * dx + dy * dy;
+                    if (d < bestD)
+                    {
+                        bestD = d;
+                        bestA = a;
+                        bestB = b;
+                    }
+                }
+            }
+            CarveBridge(_islands[bestA], _islands[bestB]);
+            connected.Add(bestB);
+        }
+    }
+
+    /// <summary>Stempelt die Seeweger zwischen zwei Inseln: alle Wasserkacheln,
+    /// die bis zu einer Kachel (Chebyshev) von der Mitte-Mitte-Linie entfernt
+    /// liegen, werden Sand (begehbar, bebaubar, ohne Ressourcen).</summary>
+    private void CarveBridge((int x, int y, int radius) a, (int x, int y, int radius) b)
+    {
+        int steps = Math.Max(1, 2 * Math.Max(Math.Abs(b.x - a.x), Math.Abs(b.y - a.y)));
+        for (int i = 0; i <= steps; i++)
+        {
+            float t = (float)i / steps;
+            int px = (int)MathF.Round(a.x + (b.x - a.x) * t);
+            int py = (int)MathF.Round(a.y + (b.y - a.y) * t);
+            for (int dx = -1; dx <= 1; dx++)
+            {
+                for (int dy = -1; dy <= 1; dy++)
+                {
+                    var tile = GetTile(px + dx, py + dy);
+                    if (tile == null || tile.Type != TileType.Water) continue;
+                    tile.Type = TileType.Sand;
+                    tile.Walkable = true;
+                    tile.Buildable = true;
+                    tile.ResourceType = null;
+                    tile.ResourceAmount = 0;
+                    tile.Food = FoodSource.None;
+                }
+            }
+        }
+    }
+
     // --- Naturformen ------------------------------------------------------
     
     // Weicher Kreis (Radius^2-Dämpfung an den Rändern), wie natürliche Seen.
@@ -307,17 +508,20 @@ public partial class TileMap
     
     // Klumpenzentren an zufälligen freien Stellen, die weit weg von beiden
     // Startpositionen liegen. Rückkehrwert: Liste der Zentren (für Tiere).
-    private List<(int x, int y)> PlaceClusterCenters(int count, int minSize)
+    // <paramref name="needLand"/> true verlangt eine Wiesenkachel auf der Zentrale —
+    // die Wiking-Karte, deren Klumpen sonst im Wasser liegen würden.
+    private List<(int x, int y)> PlaceClusterCenters(int count, int minSize, bool needLand = false)
     {
         var centers = new List<(int, int)>();
         for (int i = 0; i < count; i++)
         {
-            for (int attempt = 0; attempt < 40; attempt++)
+            for (int attempt = 0; attempt < 60; attempt++)
             {
                 int cx = _random.Next(minSize, Width - minSize);
                 int cy = _random.Next(minSize, Height - minSize);
                 if (TooCloseToStart(cx, cy, minSize + 3)) continue;
                 if (centers.Any(c => Math.Abs(c.Item1 - cx) + Math.Abs(c.Item2 - cy) < minSize * 3)) continue;
+                if (needLand && GetTile(cx, cy)?.Type != TileType.Grassland) continue;
                 centers.Add((cx, cy));
                 break;
             }
@@ -398,7 +602,8 @@ public partial class TileMap
         // Wälder (Holz): Klumpen mit Lichtung für Nahrungsklumpen. Die Zahlen
         // kommen aus MapSettings. Jeder Wald trägt seinen Radius mit sich,
         // damit die Beerenbüsche an den Rand gestellt werden können.
-        var woodCenters = PlaceClusterCenters(_random.Next(Settings.WoodClustersMin, Settings.WoodClustersMax + 1), 3);
+        var woodCenters = PlaceClusterCenters(_random.Next(Settings.WoodClustersMin, Settings.WoodClustersMax + 1), 3,
+                                              Style == MapStyle.Wiking);
         var woods = new List<(int x, int y, int radius)>();
         foreach (var (cx, cy) in woodCenters)
         {
@@ -415,11 +620,13 @@ public partial class TileMap
         }
 
         // Steinbrüche: 4–7 Klumpen (vorher 3–4), je etwas größer
-        foreach (var (cx, cy) in PlaceClusterCenters(_random.Next(Settings.StoneClustersMin, Settings.StoneClustersMax + 1), 2))
+        foreach (var (cx, cy) in PlaceClusterCenters(_random.Next(Settings.StoneClustersMin, Settings.StoneClustersMax + 1), 2,
+                                                     Style == MapStyle.Wiking))
             StampResource(cx, cy, _random.Next(Settings.StoneRadiusMin, Settings.StoneRadiusMax + 1), TileType.Mountain, Resource.Stone, STONE_AMOUNT);
 
         // Goldklumpen: 3–6 kleine, wertvollere Klumpen (vorher 2–3)
-        foreach (var (cx, cy) in PlaceClusterCenters(_random.Next(Settings.GoldClustersMin, Settings.GoldClustersMax + 1), 2))
+        foreach (var (cx, cy) in PlaceClusterCenters(_random.Next(Settings.GoldClustersMin, Settings.GoldClustersMax + 1), 2,
+                                                     Style == MapStyle.Wiking))
             StampResource(cx, cy, _random.Next(Settings.GoldRadiusMin, Settings.GoldRadiusMax + 1), TileType.GoldMine, Resource.Gold, GOLD_AMOUNT);
 
         // Startrohstoffe in Laufweite beider Stadtzentren, zur Kartenmitte hin
@@ -477,16 +684,23 @@ public partial class TileMap
     // --- Startrohstoffe ---------------------------------------------------
 
     /// <summary>
-    /// Startrohstoffe wie in AoE: jeder Spieler bekommt einen Steinbruch und
-    /// eine Goldmine in Laufweite seines Stadtzentrums, zur Kartenmitte hin.
-    /// Die zufälligen Klumpen halten Abstand zu den Startplätzen – ohne das lag
-    /// der nächste Stein im Schnitt 33 Kacheln entfernt, Gold bis zu 98.
+    /// Startrohstoffe wie in AoE: jeder Spieler bekommt einen Steinbruch, eine
+    /// Goldmine und eine Holzlichtung in Laufweite seines Stadtzentrums, zur
+    /// Kartenmitte hin. Die zufälligen Klumpen halten Abstand zu den Startplätzen –
+    /// ohne das lag der nächste Stein im Schnitt 33 Kacheln entfernt, Gold bis zu 98,
+    /// und der nächste Wald teils weit über 30 Kacheln weg — auf der Ägypten-Karte
+    /// ein Marsch quer durch die Wüste.
     /// </summary>
     private void PlaceStartResources(int tcX, int tcY, int dirX, int dirY)
     {
         int mx = tcX + 2, my = tcY + 2;   // Mitte des 4 × 4-Stadtzentrums
         PlaceStartCluster(mx + dirX * 8, my + dirY * 2, TileType.Mountain, Resource.Stone, STONE_AMOUNT);
         PlaceStartCluster(mx + dirX * 2, my + dirY * 8, TileType.GoldMine, Resource.Gold, GOLD_AMOUNT);
+        // Holzlichtung: kleiner, normaler Wald (Radius 3) statt Einzelkachel,
+        // damit das Fällen mit Fällstufen auch am Startort Spaß macht.
+        // Platz (10, 10): außerhalb der Fußstapfen von Stein (8,2) und Gold (2,8),
+        // sonst würde sie deren Kacheln überstempeln.
+        StampResource(mx + dirX * 10, my + dirY * 10, 3, TileType.Forest, Resource.Wood, WOOD_AMOUNT);
     }
 
     /// <summary>
@@ -513,7 +727,7 @@ public partial class TileMap
     private void PlaceSheep(List<(int x, int y)> woodCenters)
     {
         int herds = _random.Next(Settings.SheepHerdsMin, Settings.SheepHerdsMax + 1);
-        var herdCenters = PlaceClusterCenters(herds, 2);
+        var herdCenters = PlaceClusterCenters(herds, 2, Style == MapStyle.Wiking);
         foreach (var (cx, cy) in herdCenters)
         {
             int count = _random.Next(Settings.SheepPerHerdMin, Settings.SheepPerHerdMax + 1);
@@ -522,7 +736,9 @@ public partial class TileMap
                 int sx = cx + _random.Next(-2, 3);
                 int sy = cy + _random.Next(-2, 3);
                 var t = GetTile(sx, sy);
-                if (t == null || t.Type != TileType.Grassland) continue;
+                // In der Wüste weiden die Schafe auch auf dem Sand — die Wiese ist dort
+                // so knapp, dass eine Karte sonst ohne Nahrung auskäme
+                if (t == null || (t.Type != TileType.Grassland && !(Style == MapStyle.Egypten && t.Type == TileType.Sand))) continue;
                 if (t.Food == FoodSource.Sheep) continue;   // eine Kachel pro Schaf
                 t.ResourceType = Resource.Food;
                 t.ResourceAmount = Settings.SheepFood;
@@ -649,14 +865,17 @@ public partial class TileMap
             int count = _random.Next(Settings.BerriesMin, Settings.BerriesMax + 1);
             for (int i = 0; i < count; i++)
             {
-                for (int attempt = 0; attempt < 12; attempt++)
+                for (int attempt = 0; attempt < 20; attempt++)
                 {
                     float winkel = (float)_random.NextDouble() * MathF.Tau;
                     int d = r + 1 + _random.Next(0, 2);   // Band am Rand: sicher außerhalb des Soft-Kreis
                     int bx = cx + (int)MathF.Round(MathF.Cos(winkel) * d);
                     int by = cy + (int)MathF.Round(MathF.Sin(winkel) * d);
                     var t = GetTile(bx, by);
-                    if (t == null || t.Type != TileType.Grassland) continue;
+                    // Wiese oder Sand: die Wüsten- und Wiking-Karten tragen rund um
+                    // den Wald sonst fast nur ihren Grundboden, und dort müssten
+                    // die Büsche sonst auf eine Grasinsel hoffen
+                    if (t == null || (t.Type != TileType.Grassland && t.Type != TileType.Sand)) continue;
                     if (!string.IsNullOrEmpty(t.Building)) continue;
                     if (t.Food != FoodSource.None) continue;   // Schaf/Reh/Wild bleibt stehen
                     t.ResourceType = Resource.Food;
