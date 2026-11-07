@@ -112,6 +112,35 @@ public class Tile
         }
     }
 
+    /// <summary>Fällstufen eines Baums (Tile.TreeStage): stehend, gefällt, zwei Stammstücke,
+    /// ein Stammstück, Stumpf.</summary>
+    public const int TREE_STANDING = 0, TREE_FELLED = 1, TREE_TWO_LOGS = 2, TREE_ONE_LOG = 3, TREE_STUMP = 4;
+
+    /// <summary>
+    /// Die Fällstufe eines Baums einer Waldkachel (Holz abbauen, Nutzer 2026-11-07: „gefällter
+    /// Baum und 1-2 Stände bis zum kompletten Abbau“). Die Kachel trägt <paramref name="trees"/>
+    /// Bäume, die nacheinander fallen; <paramref name="order"/> 0 fällt zuerst. Jeder trägt den
+    /// gleichen Teil des Startvorrats (<see cref="ResourceStart"/>).
+    /// VERTRAG: 0 (TREE_STANDING), wenn ResourceType nicht Holz ist, ResourceStart ≤ 0, trees ≤ 0
+    /// oder ResourceAmount ≥ ResourceStart. Sonst, in ganzen Zahlen mit dem trees-fachen Maßstab
+    /// (ein Baum = ResourceStart): used = trees · (ResourceStart - max(0, ResourceAmount)) -
+    /// order · ResourceStart. used ≤ 0: TREE_STANDING; used ≥ ResourceStart: TREE_STUMP; sonst
+    /// 1 + 3 · used / ResourceStart (ganzzahlig) - im ersten Drittel des eigenen Teils gefällt
+    /// mit Krone, im zweiten zwei Stammstücke, im letzten eines.
+    /// </summary>
+    public int TreeStage(int order, int trees)
+    {
+        if (ResourceType != Resource.Wood || ResourceStart <= 0 || trees <= 0 || ResourceAmount >= ResourceStart)
+            return TREE_STANDING;
+        // Abgeschlagen vom eigenen Teil, im trees-fachen Maßstab: ein Baum ist ResourceStart
+        long used = (long)trees * (ResourceStart - Math.Max(0, ResourceAmount)) - (long)order * ResourceStart;
+        if (used <= 0)
+            return TREE_STANDING;
+        if (used >= ResourceStart)
+            return TREE_STUMP;
+        return TREE_FELLED + (int)(3 * used / ResourceStart);
+    }
+
     public FoodSource Food { get; set; }
 
     /// <summary>
@@ -216,7 +245,7 @@ public class Tile
         {
             case TileType.Forest:
                 ResourceType = Resource.Wood;
-                ResourceAmount = 100; // 100 trees per forest
+                ResourceAmount = TileMap.WOOD_AMOUNT; // zwei Bäume je Waldkachel
                 break;
             case TileType.Mountain:
                 ResourceType = Resource.Stone;

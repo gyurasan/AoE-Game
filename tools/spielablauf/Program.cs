@@ -4,7 +4,8 @@
 //
 // Dazu neubauten (Gebäude der zweiten Tastenreihe), tuer (Abliefern vor der Tür) und
 // auswahl (Gebäude auswählen), angriff (Gebäude angreifen), soldaten
-// (Ausbildung in Kaserne, Schießstand und Stall), werkstatt (Belagerungswerkstatt: Rammbock und
+// (Ausbildung in Kaserne, Schießstand und Stall), faellen (Bäume fallen beim Holzschlagen in
+// Stufen), werkstatt (Belagerungswerkstatt: Rammbock und
 // Katapult ab der Ritterzeit, Tribok ab der Imperialzeit, auch in der Burg), warteschlange (Ausbildung abbrechen: Klick
 // aufs Feld der Warteschlange, Shift+Klick fünf, Rechtsklick auf die Ausbildungstaste),
 // forschung (Forschungen und ihre Wirkung), markt (F8: am eigenen Markt Nahrung, Holz und Stein
@@ -179,6 +180,9 @@ for (int karte = 1; karte <= KARTEN; karte++)
         Pruefe($"Karte {karte}, Angriff", () => Angriff(karte, verstoesse));
     if (gruppen.Contains("soldaten"))
         Pruefe($"Karte {karte}, Soldaten", () => Soldaten(karte, verstoesse));
+    // Fällstufen: Holzfäller schlagen eine Waldkachel ab, ein Baum nach dem anderen fällt
+    if (gruppen.Contains("faellen"))
+        Pruefe($"Karte {karte}, Fällen", () => Faellen(karte, verstoesse));
     // Belagerungswerkstatt (F15): Rammbock, Katapult, Tribok - und der Tribok in der Burg
     if (gruppen.Contains("werkstatt"))
         Pruefe($"Karte {karte}, Werkstatt", () => Werkstatt(karte, verstoesse));
@@ -5039,6 +5043,133 @@ static void Soldaten(int karte, List<string> verstoesse)
 
         if (verstoesse.Count == vorher)
             Console.WriteLine($"  ok  {wer}: {string.Join(", ", notiz)}; H wirkungslos mit Gebäude, Miliz sammelt nicht");
+    }
+    finally
+    {
+        TileMap.TestNoFog = false;
+    }
+}
+
+// Fällstufen (Nutzer 2026-11-07: „gefällter Baum und 1-2 Stände bis zum kompletten Abbau eines
+// Baumes“): drei Dorfbewohner schlagen eine Waldkachel ab (Vorrat auf 36 gesetzt, damit es schnell
+// geht). Beobachtet je Bild Tile.TreeStage beider Bäume, solange die Kachel Wald ist: erst fällt der
+// eine Baum (gefällt, zwei Stücke, ein Stück, Stumpf), dann der andere, nie zurück; danach wird die
+// Kachel Wiese. Dazu die Rechnungen des Bildschirms: FellOrder gibt je Kachel jedem Baum eine andere
+// Reihenfolge, FelledTreeRect legt den Anker des Bilds auf den Stammfuß - auch gespiegelt.
+static void Faellen(int karte, List<string> verstoesse)
+{
+    const int bw = 2406, bh = 1353;
+    string wer = $"Karte {karte}, Fällen";
+    int vorher = verstoesse.Count;
+    var w = new Welt();
+    w.Set("screenBounds", new Rectangle(0, 0, bw, bh));
+    w.Set("cameraZoom", 1f);
+    w.Set("cameraPosition", Vector2.Zero);
+    var dorf = w.Dorfbewohner().ToList();
+    var start = w.Map.WorldToGrid(dorf[0].Position);
+    const int vorrat = 36;
+    // Waldkacheln am Waldrand (ein Nachbar ist frei begehbar), die nächsten zuerst
+    var kandidaten = new List<Tile>();
+    for (int r = 3; r < 20 && kandidaten.Count < 3; r++)
+        for (int x = (int)start.X - r; x <= start.X + r; x++)
+            for (int y = (int)start.Y - r; y <= start.Y + r; y++)
+            {
+                if (Math.Max(Math.Abs(x - start.X), Math.Abs(y - start.Y)) != r)
+                    continue;
+                var t = w.Map.GetTile(x, y);
+                if (t?.Type != TileType.Forest || t.ResourceType != Resource.Wood)
+                    continue;
+                bool rand = new[] { (1, 0), (-1, 0), (0, 1), (0, -1) }.Any(d =>
+                    w.Map.GetTile(x + d.Item1, y + d.Item2) is { } n && n.Type != TileType.Forest && w.Map.IsWalkable(x + d.Item1, y + d.Item2));
+                if (rand && kandidaten.Count < 3)
+                    kandidaten.Add(t);
+            }
+    if (kandidaten.Count == 0)
+    {
+        verstoesse.Add($"{wer}: Aufbau - keine Waldkachel am Rand in 20 Kacheln");
+        return;
+    }
+
+    var folge = new List<(int, int)>();
+    TileMap.TestNoFog = true;
+    try
+    {
+        // Die erste Kachel, an der die Holzfäller wirklich anfangen - kommt in 60 s keiner hin
+        // (eingeschlossen, hinter Wasser), ist das ein Fehler des Aufbaus, nicht des Fällens
+        Tile wald = null;
+        var versuche = new List<string>();
+        foreach (var t in kandidaten)
+        {
+            t.ResourceStart = vorrat;
+            t.ResourceAmount = vorrat;
+            w.Waehle(dorf.Take(3).ToList());
+            w.Linksklick(w.Map.GridToWorld(new Vector2(t.X, t.Y)));
+            w.LaufeBis(() => t.ResourceAmount < vorrat, 60f);
+            if (t.ResourceAmount < vorrat)
+            {
+                wald = t;
+                break;
+            }
+            versuche.Add($"({t.X}, {t.Y})");
+        }
+        if (wald == null)
+        {
+            verstoesse.Add($"{wer}: Aufbau - an keiner der Randkacheln {string.Join(" ", versuche)} fangen die Holzfäller an");
+            return;
+        }
+        // Den Anfang hat die Suche schon verbraucht - die Stufen ab dort
+        folge.Add((wald.TreeStage(0, 2), wald.TreeStage(1, 2)));
+        float dauer = w.LaufeBis(() =>
+        {
+            if (wald.Type == TileType.Forest)
+            {
+                var jetzt = (wald.TreeStage(0, 2), wald.TreeStage(1, 2));
+                if (folge.Count == 0 || folge[^1] != jetzt)
+                    folge.Add(jetzt);
+            }
+            return wald.Type != TileType.Forest;
+        }, 400f);
+        string gesehen = string.Join(" ", folge.Select(f => $"{f.Item1}{f.Item2}"));
+        var erwartet = new[] { (1, 0), (2, 0), (3, 0), (4, 0), (4, 1), (4, 2), (4, 3) };
+        if (wald.Type == TileType.Forest)
+            verstoesse.Add($"{wer}: nach {dauer:0} s ist die Kachel noch Wald (Vorrat {wald.ResourceAmount} von {vorrat}; Stufen {gesehen}; "
+                + $"Kachel ({wald.X}, {wald.Y}), Holzfäller an {string.Join(", ", dorf.Take(3).Select(u => $"{w.Map.WorldToGrid(u.Position)} {u.Job?.Phase.ToString() ?? "-"} {u.Job?.Source}"))})");
+        else if (!folge.SequenceEqual(erwartet))
+            verstoesse.Add($"{wer}: Stufen der beiden Bäume {gesehen}, erwartet {string.Join(" ", erwartet.Select(f => $"{f.Item1}{f.Item2}"))}");
+        else if (wald.Type != TileType.Grassland)
+            verstoesse.Add($"{wer}: abgeholzt ist die Kachel {wald.Type}, erwartet Wiese");
+
+        // Reihenfolge: auf jeder Kachel fällt genau ein Baum zuerst
+        var order = typeof(RTSGameplayScreen).GetMethod("FellOrder", BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException("RTSGameplayScreen.FellOrder nicht gefunden");
+        int zuerstLinks = 0;
+        for (int x = 0; x < 60; x++)
+            for (int y = 0; y < 60; y++)
+            {
+                int a = (int)order.Invoke(null, new object[] { x, y, 0 }), b = (int)order.Invoke(null, new object[] { x, y, 1 });
+                if (a + b != 1 || a * b != 0)
+                    verstoesse.Add($"{wer}: FellOrder({x}, {y}) gibt {a} und {b}, erwartet 0 und 1");
+                if (a == 0) zuerstLinks++;
+            }
+        if (zuerstLinks < 3600 / 4 || zuerstLinks > 3600 * 3 / 4)
+            verstoesse.Add($"{wer}: FellOrder - der linke Baum fällt auf {zuerstLinks} von 3600 Kacheln zuerst (erwartet etwa die Hälfte)");
+
+        // Anker: der Stammfuß im Bild (72, 176) liegt auf dem Stammfuß am Bildschirm
+        var rect = typeof(RTSGameplayScreen).GetMethod("FelledTreeRect", BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException("RTSGameplayScreen.FelledTreeRect nicht gefunden");
+        var fuss = new Vector2(500, 400);
+        foreach (bool links in new[] { false, true })
+        {
+            var r = (Rectangle)rect.Invoke(null, new object[] { fuss, 300, 240, 72f, 577, 1.5f, links });
+            float px = 72f / 577 / 0.5f * 1.5f;
+            float ax = (links ? 300 - 72 : 72) * px;
+            if (Math.Abs(r.X + ax - fuss.X) > 1 || Math.Abs(r.Y + 176 * px - fuss.Y) > 1
+                || Math.Abs(r.Width - 300 * px) > 1 || Math.Abs(r.Height - 240 * px) > 1)
+                verstoesse.Add($"{wer}: FelledTreeRect ({(links ? "links" : "rechts")}) {r} - Anker bei ({r.X + ax:0}, {r.Y + 176 * px:0}), erwartet {fuss}");
+        }
+
+        if (verstoesse.Count == vorher)
+            Console.WriteLine($"  ok  {wer}: {vorrat} Holz, Stufen {gesehen}, dann Wiese{(versuche.Count > 0 ? $" (Randkachel {string.Join(" ", versuche)} unerreichbar)" : "")}; Reihenfolge und Anker stimmen");
     }
     finally
     {

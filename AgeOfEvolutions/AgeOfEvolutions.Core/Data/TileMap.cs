@@ -339,6 +339,10 @@ public partial class TileMap
     public const int STONE_AMOUNT = 80;
     public const int GOLD_AMOUNT = 60;
 
+    /// <summary>Grundvorrat einer Waldkachel (zwei Bäume): ein Einzelbaum trägt genau so viel,
+    /// ein Waldklumpen bis zur Hälfte mehr.</summary>
+    public const int WOOD_AMOUNT = 100;
+
     private void StampResource(int cx, int cy, int radius, TileType type,
                                Resource resource, int baseAmount)
     {
@@ -400,7 +404,7 @@ public partial class TileMap
         {
             int r = _random.Next(Settings.WoodRadiusMin, Settings.WoodRadiusMax + 1);
             woods.Add((cx, cy, r));
-            StampResource(cx, cy, r, TileType.Forest, Resource.Wood, 100);
+            StampResource(cx, cy, r, TileType.Forest, Resource.Wood, WOOD_AMOUNT);
             if (_random.NextDouble() < 0.7)
             {
                 // Lichtung am Rand des Waldes

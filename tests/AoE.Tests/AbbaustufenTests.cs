@@ -117,6 +117,8 @@ public class AbbaustufenTests
             {
                 Resource.Stone => DataMap.STONE_AMOUNT * 5 / 4,
                 Resource.Gold => DataMap.GOLD_AMOUNT * 5 / 4,
+                // Holz: der kleinste Startvorrat (Fällstufen, FaellstufenTests)
+                Resource.Wood => DataMap.WOOD_AMOUNT,
                 _ => 0,
             };
             Assert.Equal(erwartet, t.ResourceStart);

@@ -678,6 +678,15 @@ public partial class RTSGameplayScreen : GameScreen
         ("Baeume/buche", 74f, false), ("Baeume/birke", 68f, false),
         ("Baeume/nadelbaum", 82f, true), ("Baeume/nadelbaum2", 78f, true), ("Baeume/kiefer", 86f, true),
     };
+    // Fällstufen je Baumart (tools/bilder/faellen.py), in der Reihenfolge von Tile.TreeStage 1-4:
+    // gefällt mit Krone, zwei Stammstücke, eines, Stumpf. Alle vier Bilder einer Art sind gleich
+    // groß; der Stammfuß liegt bei FELL_ANCHOR (Bildpunkte), ein Bildpunkt ist 1 / FELL_TEX_SCALE
+    // Bildpunkte des stehenden Baums. Fehlt ein Bild, steht der Baum in dieser Stufe weiter.
+    private static readonly string[] FellStageSuffixes = { "_gefaellt", "_stamm2", "_stamm1", "_stumpf" };
+    private const float FELL_TEX_SCALE = 0.5f;
+    private static readonly Vector2 FELL_ANCHOR = new(72, 176);
+    // Liegendes Holz wirft nur wenig Schatten - als Kontur (Bodenkontakt je Spalte) und dünn
+    private const float FELL_SHADOW_DENSITY = 0.35f;
     private static readonly string[] StoneAssets = { "Rohstoffe/stein", "Rohstoffe/stein2" };
     private static readonly string[] GoldAssets = { "Rohstoffe/gold", "Rohstoffe/gold2" };
     // Die Abbaustufen jedes Haufenbilds (R2), in der Reihenfolge von Tile.PileStage: voll,
@@ -709,6 +718,8 @@ public partial class RTSGameplayScreen : GameScreen
     private Texture2D _wheatTex;          // dasselbe Feld mit reifem Weizen (Felder/weizen)
     private Effect _wheatEffect;          // Weizen im Wind (Effects/Weizen); fehlt er, steht der Weizen still.
     private (Texture2D Tex, float Height, bool Conifer)[] _treeSprites = Array.Empty<(Texture2D, float, bool)>();
+    // Je Baumart in _treeSprites ihre Fällstufen [Art][Tile.TreeStage - 1]; null = fehlt
+    private Texture2D[][] _treeFellSprites = Array.Empty<Texture2D[]>();
     // Rohstoffsymbole der oberen Leiste (tools/bilder, Gruppe rohstoff_icons), in der Reihenfolge
     // der Anzeige; fehlt ein Bild, steht dort das farbige Quadrat wie bisher
     private static readonly (Resource Res, string Asset, Color Fallback)[] ResourceIcons =
@@ -1080,10 +1091,12 @@ public partial class RTSGameplayScreen : GameScreen
             RefreshGroundLive(true);
         }
         // Je Eintrag ein Tupel (Bild, Höhe, Nadelbaum); fehlt ein Bild, fällt nur diese Baumart weg.
-        _treeSprites = TreeAssets
-            .Select(a => (Tex: LoadOptional(a.Asset), a.Height, a.Conifer))
+        var trees = TreeAssets
+            .Select(a => (Tex: LoadOptional(a.Asset), a.Asset, a.Height, a.Conifer))
             .Where(t => t.Tex != null)
             .ToArray();
+        _treeSprites = trees.Select(t => (t.Tex, t.Height, t.Conifer)).ToArray();
+        _treeFellSprites = trees.Select(t => FellStageSuffixes.Select(s => LoadOptional(t.Asset + s)).ToArray()).ToArray();
         // Leistenbilder je Zeitalter laden; fehlt eines, bleibt die Leiste in diesem Zeitalter braun
         for (var i = 0; i < PanelAssets.Length; i++)
             _panelTex[i] = LoadOptional(PanelAssets[i]);
@@ -7290,6 +7303,14 @@ public partial class RTSGameplayScreen : GameScreen
     {
         var (foot, sprite, look) = TreeSpot(x, y, k);
         var (tex, height, _) = _treeSprites[sprite];
+        // Wird an der Kachel Holz geschlagen, fällt ein Baum nach dem anderen (Tile.TreeStage)
+        int stage = tileMap.GetTile(x, y)?.TreeStage(FellOrder(x, y, k), TreeSpots.Length) ?? Data.Tile.TREE_STANDING;
+        if (stage != Data.Tile.TREE_STANDING && sprite < _treeFellSprites.Length
+            && _treeFellSprites[sprite][stage - 1] is { } fell)
+        {
+            DrawFelledTree(spriteBatch, fell, tex, height, foot, FellsLeft(look), hover);
+            return;
+        }
         var screen = WorldToScreen(foot);
         int treeHeight = (int)(height * cameraZoom);
         int treeWidth = treeHeight * tex.Width / tex.Height;
@@ -7310,6 +7331,59 @@ public partial class RTSGameplayScreen : GameScreen
             if (hover)
                 spriteBatch.Draw(tex, strip.Position, strip.Source, HoverLift, 0f, Vector2.Zero, strip.Scale, SpriteEffects.None, 0f);
         }
+    }
+
+    /// <summary>
+    /// In welcher Reihenfolge die Bäume der Waldkachel (x, y) fallen: 0 zuerst. Fest aus der
+    /// Lage, damit derselbe Baum fällt, so oft das Bild auch gezeichnet wird.
+    /// VERTRAG: first = ((x * 73856093 ^ y * 19349663) &amp; 0x7FFFFFFF) &gt;&gt; 7 mod TreeSpots.Length
+    /// (unchecked); Ergebnis (k - first + TreeSpots.Length) mod TreeSpots.Length.
+    /// </summary>
+    internal static int FellOrder(int x, int y, int k)
+    {
+        int hash = unchecked(x * 73856093 ^ y * 19349663) & 0x7FFFFFFF;
+        int first = (hash >> 7) % TreeSpots.Length;
+        return (k - first + TreeSpots.Length) % TreeSpots.Length;
+    }
+
+    /// <summary>Fällt der Baum mit diesem Look nach links (sonst nach rechts)? Fest aus dem
+    /// Look, damit ein liegender Baum nie die Seite wechselt.</summary>
+    internal static bool FellsLeft(int look) => ((look >> 17) & 1) == 1;
+
+    /// <summary>
+    /// Wo ein Bild einer Fällstufe liegt: der Stammfuß (FELL_ANCHOR im Bild) auf
+    /// <paramref name="footScreen"/>, ein Bildpunkt = height / standingHeight / FELL_TEX_SCALE
+    /// Welteinheiten. Fällt der Baum nach links, wird gespiegelt gezeichnet - der Anker wandert
+    /// auf texWidth - FELL_ANCHOR.X.
+    /// VERTRAG: px = height / standingHeight / FELL_TEX_SCALE * zoom; ax = (left ? texWidth -
+    /// FELL_ANCHOR.X : FELL_ANCHOR.X) * px; Ergebnis new Rectangle((int)MathF.Round(footScreen.X -
+    /// ax), (int)MathF.Round(footScreen.Y - FELL_ANCHOR.Y * px), (int)MathF.Round(texWidth * px),
+    /// (int)MathF.Round(texHeight * px)). Reine Rechnung ohne Grafik.
+    /// </summary>
+    internal static Rectangle FelledTreeRect(Vector2 footScreen, int texWidth, int texHeight, float height,
+                                             int standingHeight, float zoom, bool left)
+    {
+        float px = height / standingHeight / FELL_TEX_SCALE * zoom;
+        float ax = (left ? texWidth - FELL_ANCHOR.X : FELL_ANCHOR.X) * px;
+        return new Rectangle((int)MathF.Round(footScreen.X - ax), (int)MathF.Round(footScreen.Y - FELL_ANCHOR.Y * px),
+                             (int)MathF.Round(texWidth * px), (int)MathF.Round(texHeight * px));
+    }
+
+    /// <summary>
+    /// Ein gefällter Baum in einer Stufe (Bild <paramref name="tex"/>): Stumpf am Stammfuß,
+    /// daneben der liegende Baum oder die Stammstücke - im Maßstab des stehenden Baums
+    /// <paramref name="standing"/>, ohne Wind, mit dünnem Konturschatten.
+    /// </summary>
+    private void DrawFelledTree(SpriteBatch spriteBatch, Texture2D tex, Texture2D standing, float height,
+                                Vector2 foot, bool left, bool hover)
+    {
+        var target = FelledTreeRect(WorldToScreen(foot), tex.Width, tex.Height, height, standing.Height, cameraZoom, left);
+        if (!screenBounds.Intersects(target)) return;
+        var effects = left ? SpriteEffects.FlipHorizontally : SpriteEffects.None;
+        DrawCastShadow(spriteBatch, tex, target, effects, contour: true, density: FELL_SHADOW_DENSITY);
+        spriteBatch.Draw(tex, target, null, Color.White, 0f, Vector2.Zero, effects, 0f);
+        if (hover)
+            spriteBatch.Draw(tex, target, null, HoverLift, 0f, Vector2.Zero, effects, 0f);
     }
 
     // Gedächtnis-Texturen für wiederkehrende Nahrungsobjekte

@@ -191,7 +191,8 @@ public static class SaveGameMapper
     ///    y · Width + x); Animal null bleibt null, sonst ein neues WildAnimal mit den neun
     ///    Werten (Strike bleibt 0). GroundType = ts.GroundType ?? ts.Type (ältere Spielstände ohne den Boden
     ///    der Kartenerzeugung, G15). ResourceStart = ts.ResourceStart ?? für Stein
-    ///    TileMap.STONE_AMOUNT · 5 / 4, für Gold TileMap.GOLD_AMOUNT · 5 / 4, sonst 0 (R2).
+    ///    TileMap.STONE_AMOUNT · 5 / 4, für Gold TileMap.GOLD_AMOUNT · 5 / 4, für Holz
+    ///    TileMap.WOOD_AMOUNT (der kleinste Startvorrat), sonst 0 (R2).
     ///    Building bleibt null - das setzt Schritt 5.
     /// 4. Spieler: je PlayerSave new Player(Id, Name, Civilization); danach steht jeder der vier
     ///    Rohstoffe GENAU auf dem gespeicherten Wert (player.Resources.Add(r, gespeichert -
@@ -253,6 +254,9 @@ public static class SaveGameMapper
                 {
                     Resource.Stone => TileMap.STONE_AMOUNT * 5 / 4,
                     Resource.Gold => TileMap.GOLD_AMOUNT * 5 / 4,
+                    // Holz: der kleinste Startvorrat - ein unberührter Wald steht damit sicher,
+                    // erst unter 100 fallen seine Bäume (Fällstufen, Tile.TreeStage)
+                    Resource.Wood => TileMap.WOOD_AMOUNT,
                     _ => 0,
                 };
                 tile.Food = ts.Food;
