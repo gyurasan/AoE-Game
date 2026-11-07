@@ -4,7 +4,8 @@
 //
 // Dazu neubauten (Gebäude der zweiten Tastenreihe), tuer (Abliefern vor der Tür) und
 // auswahl (Gebäude auswählen), angriff (Gebäude angreifen), soldaten
-// (Ausbildung in Kaserne, Schießstand und Stall), warteschlange (Ausbildung abbrechen: Klick
+// (Ausbildung in Kaserne, Schießstand und Stall), werkstatt (Belagerungswerkstatt: Rammbock und
+// Katapult ab der Ritterzeit, Tribok ab der Imperialzeit, auch in der Burg), warteschlange (Ausbildung abbrechen: Klick
 // aufs Feld der Warteschlange, Shift+Klick fünf, Rechtsklick auf die Ausbildungstaste),
 // forschung (Forschungen und ihre Wirkung), markt (F8: am eigenen Markt Nahrung, Holz und Stein
 // gegen Gold kaufen und verkaufen, Kurse in der Leiste und im Spielstand, KI handelt),
@@ -178,6 +179,9 @@ for (int karte = 1; karte <= KARTEN; karte++)
         Pruefe($"Karte {karte}, Angriff", () => Angriff(karte, verstoesse));
     if (gruppen.Contains("soldaten"))
         Pruefe($"Karte {karte}, Soldaten", () => Soldaten(karte, verstoesse));
+    // Belagerungswerkstatt (F15): Rammbock, Katapult, Tribok - und der Tribok in der Burg
+    if (gruppen.Contains("werkstatt"))
+        Pruefe($"Karte {karte}, Werkstatt", () => Werkstatt(karte, verstoesse));
     // Warteschlange abbrechen: Klick aufs Feld, Shift+Klick fünf, Rechtsklick auf die Ausbildungstaste
     if (gruppen.Contains("warteschlange"))
         Pruefe($"Karte {karte}, Warteschlange", () => Warteschlange(karte, verstoesse));
@@ -5042,6 +5046,161 @@ static void Soldaten(int karte, List<string> verstoesse)
     }
 }
 
+// Belagerungswerkstatt (F15): in der Ritterzeit zeigt die ausgewählte Werkstatt Q Rammbock und
+// W Katapult, aber noch keinen Tribok - E bildet dann nichts aus und kostet nichts. Q und W
+// ziehen die Kosten ab (160 Holz + 75 Gold, 160 Holz + 135 Gold) und liefern nach 36 und 46 s
+// einen Ram und einen Mangonel am Gebäude. In der Imperialzeit kommt E Tribok dazu (200 Holz +
+// 200 Gold, 50 s, Trebuchet), ebenso Q Tribok in der Burg. Ohne Nebel: Werkstatt (3x3) und Burg
+// (4x4) brauchen Platz im Startgebiet.
+static void Werkstatt(int karte, List<string> verstoesse)
+{
+    const int bw = 2406, bh = 1353;
+    string wer = $"Karte {karte}, Werkstatt";
+    int vorher = verstoesse.Count;
+    var w = new Welt();
+    w.Set("screenBounds", new Rectangle(0, 0, bw, bh));
+    w.Set("cameraZoom", 1f);
+    w.Set("cameraPosition", Vector2.Zero);
+    int T = w.Map.TileSize;
+    var ages = (AgeProgress)(typeof(Player).GetProperty("Ages")?.GetValue(w.P1)
+        ?? throw new InvalidOperationException("Player.Ages nicht gefunden"));
+    foreach (var r in new[] { Resource.Food, Resource.Wood, Resource.Gold, Resource.Stone })
+        w.P1.Resources.Add(r, 20000);
+    void Aufstieg()
+    {
+        ages.TryStart(w.P1.Resources);
+        ages.Update(1000f);
+    }
+    Aufstieg();
+    Aufstieg();   // Feudal-, dann Ritterzeit
+    if (ages.Current != Age.Castle)
+    {
+        verstoesse.Add($"{wer}: Aufbau - Zeitalter {ages.Current}, erwartet Castle");
+        return;
+    }
+    var dorf = w.Dorfbewohner().ToList();
+    var gt = new GameTime(TimeSpan.Zero, TimeSpan.FromSeconds(1.0 / 60));
+    void Taste(Keys k)
+    {
+        var maus = new MouseState(bw / 2, bh / 2, 0, ButtonState.Released, ButtonState.Released,
+                                  ButtonState.Released, ButtonState.Released, ButtonState.Released);
+        w.Call("HandleRtsInput", gt, new KeyboardState(k), maus);
+        w.Call("HandleRtsInput", gt, new KeyboardState(), maus);
+    }
+    List<(string Label, string Name)> Tasten()
+    {
+        w.Call("LayoutButtons");
+        return ((System.Collections.IEnumerable)w.Get("_buttons")).Cast<object>()
+            .Select(b => ((string)b.GetType().GetField("Label").GetValue(b), (string)b.GetType().GetField("Name").GetValue(b)))
+            .ToList();
+    }
+    string Liste(List<(string Label, string Name)> t) => string.Join(" ", t.Select(x => x.Label + ":" + x.Name));
+    float Abstand(Vector2 p, Building g)
+    {
+        float dx = Math.Max(Math.Max(g.X * T - p.X, 0), p.X - (g.X + g.Width) * T);
+        float dy = Math.Max(Math.Max(g.Y * T - p.Y, 0), p.Y - (g.Y + g.Height) * T);
+        return MathF.Sqrt(dx * dx + dy * dy);
+    }
+    int Anzahl(UnitType typ) => w.Map.Units.Count(u => u.OwnerId == 0 && u.Type == typ);
+    var notiz = new List<string>();
+
+    // Eine Einheit per Taste ausbilden und prüfen: Kosten, Status, Dauer, Platz, Kern-Typ
+    void Ausbilden(Building g, string gebaeude, Keys taste, UnitType einheit, string name, Type kern,
+                   Dictionary<Resource, int> kosten, float sekunden)
+    {
+        var vor = kosten.Keys.ToDictionary(r => r, r => w.P1.Resources[r]);
+        int anzahl = Anzahl(einheit);
+        Taste(taste);
+        if (g.Training.Count != 1)
+        {
+            verstoesse.Add($"{wer}: {taste} in {gebaeude} - {g.Training.Count} in der Ausbildung, erwartet 1 ({name})");
+            return;
+        }
+        foreach (var (r, menge) in kosten)
+            if (w.P1.Resources[r] != vor[r] - menge)
+                verstoesse.Add($"{wer}: {name} - {r} {vor[r]} -> {w.P1.Resources[r]}, erwartet {menge} weniger");
+        w.LaufeBis(() => false, 1f);
+        string status = (string)w.Call("BuildingStatus", g);
+        if (!status.Contains($"bildet aus: {name}"))
+            verstoesse.Add($"{wer}: Status von {gebaeude} '{status}', erwartet 'bildet aus: {name}'");
+        float dauer = 1f + w.LaufeBis(() => Anzahl(einheit) > anzahl, sekunden + 5f);
+        var neu = w.Map.Units.LastOrDefault(u => u.OwnerId == 0 && u.Type == einheit);
+        if (Anzahl(einheit) <= anzahl || neu == null)
+        {
+            verstoesse.Add($"{wer}: {name} nach {dauer:0} s nicht ausgebildet");
+            return;
+        }
+        if (Math.Abs(dauer - sekunden) > 1.5f)
+            verstoesse.Add($"{wer}: {name} nach {dauer:0.0} s, erwartet {sekunden} s");
+        if (Abstand(neu.Position, g) > 2.5f * T)
+            verstoesse.Add($"{wer}: {name} steht {Abstand(neu.Position, g) / T:0.0} Kacheln von {gebaeude}");
+        if (neu.Core.GetType() != kern)
+            verstoesse.Add($"{wer}: {name} ist im Kern {neu.Core.GetType().Name}, erwartet {kern.Name}");
+        notiz.Add($"{name} {dauer:0} s");
+    }
+
+    var tribokKosten = new Dictionary<Resource, int> { [Resource.Wood] = 200, [Resource.Gold] = 200 };
+    TileMap.TestNoFog = true;
+    try
+    {
+        // Platz in der Bevölkerung: vier Häuser
+        for (int i = 0; i < 4; i++)
+        {
+            var h = w.Bauplatz(BuildingType.House, dorf[0], 9 + i * 2);
+            w.Map.AddBuilding((int)h.X, (int)h.Y, "Haus", 0, 2);
+        }
+        var platz = w.Bauplatz(BuildingType.SiegeWorkshop, dorf[0], 6);
+        var werkstatt = w.Map.AddBuilding((int)platz.X, (int)platz.Y, "Belagerungswerkstatt", 0,
+                                          AoE.Core.Economy.BuildingRules.SizeOf(BuildingType.SiegeWorkshop));
+        w.Call("SelectBuilding", werkstatt);
+
+        // Ritterzeit: Rammbock und Katapult, noch kein Tribok
+        var tasten = Tasten();
+        if (!tasten.Any(t => t.Label == "Q" && t.Name == "Rammbock") || !tasten.Any(t => t.Label == "W" && t.Name == "Katapult"))
+            verstoesse.Add($"{wer}: Werkstatt in der Ritterzeit - Tasten [{Liste(tasten)}], erwartet Q:Rammbock W:Katapult");
+        if (tasten.Any(t => t.Name == "Tribok"))
+            verstoesse.Add($"{wer}: Werkstatt zeigt den Tribok schon in der Ritterzeit [{Liste(tasten)}]");
+        int holz = w.P1.Resources[Resource.Wood], gold = w.P1.Resources[Resource.Gold];
+        Taste(Keys.E);
+        if (werkstatt.Training.Count != 0 || w.P1.Resources[Resource.Wood] != holz || w.P1.Resources[Resource.Gold] != gold)
+            verstoesse.Add($"{wer}: E in der Ritterzeit - {werkstatt.Training.Count} eingereiht, Holz {holz} -> {w.P1.Resources[Resource.Wood]}, "
+                + $"Gold {gold} -> {w.P1.Resources[Resource.Gold]}, erwartet nichts");
+
+        Ausbilden(werkstatt, "Werkstatt", Keys.Q, UnitType.Ram, "Rammbock", typeof(AoE.Core.Entities.Ram),
+                  new Dictionary<Resource, int> { [Resource.Wood] = 160, [Resource.Gold] = 75 }, 36f);
+        Ausbilden(werkstatt, "Werkstatt", Keys.W, UnitType.Catapult, "Katapult", typeof(AoE.Core.Entities.Mangonel),
+                  new Dictionary<Resource, int> { [Resource.Wood] = 160, [Resource.Gold] = 135 }, 46f);
+
+        // Imperialzeit: der Tribok in der Werkstatt und in der Burg
+        Aufstieg();
+        if (ages.Current != Age.Imperial)
+            verstoesse.Add($"{wer}: Aufstieg - Zeitalter {ages.Current}, erwartet Imperial");
+        w.Call("SelectBuilding", werkstatt);
+        tasten = Tasten();
+        if (!tasten.Any(t => t.Label == "E" && t.Name == "Tribok"))
+            verstoesse.Add($"{wer}: Werkstatt in der Imperialzeit - Tasten [{Liste(tasten)}], erwartet E:Tribok");
+        Ausbilden(werkstatt, "Werkstatt", Keys.E, UnitType.Trebuchet, "Tribok", typeof(AoE.Core.Entities.Trebuchet),
+                  tribokKosten, 50f);
+
+        var bp = w.Bauplatz(BuildingType.Castle, dorf[0], 8);
+        var burg = w.Map.AddBuilding((int)bp.X, (int)bp.Y, "Burg", 0,
+                                     AoE.Core.Economy.BuildingRules.SizeOf(BuildingType.Castle));
+        w.Call("SelectBuilding", burg);
+        tasten = Tasten();
+        if (!tasten.Any(t => t.Label == "Q" && t.Name == "Tribok"))
+            verstoesse.Add($"{wer}: Burg in der Imperialzeit - Tasten [{Liste(tasten)}], erwartet Q:Tribok");
+        Ausbilden(burg, "Burg", Keys.Q, UnitType.Trebuchet, "Tribok", typeof(AoE.Core.Entities.Trebuchet),
+                  tribokKosten, 50f);
+
+        if (verstoesse.Count == vorher)
+            Console.WriteLine($"  ok  {wer}: {string.Join(", ", notiz)}; Tribok erst ab der Imperialzeit, auch in der Burg");
+    }
+    finally
+    {
+        TileMap.TestNoFog = false;
+    }
+}
+
 // Markt (F8): am ausgewählten eigenen fertigen Markt kaufen Q, W, E je 100 Nahrung, Holz, Stein
 // gegen Gold, Y, X, C verkaufen sie - als Tasten in der Leiste (Kaufen oben, Verkaufen direkt
 // darunter) und als Tastenkürzel, mit Shift fünf Lose. Jeder Handel verschiebt den Kurs, der
@@ -5947,7 +6106,7 @@ static void Speichern(int karte, List<string> verstoesse)
     a.Set("screenBounds", fenster);
     a.Set("_gameSeconds", 1234.5);
     a.Set("animationTime", 77.25f);
-    a.Set("_aiProfile", AoE.Core.Ai.AiProfile.Hard);
+    a.Set("_aiProfile", AoE.Core.Ai.AiProfile.Sparta);
     float zoom = 1.7f * (float)a.Prop("ZoomScale");
     var mitte = new Vector2(a.Map.Width * a.Map.TileSize / 2f, a.Map.Height * a.Map.TileSize / 2f);
     Vector2 Blick(Rectangle f, float z, int frei)
@@ -5959,7 +6118,7 @@ static void Speichern(int karte, List<string> verstoesse)
     if (stand.GameSeconds != 1234.5 || stand.AnimationTime != 77.25f)
         verstoesse.Add($"{wer}: Spielzeit {stand.GameSeconds} / Takt {stand.AnimationTime} statt 1234.5 / 77.25");
     if (stand.AiDifficulty != 2 || !stand.AiEnabled || stand.BothSidesAi)
-        verstoesse.Add($"{wer}: KI {stand.AiDifficulty}, an {stand.AiEnabled}, beide {stand.BothSidesAi} statt 2 (Schwer), an, nur Gegner");
+        verstoesse.Add($"{wer}: KI {stand.AiDifficulty}, an {stand.AiEnabled}, beide {stand.BothSidesAi} statt 2 (This is Sparta), an, nur Gegner");
     if (Math.Abs((DateTime.Now - stand.SavedAt).TotalMinutes) > 1)
         verstoesse.Add($"{wer}: Speicherzeit {stand.SavedAt} ist nicht jetzt");
     if (Math.Abs(stand.RelativeZoom - 1.7f) > 0.001f)
@@ -5977,8 +6136,8 @@ static void Speichern(int karte, List<string> verstoesse)
     var b = new Welt(SaveGameStore.Deserialize(json));
     if ((double)b.Get("_gameSeconds") != 1234.5 || (float)b.Get("animationTime") != 77.25f)
         verstoesse.Add($"{wer}: geladen läuft die Spielzeit bei {b.Get("_gameSeconds")} / {b.Get("animationTime")}");
-    if (!ReferenceEquals(b.Get("_aiProfile"), AoE.Core.Ai.AiProfile.Hard))
-        verstoesse.Add($"{wer}: geladen ist die KI nicht mehr „Schwer“");
+    if (!ReferenceEquals(b.Get("_aiProfile"), AoE.Core.Ai.AiProfile.Sparta))
+        verstoesse.Add($"{wer}: geladen ist die KI nicht mehr „This is Sparta“");
 
     // Kamera: im selben Fenster dieselbe, im doppelt so großen derselbe Weltpunkt in der Mitte
     b.Set("screenBounds", fenster);
@@ -6052,7 +6211,7 @@ static void Hauptmenue(List<string> verstoesse)
         (int, bool) Maus2(MouseState jetzt, MouseState zuvor)
             => ((int, bool))Methode("EvaluateMouse").Invoke(menue, new object[] { jetzt, zuvor, bw, bh });
 
-        var platten = Enumerable.Range(0, 5).Select(Platte).ToList();
+        var platten = Enumerable.Range(0, 6).Select(Platte).ToList();
         for (int i = 0; i < platten.Count; i++)
         {
             var r = platten[i];
@@ -6067,19 +6226,21 @@ static void Hauptmenue(List<string> verstoesse)
         }
 
         var abseits = new Point(2, 2);
-        // Einträge: 0 Neues Spiel, 1 Karte, 2 Spiel laden (gesperrt), 3 Einstellungen, 4 Beenden
+        // Einträge: 0 Neues Spiel, 1 Karte, 2 KI, 3 Spiel laden (gesperrt), 4 Einstellungen, 5 Beenden
         auswahl.SetValue(menue, 0);
-        if (Maus2(Maus(platten[3].Center, false), Maus(abseits, false)) != (3, false))
+        if (Maus2(Maus(platten[4].Center, false), Maus(abseits, false)) != (4, false))
             verstoesse.Add($"{fenster}: Zeigen auf „Einstellungen“ wählt sie nicht aus");
-        if (Maus2(Maus(platten[3].Center, false), Maus(platten[3].Center, false)) != (0, false))
+        if (Maus2(Maus(platten[4].Center, false), Maus(platten[4].Center, false)) != (0, false))
             verstoesse.Add($"{fenster}: ruhende Maus überstimmt die Tastaturauswahl");
-        if (Maus2(Maus(platten[4].Center, false), Maus(platten[4].Center, true)) != (4, true))
+        if (Maus2(Maus(platten[5].Center, false), Maus(platten[5].Center, true)) != (5, true))
             verstoesse.Add($"{fenster}: Klick auf „Beenden“ startet ihn nicht");
         if (Maus2(Maus(platten[0].Center, false), Maus(platten[0].Center, true)) != (0, true))
             verstoesse.Add($"{fenster}: Klick auf „Neues Spiel“ startet es nicht");
         if (Maus2(Maus(platten[1].Center, false), Maus(platten[1].Center, true)) != (1, true))
             verstoesse.Add($"{fenster}: Klick auf „Karte“ wechselt die Größe nicht");
-        if (Maus2(Maus(platten[2].Center, false), Maus(platten[2].Center, true)) != (0, false))
+        if (Maus2(Maus(platten[2].Center, false), Maus(platten[2].Center, true)) != (2, true))
+            verstoesse.Add($"{fenster}: Klick auf „KI“ wechselt die Stufe nicht");
+        if (Maus2(Maus(platten[3].Center, false), Maus(platten[3].Center, true)) != (0, false))
             verstoesse.Add($"{fenster}: der gesperrte Eintrag „Spiel laden“ reagiert auf die Maus");
         if (Maus2(Maus(abseits, false), Maus(abseits, true)) != (0, false))
             verstoesse.Add($"{fenster}: Klick neben das Menü startet etwas");
@@ -6087,11 +6248,14 @@ static void Hauptmenue(List<string> verstoesse)
 
     auswahl.SetValue(menue, 1);
     Methode("MoveSelection").Invoke(menue, new object[] { 1 });
-    if ((int)auswahl.GetValue(menue) != 3)
-        verstoesse.Add($"{wer}: Pfeil nach unten von „Karte“ landet auf {auswahl.GetValue(menue)}, erwartet 3 (über das gesperrte „Spiel laden“ hinweg)");
+    if ((int)auswahl.GetValue(menue) != 2)
+        verstoesse.Add($"{wer}: Pfeil nach unten von „Karte“ landet auf {auswahl.GetValue(menue)}, erwartet 2 („KI“)");
+    Methode("MoveSelection").Invoke(menue, new object[] { 1 });
+    if ((int)auswahl.GetValue(menue) != 4)
+        verstoesse.Add($"{wer}: Pfeil nach unten von „KI“ landet auf {auswahl.GetValue(menue)}, erwartet 4 (über das gesperrte „Spiel laden“ hinweg)");
     Methode("MoveSelection").Invoke(menue, new object[] { -1 });
-    if ((int)auswahl.GetValue(menue) != 1)
-        verstoesse.Add($"{wer}: Pfeil nach oben von „Einstellungen“ landet auf {auswahl.GetValue(menue)}, erwartet 1");
+    if ((int)auswahl.GetValue(menue) != 2)
+        verstoesse.Add($"{wer}: Pfeil nach oben von „Einstellungen“ landet auf {auswahl.GetValue(menue)}, erwartet 2");
 
     // Der Karteneintrag nennt die Größe und wechselt Standard, Kontinent, World im Kreis
     var groesse = typ.GetField("mapSize", F)
@@ -6112,6 +6276,21 @@ static void Hauptmenue(List<string> verstoesse)
     if ((string)Methode("EntryText").Invoke(menue, new object[] { 0 }) != "Neues Spiel")
         verstoesse.Add($"{wer}: der erste Eintrag heißt nicht mehr „Neues Spiel“");
 
+    // Der KI-Eintrag unter der Karte nennt die Stufe und wechselt Defense, Normal, This is Sparta im Kreis
+    var stufe = typ.GetField("aiLevel", F)
+        ?? throw new InvalidOperationException("Feld MainMenuScreen.aiLevel nicht gefunden");
+    var stufen = new List<string>();
+    int st = 0;
+    for (int i = 0; i < 4; i++)
+    {
+        stufe.SetValue(menue, st);
+        stufen.Add((string)Methode("EntryText").Invoke(menue, new object[] { 2 }));
+        st = (int)Methode("NextAiLevel").Invoke(null, new object[] { st })!;
+    }
+    if (!stufen.SequenceEqual(new[] { "KI: Defense", "KI: Normal", "KI: This is Sparta", "KI: Defense" }))
+        verstoesse.Add($"{wer}: der KI-Eintrag zeigt {string.Join(" -> ", stufen)} statt KI: Defense -> KI: Normal -> KI: This is Sparta -> KI: Defense");
+    stufe.SetValue(menue, 1);
+
     // Spiel laden (SV3, Plätze seit SV5): ohne Spielstand gesperrt - die Auswahl verlässt den
     // Eintrag -, mit Spielstand frei, mit der Maus startbar und mit den Pfeiltasten erreichbar.
     // Der Platz-Ordner kommt über AOE_SPEICHER_ORDNER aus %TEMP% - der echte Ordner neben den
@@ -6120,12 +6299,12 @@ static void Hauptmenue(List<string> verstoesse)
     Directory.CreateDirectory(ordner);
     Environment.SetEnvironmentVariable("AOE_SPEICHER_ORDNER", ordner);
     string pfad = Path.Combine(ordner, SaveGameStore.FILE_NAME);
-    Rectangle Laden() => (Rectangle)Methode("EntryRect").Invoke(null, new object[] { 2, 1920, 1080 });
+    Rectangle Laden() => (Rectangle)Methode("EntryRect").Invoke(null, new object[] { 3, 1920, 1080 });
     (int, bool) Klick(Rectangle r) => ((int, bool))Methode("EvaluateMouse").Invoke(menue,
         new object[] { Maus(r.Center, false), Maus(r.Center, true), 1920, 1080 });
     try
     {
-        auswahl.SetValue(menue, 2);
+        auswahl.SetValue(menue, 3);
         Methode("RefreshLoadEntry").Invoke(menue, null);
         if ((int)auswahl.GetValue(menue) != 0)
             verstoesse.Add($"{wer}: ohne Spielstand bleibt die Auswahl auf dem gesperrten „Spiel laden“");
@@ -6140,12 +6319,12 @@ static void Hauptmenue(List<string> verstoesse)
             Players = { new PlayerSave { Id = 0, Name = "Spieler", Civilization = "Briten" } },
         });
         Methode("RefreshLoadEntry").Invoke(menue, null);
-        if (Klick(Laden()) != (2, true))
+        if (Klick(Laden()) != (3, true))
             verstoesse.Add($"{wer}: mit Spielstand startet ein Klick „Spiel laden“ nicht");
-        auswahl.SetValue(menue, 1);
+        auswahl.SetValue(menue, 2);
         Methode("MoveSelection").Invoke(menue, new object[] { 1 });
-        if ((int)auswahl.GetValue(menue) != 2)
-            verstoesse.Add($"{wer}: mit Spielstand führt Pfeil nach unten von „Karte“ auf {auswahl.GetValue(menue)} statt auf „Spiel laden“");
+        if ((int)auswahl.GetValue(menue) != 3)
+            verstoesse.Add($"{wer}: mit Spielstand führt Pfeil nach unten von „KI“ auf {auswahl.GetValue(menue)} statt auf „Spiel laden“");
 
         File.Delete(pfad);
         Methode("RefreshLoadEntry").Invoke(menue, null);
@@ -6160,7 +6339,7 @@ static void Hauptmenue(List<string> verstoesse)
     }
 
     if (verstoesse.Count == vorher)
-        Console.WriteLine($"  ok  {wer}: mittig, wächst mit dem Fenster, Zeigen wählt, Klick startet, „Spiel laden“ nur mit Spielstand, Karte wechselt die Größe");
+        Console.WriteLine($"  ok  {wer}: mittig, wächst mit dem Fenster, Zeigen wählt, Klick startet, „Spiel laden“ nur mit Spielstand, Karte wechselt die Größe, KI die Stufe");
 }
 
 // Update-Hilfen (Gruppe updatehilfen, Teil von updatedienst): die Bausteine des
@@ -6385,7 +6564,7 @@ static void UpdateMenue(List<string> verstoesse, bool mitMenue)
     string Text(MainMenuScreen m, int i) => (string)Methode("EntryText").Invoke(m, new object[] { i });
     bool Sichtbar(MainMenuScreen m, int i) => (bool)Methode("EntryVisible").Invoke(m, new object[] { i });
     void Pfeil(MainMenuScreen m, int von) { auswahl.SetValue(m, von); Methode("MoveSelection").Invoke(m, new object[] { 1 }); }
-    const int UPDATE = 5;
+    const int UPDATE = 6, BEENDEN = 5, EINSTELLUNGEN = 4;
 
     var up = Neu(out _);
     string aktuell = up.CurrentVersionText;
@@ -6412,7 +6591,7 @@ static void UpdateMenue(List<string> verstoesse, bool mitMenue)
         {
             foreach (var (bw, bh) in new[] { (1280, 768), (2406, 1353), (4812, 2707) })
             {
-                var beenden = Platte(4, bw, bh);
+                var beenden = Platte(BEENDEN, bw, bh);
                 var platte = Platte(UPDATE, bw, bh);
                 if (platte.Width != beenden.Width || platte.Height != beenden.Height)
                     verstoesse.Add($"{wer} {bw}x{bh}: die Update-Platte ist {platte.Width}x{platte.Height}, die anderen {beenden.Width}x{beenden.Height}");
@@ -6420,7 +6599,7 @@ static void UpdateMenue(List<string> verstoesse, bool mitMenue)
                     verstoesse.Add($"{wer} {bw}x{bh}: die Update-Platte überlappt „Beenden“ ({platte} vs {beenden})");
                 if (Math.Abs(platte.Center.X - bw / 2) > 1 || platte.Bottom > bh)
                     verstoesse.Add($"{wer} {bw}x{bh}: die Update-Platte ist nicht mittig oder ragt aus dem Fenster ({platte})");
-                foreach (int letzter in new[] { 4, UPDATE })
+                foreach (int letzter in new[] { BEENDEN, UPDATE })
                 {
                     var zeile = Zeile(letzter, bw, bh);
                     var ueber = Platte(letzter, bw, bh);
@@ -6445,11 +6624,11 @@ static void UpdateMenue(List<string> verstoesse, bool mitMenue)
         if (mitMenue)
         {
             Abgleich(mA);
-            if (Sichtbar(mA, UPDATE) || !Sichtbar(mA, 4))
+            if (Sichtbar(mA, UPDATE) || !Sichtbar(mA, BEENDEN))
                 verstoesse.Add($"{wer}: ohne Angebot wird der Update-Eintrag gezeichnet (oder „Beenden“ nicht)");
             if (Klick(mA, Platte(UPDATE, 1920, 1080).Center) != (0, false))
                 verstoesse.Add($"{wer}: ohne Angebot lässt sich der Platz des Update-Eintrags anklicken");
-            Pfeil(mA, 4);
+            Pfeil(mA, BEENDEN);
             if ((int)auswahl.GetValue(mA) != 0)
                 verstoesse.Add($"{wer}: ohne Angebot führt Pfeil nach unten von „Beenden“ auf {auswahl.GetValue(mA)} statt auf „Neues Spiel“");
         }
@@ -6568,7 +6747,7 @@ static void UpdateMenue(List<string> verstoesse, bool mitMenue)
             Abgleich(mH);
             if (!Sichtbar(mH, UPDATE) || Text(mH, UPDATE) != "Update auf v9.9.9")
                 verstoesse.Add($"{wer}: mit Angebot fehlt der Update-Eintrag „Update auf v9.9.9“ (sichtbar {Sichtbar(mH, UPDATE)}, Text „{Text(mH, UPDATE)}“)");
-            Pfeil(mH, 4);
+            Pfeil(mH, BEENDEN);
             if ((int)auswahl.GetValue(mH) != UPDATE)
                 verstoesse.Add($"{wer}: mit Angebot führt Pfeil nach unten von „Beenden“ auf {auswahl.GetValue(mH)} statt auf „Update“");
             if (Klick(mH, Platte(UPDATE, 1920, 1080).Center) != (UPDATE, true))
@@ -6596,9 +6775,9 @@ static void UpdateMenue(List<string> verstoesse, bool mitMenue)
                 verstoesse.Add($"{wer}: während des Downloads zeigt der Menüeintrag „{Text(mH, UPDATE)}“");
             if (Waehlbar(mH, UPDATE) || Waehlbar(mH, 0) || !Sichtbar(mH, UPDATE))
                 verstoesse.Add($"{wer}: während des Downloads sind „Update“ ({Waehlbar(mH, UPDATE)}) oder „Neues Spiel“ ({Waehlbar(mH, 0)}) wählbar oder „Update“ unsichtbar");
-            if (!Waehlbar(mH, 3) || !Waehlbar(mH, 4))
+            if (!Waehlbar(mH, EINSTELLUNGEN) || !Waehlbar(mH, BEENDEN))
                 verstoesse.Add($"{wer}: während des Downloads sind „Einstellungen“ oder „Beenden“ gesperrt");
-            Pfeil(mH, 4);
+            Pfeil(mH, BEENDEN);
             if ((int)auswahl.GetValue(mH) != 1)
                 verstoesse.Add($"{wer}: während des Downloads führt Pfeil nach unten von „Beenden“ auf {auswahl.GetValue(mH)} statt über die gesperrten Einträge auf „Karte“");
             if ((bool)Methode("ExitAfterUpdate").Invoke(mH, null) || exits != 0)

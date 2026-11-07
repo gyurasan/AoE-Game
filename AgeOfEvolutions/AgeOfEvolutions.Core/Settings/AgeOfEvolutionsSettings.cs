@@ -150,7 +150,7 @@ public class AgeOfEvolutionsSettings : INotifyPropertyChanged
         }
     }
 
-    /// <summary>KI-Schwierigkeit: 0 Leicht, 1 Normal, 2 Schwer, 3 Extrem.</summary>
+    /// <summary>KI-Schwierigkeit: 0 Defense, 1 Normal, 2 This is Sparta (ältere Dateien: 3 = Sparta).</summary>
     public int AiDifficulty
     {
         get => aiDifficulty;

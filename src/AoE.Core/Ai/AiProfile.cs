@@ -1,15 +1,21 @@
 namespace AoE.Core.Ai;
 
 /// <summary>
-/// Schwierigkeitsgrad der Regel-KI: ein Satz von Zahlen, die das Tempo und die
-/// Härte des Spiels steuern — <b>dasselbe Regelwerk, andere Werte</b>, genau wie
-/// in Age of Empires II (gleiche Stellschrauben, je Stufe unterschiedlich).
-/// Die Profile sind bewusst klein, deterministisch und vergleichbar; es ist
-/// kein zweites Regelwerk.
-///
-/// Default ist <see cref="Standard"/> — <see cref="EconomyAi.EconomyAi"/>
-/// erzeugt ohne Argument eine Standard-KI, der alte Stand war die leicht
-/// schwächere Mischung aus Einzelangriffen und festem Reihenfolge-Sammeln.
+/// Schwierigkeitsgrad der Regel-KI: ein Satz von Zahlen und Schaltern, die Tempo,
+/// Härte und Spielweise steuern. Seit 2026-11-07 drei Stufen (Nutzer: „Defense,
+/// Normal und This is Sparta"), die sich nicht nur in Zahlen, sondern im Verhalten
+/// unterscheiden:
+/// <list type="bullet">
+///   <item><see cref="Defense"/>: greift nie von selbst an, bereitet sich aber auf
+///         Angriffe vor (Wachtürme, Bogenschützen, Armee in Aufstellung vor dem Dorf)
+///         und verteidigt sich.</item>
+///   <item><see cref="Standard"/> („Normal"): greift selbst an, in Wellen wie bisher.</item>
+///   <item><see cref="Sparta"/> („This is Sparta"): die schwerste Stufe — gemischte
+///         Armee, Angriff in Aufstellung (<see cref="ArmyCommander"/>): Nahkämpfer vorn,
+///         Bogenschützen dahinter, Reiter an den Flanken, die im Schwall angreifen und
+///         sich wieder zurückziehen.</item>
+/// </list>
+/// Die Profile sind feste Instanzen (Vergleich per <see cref="object.ReferenceEquals"/>).
 /// </summary>
 public sealed record AiProfile
 {
@@ -42,23 +48,56 @@ public sealed record AiProfile
     /// <see cref="RaidMinSoldiers"/>.</summary>
     public int HomeDefenseRadius { get; init; }
 
+    /// <summary>Greift die KI von selbst an (Angriffswellen)? <see cref="Defense"/>:
+    /// nein — ihre Soldaten verlassen das Dorf nur, um Eindringlinge im
+    /// <see cref="HomeDefenseRadius"/> zu schlagen.</summary>
+    public bool Raids { get; init; } = true;
+
+    /// <summary>Die Armee kämpft und marschiert in Aufstellung, geführt vom
+    /// <see cref="ArmyCommander"/> (Defense und Sparta). Aus: die alten Wellen
+    /// (jeder Soldat läuft einzeln aufs Ziel).</summary>
+    public bool FormationTactics { get; init; }
+
+    /// <summary>Anteil der Bogenschützen an der Armee in Prozent (Schießstand,
+    /// ab der Feudalzeit). 0: wie bisher nur Milizen, solange eine Kaserne steht.</summary>
+    public int ArcherPercent { get; init; }
+
+    /// <summary>Anteil der Reiter (Späher aus dem Stall, ab der Feudalzeit) an der
+    /// Armee in Prozent. Größer 0: die KI baut einen Stall.</summary>
+    public int CavalryPercent { get; init; }
+
+    /// <summary>So viele Wachtürme baut die KI ab der Feudalzeit am Dorf.</summary>
+    public int TowerCount { get; init; }
+
+    /// <summary>So viele Soldaten müssen im Feld stehen, bevor die KI ins nächste Zeitalter
+    /// aufsteigt (dazu eine fertige Kaserne). Bis 2026-11-07 war das
+    /// <see cref="RaidMinSoldiers"/> - Defense greift nie an und käme so nie aus der Dunklen Zeit.</summary>
+    public int AgeUpArmy { get; init; } = 5;
+
     // -------------------------------------------------------------------
-    // Die vier Stufen — eine Kurve der Zahlen, kein zweites Regelwerk.
+    // Die drei Stufen des Menüs, dazu das Testprofil.
     // -------------------------------------------------------------------
 
-    /// <summary>Leicht: spätere, kleinere Wellen; Verteidigungsorientiert.</summary>
-    public static AiProfile Easy { get; } = new()
+    /// <summary>Defense: greift nie an; viele Bogenschützen, zwei Wachtürme, die
+    /// Armee wartet in Aufstellung vor dem Dorf und schlägt Eindringlinge zurück.</summary>
+    public static AiProfile Defense { get; } = new()
     {
-        HouseHeadroom     = 2,
-        SoldierTarget     = 4,
-        RaidMinSoldiers   = 3,
-        HomeGuard         = 1,
-        RaidCooldownSeconds = 14,
-        DefenseMax        = 3,
-        HomeDefenseRadius = 8,
+        HouseHeadroom     = 3,
+        SoldierTarget     = 12,
+        RaidMinSoldiers   = int.MaxValue,   // greift nie an (Raids = false)
+        AgeUpArmy         = 6,
+        HomeGuard         = 0,
+        RaidCooldownSeconds = 8,
+        DefenseMax        = 5,
+        HomeDefenseRadius = 14,
+        Raids             = false,
+        FormationTactics  = true,
+        ArcherPercent     = 40,
+        CavalryPercent    = 0,
+        TowerCount        = 2,
     };
 
-    /// <summary>Mittel: ausbalanciert — die Default-KI.</summary>
+    /// <summary>Normal: ausbalanciert — Angriffswellen wie bisher (die Default-KI).</summary>
     public static AiProfile Standard { get; } = new()
     {
         HouseHeadroom     = 3,
@@ -70,34 +109,27 @@ public sealed record AiProfile
         HomeDefenseRadius = 10,
     };
 
-    /// <summary>Schwer: frühere, größere Wellen, dichterer Haushalt.</summary>
-    public static AiProfile Hard { get; } = new()
-    {
-        HouseHeadroom     = 4,
-        SoldierTarget     = 12,
-        RaidMinSoldiers   = 6,
-        HomeGuard         = 1,
-        RaidCooldownSeconds = 6,
-        DefenseMax        = 5,
-        HomeDefenseRadius = 12,
-    };
-
-    /// <summary>Extrem: frühe Großwellen, hohe Heimwache, enges Haus.</summary>
-    public static AiProfile Extreme { get; } = new()
+    /// <summary>This is Sparta: große gemischte Armee (40 % Nahkampf, 35 % Bogen,
+    /// 25 % Reiter), Angriff in Aufstellung, Reiter im Schwall.</summary>
+    public static AiProfile Sparta { get; } = new()
     {
         HouseHeadroom     = 5,
-        SoldierTarget     = 16,
-        RaidMinSoldiers   = 8,
-        HomeGuard         = 2,
-        RaidCooldownSeconds = 5,
+        SoldierTarget     = 20,
+        RaidMinSoldiers   = 12,
+        AgeUpArmy         = 6,
+        HomeGuard         = 3,   // das Dorf bleibt nie leer, wenn die Welle draußen ist
+        RaidCooldownSeconds = 10,
         DefenseMax        = 6,
         HomeDefenseRadius = 14,
+        FormationTactics  = true,
+        ArcherPercent     = 35,
+        CavalryPercent    = 25,
     };
 
     /// <summary>
     /// Testprofil (tools/ai-pruefung): sehr aggressive, schnelle Wellen,
     /// damit auf der halben Testkarte innerhalb kurzer Echtzeit ein
-    /// Dorfzentrum fällt und ein eindeutiger Sieg feststeht. Nurmehrer
+    /// Dorfzentrum fällt und ein eindeutiger Sieg feststeht. Nur andere
     /// Zahlen, kein zweites Regelwerk.
     /// </summary>
     public static AiProfile Aggressive { get; } = new()
@@ -105,9 +137,34 @@ public sealed record AiProfile
         HouseHeadroom     = 2,
         SoldierTarget     = 14,
         RaidMinSoldiers   = 4,
+        AgeUpArmy         = 4,
         HomeGuard         = 1,
         RaidCooldownSeconds = 3,
         DefenseMax        = 4,
         HomeDefenseRadius = 12,
     };
+
+    /// <summary>Zahl der Stufen im Menü (0 Defense, 1 Normal, 2 This is Sparta).</summary>
+    public const int LevelCount = 3;
+
+    /// <summary>
+    /// Das Profil der Menüstufe <paramref name="level"/>: 0 <see cref="Defense"/>,
+    /// 1 <see cref="Standard"/>, ab 2 <see cref="Sparta"/> — ältere Einstellungen und
+    /// Spielstände kannten noch 3 (Extrem), das wird ebenfalls Sparta. Alles darunter
+    /// (ungültig) wird <see cref="Standard"/>.
+    /// </summary>
+    public static AiProfile ForLevel(int level) => level switch
+    {
+        0 => Defense,
+        1 => Standard,
+        >= 2 => Sparta,
+        _ => Standard,
+    };
+
+    /// <summary>Die Menüstufe eines Profils, rückwärts zu <see cref="ForLevel"/>:
+    /// Defense 0, Sparta 2, jedes andere 1.</summary>
+    public static int LevelOf(AiProfile profile)
+        => ReferenceEquals(profile, Defense) ? 0
+         : ReferenceEquals(profile, Sparta) ? 2
+         : 1;
 }

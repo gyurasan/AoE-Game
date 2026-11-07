@@ -203,5 +203,35 @@
    {"huefte": [395, 600], "knie": [352, 748], "knoechel": [268, 893], "zehe": [362, 955]},
    {"huefte": [460, 600], "knie": [500, 752], "knoechel": [548, 925], "zehe": [668, 950]}
   ]
+ },
+ "schwertkaempfer": {
+  "bild": "soldaten/schwertkaempfer_5102.png",
+  "saum": 645, "breite": 62, "schritt": 200,
+  "rumpf": [[618, 640, 790, 705]],
+  "rumpf_linien": [[300, 575, 515, 808, 32]],
+  "beine": [
+   {"huefte": [425, 660], "knie": [375, 795], "knoechel": [325, 885], "zehe": [410, 945]},
+   {"huefte": [540, 660], "knie": [560, 770], "knoechel": [600, 885], "zehe": [700, 930]}
+  ]
+ },
+ "krieger": {
+  "bild": "soldaten/krieger_5122.png",
+  "saum": 645, "breite": 62, "schritt": 200,
+  "rumpf": [[618, 640, 790, 705]],
+  "rumpf_linien": [[300, 575, 515, 808, 32]],
+  "beine": [
+   {"huefte": [425, 660], "knie": [375, 795], "knoechel": [325, 885], "zehe": [410, 945]},
+   {"huefte": [540, 660], "knie": [560, 770], "knoechel": [600, 885], "zehe": [700, 930]}
+  ]
+ },
+ "langschwertkaempfer": {
+  "bild": "soldaten/langschwertkaempfer_5111.png",
+  "saum": 663, "breite": 62, "schritt": 200,
+  "rumpf": [[618, 640, 790, 705]],
+  "rumpf_linien": [[300, 575, 515, 808, 32]],
+  "beine": [
+   {"huefte": [425, 660], "knie": [375, 795], "knoechel": [325, 885], "zehe": [410, 945]},
+   {"huefte": [540, 660], "knie": [560, 770], "knoechel": [600, 885], "zehe": [700, 930]}
+  ]
  }
 }

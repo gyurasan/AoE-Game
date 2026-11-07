@@ -48,7 +48,7 @@ public sealed class SaveGame
     /// <summary>Zoom geteilt durch den Fensterfaktor (ZoomScale); 0 heißt: Startzoom.</summary>
     public float RelativeZoom { get; set; }
 
-    /// <summary>KI-Stufe wie in den Einstellungen: 0 Leicht, 1 Normal, 2 Schwer, 3 Extrem.</summary>
+    /// <summary>KI-Stufe wie in den Einstellungen: 0 Defense, 1 Normal, 2 This is Sparta (ältere Stände: 3 = Sparta).</summary>
     public int AiDifficulty { get; set; }
     public bool AiEnabled { get; set; }
     public bool BothSidesAi { get; set; }

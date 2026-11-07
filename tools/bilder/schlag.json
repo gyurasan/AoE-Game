@@ -228,5 +228,74 @@
    {"name": "senken", "oberarm": 40, "unterarm": 25, "rumpf": 1},
    {"name": "zurueck", "oberarm": 12, "unterarm": 8, "rumpf": 0}
   ]
+ },
+ "schwertkaempfer": {
+  "bild": "soldaten/schwertkaempfer_5102.png",
+  "rumpf_bild": "soldaten/schwertkaempfer_ohne_arm_5153.png",
+  "figur": "schwertkaempfer",
+  "arm": {"schulter": [340, 268], "ellbogen": [318, 405], "hand": [300, 520]},
+  "oberarm_breite": 38, "unterarm_breite": 36,
+  "waffe": [[305, 575, 500, 785, 34], [280, 605, 350, 540, 28]],
+  "nicht_arm": [[290, 190, 380, 318]],
+  "kopf": [468, 150, 92, 120],
+  "schulterkappe": [318, 266, 60, 72],
+  "schulter_schnitt": 318, "im_umriss": true,
+  "huefte": [470, 640],
+  "phasen": [
+   {"name": "bereit", "oberarm": 23, "unterarm": 31, "rumpf": 0},
+   {"name": "ausholen", "oberarm": -52, "unterarm": -59, "rumpf": -2},
+   {"name": "oben", "oberarm": -142, "unterarm": 3, "rumpf": -4, "hinter_kopf": true},
+   {"name": "ueber_kopf", "oberarm": -182, "unterarm": 16, "rumpf": -2, "hinter_kopf": true},
+   {"name": "vor_kopf", "oberarm": -232, "unterarm": 11, "rumpf": 1, "hinter_kopf": true},
+   {"name": "treffer", "oberarm": -277, "unterarm": -29, "rumpf": 5},
+   {"name": "durchziehen", "oberarm": -312, "unterarm": -29, "rumpf": 4},
+   {"name": "zurueck", "oberarm": -332, "unterarm": 11, "rumpf": 2}
+  ]
+ },
+ "krieger": {
+  "bild": "soldaten/krieger_5122.png",
+  "rumpf_bild": "soldaten/krieger_ohne_arm_5173.png",
+  "figur": "krieger",
+  "arm": {"schulter": [340, 268], "ellbogen": [318, 405], "hand": [300, 520]},
+  "oberarm_breite": 38, "unterarm_breite": 36,
+  "waffe": [[305, 575, 500, 785, 34], [280, 605, 350, 540, 28]],
+  "nicht_arm": [[290, 190, 380, 318]],
+  "kopf": [468, 150, 92, 120],
+  "schulterkappe": [338, 262, 46, 62],
+  "schulter_schnitt": 322, "arm_differenz": 60, "im_umriss": true, "radieren": [[280, 270, 345, 326]], "radieren_ohne": [[335, 262, 48, 50]],
+  "huefte": [470, 640],
+  "phasen": [
+   {"name": "bereit", "oberarm": 23, "unterarm": 31, "rumpf": 0},
+   {"name": "ausholen", "oberarm": -52, "unterarm": -59, "rumpf": -2},
+   {"name": "oben", "oberarm": -142, "unterarm": 3, "rumpf": -4, "hinter_kopf": true},
+   {"name": "ueber_kopf", "oberarm": -182, "unterarm": 16, "rumpf": -2, "hinter_kopf": true},
+   {"name": "vor_kopf", "oberarm": -232, "unterarm": 11, "rumpf": 1, "hinter_kopf": true},
+   {"name": "treffer", "oberarm": -277, "unterarm": -29, "rumpf": 5},
+   {"name": "durchziehen", "oberarm": -312, "unterarm": -29, "rumpf": 4},
+   {"name": "zurueck", "oberarm": -332, "unterarm": 11, "rumpf": 2}
+  ]
+ },
+ "langschwertkaempfer": {
+  "bild": "soldaten/langschwertkaempfer_5111.png",
+  "rumpf_bild": "soldaten/langschwertkaempfer_ohne_arm_5161.png",
+  "figur": "langschwertkaempfer",
+  "arm": {"schulter": [340, 268], "ellbogen": [318, 405], "hand": [300, 520]},
+  "oberarm_breite": 38, "unterarm_breite": 36,
+  "waffe": [[305, 575, 500, 785, 34], [280, 605, 350, 540, 28]],
+  "nicht_arm": [[290, 190, 380, 318]],
+  "kopf": [468, 150, 92, 120],
+  "schulterkappe": [338, 262, 46, 62],
+  "schulter_schnitt": 318, "im_umriss": true, "radieren": [[486, 736, 510, 770]],
+  "huefte": [470, 640],
+  "phasen": [
+   {"name": "bereit", "oberarm": 23, "unterarm": 31, "rumpf": 0},
+   {"name": "ausholen", "oberarm": -52, "unterarm": -59, "rumpf": -2},
+   {"name": "oben", "oberarm": -142, "unterarm": 3, "rumpf": -4, "hinter_kopf": true},
+   {"name": "ueber_kopf", "oberarm": -182, "unterarm": 16, "rumpf": -2, "hinter_kopf": true},
+   {"name": "vor_kopf", "oberarm": -232, "unterarm": 11, "rumpf": 1, "hinter_kopf": true},
+   {"name": "treffer", "oberarm": -277, "unterarm": -29, "rumpf": 5},
+   {"name": "durchziehen", "oberarm": -312, "unterarm": -29, "rumpf": 4},
+   {"name": "zurueck", "oberarm": -332, "unterarm": 11, "rumpf": 2}
+  ]
  }
 }

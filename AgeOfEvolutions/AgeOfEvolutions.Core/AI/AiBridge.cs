@@ -90,6 +90,10 @@ public sealed class AiBridge : IWorldState, IWorldActions
     public bool CanPlace(BuildingType type, int x, int y, int size)
         => _screen.CanPlace(Owner, type, new Vector2(x, y));
 
+    /// <summary>Begehbar nach dem Wissen des Owners (Nebel gilt als begehbar) - wie die
+    /// Wegsuche der Laufbefehle (<see cref="TileMap.IsKnownWalkable"/>).</summary>
+    public bool IsWalkable(int x, int y) => _screen.tileMap.IsKnownWalkable(x, y, Owner);
+
     public (int X, int Y)? FindSource(Resource resource, int fromX, int fromY, int maxDistance)
     {
         var pos = _screen.gatherWorld.FindNearestSource(
@@ -130,7 +134,8 @@ public sealed class AiBridge : IWorldState, IWorldActions
             // Damit erkennt die KI einen Angriff auch fern vom Stadtzentrum.
             bool attackingUs = (u.AttackTarget is { } at && at.OwnerId == Owner)
                              || (u.UnitTarget is { } ut && ut.OwnerId == Owner);
-            visible.Add(new EnemyInfo(x, y, IsBuilding: false, Health: u.Health, IsAttackingUs: attackingUs));
+            visible.Add(new EnemyInfo(x, y, IsBuilding: false, Health: u.Health, IsAttackingUs: attackingUs,
+                                      Kind: KindOf(u)));
         }
         foreach (var b in _screen.tileMap.Buildings)
         {
@@ -285,7 +290,7 @@ public sealed class AiBridge : IWorldState, IWorldActions
         {
             Id = u.Id.GetHashCode(),
             Owner = u.OwnerId,
-            Kind = u.Core is Villager ? UnitKind.Villager : UnitKind.Militia,
+            Kind = KindOf(u),
             X = (int)grid.X,
             Y = (int)grid.Y,
             State = FromState(u.State),
@@ -296,6 +301,42 @@ public sealed class AiBridge : IWorldState, IWorldActions
             HasAttack = u.AttackTarget is not null || u.UnitTarget is not null
         };
     }
+
+    /// <summary>
+    /// Die Art einer Einheit aus Sicht der KI, nach ihrer Kerneinheit: Dorfbewohner;
+    /// Bogen- und Plänkler als Schützen (Archer); Späher, Ritter und Kamelreiter als
+    /// Reiter (Cavalry); Speerkämpfer; Rammbock, Mangonel, Trebuchet als Belagerung
+    /// (Catapult); alles andere (Miliz und ihre Linie, Mönch) als Nahkämpfer (Militia).
+    /// Bis 2026-11-07 war jeder Soldat „Miliz" - die KI konnte Schützen nicht von
+    /// Nahkämpfern unterscheiden.
+    /// </summary>
+    public int QueuedSoldiers(UnitKind kind)
+        => OwnBuildings.Where(b => b.Core.BuildingType != BuildingType.TownCenter)
+                       .Sum(b => b.Training.Units.Count(t => KindOf(t) == kind));
+
+    /// <summary>Die KI-Art eines Einheitentyps aus der Warteschlange - dieselbe Einteilung wie
+    /// <see cref="KindOf(Unit)"/>.</summary>
+    internal static UnitKind KindOf(Data.UnitType t) => t switch
+    {
+        Data.UnitType.Villager => UnitKind.Villager,
+        Data.UnitType.Archer or Data.UnitType.Skirmisher or Data.UnitType.Longbowman
+            or Data.UnitType.CavalryArcher => UnitKind.Archer,
+        Data.UnitType.Scout or Data.UnitType.Cavalry or Data.UnitType.CamelRider
+            or Data.UnitType.Paladin or Data.UnitType.ImperialCamel => UnitKind.Cavalry,
+        Data.UnitType.SpearMan => UnitKind.Spearman,
+        Data.UnitType.Ram or Data.UnitType.Catapult or Data.UnitType.Trebuchet => UnitKind.Catapult,
+        _ => UnitKind.Militia,
+    };
+
+    internal static UnitKind KindOf(Unit u) => u.Core switch
+    {
+        Villager => UnitKind.Villager,
+        AoE.Core.Entities.Archer or Skirmisher => UnitKind.Archer,
+        Scout or Knight or CamelRider => UnitKind.Cavalry,
+        SpearMan => UnitKind.Spearman,
+        Ram or Mangonel or Trebuchet => UnitKind.Catapult,
+        _ => UnitKind.Militia,
+    };
 
     private BuildingSnapshot ToBuilding(Building b)
     {

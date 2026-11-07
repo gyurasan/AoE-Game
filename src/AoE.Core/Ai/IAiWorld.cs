@@ -61,6 +61,15 @@ public interface IWorldState
     /// </summary>
     bool CanPlace(BuildingType type, int x, int y, int size);
 
+    /// <summary>
+    /// Kann eine Einheit auf der Kachel stehen — nach dem Wissen des Spielers? Außerhalb
+    /// der Karte false; Wasser, Bäume, Felsen und Gebäude (auch eigene) false; eine noch
+    /// nie gesehene Kachel gilt als begehbar (so plant auch die Wegsuche des Spielers).
+    /// Die Aufstellung (<see cref="Formation"/>) stellt niemanden auf eine Kachel, für die
+    /// das false ist.
+    /// </summary>
+    bool IsWalkable(int x, int y);
+
     /// <summary>Die nächste Kachel mit einer offenen Menge von <paramref name="resource"/>,
     /// an der ein Arbeiter arbeiten kann, maximal <paramref name="maxDistance"/>
     /// Kacheln von (<paramref name="fromX"/>, <paramref name="fromY"/>) entfernt —
@@ -82,6 +91,12 @@ public interface IWorldState
     /// Leere Liste, wenn nichts sichtbar ist.
     /// </summary>
     IReadOnlyList<EnemyInfo> VisibleEnemies();
+
+    /// <summary>So viele Soldaten der Art <paramref name="kind"/> warten in den Ausbildungs-Warteschlangen
+    /// der eigenen Gebäude (Miliz-Linie, Speer, Bogen, Reiter, Belagerung - wie
+    /// <see cref="UnitSnapshot.Kind"/>). Die gemischte Armee zählt sie mit, sonst reiht die KI jede
+    /// halbe Sekunde weiter ein, bis die ersten fertig sind.</summary>
+    int QueuedSoldiers(UnitKind kind);
 
     /// <summary>
     /// Aktuelle Weltzeit in Sekunden (gleiche Skala wie
@@ -120,9 +135,12 @@ public interface IWorldState
 /// <see cref="EconomyAi"/>). <see cref="IsAttackingUs"/>: die feindliche
 /// Einheit greift gerade eine eigene Einheit oder ein eigenes Gebäude an —
 /// egal wie weit vom Stadtzentrum. <see cref="IsArmed"/> (F1): das fertige
-/// Gebäude schießt selbst zurück — Wachturm, Stadtzentrum, Burg.</summary>
+/// Gebäude schießt selbst zurück — Wachturm, Stadtzentrum, Burg. <see cref="Kind"/>:
+/// die Art der feindlichen Einheit (Dorfbewohner, Nahkämpfer, Schütze, Reiter, …) —
+/// danach wählt die Aufstellung ihre Ziele (Reiter jagen Schützen, Schützen weichen
+/// Nahkämpfern aus); bei Gebäuden null.</summary>
 public readonly record struct EnemyInfo(int X, int Y, bool IsBuilding, int Health, bool IsTownCenter = false,
-                                        bool IsAttackingUs = false, bool IsArmed = false);
+                                        bool IsAttackingUs = false, bool IsArmed = false, UnitKind? Kind = null);
 
 /// <summary>Der vierstellige Ressourcenvektor (Nahrung, Holz, Gold, Stein).</summary>
 public readonly record struct ResourceVector(int Food, int Wood, int Gold, int Stone)

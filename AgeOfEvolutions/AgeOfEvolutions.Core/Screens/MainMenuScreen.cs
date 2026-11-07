@@ -36,6 +36,7 @@ public class MainMenuScreen : GameScreen
     {
         ("Neues Spiel", true),
         ("Karte", true),
+        ("KI", true),
         ("Spiel laden", false),
         ("Einstellungen", true),
         ("Beenden", true),
@@ -49,14 +50,22 @@ public class MainMenuScreen : GameScreen
     MapSize mapSize = MapSize.Standard;
     SettingsManager<AgeOfEvolutionsSettings> settingsManager;
 
+    // Die KI-Stufe (Nutzer 2026-11-07: „im Menü unter die wählbare Weltgröße“) direkt
+    // unter der Karte: jede Wahl wechselt Defense, Normal, This is Sparta im Kreis und
+    // speichert sie in den Einstellungen (AiDifficulty) - vorher stand sie dort im
+    // Untermenü „Einstellungen“
+    private const int AI_ENTRY = 2;
+    int aiLevel = 1;
+
     // „Spiel laden": öffnet die Liste aller Spielstände (LoadGameScreen)
-    private const int LOAD_ENTRY = 2;
+    private const int LOAD_ENTRY = 3;
+    private const int SETTINGS_ENTRY = 4, EXIT_ENTRY = 5;
 
     // Update (Nutzer 2026-10-18, Aussehen 2026-10-20: „nicht wie die anderen
     // menüs"): ein gewöhnlicher Menüeintrag unter „Beenden", nur sichtbar, wenn
     // GitHubs neueste Version neuer ist; darunter eine kleine Zeile mit der
     // Version dieser Installation (UpdateService.VersionLine)
-    private const int UPDATE_ENTRY = 5;
+    private const int UPDATE_ENTRY = 6;
     readonly UpdateService updater = new UpdateService();
     bool updateEntryVisible;
     // Nach dem Update (Phase Done) beendet sich diese Version genau einmal
@@ -101,6 +110,8 @@ public class MainMenuScreen : GameScreen
                 settingsManager.Settings.MapSizeVersion = 1;
             }
             mapSize = (MapSize)roh;
+            // Ältere Dateien kennen noch Stufe 3 (Extrem) - das ist heute This is Sparta
+            aiLevel = Math.Clamp(settingsManager.Settings.AiDifficulty, 0, GameplayOptions.AiNames.Length - 1);
         }
 
         // „Spiel laden" nur, wenn es einen Spielstand gibt
@@ -239,12 +250,19 @@ public class MainMenuScreen : GameScreen
 
     private static float UiScale(int height) => height / DESIGN_HEIGHT;
 
-    /// <summary>Text eines Eintrags; der Karteneintrag nennt die gewählte Größe.</summary>
-    private string EntryText(int index)
-        => index == MAP_ENTRY ? $"Karte: {MapSizes.Name(mapSize)}" : menuOptions[index].Text;
+    /// <summary>Text eines Eintrags; Karte und KI nennen die gewählte Größe und Stufe.</summary>
+    private string EntryText(int index) => index switch
+    {
+        MAP_ENTRY => $"Karte: {MapSizes.Name(mapSize)}",
+        AI_ENTRY => $"KI: {GameplayOptions.AiName(aiLevel)}",
+        _ => menuOptions[index].Text,
+    };
 
     /// <summary>Die nächste Kartengröße im Wechsel Standard, Kontinent, World.</summary>
     private static MapSize NextMapSize(MapSize size) => (MapSize)(((int)size + 1) % 3);
+
+    /// <summary>Die nächste KI-Stufe im Wechsel Defense, Normal, This is Sparta.</summary>
+    private static int NextAiLevel(int level) => (level + 1) % GameplayOptions.AiNames.Length;
 
     /// <summary>Platte eines Eintrags im Fenster - dieselbe zum Zeichnen und Klicken.</summary>
     private static Rectangle EntryRect(int index, int width, int height)
@@ -319,13 +337,21 @@ public class MainMenuScreen : GameScreen
                     settingsManager.Save();
                 }
                 break;
+            case AI_ENTRY: // KI-Stufe wechseln und merken
+                aiLevel = NextAiLevel(aiLevel);
+                if (settingsManager != null)
+                {
+                    settingsManager.Settings.AiDifficulty = aiLevel;
+                    settingsManager.Save();
+                }
+                break;
             case LOAD_ENTRY: // Spiel laden: die Liste aller Spielstände
                 ScreenManager.AddScreen(new LoadGameScreen(), ControllingPlayer);
                 break;
-            case 3: // Settings
+            case SETTINGS_ENTRY: // Settings
                 ScreenManager.AddScreen(new SettingsScreen(), ControllingPlayer);
                 break;
-            case 4: // Exit
+            case EXIT_ENTRY: // Exit
                 ScreenManager.Game.Exit();
                 break;
             case UPDATE_ENTRY: // Update laden, installieren, neu starten
@@ -397,7 +423,13 @@ public class MainMenuScreen : GameScreen
             var color = !enabled && !updateRunning ? new Color(120, 110, 95)
                       : selected ? new Color(255, 215, 0)
                                  : Color.LightGray;
-            DrawCentered(spriteBatch, text, plate.Center.ToVector2(), 40 * ui, color, alpha, shadow);
+            // Lange Texte („KI: This is Sparta“) werden kleiner, statt über die Platte zu ragen
+            float textHeight = 40 * ui;
+            float room = plate.Width - 32 * ui;
+            float textWidth = MenuStyle.TextWidth(ScreenManager, text, textHeight);
+            if (textWidth > room)
+                textHeight *= room / textWidth;
+            DrawCentered(spriteBatch, text, plate.Center.ToVector2(), textHeight, color, alpha, shadow);
 
             // Download: dünner Balken am unteren Rand der Platte
             if (i == UPDATE_ENTRY && updater.UpdatePhase == UpdateService.Phase.Downloading

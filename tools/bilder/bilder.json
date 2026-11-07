@@ -3312,7 +3312,7 @@
    {
     "name": "wildschwein_lauf1",
     "seed": 9841,
-        "figur": "wildschwein",
+    "figur": "wildschwein",
     "vorlage": "../tiere/wildschwein_9701_roh.png",
     "maske": {
      "rechtecke": [
@@ -3343,7 +3343,7 @@
    {
     "name": "wildschwein_lauf2",
     "seed": 9851,
-        "figur": "wildschwein",
+    "figur": "wildschwein",
     "vorlage": "../tiere/wildschwein_9701_roh.png",
     "maske": {
      "rechtecke": [
@@ -3374,7 +3374,7 @@
    {
     "name": "wildschwein2_lauf1",
     "seed": 9861,
-        "figur": "wildschwein2",
+    "figur": "wildschwein2",
     "vorlage": "../tiere/wildschwein2_9712_roh.png",
     "maske": {
      "rechtecke": [
@@ -3399,7 +3399,7 @@
    {
     "name": "wildschwein2_lauf2",
     "seed": 9871,
-        "figur": "wildschwein2",
+    "figur": "wildschwein2",
     "vorlage": "../tiere/wildschwein2_9712_roh.png",
     "maske": {
      "rechtecke": [
@@ -7497,7 +7497,8 @@
     },
     "prompt": "A medieval man-at-arms foot soldier in a long chain mail hauberk over a bright blue padded gambeson, a brown belt, brown trousers and leather boots, a conical steel nasal helmet over a mail coif, a short sword in his right hand pointing down and a round shield painted bright blue with an iron rim and an iron boss on his left arm, determined bearded face, walking pose turned to the right.",
     "negativ": "extra hand, extra arm, second sword, spear, axe, shadow",
-    "ziel": "Einheiten/schwertkaempfer.png"
+    "ziel": "Einheiten/schwertkaempfer.png",
+    "zielbreite": 128
    },
    {
     "name": "langschwertkaempfer",
@@ -7548,7 +7549,8 @@
     },
     "prompt": "A medieval long swordsman in a polished steel breastplate with steel shoulder plates over chain mail, a bright blue surcoat, a brown belt, brown trousers and leather boots, a steel bascinet helmet with an open face, a sword in his right hand pointing down and a bright blue heater shield with a steel rim on his left arm, determined face, walking pose turned to the right.",
     "negativ": "extra hand, extra arm, second sword, spear, axe, shadow",
-    "ziel": "Einheiten/langschwertkaempfer.png"
+    "ziel": "Einheiten/langschwertkaempfer.png",
+    "zielbreite": 128
    },
    {
     "name": "krieger",
@@ -7599,7 +7601,8 @@
     },
     "prompt": "A sturdy village warrior in a bright blue linen tunic with a shaggy brown fur vest over it, a brown belt, brown trousers and leather boots, a simple brown leather cap, a short sword in his right hand pointing down and a small round wooden buckler on his left arm, rugged bearded face, walking pose turned to the right.",
     "negativ": "helmet, armor, chain mail, extra hand, extra arm, second sword, spear, shadow",
-    "ziel": "Einheiten/krieger.png"
+    "ziel": "Einheiten/krieger.png",
+    "zielbreite": 128
    },
    {
     "name": "armbrustschuetze",
@@ -7780,7 +7783,7 @@
    },
    {
     "name": "schwertkaempfer_ohne_arm",
-    "seed": 5152,
+    "seed": 5153,
     "vorlage": "schwertkaempfer_5102_roh.png",
     "maske": {
      "rechtecke": [
@@ -7832,7 +7835,7 @@
    },
    {
     "name": "krieger_ohne_arm",
-    "seed": 5172,
+    "seed": 5173,
     "vorlage": "krieger_5122_roh.png",
     "maske": {
      "rechtecke": [
@@ -9234,6 +9237,174 @@
     "ziel": "Einheiten/moench_reliquie_lauf8.png",
     "figur": "moench_reliquie",
     "zielbreite": 128
+   },
+   {
+    "name": "schwertkaempfer_lauf1",
+    "seed": 1,
+    "ziel": "Einheiten/schwertkaempfer_lauf1.png",
+    "figur": "schwertkaempfer",
+    "zielbreite": 128
+   },
+   {
+    "name": "schwertkaempfer_lauf2",
+    "seed": 1,
+    "ziel": "Einheiten/schwertkaempfer_lauf2.png",
+    "figur": "schwertkaempfer",
+    "zielbreite": 128
+   },
+   {
+    "name": "schwertkaempfer_lauf3",
+    "seed": 1,
+    "ziel": "Einheiten/schwertkaempfer_lauf3.png",
+    "figur": "schwertkaempfer",
+    "zielbreite": 128
+   },
+   {
+    "name": "schwertkaempfer_lauf4",
+    "seed": 1,
+    "ziel": "Einheiten/schwertkaempfer_lauf4.png",
+    "figur": "schwertkaempfer",
+    "zielbreite": 128
+   },
+   {
+    "name": "schwertkaempfer_lauf5",
+    "seed": 1,
+    "ziel": "Einheiten/schwertkaempfer_lauf5.png",
+    "figur": "schwertkaempfer",
+    "zielbreite": 128
+   },
+   {
+    "name": "schwertkaempfer_lauf6",
+    "seed": 1,
+    "ziel": "Einheiten/schwertkaempfer_lauf6.png",
+    "figur": "schwertkaempfer",
+    "zielbreite": 128
+   },
+   {
+    "name": "schwertkaempfer_lauf7",
+    "seed": 1,
+    "ziel": "Einheiten/schwertkaempfer_lauf7.png",
+    "figur": "schwertkaempfer",
+    "zielbreite": 128
+   },
+   {
+    "name": "schwertkaempfer_lauf8",
+    "seed": 1,
+    "ziel": "Einheiten/schwertkaempfer_lauf8.png",
+    "figur": "schwertkaempfer",
+    "zielbreite": 128
+   },
+   {
+    "name": "langschwertkaempfer_lauf1",
+    "seed": 1,
+    "ziel": "Einheiten/langschwertkaempfer_lauf1.png",
+    "figur": "langschwertkaempfer",
+    "zielbreite": 128
+   },
+   {
+    "name": "langschwertkaempfer_lauf2",
+    "seed": 1,
+    "ziel": "Einheiten/langschwertkaempfer_lauf2.png",
+    "figur": "langschwertkaempfer",
+    "zielbreite": 128
+   },
+   {
+    "name": "langschwertkaempfer_lauf3",
+    "seed": 1,
+    "ziel": "Einheiten/langschwertkaempfer_lauf3.png",
+    "figur": "langschwertkaempfer",
+    "zielbreite": 128
+   },
+   {
+    "name": "langschwertkaempfer_lauf4",
+    "seed": 1,
+    "ziel": "Einheiten/langschwertkaempfer_lauf4.png",
+    "figur": "langschwertkaempfer",
+    "zielbreite": 128
+   },
+   {
+    "name": "langschwertkaempfer_lauf5",
+    "seed": 1,
+    "ziel": "Einheiten/langschwertkaempfer_lauf5.png",
+    "figur": "langschwertkaempfer",
+    "zielbreite": 128
+   },
+   {
+    "name": "langschwertkaempfer_lauf6",
+    "seed": 1,
+    "ziel": "Einheiten/langschwertkaempfer_lauf6.png",
+    "figur": "langschwertkaempfer",
+    "zielbreite": 128
+   },
+   {
+    "name": "langschwertkaempfer_lauf7",
+    "seed": 1,
+    "ziel": "Einheiten/langschwertkaempfer_lauf7.png",
+    "figur": "langschwertkaempfer",
+    "zielbreite": 128
+   },
+   {
+    "name": "langschwertkaempfer_lauf8",
+    "seed": 1,
+    "ziel": "Einheiten/langschwertkaempfer_lauf8.png",
+    "figur": "langschwertkaempfer",
+    "zielbreite": 128
+   },
+   {
+    "name": "krieger_lauf1",
+    "seed": 1,
+    "ziel": "Einheiten/krieger_lauf1.png",
+    "figur": "krieger",
+    "zielbreite": 128
+   },
+   {
+    "name": "krieger_lauf2",
+    "seed": 1,
+    "ziel": "Einheiten/krieger_lauf2.png",
+    "figur": "krieger",
+    "zielbreite": 128
+   },
+   {
+    "name": "krieger_lauf3",
+    "seed": 1,
+    "ziel": "Einheiten/krieger_lauf3.png",
+    "figur": "krieger",
+    "zielbreite": 128
+   },
+   {
+    "name": "krieger_lauf4",
+    "seed": 1,
+    "ziel": "Einheiten/krieger_lauf4.png",
+    "figur": "krieger",
+    "zielbreite": 128
+   },
+   {
+    "name": "krieger_lauf5",
+    "seed": 1,
+    "ziel": "Einheiten/krieger_lauf5.png",
+    "figur": "krieger",
+    "zielbreite": 128
+   },
+   {
+    "name": "krieger_lauf6",
+    "seed": 1,
+    "ziel": "Einheiten/krieger_lauf6.png",
+    "figur": "krieger",
+    "zielbreite": 128
+   },
+   {
+    "name": "krieger_lauf7",
+    "seed": 1,
+    "ziel": "Einheiten/krieger_lauf7.png",
+    "figur": "krieger",
+    "zielbreite": 128
+   },
+   {
+    "name": "krieger_lauf8",
+    "seed": 1,
+    "ziel": "Einheiten/krieger_lauf8.png",
+    "figur": "krieger",
+    "zielbreite": 128
    }
   ]
  },
@@ -9824,6 +9995,174 @@
     "ziel": "Einheiten/moench_schlag8.png",
     "figur": "moench_schlag",
     "zielbreite": 137
+   },
+   {
+    "name": "schwertkaempfer_schlag1",
+    "seed": 1,
+    "ziel": "Einheiten/schwertkaempfer_schlag1.png",
+    "figur": "schwertkaempfer_schlag",
+    "zielbreite": 332
+   },
+   {
+    "name": "schwertkaempfer_schlag2",
+    "seed": 1,
+    "ziel": "Einheiten/schwertkaempfer_schlag2.png",
+    "figur": "schwertkaempfer_schlag",
+    "zielbreite": 332
+   },
+   {
+    "name": "schwertkaempfer_schlag3",
+    "seed": 1,
+    "ziel": "Einheiten/schwertkaempfer_schlag3.png",
+    "figur": "schwertkaempfer_schlag",
+    "zielbreite": 332
+   },
+   {
+    "name": "schwertkaempfer_schlag4",
+    "seed": 1,
+    "ziel": "Einheiten/schwertkaempfer_schlag4.png",
+    "figur": "schwertkaempfer_schlag",
+    "zielbreite": 332
+   },
+   {
+    "name": "schwertkaempfer_schlag5",
+    "seed": 1,
+    "ziel": "Einheiten/schwertkaempfer_schlag5.png",
+    "figur": "schwertkaempfer_schlag",
+    "zielbreite": 332
+   },
+   {
+    "name": "schwertkaempfer_schlag6",
+    "seed": 1,
+    "ziel": "Einheiten/schwertkaempfer_schlag6.png",
+    "figur": "schwertkaempfer_schlag",
+    "zielbreite": 332
+   },
+   {
+    "name": "schwertkaempfer_schlag7",
+    "seed": 1,
+    "ziel": "Einheiten/schwertkaempfer_schlag7.png",
+    "figur": "schwertkaempfer_schlag",
+    "zielbreite": 332
+   },
+   {
+    "name": "schwertkaempfer_schlag8",
+    "seed": 1,
+    "ziel": "Einheiten/schwertkaempfer_schlag8.png",
+    "figur": "schwertkaempfer_schlag",
+    "zielbreite": 332
+   },
+   {
+    "name": "langschwertkaempfer_schlag1",
+    "seed": 1,
+    "ziel": "Einheiten/langschwertkaempfer_schlag1.png",
+    "figur": "langschwertkaempfer_schlag",
+    "zielbreite": 321
+   },
+   {
+    "name": "langschwertkaempfer_schlag2",
+    "seed": 1,
+    "ziel": "Einheiten/langschwertkaempfer_schlag2.png",
+    "figur": "langschwertkaempfer_schlag",
+    "zielbreite": 321
+   },
+   {
+    "name": "langschwertkaempfer_schlag3",
+    "seed": 1,
+    "ziel": "Einheiten/langschwertkaempfer_schlag3.png",
+    "figur": "langschwertkaempfer_schlag",
+    "zielbreite": 321
+   },
+   {
+    "name": "langschwertkaempfer_schlag4",
+    "seed": 1,
+    "ziel": "Einheiten/langschwertkaempfer_schlag4.png",
+    "figur": "langschwertkaempfer_schlag",
+    "zielbreite": 321
+   },
+   {
+    "name": "langschwertkaempfer_schlag5",
+    "seed": 1,
+    "ziel": "Einheiten/langschwertkaempfer_schlag5.png",
+    "figur": "langschwertkaempfer_schlag",
+    "zielbreite": 321
+   },
+   {
+    "name": "langschwertkaempfer_schlag6",
+    "seed": 1,
+    "ziel": "Einheiten/langschwertkaempfer_schlag6.png",
+    "figur": "langschwertkaempfer_schlag",
+    "zielbreite": 321
+   },
+   {
+    "name": "langschwertkaempfer_schlag7",
+    "seed": 1,
+    "ziel": "Einheiten/langschwertkaempfer_schlag7.png",
+    "figur": "langschwertkaempfer_schlag",
+    "zielbreite": 321
+   },
+   {
+    "name": "langschwertkaempfer_schlag8",
+    "seed": 1,
+    "ziel": "Einheiten/langschwertkaempfer_schlag8.png",
+    "figur": "langschwertkaempfer_schlag",
+    "zielbreite": 321
+   },
+   {
+    "name": "krieger_schlag1",
+    "seed": 1,
+    "ziel": "Einheiten/krieger_schlag1.png",
+    "figur": "krieger_schlag",
+    "zielbreite": 334
+   },
+   {
+    "name": "krieger_schlag2",
+    "seed": 1,
+    "ziel": "Einheiten/krieger_schlag2.png",
+    "figur": "krieger_schlag",
+    "zielbreite": 334
+   },
+   {
+    "name": "krieger_schlag3",
+    "seed": 1,
+    "ziel": "Einheiten/krieger_schlag3.png",
+    "figur": "krieger_schlag",
+    "zielbreite": 334
+   },
+   {
+    "name": "krieger_schlag4",
+    "seed": 1,
+    "ziel": "Einheiten/krieger_schlag4.png",
+    "figur": "krieger_schlag",
+    "zielbreite": 334
+   },
+   {
+    "name": "krieger_schlag5",
+    "seed": 1,
+    "ziel": "Einheiten/krieger_schlag5.png",
+    "figur": "krieger_schlag",
+    "zielbreite": 334
+   },
+   {
+    "name": "krieger_schlag6",
+    "seed": 1,
+    "ziel": "Einheiten/krieger_schlag6.png",
+    "figur": "krieger_schlag",
+    "zielbreite": 334
+   },
+   {
+    "name": "krieger_schlag7",
+    "seed": 1,
+    "ziel": "Einheiten/krieger_schlag7.png",
+    "figur": "krieger_schlag",
+    "zielbreite": 334
+   },
+   {
+    "name": "krieger_schlag8",
+    "seed": 1,
+    "ziel": "Einheiten/krieger_schlag8.png",
+    "figur": "krieger_schlag",
+    "zielbreite": 334
    }
   ]
  },
@@ -10079,9 +10418,10 @@
   "bilder": [
    {
     "name": "speerkaempfer",
-    "seed": 11201,
+    "seed": 11202,
     "prompt": "A medieval spearman foot soldier in a bright blue padded gambeson, a conical iron helmet with a nose guard and his bearded face clearly visible, holding a long wooden spear with an iron spearhead upright.",
-    "negativ": "visor, closed helmet, great helm, face covered"
+    "negativ": "visor, closed helmet, great helm, face covered",
+    "ziel": "Icons/speerkaempfer.png"
    },
    {
     "name": "plaenkler",
@@ -10129,7 +10469,8 @@
     "name": "schwertkaempfer",
     "seed": 11811,
     "prompt": "A medieval man-at-arms foot soldier in a rounded steel kettle helmet over a chain mail coif, a bright blue quilted gambeson with chain mail sleeves, his bearded face clearly visible, holding a short steel sword and a round bright blue shield with an iron rim and an iron boss.",
-    "negativ": "visor, closed helmet, great helm, face covered, spear, axe"
+    "negativ": "visor, closed helmet, great helm, face covered, spear, axe",
+    "ziel": "Icons/schwertkaempfer.png"
    },
    {
     "name": "langschwertkaempfer",
@@ -10159,7 +10500,8 @@
     "name": "krieger",
     "seed": 11821,
     "prompt": "A sturdy village warrior in a bright blue linen tunic with a shaggy brown fur vest over it and a simple brown leather cap, his rugged bearded face clearly visible, holding a short steel sword and a small round wooden buckler.",
-    "negativ": "club, mace, axe, helmet, armor, chain mail"
+    "negativ": "club, mace, axe, helmet, armor, chain mail",
+    "ziel": "Icons/krieger.png"
    },
    {
     "name": "moench",
@@ -10215,9 +10557,10 @@
    },
    {
     "name": "schwerer_pflug",
-    "seed": 11461,
+    "seed": 11462,
     "prompt": "A heavy medieval wheeled plough: a sturdy wooden frame with two long handles, a pair of small wooden wheels at the front and a large curved iron ploughshare cutting a deep furrow into dark brown earth.",
-    "negativ": "sickle, scythe, hoe, axe"
+    "negativ": "sickle, scythe, hoe, axe",
+    "ziel": "Icons/schwerer_pflug.png"
    },
    {
     "name": "fruchtwechsel",
@@ -10233,9 +10576,10 @@
    },
    {
     "name": "goldschacht",
-    "seed": 11451,
+    "seed": 11452,
     "prompt": "A timber-framed mine entrance in a rocky hillside with a wooden pulley wheel above it and a wooden bucket full of gold nuggets hanging from its rope, more gold nuggets piled at the mouth of the mine.",
-    "negativ": "noose, gallows, hanging loop, rope loop, skeleton"
+    "negativ": "noose, gallows, hanging loop, rope loop, skeleton",
+    "ziel": "Icons/goldschacht.png"
    },
    {
     "name": "steinbergbau",
@@ -10301,7 +10645,8 @@
     "name": "polsterwams",
     "seed": 11531,
     "prompt": "A medieval padded gambeson: a thick quilted linen arming coat with diamond stitching, a high collar and a laced front with leather ties.",
-    "negativ": "zipper, modern jacket, puffer jacket, down jacket, buttons"
+    "negativ": "zipper, modern jacket, puffer jacket, down jacket, buttons",
+    "ziel": "Icons/polsterwams.png"
    },
    {
     "name": "lederwams",
@@ -10391,7 +10736,8 @@
     "seed": 11741,
     "prompt": "Twelve small blue soldier tokens standing in a square formation: four along each side, forming the outline of a square with an empty middle.",
     "stil": "Game user interface icon in 16-bit pixel art style, crisp square pixels, limited warm color palette, a simple clear symbol seen from directly above, plain flat dark brown background, no text.",
-    "negativ": "circle, ring, round formation"
+    "negativ": "circle, ring, round formation",
+    "ziel": "Icons/formation_kasten.png"
    },
    {
     "name": "formation_gestaffelt",
@@ -10531,6 +10877,24 @@
     },
     "prompt": "A medieval battering ram: a sturdy wooden shed with a steep sloped roof covered with brown animal hides, on four solid wooden wheels, a heavy tree-trunk ram with a black iron ram head poking out of its front end on the right, a few bright blue painted wooden shields hanging on its side. The battering ram has been pulled completely inside: the front opening of the shed is dark and empty, nothing sticks out of it.",
     "negativ": "battering ram, log, tree trunk, iron ram head, spike"
+   },
+   {
+    "name": "rammbock_rad",
+    "seed": 12141,
+    "vorlage": "rammbock_12001_roh.png",
+    "maske": {
+     "ellipsen": [
+      [
+       838,
+       650,
+       100,
+       85
+      ]
+     ],
+     "weich": 8
+    },
+    "prompt": "A medieval battering ram cart seen from the side: below the front of the wooden shed, the large spoked wooden cart wheel with an iron rim and a round wooden hub, partly in the shadow of the shed, nothing in front of the wheel.",
+    "negativ": "battering ram, log, beam, iron cap, spike, knob, post, bollard, weapon"
    },
    {
     "name": "mangonel_ohne_arm",
@@ -10825,21 +11189,24 @@
     "name": "stein",
     "seed": 12101,
     "prompt": "A single roughly round grey stone ball, hewn from rough granite, with a few chips and cracks.",
-    "zielbreite": 96
+    "zielbreite": 96,
+    "ziel": "Effekte/stein.png"
    },
    {
     "name": "stein_gross",
     "seed": 12111,
     "zielbreite": 128,
-    "prompt": "A single large heavy round boulder of rough grey granite, roughly hewn, with chips and cracks."
+    "prompt": "A single large heavy round boulder of rough grey granite, roughly hewn, with chips and cracks.",
+    "ziel": "Effekte/stein_gross.png"
    },
    {
     "name": "reliquie",
-    "seed": 12131,
+    "seed": 12132,
     "zielbreite": 160,
     "stil": "Game item sprite for a top-down 2D strategy game, seen from above at a three-quarter angle from the south, detailed 16-bit pixel art, crisp pixels, warm colors, soft light from the upper left. One single small object lying on the ground, centered and fully visible, isolated on a plain white background, no shadow, no text.",
     "prompt": "A small golden medieval reliquary chest with a rounded lid, decorated with red and blue gems, a small golden cross standing upright on top of its lid.",
-    "negativ": "loose cross, separate cross, cross lying on the ground, second object"
+    "negativ": "loose cross, separate cross, cross lying on the ground, second object",
+    "ziel": "Rohstoffe/reliquie.png"
    }
   ]
  },

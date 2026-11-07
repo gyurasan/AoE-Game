@@ -20,19 +20,21 @@ src/AoE.Core/ - net10.0, MonoGame-unabhängige Spiellogik:
     Entities/Buildings.cs (339), UnitEntity.cs (238), UnitTypes.cs (379), UnitClass.cs (57), Resource.cs (32)
     Map/VisibilitySystem.cs (412) - enthält AUCH die Klasse MapGrid; es gibt keine eigene MapGrid.cs
     Pathfinding/Pathfinding.cs (316) - A-Stern und Formationsbewegung
+    Ai/ - Computergegner: EconomyAi.cs (1381) Regelwerk je Takt; AiProfile.cs (170) die Stufen Defense, Normal, This is Sparta als Zahlensatz; ArmyCommander.cs (964) Heimgruppe und Wellen in Aufstellung, Kampf nach Rollen (Defense, Sparta); Formation.cs (207) Plätze der Aufstellung; IAi.cs, IAiWorld.cs, IWorldActions.cs Schnittstellen zum Spiel (AiBridge)
 AgeOfEvolutions/ - das MonoGame-Spiel:
     AgeOfEvolutions.Core/ (net10.0) mit Audio/, Data/, Screens/, Effects/, Inputs/, ScreenManagers/, Localization/, Settings/, Content/
         Content/ - Backgrounds/menu.png, Icons/, Gebaeude/ (je Zeitalter in dunkel/, feudal/, ritter/, imperial/), Einheiten/ (ab der Feudalzeit je Zeitalter in feudal/, ritter/, imperial/), Werkzeuge/, Boden/, Felder/, Baeume/, Rohstoffe/, Tiere/, Leiste/, Gras/, Nahrung/ (aus tools/bilder), Fonts/Hud und Fonts/Menu
     AgeOfEvolutions.DesktopGL/ (net10.0) - Windows, macOS, Linux; RuntimeIdentifiers win-x64, osx-x64, osx-arm64, linux-x64
     AgeOfEvolutions.WindowsDX/ (net10.0-windows) - nur Windows
 tests/AoE.Tests/ - net10.0, xUnit, 267 Tests, alle grün
-    UnitTests.cs (15), CounterTriangleTests.cs (5), PathfindingTests.cs (3), FogOfWarTests.cs (8), GatherJobTests.cs (21), TrainingTests.cs (22), ConstructionTests.cs (74), AgeTests.cs (46), ResearchTests.cs (43), BuildingCombatTests.cs (9), AI/EconomyAiTests.cs (20), DebugBuild2.cs (1)
+    UnitTests.cs (15), CounterTriangleTests.cs (5), PathfindingTests.cs (3), FogOfWarTests.cs (8), GatherJobTests.cs (21), TrainingTests.cs (22), ConstructionTests.cs (74), AgeTests.cs (46), ResearchTests.cs (43), BuildingCombatTests.cs (9), AI/EconomyAiTests.cs (20), DebugBuild2.cs (1); seit 2026-11-07 auch AI/ArmyCommanderTests.cs (30), AI/ArmyMixTests.cs (18), AI/FormationTests.cs (18) - zusammen 621 Tests
 demo/DemoApp.csproj - net10.0, kleine Konsolen-Testapp
 tools/ollama-agent/ - Harness, der TODO-Punkte an ein lokales Ollama-Modell verteilt
 tools/kartenpruefung/ - prüft Regeln des Kartengenerators über 50 erzeugte Karten
+tools/ai-pruefung/ - KI gegen KI ohne Grafik: Grundmodus (beide spielen und greifen an), gegenwehr, entwicklung (20 min Aufbau), stufen (Defense, Normal, This is Sparta gegeneinander; Aufstellung, Abstand, Reiter-Schwall gemessen, Stufen.cs)
 tools/bilder/ - erzeugt Spielgrafiken mit Qwen-Image über ComfyUI; Prompts und Seeds in bilder.json, uebernehmen.ps1 bereitet die gewählten Bilder für Content/ auf; gang.py stellt aus einem Standbild acht Gehphasen (Bein-Skelett, Gelenke in gang.json), schlag.py acht Schlagphasen (Waffenarm oder Speer über einem Rumpf ohne Waffe, schlag.json), tieranim.py je acht Lauf- und Angriffsphasen für Bär und Wolf (Beine weich gebogen, Gelenke und Schlüsselposen in tieranim.json)
 tools/klang/ - schneidet die Geräusche für Arbeit und Kampf aus CC0-Aufnahmen von Freesound (klang.py, numpy und scipy aus der Python von ComfyUI, ffmpeg) nach Content/Sounds; --vorschau schreibt alle Varianten zum Anhören in ausgabe/
-tools/spielablauf/ - lässt die Spielschleife ohne Grafik laufen und prüft Abläufe (Bauen, Weiterbauen, Linksklick, Farm, Schafe, Bewegen, Minimap, Zoom, Leiste, Zeitalter, Wachturm, Hauptmenü, Animation, Fenster, Werkzeug, Feld, Trampelpfad, Wind, Gang, Blick, Dunkel, Neubauten, Türen, Gebäudeauswahl, Angriff, Soldaten, Forschung, Schlag, Klangbrett, Arbeitsklang, Kampfklang)
+tools/spielablauf/ - lässt die Spielschleife ohne Grafik laufen und prüft Abläufe (Bauen, Weiterbauen, Linksklick, Farm, Schafe, Bewegen, Minimap, Zoom, Leiste, Zeitalter, Wachturm, Hauptmenü, Animation, Fenster, Werkzeug, Feld, Trampelpfad, Wind, Gang, Blick, Dunkel, Neubauten, Türen, Gebäudeauswahl, Angriff, Soldaten, Belagerungswerkstatt, Forschung, Schlag, Klangbrett, Arbeitsklang, Kampfklang)
 ```
 
 ## Wichtige Dateien

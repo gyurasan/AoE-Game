@@ -254,6 +254,16 @@ public partial class RTSGameplayScreen : GameScreen
          new Dictionary<Resource, int> { [Resource.Wood] = 25, [Resource.Gold] = 45 }, 35f, Age.Feudal),
         (BuildingType.Stable, Keys.Q, UnitType.Scout,
          new Dictionary<Resource, int> { [Resource.Food] = 80 }, 30f, Age.Feudal),
+        // Belagerung (F15): Rammbock und Katapult (Mangonel) ab der Ritterzeit, der Tribok
+        // (Trebuchet) ab der Imperialzeit - in der Werkstatt, der Tribok auch in der Burg
+        (BuildingType.SiegeWorkshop, Keys.Q, UnitType.Ram,
+         new Dictionary<Resource, int> { [Resource.Wood] = 160, [Resource.Gold] = 75 }, 36f, Age.Castle),
+        (BuildingType.SiegeWorkshop, Keys.W, UnitType.Catapult,
+         new Dictionary<Resource, int> { [Resource.Wood] = 160, [Resource.Gold] = 135 }, 46f, Age.Castle),
+        (BuildingType.SiegeWorkshop, Keys.E, UnitType.Trebuchet,
+         new Dictionary<Resource, int> { [Resource.Wood] = 200, [Resource.Gold] = 200 }, 50f, Age.Imperial),
+        (BuildingType.Castle, Keys.Q, UnitType.Trebuchet,
+         new Dictionary<Resource, int> { [Resource.Wood] = 200, [Resource.Gold] = 200 }, 50f, Age.Imperial),
     };
 
     // Forschungen (P2): je Forschung ihre Taste im ausgewählten Gebäude. Gebäude, Kosten,
@@ -277,6 +287,7 @@ public partial class RTSGameplayScreen : GameScreen
     {
         ("Dorfbewohner", "Icons/dorfbewohner"), ("Miliz", "Icons/miliz"),
         ("Bogenschütze", "Icons/bogenschuetze"), ("Späher", "Icons/spaeher"),
+        ("Rammbock", "Icons/rammbock"), ("Katapult", "Icons/mangonel"), ("Tribok", "Icons/trebuchet"),
         ("Webstuhl", "Icons/webstuhl"), ("Pferdekummet", "Icons/pferdekummet"),
         ("Doppelaxt", "Icons/doppelaxt"), ("Goldbergbau", "Icons/goldbergbau"),
         ("Schmiedekunst", "Icons/schmiedekunst"), ("Befiederte Pfeile", "Icons/befiederte_pfeile"),
@@ -4005,8 +4016,7 @@ public partial class RTSGameplayScreen : GameScreen
     /// VERTRAG: save = SaveGameMapper.Capture(tileMap, player1, player2, _mapSize); dazu
     /// - SavedAt = DateTime.Now, GameSeconds = _gameSeconds, AnimationTime = animationTime;
     /// - AiDifficulty aus _aiProfile, die Zuordnung von ApplyGameSettings rückwärts:
-    ///   AiProfile.Easy 0, AiProfile.Hard 2, AiProfile.Extreme 3, jedes andere 1 (Vergleich mit
-    ///   ReferenceEquals bzw. ==, die Profile sind feste Instanzen);
+    ///   AiProfile.LevelOf (Defense 0, Sparta 2, jedes andere 1);
     /// - AiEnabled = AiEnabled, BothSidesAi = BothSidesAi;
     /// - RelativeZoom = cameraZoom / ZoomScale;
     /// - CameraCenterX/CameraCenterY = der Weltpunkt in der Mitte des Spielfelds zwischen den
@@ -4021,12 +4031,8 @@ public partial class RTSGameplayScreen : GameScreen
         save.SavedAt = DateTime.Now;
         save.GameSeconds = _gameSeconds;
         save.AnimationTime = animationTime;
-        // KI-Schwierigkeit rückwärts aus dem Profil (die Profile sind feste
-        // Instanzen, kein const - daher == statt switch-Mustern)
-        save.AiDifficulty = _aiProfile == AoE.Core.Ai.AiProfile.Easy ? 0
-            : _aiProfile == AoE.Core.Ai.AiProfile.Hard ? 2
-            : _aiProfile == AoE.Core.Ai.AiProfile.Extreme ? 3
-            : 1;
+        // KI-Schwierigkeit rückwärts aus dem Profil (die Profile sind feste Instanzen)
+        save.AiDifficulty = AoE.Core.Ai.AiProfile.LevelOf(_aiProfile);
         save.AiEnabled = AiEnabled;
         save.BothSidesAi = BothSidesAi;
         save.RelativeZoom = cameraZoom / ZoomScale;
@@ -4040,7 +4046,7 @@ public partial class RTSGameplayScreen : GameScreen
     /// Baut die Welt aus einem Spielstand statt einer neuen Karte (LoadContent, Spiel laden).
     /// VERTRAG: (tileMap, player1, player2) = SaveGameMapper.Restore(save); _gameSeconds =
     /// save.GameSeconds; animationTime = save.AnimationTime; _aiProfile nach save.AiDifficulty
-    /// genau wie in ApplyGameSettings (0 Easy, 2 Hard, 3 Extreme, sonst Standard); AiEnabled =
+    /// genau wie in ApplyGameSettings (AiProfile.ForLevel: 0 Defense, 1 Normal, ab 2 Sparta); AiEnabled =
     /// save.AiEnabled; BothSidesAi = save.BothSidesAi. Sonst nichts - gatherWorld, units, die
     /// Spielerlisten und die Bevölkerung richtet LoadContent danach für beide Wege gleich ein.
     /// </summary>
@@ -4050,14 +4056,8 @@ public partial class RTSGameplayScreen : GameScreen
         (tileMap, player1, player2) = SaveGameMapper.Restore(save);
         _gameSeconds = save.GameSeconds;
         animationTime = save.AnimationTime;
-        // KI-Schwierigkeit wie in ApplyGameSettings
-        _aiProfile = save.AiDifficulty switch
-        {
-            0 => AoE.Core.Ai.AiProfile.Easy,
-            2 => AoE.Core.Ai.AiProfile.Hard,
-            3 => AoE.Core.Ai.AiProfile.Extreme,
-            _ => AoE.Core.Ai.AiProfile.Standard,
-        };
+        // KI-Schwierigkeit wie in ApplyGameSettings (ältere Spielstände: 3 Extrem = Sparta)
+        _aiProfile = AoE.Core.Ai.AiProfile.ForLevel(save.AiDifficulty);
         AiEnabled = save.AiEnabled;
         BothSidesAi = save.BothSidesAi;
     }
@@ -4117,13 +4117,8 @@ public partial class RTSGameplayScreen : GameScreen
     internal void ApplyGameSettings(AgeOfEvolutions.Core.Settings.AgeOfEvolutionsSettings s)
     {
         _soundVolume = Math.Clamp(s.SoundVolume, 0, 100) / 100f;
-        _aiProfile = s.AiDifficulty switch
-        {
-            0 => AoE.Core.Ai.AiProfile.Easy,
-            2 => AoE.Core.Ai.AiProfile.Hard,
-            3 => AoE.Core.Ai.AiProfile.Extreme,
-            _ => AoE.Core.Ai.AiProfile.Standard,
-        };
+        // 0 Defense, 1 Normal, 2 This is Sparta (ältere Einstellungen: 3 Extrem = Sparta)
+        _aiProfile = AoE.Core.Ai.AiProfile.ForLevel(s.AiDifficulty);
         _capital = s.StartingCapital switch
         {
             0 => AoE.Core.Economy.StartingCapital.Arm,

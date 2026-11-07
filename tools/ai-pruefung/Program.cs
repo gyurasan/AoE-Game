@@ -34,6 +34,9 @@ if (args.Contains("gegenwehr"))
 // Gruppe entwicklung: die KI allein wie im Spiel, 20 Minuten - siehe Entwicklung.cs
 if (args.Contains("entwicklung"))
     return Entwicklung.Run(args);
+// Gruppe stufen: zwei KI-Instanzen gegeneinander, je Stufe eine Paarung - siehe Stufen.cs
+if (args.Contains("stufen"))
+    return Stufen.Run(args);
 
 const BindingFlags F = BindingFlags.NonPublic | BindingFlags.Instance;
 Type T = typeof(RTSGameplayScreen);

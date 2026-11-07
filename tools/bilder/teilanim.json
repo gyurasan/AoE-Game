@@ -4,8 +4,9 @@
   "bild": "belagerung/rammbock_12001.png",
   "figur": "rammbock",
   "art": "angriff",
+  "rumpf_kopie": [{"von": [455, 805], "nach": [822, 668], "massstab": 0.95, "maske": {"ellipsen": [[826, 668, 82, 108]]}}],
   "teile": [
-   {"name": "balken", "maske": {"linien": [[590, 520, 800, 585, 175], [860, 600, 978, 668, 55]], "ellipsen": [[835, 600, 85, 115]]},
+   {"name": "balken", "maske": {"linien": [[590, 520, 800, 585, 175], [860, 600, 978, 668, 55]], "ellipsen": [[838, 600, 94, 120]], "ohne": {"rechtecke": [[440, 380, 160, 320]]}},
     "drehpunkt": [700, 550], "hinten": true, "verlaengern": [-95, -31, 80],
     "durch": {"rechtecke": [[625, 445, 399, 579]]}}
   ],
@@ -25,9 +26,10 @@
   "figur": "mangonel",
   "art": "angriff",
   "teile": [
-   {"name": "arm", "maske": {"linien": [[125, 115, 265, 215, 125], [255, 210, 400, 330, 90]], "ellipsen": [[142, 135, 82, 102]]},
+   {"name": "arm", "maske": {"linien": [[125, 115, 265, 215, 125], [255, 210, 400, 330, 90], [205, 132, 446, 298, 38]], "ellipsen": [[146, 130, 92, 110]]},
     "drehpunkt": [450, 360], "hinten": true, "verlaengern": [310, 228, 40]}
   ],
+  "weg": {"rechtecke": [[188, 236, 168, 188], [356, 362, 18, 32]]},
   "phasen": [
    {"arm": {"winkel": 0}},
    {"arm": {"winkel": -4}},

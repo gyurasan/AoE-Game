@@ -41,12 +41,23 @@ public sealed class FakeWorld : IWorldState, IWorldActions
     public bool CanPlace(BuildingType t, int x, int y, int size) =>
         !_blocked.Contains((x, y)) && IsExplored(x, y);
 
+    // Begehbarkeit für die Aufstellung: innerhalb der Karte, nicht gesperrt
+    private readonly HashSet<(int X, int Y)> _unwalkable = new();
+    public void BlockWalk(int x, int y) => _unwalkable.Add((x, y));
+    public bool IsWalkable(int x, int y) =>
+        x >= 0 && y >= 0 && x < Width && y < Height && !_unwalkable.Contains((x, y));
+
     private List<(int X, int Y)> _explore = new();
     public void AddExploreTarget(int x, int y) => _explore.Add((x, y));
     public IReadOnlyList<(int X, int Y)> ExploreTargets() => _explore;
 
     private List<EnemyInfo> _enemies = new();
     public void AddEnemy(EnemyInfo e) => _enemies.Add(e);
+    public void ClearEnemies() => _enemies.Clear();
+
+    /// <summary>Soldaten in den Warteschlangen je Art (Standard: keine).</summary>
+    public Dictionary<UnitKind, int> Queued { get; } = new();
+    public int QueuedSoldiers(UnitKind kind) => Queued.GetValueOrDefault(kind);
     public IReadOnlyList<EnemyInfo> VisibleEnemies() => _enemies;
 
     /// <summary>Simuliere „gerade getroffen": der Zeitstempel, zu dem

@@ -138,7 +138,14 @@ public sealed class EconomyAi : IAi
 
     public EconomyAi() : this(AiProfile.Standard) { }
     public EconomyAi(AiProfile profile)
-        => Profile = profile ?? throw new ArgumentNullException(nameof(profile));
+    {
+        Profile = profile ?? throw new ArgumentNullException(nameof(profile));
+        if (Profile.FormationTactics) Army = new ArmyCommander(Profile);
+    }
+
+    /// <summary>Die Armeeführung in Aufstellung (Defense, This is Sparta), sonst null — dann
+    /// greifen die Soldaten wie bisher einzeln an (<see cref="Raid"/>).</summary>
+    public ArmyCommander? Army { get; }
 
     // ---------------------------------------------------------------------
     // Soll-Verteilung der Sammelarbeit je Zeitalter (Gewichte, nicht
@@ -237,7 +244,20 @@ public sealed class EconomyAi : IAi
         //    in Ruhe, laufen die alten Pfade: Angriffswelle (Soldaten,
         //    Mindestgröße + Cooldown) und die kleine lokale Defense
         //    (nur nahe, untätige Arbeiter).
-        if (SettlementUnderThreat(state, out EnemyInfo threat))
+        //    Mit Aufstellung (Defense, Sparta) führt der ArmyCommander alle
+        //    Soldaten - Heimgruppe in Formation am Sammelpunkt, Wellen in
+        //    Formation, Kampf nach Rollen; die Gegenwehr betrifft dann nur
+        //    die untätigen Dorfbewohner.
+        bool threatened = SettlementUnderThreat(state, out EnemyInfo threat);
+        if (Army is not null)
+        {
+            if (threatened)
+                CounterAttack(state, actions, threat, ctx, villagersOnly: true);
+            else
+                Defense(state, actions, ctx);
+            Army.Tick(state, actions, ctx, threatened ? threat : null);
+        }
+        else if (threatened)
             CounterAttack(state, actions, threat, ctx);
         else
         {
@@ -349,6 +369,10 @@ public sealed class EconomyAi : IAi
                          workersFor: 1, allowPool: true, anchor: null);
             return;
         }
+
+        // 5b. Stall (Reiter, Sparta) und Wachtürme (Defense) — je nach Profil.
+        if (PlanArmyBuildings(state, actions, workers))
+            return;
 
         // 6. Markt (F8) — ab der Feudalzeit, nach dem Schießstand: er tauscht,
         //    wenn eine Ressource ausgeht (TradeAtMarket). Kosten: 175 Holz.
@@ -863,7 +887,8 @@ public sealed class EconomyAi : IAi
     /// Screen übersetzt <see cref="IWorldActions.Attack"/> in einen echten
     /// Angriffszustand.
     /// </summary>
-    private void CounterAttack(IWorldState state, IWorldActions actions, EnemyInfo threat, AiContext ctx)
+    private void CounterAttack(IWorldState state, IWorldActions actions, EnemyInfo threat, AiContext ctx,
+                               bool villagersOnly = false)
     {
         ctx.Log?.Invoke($"VERTEIDIGUNG: Feind bei ({threat.X},{threat.Y}) — "
             + (threat.IsBuilding ? "Gebäude" : "Einheit") + " zurückschlagen");
@@ -877,6 +902,7 @@ public sealed class EconomyAi : IAi
         var free = state.Units.Where(u =>
             u.State != UnitStateKind.Dead
             && (u.Kind != UnitKind.Villager || u.State == UnitStateKind.Idle)
+            && (!villagersOnly || u.Kind == UnitKind.Villager)
             && u.Gathering is null
             && u.BuildingId is null
             && !u.HasAttack).ToList();
@@ -902,6 +928,18 @@ public sealed class EconomyAi : IAi
                                              && u.State != UnitStateKind.Dead);
         if (inField >= Profile.SoldierTarget) return;
 
+        // Gemischte Armee nach Anteilen (Defense, Sparta); sonst wie bisher. Die gemischte Armee
+        // zählt die Warteschlangen mit: sonst reiht die KI jede halbe Sekunde weiter Milizen ein,
+        // bis die ersten fertig sind, und das Soll ist voll, bevor die Feudalzeit Schießstand und
+        // Stall freigibt (gemessen 2026-11-07: Defense mit 21 Milizen, 0 Bogenschützen).
+        if (Profile.ArcherPercent > 0 || Profile.CavalryPercent > 0)
+        {
+            int queued = QueuedArmy(state);
+            if (inField + queued >= Profile.SoldierTarget) return;
+            TrainMixedArmy(state, actions);
+            return;
+        }
+
         // Kaserne zuerst (Milizen), dann Schießstand (Bogenschützen).
         var barracks = state.Buildings.FirstOrDefault(b =>
             b.Type == BuildingType.Barracks && b.IsComplete);
@@ -914,6 +952,135 @@ public sealed class EconomyAi : IAi
             b.Type == BuildingType.ArcheryRange && b.IsComplete);
         if (range is not null)
             actions.TrainSoldier(BuildingType.ArcheryRange, UnitKind.Archer);
+    }
+
+    /// <summary>
+    /// Gemischte Ausbildung nach den Anteilen des Profils (Defense, Sparta; Nutzer 2026-11-07:
+    /// „Hier werden die Fähigkeiten der Soldaten berücksichtigt"): Nahkämpfer aus der Kaserne,
+    /// Bogenschützen aus dem Schießstand, Reiter aus dem Stall - wer am weitesten unter seinem
+    /// Anteil liegt, wird zuerst ausgebildet.
+    /// VERTRAG:
+    /// - Gezählt werden die lebenden eigenen Soldaten (state.Units mit Kind nicht Villager und State
+    ///   nicht Dead) nach Art: melee = Kind Militia oder Spearman, archers = Kind Archer, cavalry =
+    ///   Kind Cavalry; total = alle diese Soldaten (auch Catapult). Dazu kommen jeweils die
+    ///   eingereihten (state.QueuedSoldiers je Art; total auch Catapult).
+    /// - Kandidaten in dieser Reihenfolge: (BuildingType.Barracks, UnitKind.Militia, Anteil
+    ///   100 - Profile.ArcherPercent - Profile.CavalryPercent, Bestand melee),
+    ///   (BuildingType.ArcheryRange, UnitKind.Archer, Profile.ArcherPercent, archers),
+    ///   (BuildingType.Stable, UnitKind.Cavalry, Profile.CavalryPercent, cavalry).
+    ///   Ein Kandidat zählt nur, wenn sein Anteil größer 0 ist, ein eigenes FERTIGES Gebäude dieses
+    ///   Typs steht (state.Buildings, IsComplete) und - nur für ArcheryRange und Stable -
+    ///   state.Age mindestens Age.Feudal ist.
+    /// - Fehlbetrag eines Kandidaten (double): Anteil * (total + 1) / 100.0 - Bestand.
+    /// - Jeder Kandidat mit Fehlbetrag größer 0 bekommt actions.TrainSoldier(Gebäude, Art), absteigend
+    ///   nach Fehlbetrag, bei Gleichstand in der Kandidatenreihenfolge (stabil sortieren).
+    /// - Hat kein Kandidat einen Fehlbetrag größer 0, steht aber eine fertige eigene Kaserne, bildet
+    ///   sie eine Miliz aus (actions.TrainSoldier(BuildingType.Barracks, UnitKind.Militia)) - aber nur,
+    ///   solange melee unter dem Nahkampf-Anteil des Solls liegt: Aufrunden von
+    ///   (100 - ArcherPercent - CavalryPercent) * SoldierTarget / 100. Sonst füllten in der Dunklen
+    ///   Zeit (Schießstand und Stall bilden noch nicht aus) Milizen das ganze Soll, und ab der
+    ///   Feudalzeit bliebe kein Platz für Bogenschützen und Reiter (gemessen 2026-11-07: Sparta
+    ///   nach 30 min mit 23 Milizen, 1 Bogenschützen, 0 Reitern).
+    /// </summary>
+    private void TrainMixedArmy(IWorldState state, IWorldActions actions)
+    {
+        int melee = state.Units.Count(u => (u.Kind == UnitKind.Militia || u.Kind == UnitKind.Spearman)
+                                          && u.State != UnitStateKind.Dead)
+                    + state.QueuedSoldiers(UnitKind.Militia) + state.QueuedSoldiers(UnitKind.Spearman);
+        int archers = state.Units.Count(u => u.Kind == UnitKind.Archer
+                                             && u.State != UnitStateKind.Dead)
+                      + state.QueuedSoldiers(UnitKind.Archer);
+        int cavalry = state.Units.Count(u => u.Kind == UnitKind.Cavalry
+                                             && u.State != UnitStateKind.Dead)
+                      + state.QueuedSoldiers(UnitKind.Cavalry);
+        int total = state.Units.Count(u => u.Kind != UnitKind.Villager
+                                          && u.State != UnitStateKind.Dead)
+                    + QueuedArmy(state);
+
+        var candidates = new List<(BuildingType Building, UnitKind Kind, int Share, int Have)>
+        {
+            (BuildingType.Barracks,    UnitKind.Militia, 100 - Profile.ArcherPercent - Profile.CavalryPercent, melee),
+            (BuildingType.ArcheryRange, UnitKind.Archer, Profile.ArcherPercent, archers),
+            (BuildingType.Stable,      UnitKind.Cavalry, Profile.CavalryPercent, cavalry),
+        };
+        candidates = candidates
+            .Where(c => c.Share > 0
+                        && state.Buildings.Any(b => b.Type == c.Building && b.IsComplete)
+                        && (c.Building != BuildingType.ArcheryRange
+                            || state.Age >= Age.Feudal)
+                        && (c.Building != BuildingType.Stable
+                            || state.Age >= Age.Feudal))
+            .ToList();
+
+        var ordered = candidates
+            .Select(c => (c, Shortfall: c.Share * (total + 1) / 100.0 - c.Have))
+            .Where(x => x.Shortfall > 0)
+            .OrderByDescending(x => x.Shortfall)
+            .ToList();
+
+        if (ordered.Count > 0)
+        {
+            foreach (var x in ordered)
+                actions.TrainSoldier(x.c.Building, x.c.Kind);
+            return;
+        }
+
+        // Miliz-Rückfallregel: die Armee wächst weiter, bis TrainSoldiers
+        // am Soll (SoldierTarget) aufhört - Milizen aber nur bis zu ihrem Anteil am Soll.
+        int meleeCap = ((100 - Profile.ArcherPercent - Profile.CavalryPercent) * Profile.SoldierTarget + 99) / 100;
+        if (melee < meleeCap
+            && state.Buildings.Any(b => b.Type == BuildingType.Barracks && b.IsComplete))
+            actions.TrainSoldier(BuildingType.Barracks, UnitKind.Militia);
+    }
+
+    /// <summary>
+    /// Militärgebäude nach dem Profil (Teil von PlanBuilding, nach dem Schießstand): ein Stall für
+    /// die Reiter (Sparta) und Wachtürme am Dorf (Defense, „bereitet sich auf Attacken vor").
+    /// VERTRAG:
+    /// - Stall: Profile.CavalryPercent größer 0, AgeRules.IsUnlocked(BuildingType.Stable, state.Age),
+    ///   state.Resources.Wood mindestens 175, eine FERTIGE eigene Kaserne steht (Type Barracks,
+    ///   IsComplete) und es gibt noch keinen eigenen Stall (Type Stable, auch keine Baustelle) →
+    ///   TryBuildNear(state, actions, workers, BuildingType.Stable, workersFor: 1, allowPool: true,
+    ///   anchor: null); gelingt das, sofort true.
+    /// - Wachturm: Profile.TowerCount größer 0, AgeRules.IsUnlocked(BuildingType.Tower, state.Age),
+    ///   weniger als Profile.TowerCount eigene Türme (Type Tower, fertig oder Baustelle), keine
+    ///   Turm-Baustelle offen (Type Tower mit IsComplete false), state.Resources.Stone mindestens 125
+    ///   und state.Resources.Wood mindestens 50 → TryBuildNear(state, actions, workers,
+    ///   BuildingType.Tower, workersFor: 2, allowPool: true, anchor: null); gelingt das, true.
+    /// - Erst der Stall, dann der Turm; sonst false.
+    /// </summary>
+    /// <summary>Alle eingereihten Soldaten (ohne Dorfbewohner).</summary>
+    private static int QueuedArmy(IWorldState state)
+        => state.QueuedSoldiers(UnitKind.Militia) + state.QueuedSoldiers(UnitKind.Spearman)
+           + state.QueuedSoldiers(UnitKind.Archer) + state.QueuedSoldiers(UnitKind.Cavalry)
+           + state.QueuedSoldiers(UnitKind.Catapult);
+
+    private bool PlanArmyBuildings(IWorldState state, IWorldActions actions, List<UnitSnapshot> workers)
+    {
+        // Stall (Reiter, Sparta)
+        if (Profile.CavalryPercent > 0
+            && AgeRules.IsUnlocked(BuildingType.Stable, state.Age)
+            && state.Resources.Wood >= 175
+            && state.Buildings.Any(b => b.Type == BuildingType.Barracks && b.IsComplete)
+            && !state.Buildings.Any(b => b.Type == BuildingType.Stable))
+        {
+            if (TryBuildNear(state, actions, workers, BuildingType.Stable, workersFor: 1, allowPool: true, anchor: null))
+                return true;
+        }
+
+        // Wachtürme (Defense)
+        if (Profile.TowerCount > 0
+            && AgeRules.IsUnlocked(BuildingType.Tower, state.Age)
+            && state.Buildings.Count(b => b.Type == BuildingType.Tower) < Profile.TowerCount
+            && !state.Buildings.Any(b => b.Type == BuildingType.Tower && !b.IsComplete)
+            && state.Resources.Stone >= 125
+            && state.Resources.Wood >= 50)
+        {
+            if (TryBuildNear(state, actions, workers, BuildingType.Tower, workersFor: 2, allowPool: true, anchor: null))
+                return true;
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -1162,12 +1329,12 @@ public sealed class EconomyAi : IAi
         if (state.Age >= Age.Imperial) return;       // letztes Zeitalter
         if (state.TownCenter is null) return;
 
-        // Militärische Basis: Kaserne fertig + Angriffsgruppe im Feld.
+        // Militärische Basis: Kaserne fertig + Mindestarmee im Feld (AgeUpArmy).
         if (!state.Buildings.Any(b => b.Type == BuildingType.Barracks && b.IsComplete))
             return;
         int inField = state.Units.Count(u => u.Kind != UnitKind.Villager
                                              && u.State != UnitStateKind.Dead);
-        if (inField < Profile.RaidMinSoldiers)
+        if (inField < Profile.AgeUpArmy)
             return;
 
         Age next = (Age)((int)state.Age + 1);

@@ -21,7 +21,6 @@ class SettingsScreen : MenuScreen
     // Die zehn Gameplay-Optionen; jede blätter bei einem Klick auf die nächste
     // Stufe (siehe GameplayOptions) und nimmt die gewählte in settingsManager.
     private MenuEntry soundVolumeEntry;
-    private MenuEntry aiDifficultyEntry;
     private MenuEntry startingCapitalEntry;
     private MenuEntry populationCapEntry;
     private MenuEntry unitSpeedEntry;
@@ -49,13 +48,11 @@ class SettingsScreen : MenuScreen
         fullscreenMenuEntry.Selected += FullScreenMenuEntrySelected;
         backMenuEntry.Selected += OnCancel;
 
-        // Die zehn Gameplay-Optionen, jede ein eigener Eintrag.
+        // Die neun Gameplay-Optionen, jede ein eigener Eintrag. Die KI-Stufe steht
+        // seit 2026-11-07 im Hauptmenü unter der Kartengröße (MainMenuScreen.AI_ENTRY).
         soundVolumeEntry = AddGameOption("Lautstärke", GameplayOptions.SoundVolume,
             () => settingsManager.Settings.SoundVolume, v => settingsManager.Settings.SoundVolume = v,
             v => v.ToString() + " %");
-        aiDifficultyEntry = AddGameOption("KI-Schwierigkeit", GameplayOptions.AiDifficulty,
-            () => settingsManager.Settings.AiDifficulty, v => settingsManager.Settings.AiDifficulty = v,
-            v => GameplayOptions.AiNames[v]);
         startingCapitalEntry = AddGameOption("Startkapital", GameplayOptions.StartingCapital,
             () => settingsManager.Settings.StartingCapital, v => settingsManager.Settings.StartingCapital = v,
             v => GameplayOptions.CapitalNames[v]);
@@ -83,7 +80,6 @@ class SettingsScreen : MenuScreen
 
         // Add entries to the menu.
         MenuEntries.Add(soundVolumeEntry);
-        MenuEntries.Add(aiDifficultyEntry);
         MenuEntries.Add(startingCapitalEntry);
         MenuEntries.Add(populationCapEntry);
         MenuEntries.Add(unitSpeedEntry);

@@ -69,7 +69,11 @@ Spielbar sind Wirtschaft, Aufstieg durch die Zeitalter und Kampf gegen einen Com
 - Computergegner: eine eingebaute KI spielt die Gegenseite. Sie wirtschaftet, baut Lager an den
   Rohstoffen, schickt einen Kundschafter aus, steigt auf, bildet Soldaten aus, greift in Wellen an
   und verteidigt ihr Dorf. Wird die eigene Seite getroffen, glüht die obere Leiste rot und ein
-  Warnton erklingt. Wie sie im Vergleich zum Original arbeitet, steht in
+  Warnton erklingt. Drei Stufen (Hauptmenü, Eintrag „KI“ unter der Karte): **Defense** greift nie selbst an,
+  baut zwei Wachtürme und hält Nahkämpfer und Bogenschützen in Aufstellung vor dem Dorf; **Normal**
+  greift in Wellen an; **This is Sparta** zieht in Aufstellung los - Nahkämpfer vorn, Bogenschützen
+  dahinter, je eine Kachel Abstand -, Reiter greifen im Schwall an und ziehen sich hinter den Verband
+  zurück. Wie sie im Vergleich zum Original arbeitet, steht in
   [Der Computergegner](docs/AoE-Computergegner.md)
 - Wilde Tiere: Schafe, Rehe, Kaninchen und Wildschweine zum Jagen, dazu Bären und Wolfsrudel. Wer
   ihnen zu nahe kommt - Dorfbewohner wie Soldaten -, wird angegriffen; wer weggeht, ist sicher, sie
@@ -95,14 +99,20 @@ Spielbar sind Wirtschaft, Aufstieg durch die Zeitalter und Kampf gegen einen Com
   Miliz holt zum Schwertschlag aus, der Späher stößt mit dem Speer
 - Drei Kartengrößen, im Hauptmenü wählbar: Standard (90×90), Kontinent (128×128) und
   World (181×181, die doppelte Fläche einer Kontinent-Karte); die Karte nimmt das
-  Seitenverhältnis des Fensters an
+  Seitenverhältnis des Fensters an. Direkt darunter wählt der Eintrag „KI“ die Stufe des
+  Computergegners (Defense, Normal, This is Sparta); beides bleibt gespeichert
+- Belagerung: die Belagerungswerkstatt bildet ab der Ritterzeit Rammbock (160 Holz, 75 Gold,
+  36 s) und Katapult (160 Holz, 135 Gold, 46 s) aus, ab der Imperialzeit den Tribok (200 Holz,
+  200 Gold, 50 s), den auch die Burg baut. Noch ohne eigene Bilder (ein Quadrat in Spielerfarbe),
+  ohne Flächenschaden und ohne Auf- und Abbau des Triboks
 - Spielstände: mehrere Plätze (Spielstand 1, 2, 3, …), im Hauptmenü laden, im Pausenmenü
   speichern oder überschreiben; einen Platz löscht man in der Liste mit der Löschtaste
   (Entf, am Gamepad Y) — einmal Ja/Nein bestätigen, und der Platz ist weg,
   die Nummer wird beim nächsten Speichern wieder frei
 
-Noch nicht da sind Handelskarren, Einheiten aus Belagerungswerkstatt, Kloster und Burg, schießende Türme
-und Schwierigkeitsgrade für die KI, siehe [TODO](TODO.md).
+Noch nicht da sind Handelskarren, Einheiten aus dem Kloster, die Einzigartigen der Burg und das
+eigene Verhalten der Belagerung (Bilder, Flächenschaden, Tribok nur gegen Gebäude), siehe
+[TODO](TODO.md).
 
 ## Steuerung
 
@@ -115,7 +125,7 @@ und Schwierigkeitsgrade für die KI, siehe [TODO](TODO.md).
 | Pfeiltasten, Bildrand | Kamera schwenken |
 | Klick in die Minimap | Kamera dorthin |
 | `Q` | Im ausgewählten Gebäude ausbilden oder forschen; ohne Auswahl Dorfbewohner im Stadtzentrum |
-| `W` `E` | Weitere Forschungen: Webstuhl im Stadtzentrum, Befiederte Pfeile und Schuppenpanzer in der Schmiede |
+| `W` `E` | Weitere Forschungen: Webstuhl im Stadtzentrum, Befiederte Pfeile und Schuppenpanzer in der Schmiede; in der Belagerungswerkstatt Katapult und Tribok (`Q` Rammbock, in der Burg `Q` Tribok) |
 | `A` | Aufstieg ins nächste Zeitalter |
 | `Q` `W` `E` / `Y` `X` `C` | Am ausgewählten Markt: 100 Nahrung, Holz, Stein kaufen / verkaufen, mit `Shift` 500 |
 | `H` `M` `F` `B` `G` `T` | Haus, Mühle, Holzfällerlager, Bergbaulager, Farm, Wachturm |

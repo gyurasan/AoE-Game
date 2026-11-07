@@ -150,6 +150,21 @@ def figur(name, cfg):
     else:
         rumpf = stand.copy()
         rumpf[belegt] = 0
+    # "weg": Formen, die aus dem Rumpf verschwinden, ohne zu einem Teil zu gehören - etwa ein Seil,
+    # das vom Wurfarm durchhängt: bliebe es stehen, hinge es beim Schwingen in der Luft
+    if "weg" in cfg:
+        rumpf[maske(cfg["weg"], roh_b, roh_h)] = 0
+    # "rumpf_kopie": [{"von": [x, y], "nach": [x, y], "massstab": s, "maske": {...}}] - Löcher im
+    # Rumpf (wo ein Teil ausgeschnitten wurde und nichts dahinter gemalt ist) innerhalb der Maske
+    # aus dem Standbild füllen: um "von" genommen, auf "nach" gesetzt und skaliert. So entsteht das
+    # Rad hinter dem Rammkopf aus dem sichtbaren Vorderrad
+    for k in cfg.get("rumpf_kopie", []):
+        loch = maske(k["maske"], roh_b, roh_h) & (rumpf[:, :, 3] == 0)
+        ys, xs = np.nonzero(loch)
+        s = k.get("massstab", 1.0)
+        qx = np.round((xs - k["nach"][0] - RAND) / s + k["von"][0] + RAND).astype(int).clip(0, W - 1)
+        qy = np.round((ys - k["nach"][1] - RAND) / s + k["von"][1] + RAND).astype(int).clip(0, H - 1)
+        rumpf[ys, xs] = stand[qy, qx]
 
     # Kontrollbild: welcher Bildpunkt gehört zu welchem Teil
     probe = stand.copy()

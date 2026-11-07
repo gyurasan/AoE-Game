@@ -14,8 +14,14 @@ public static class GameplayOptions
     public static readonly int[] SoundVolume = { 0, 25, 50, 75, 100 };
 
     // --- KI-Schwierigkeit (Index) -----------------------------------------
-    public static readonly int[] AiDifficulty = { 0, 1, 2, 3 };
-    public static readonly string[] AiNames = { "Leicht", "Normal", "Schwer", "Extrem" };
+    // Drei Stufen seit 2026-11-07: Defense greift nie an, Normal in Wellen,
+    // This is Sparta in Aufstellung (AoE.Core.Ai.AiProfile.ForLevel)
+    public static readonly int[] AiDifficulty = { 0, 1, 2 };
+    public static readonly string[] AiNames = { "Defense", "Normal", "This is Sparta" };
+
+    /// <summary>Name einer gespeicherten KI-Stufe; ältere Einstellungen kannten noch
+    /// Stufe 3 (Extrem), die heute This is Sparta ist.</summary>
+    public static string AiName(int level) => AiNames[System.Math.Clamp(level, 0, AiNames.Length - 1)];
 
     // --- Startkapital (Index) ----------------------------------------------
     public static readonly int[] StartingCapital = { 0, 1, 2 };

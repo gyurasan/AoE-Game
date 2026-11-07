@@ -128,13 +128,39 @@ def figur(name, cfg):
     # des neu gemalten Rumpfs, wo das Standbild dort genauso aussähe (etwa am Rücken)
     for x0, y0, x1, y1 in cfg.get("flicken", []):
         rumpf[y0 + RAND:y1 + RAND, x0 + RAND:x1 + RAND] = a[y0 + RAND:y1 + RAND, x0 + RAND:x1 + RAND]
+    # "radieren": Rechtecke, in denen der Rumpf durchsichtig wird - etwa ein Ärmelstummel, den der
+    # neu gemalte Rumpf an der Schulter stehen ließ und der beim erhobenen Arm als Keil absteht;
+    # dort liegt in den übrigen Phasen ohnehin das Armstück
+    # "radieren_ohne": Ellipsen [cx, cy, rx, ry], die darin stehen bleiben - so endet der Stummel
+    # rund statt flach an der Maskenkante
     H, W = a.shape[:2]
     yy, xx = np.mgrid[0:H, 0:W]
+    bleibt = np.zeros((H, W), bool)
+    for cx, cy, rx, ry in cfg.get("radieren_ohne", []):
+        bleibt |= ((xx - cx - RAND) / rx) ** 2 + ((yy - cy - RAND) / ry) ** 2 <= 1
+    for x0, y0, x1, y1 in cfg.get("radieren", []):
+        weg = np.zeros((H, W), bool)
+        weg[y0 + RAND:y1 + RAND, x0 + RAND:x1 + RAND] = True
+        rumpf[weg & ~bleibt] = 0
     deckend = a[:, :, 3] > 8
     s, e, h = (verschoben(cfg["arm"][n]) for n in ("schulter", "ellbogen", "hand"))
     # Der Arm: nah am Ober- und Unterarm, dazu die Waffe als Linien; die Schulterkappe bleibt
-    oberarm = deckend & (abstand_strecke(xx, yy, s, e) < cfg["oberarm_breite"])
-    unterarm = deckend & (abstand_strecke(xx, yy, e, h) < cfg["unterarm_breite"])
+    ab_ober, ab_unter = abstand_strecke(xx, yy, s, e), abstand_strecke(xx, yy, e, h)
+    oberarm = deckend & (ab_ober < cfg["oberarm_breite"])
+    unterarm = deckend & (ab_unter < cfg["unterarm_breite"])
+    if "arm_differenz" in cfg:
+        # "arm_differenz": Schwelle (Summe der Farbabstände) - der Arm ist, was im Standbild
+        # deckt und im Rumpfbild fehlt oder anders aussieht. So folgt der Schnitt dem Umriss des
+        # Ärmels; das Band um das Skelett schnitt weite Ärmel (Leinen, Polster) gerade ab. Von den
+        # Flächen bleiben nur die, die das Band berühren - Rauschen am Körperrand fällt weg
+        rgb_a, rgb_r = a[:, :, :3].astype(np.int16), rumpf[:, :, :3].astype(np.int16)
+        anders = deckend & ((rumpf[:, :, 3] <= 8) | (np.abs(rgb_a - rgb_r).sum(axis=2) > cfg["arm_differenz"]))
+        anders = ndimage.binary_opening(anders, iterations=2)
+        flaechen, _ = ndimage.label(anders)
+        beruehrt = np.unique(flaechen[(oberarm | unterarm) & anders])
+        arm_ganz = np.isin(flaechen, beruehrt[beruehrt > 0])
+        unterarm = arm_ganz & (ab_unter < ab_ober)
+        oberarm = arm_ganz & ~unterarm
     waffe = np.zeros((H, W), bool)
     for x1, y1, x2, y2, dicke in cfg["waffe"]:
         waffe |= deckend & (abstand_strecke(xx, yy, verschoben((x1, y1)), verschoben((x2, y2))) < dicke / 2)
@@ -151,6 +177,10 @@ def figur(name, cfg):
     for k in range(1, cfg.get("verlaengerung", 60)):
         spalten = np.where(oberarm[schnitt + k])[0]
         teil_ober[schnitt - k, spalten] = a[schnitt + k, spalten]
+    # "im_umriss": die gespiegelte Verlängerung bleibt im Umriss des Standbilds - ein weiter Ärmel
+    # ist unten breiter als an der Schulter, gespiegelt stünde seine Ecke beim Schwingen als Spitze ab
+    if cfg.get("im_umriss"):
+        teil_ober[:schnitt][~deckend[:schnitt]] = 0
     teil_unter = np.zeros_like(a)
     teil_unter[unterarm] = a[unterarm]
     # Scheibe am Ellbogen im Unterarm, damit das Gelenk bei jedem Winkel geschlossen bleibt

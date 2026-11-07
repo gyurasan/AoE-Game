@@ -318,7 +318,7 @@ zurück, verteilt Bogenschützen gegen Flächenschaden und reagiert auf frühen 
 
 ## Abgleich mit unserer KI
 
-Stand: `src/AoE.Core/Ai/EconomyAi.cs`, Oktober 2026. Unsere KI folgt demselben Prinzip wie
+Stand: `src/AoE.Core/Ai/EconomyAi.cs`, Oktober 2026; Stufen und Aufstellung 2026-11-07. Unsere KI folgt demselben Prinzip wie
 das Original — ein deterministisches Regelwerk, das in jedem `Tick` eine feste Liste
 abarbeitet; die Engine (`IWorldActions`) führt Wege und Sammeln aus.
 
@@ -331,17 +331,45 @@ abarbeitet; die Engine (`IWorldActions`) führt Wege und Sammeln aus.
 | Erkundung mit Späher | ein Dorfbewohner als fester Erkunder Richtung Kartenmitte | vorhanden, ohne Spirale um die eigene Basis |
 | Soll-Verteilung der Dorfbewohner | feste Reihenfolge Nahrung → Holz → Stein → Gold | **fehlt** — kein Prozentmodell |
 | Aufstieg bei fester Dorfbewohnerzahl | Aufstieg, sobald die Kosten da sind | vereinfacht |
-| Angriff ab Mindestgruppe in Wellen | Angriff mit 1+ Soldat auf den nächsten sichtbaren Feind, 8 s Pause | **stark vereinfacht** — keine Sammelphase |
-| Rest der Armee bleibt daheim | 1 Soldat Heimwache | vorhanden |
-| Zielbewertung (Entfernung, TP, Typ) | nächstgelegene Einheit, sonst nächstes Gebäude | vereinfacht |
+| Angriff ab Mindestgruppe in Wellen | Normal: Welle ab 5 Soldaten auf den nächsten sichtbaren Feind, 8 s Pause; This is Sparta: Sammelphase in Aufstellung, Welle ab 12, Marsch in Aufstellung, Belagerung (`ArmyCommander`) | vorhanden (Normal ohne Sammelphase) |
+| Rest der Armee bleibt daheim | Normal 1, Sparta 3 Nahkämpfer Heimwache; drei bewaffnete Feinde im Dorf rufen die Sparta-Welle heim | vorhanden |
+| Zielbewertung (Entfernung, TP, Typ) | nächstgelegene Einheit, sonst nächstes Gebäude; Sparta: unbewaffnete Gebäude außerhalb der Schussweite von Türmen und Stadtzentrum zuerst, Reiter auf Schützen und Belagerung, dann Dorfbewohner | vereinfacht |
 | Dorfbewohner wehren sich | bis 4 untätige Dorfbewohner im Radius 8 | vorhanden |
 | Garnison / Flucht ins Stadtzentrum | — | fehlt |
-| Konter auf gesehene Einheiten | feste Wahl Miliz, sonst Bogenschütze | fehlt |
+| Konter auf gesehene Einheiten | Normal: feste Wahl Miliz, sonst Bogenschütze; Defense und Sparta: feste Anteile (Defense 40 % Bogen, Sparta 35 % Bogen und 25 % Reiter) | fehlt (keine Reaktion auf den Gegner) |
 | Strategie-Persönlichkeiten | eine feste Strategie | fehlt |
-| Schwierigkeitsgrade | — | fehlt |
-| Rückzug bei Unterlegenheit | — | fehlt |
+| Schwierigkeitsgrade | Defense, Normal, This is Sparta (`AiProfile`, Zahlensatz plus Schalter für Angriff und Aufstellung) | vorhanden |
+| Rückzug bei Unterlegenheit | Sparta: Rückzug unter 35 % der Welle, die nächste Welle wartet auf 4 Soldaten mehr | vorhanden (Sparta) |
 | Markt als Notlösung, wenn ein Rohstoff fehlt | Markt ab der Feudalzeit; höchstens alle 5 s ein Los: Überschuss gegen Gold, wenn das Gold ausgeht, Nahrung/Holz zukaufen, wenn sie ausgehen (`TradeAtMarket`, F8) | vorhanden (ohne Handelskarren) |
 | Aufgabe bei aussichtsloser Lage | Niederlage beendet das Spiel | vorhanden (Niederlage, keine aktive Aufgabe) |
+
+### Unsere drei Stufen (seit 2026-11-07)
+
+| | Defense | Normal | This is Sparta |
+|---|---|---|---|
+| Angriff | nie (`Raids = false`) | Wellen ab 5 Soldaten, wie bisher | Wellen ab 12 (nach Niederlagen +4 je Welle, bis 20) |
+| Armee | 12, davon 40 % Bogenschützen | 8 Milizen, später Bogenschützen | 20: 35 % Bogen, 25 % Reiter, Rest Nahkampf |
+| Gebäude | zwei Wachtürme ab der Feudalzeit | — | Stall ab der Feudalzeit |
+| Daheim | ganze Armee in Aufstellung am Sammelpunkt, verteidigt im Radius 14, Leine 32 Kacheln | 1 Heimwache | 3 Nahkämpfer Heimwache in Aufstellung |
+| Führung | `ArmyCommander` | `Raid` wie bisher | `ArmyCommander` |
+
+Die **Aufstellung** (`Formation.Slots`): Nahkämpfer in Reihen zu fünf vorn, Fernkämpfer in
+eigenen Reihen dahinter, Reiter an den Flanken; je zwei Plätze mindestens zwei Kacheln
+auseinander (eine Kachel Lücke, auch schräg). Ist ein Platz versperrt, nimmt der Soldat die
+nächste freie Kachel, die den Abstand hält (`PickTile`); der Sammelpunkt rückt bis 6 Kacheln
+tiefer oder seitlich, wenn Häuser oder Wald die Aufstellung sonst zerreißen.
+
+Die **Welle** (`ArmyCommander`): sammeln (80 % auf dem Platz oder 30 s), marschieren in
+Schritten zu 3 Kacheln - ein Schritt erst, wenn 80 % stehen, spätestens nach 8 s -, belagern,
+wenn der Verband 4 Kacheln vor dem Ziel steht. Kampf nach Rollen: Nahkämpfer verteilen sich
+auf die Feinde und decken bedrängte Schützen; Schützen weichen einem Nahkämpfer auf 2 Kacheln
+um 3 Kacheln aus und schießen bis 6 Kacheln; Reiter greifen 6 s im Schwall an und sammeln sich
+5 s hinter dem Verband. Ein oder zwei Feinde unterwegs (Geplänkel) erledigen zwei Nahkämpfer,
+der Rest zieht weiter. Ohne bekanntes Ziel späht ein Reiter zur nächsten Kachel im Nebel.
+
+Prüfen: `dotnet run --project tools/ai-pruefung -- stufen 30 sparta defense duell verlauf`
+lässt die Stufen gegeneinander spielen (je Paarung zwei Karten) und misst Aufstellung, Abstand,
+Schützen hinten, Reiter-Schwall und dass Defense nie fern vom Dorf angreift.
 
 ### Naheliegende nächste Schritte
 
@@ -352,12 +380,15 @@ Nach Wirkung auf das Spielgefühl geordnet:
    bleibt die KI bei der Bevölkerung von Stadtzentrum plus einem Haus stehen.
 2. **Sammeln vor dem Angriff** — eine Mindestgruppengröße (z. B. 5) und ein Sammelpunkt.
    Das allein macht aus dem jetzigen „Einzeln-hinrennen" eine erkennbare Angriffswelle.
+   *(This is Sparta seit 2026-11-07; Normal sammelt weiterhin nicht.)*
 3. **Soll-Verteilung der Dorfbewohner** als Prozentwerte je Zeitalter statt fester
    Reihenfolge — sonst sammelt die KI Gold und Stein erst, wenn keine Nahrung oder kein
    Holz in Reichweite ist.
-4. **Schwierigkeitsgrade** als Satz von Zahlen (Gruppengröße, Angriffspause,
-   Soldatenziel, Ausbildungstempo) — genau wie im Original kein zweites Regelwerk.
-5. **Rückzug** bei klarer Unterlegenheit, damit Angriffe nicht im Turmfeuer verbrennen.
+4. ~~**Schwierigkeitsgrade**~~ — seit 2026-11-07 Defense, Normal, This is Sparta (siehe oben).
+5. **Rückzug** bei klarer Unterlegenheit, damit Angriffe nicht im Turmfeuer verbrennen —
+   Sparta zieht sich unter 35 % zurück; besser wäre, die Stärke vorher abzuschätzen.
+6. **Belagerung** (F15): gegen Defense mit zwei Türmen und Stadtzentrum kommt eine Welle
+   aus Nahkämpfern, Schützen und Reitern nicht durch.
 
 ---
 
