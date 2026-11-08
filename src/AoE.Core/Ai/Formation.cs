@@ -92,6 +92,19 @@ public static class Formation
         var ranged = units.Where(u => RoleOf(u.Kind) == FormationRole.Ranged).OrderBy(u => u.Id).ToList();
         var flank = units.Where(u => RoleOf(u.Kind) == FormationRole.Flank).OrderBy(u => u.Id).ToList();
 
+        PlaceGroups(anchor, fx, fy, px, py, step, front, ranged, flank, result, taken, walkable);
+        return result;
+    }
+
+    /// <summary>
+    /// Idealplätze und Vergabe von <see cref="Slots"/> und
+    /// <see cref="SlotsByPosition"/> — die Einheitenlisten sind zu diesem Punkt
+    /// schon in der jeweiligen Reihenfolge (Id bzw. Lage).
+    /// </summary>
+    private static void PlaceGroups((int X, int Y) anchor, float fx, float fy, float px, float py, float step,
+        List<UnitSnapshot> front, List<UnitSnapshot> ranged, List<UnitSnapshot> flank,
+        Dictionary<int, (int X, int Y)> result, HashSet<(int X, int Y)> taken, Func<int, int, bool> walkable)
+    {
         int frontRanks = (front.Count + PerRank - 1) / PerRank;
         float w = (Math.Min(PerRank, Math.Max(1, Math.Max(front.Count, ranged.Count))) - 1) / 2f * step;
 
@@ -130,8 +143,166 @@ public static class Formation
             float t = -r * step;
             Place(flank[k], anchor.X + px * q + fx * t, anchor.Y + py * q + fy * t);
         }
+    }
 
+    /// <summary>
+    /// Die Aufstellung im Marsch (Nutzer 2026-11-08: „Der Zielpunkt ist nur der
+    /// Zentrum der Aufstellung“ und „…müssten sie immer sich in Formation bewegen
+    /// und sich hinstellen“): dieselbe Aufstellung wie <see cref="Slots"/>, aber jede
+    /// Einheit nimmt den Platz, der zu ihrer jetzigen Lage passt — wer vorn oder
+    /// links steht, bekommt den vorderen bzw. linken Platz, damit beim Marsch
+    /// nichts überkreuzt (die KI-Armee sortiert nach Id, eine stehende Welle rückt
+    /// so mit; ein Marsch von einem Haufen aus würde sonst beim ersten Schritt
+    /// durcheinandertauschen).
+    /// VERTRAG:
+    /// - Richtung, Gliederung, Schrittweite, Idealplätze und Vergabe (PickTile)
+    ///   gelten wie in <see cref="Slots"/>.
+    /// - Sortierung in jeder Gruppe (Front, Ranged): zuerst nach der Vornheit —
+    ///   Skalarprodukt von (Position − Schwerpunkt) mit der normierten Blickrichtung f,
+    ///   absteigend (die vorderste Einheit zuerst) —, dann nach der Querlage (Skalarprodukt
+    ///   mit der Querachse p, aufsteigend, also links zuerst), bei Gleichstand nach Id
+    ///   aufsteigend. Der Schwerpunkt ist der Mittelpunkt aller <paramref name="units"/>.
+    ///   So bleibt eine stehende Welle (die ja auf ihren Plätzen steht) in sich und
+    ///   rückt beim nächsten Takt nicht überkreuzt um.
+    /// - Flank: kürzeste-Nachbarschaft-Zuordnung auf die Flanken-Plätze (dieselben
+    ///   wie in <see cref="Slots"/> — Reiter paarweise links/rechts, je Paar eine Reihe
+    ///   tiefer): das Paar (Einheit, Platz) mit dem kleinsten Abstand bekommt zuerst
+    ///   seinen Platz, bis jeder Reiter einen hat. So übernimmt niemand den Platz des
+    ///   anderen über die Mitte hinweg, auch wenn die Reiter vor dem Marsch schräg
+    ///   verstreut stehen.
+    /// - Rückgabe: für jede Einheit genau ein Eintrag Id → Kachel; leere Liste:
+    ///   leeres Wörterbuch.
+    /// </summary>
+    public static Dictionary<int, (int X, int Y)> SlotsByPosition((int X, int Y) anchor, (float X, float Y) facing,
+        IReadOnlyList<UnitSnapshot> units, Func<int, int, bool> walkable)
+    {
+        var result = new Dictionary<int, (int X, int Y)>();
+        var taken = new HashSet<(int X, int Y)>();
+
+        float len = MathF.Sqrt(facing.X * facing.X + facing.Y * facing.Y);
+        float fx = len > 0f ? facing.X / len : 1f;
+        float fy = len > 0f ? facing.Y / len : 0f;
+        float px = -fy, py = fx;
+        float step = Spacing / Math.Max(Math.Abs(fx), Math.Abs(fy));
+
+        float cx = 0f, cy = 0f;
+        if (units.Count > 0)
+        {
+            foreach (var u in units)
+            {
+                cx += u.X;
+                cy += u.Y;
+            }
+            cx /= units.Count;
+            cy /= units.Count;
+        }
+        float Vornheit(UnitSnapshot u) => (u.X - cx) * fx + (u.Y - cy) * fy;
+        float Querlage(UnitSnapshot u) => (u.X - cx) * px + (u.Y - cy) * py;
+
+        var front = units.Where(u => RoleOf(u.Kind) == FormationRole.Front)
+                         .OrderByDescending(u => Vornheit(u)).ThenBy(u => Querlage(u)).ThenBy(u => u.Id).ToList();
+        var ranged = units.Where(u => RoleOf(u.Kind) == FormationRole.Ranged)
+                          .OrderByDescending(u => Vornheit(u)).ThenBy(u => Querlage(u)).ThenBy(u => u.Id).ToList();
+        var flank = units.Where(u => RoleOf(u.Kind) == FormationRole.Flank)
+                         .OrderBy(u => u.Id).ToList();
+
+        PlaceGroups(anchor, fx, fy, px, py, step, front, ranged, new List<UnitSnapshot>(), result, taken, walkable);
+        AssignFlank(anchor, fx, fy, px, py, step, front.Count, ranged.Count, flank, result, taken, walkable);
         return result;
+    }
+
+    /// <summary>
+    /// Die Flanken-Zuordnung von <see cref="SlotsByPosition"/>: die Flanken-Plätze
+    /// haben dieselbe Geometrie wie in <see cref="Slots"/> (Reiter k = 2·Reihe + Seite,
+    /// Seite 0 links / 1 rechts, halbe Breite W wie dort), aber jede Einheit bekommt
+    /// den nächsten freien Platz (das Paar mit dem kleinsten
+    /// quadrierten Abstand gewinnt, dann der nächste), damit niemand über die Mitte
+    /// hinweg den Platz des anderen übernimmt.
+    /// </summary>
+    private static void AssignFlank((int X, int Y) anchor, float fx, float fy, float px, float py, float step,
+        int frontCount, int rangedCount, List<UnitSnapshot> flank,
+        Dictionary<int, (int X, int Y)> result, HashSet<(int X, int Y)> taken, Func<int, int, bool> walkable)
+    {
+        if (flank.Count == 0)
+            return;
+        float w = (Math.Min(PerRank, Math.Max(1, Math.Max(frontCount, rangedCount))) - 1) / 2f * step;
+
+        var slots = new List<(float X, float Y)>(flank.Count);
+        for (int k = 0; k < flank.Count; k++)
+        {
+            int r = k / 2;
+            float s = (k % 2 == 0) ? -1f : 1f;
+            float q = s * (w + step);
+            float t = -r * step;
+            slots.Add((anchor.X + px * q + fx * t, anchor.Y + py * q + fy * t));
+        }
+
+        var freiePlatze = new List<int>(flank.Count);
+        for (int i = 0; i < slots.Count; i++)
+            freiePlatze.Add(i);
+        while (flank.Count > 0)
+        {
+            int besteEinheit = -1, besterPlatz = -1;
+            float bestD = float.MaxValue;
+            for (int i = 0; i < flank.Count; i++)
+                for (int j = 0; j < freiePlatze.Count; j++)
+                {
+                    float dx = flank[i].X - slots[freiePlatze[j]].X;
+                    float dy = flank[i].Y - slots[freiePlatze[j]].Y;
+                    float d = dx * dx + dy * dy;
+                    if (d < bestD)
+                    {
+                        bestD = d;
+                        besteEinheit = i;
+                        besterPlatz = freiePlatze[j];
+                    }
+                }
+            var tile = PickTile(slots[besterPlatz].X, slots[besterPlatz].Y, anchor, taken, walkable);
+            result[flank[besteEinheit].Id] = tile;
+            taken.Add(tile);
+            flank.RemoveAt(besteEinheit);
+            freiePlatze.Remove(besterPlatz);
+        }
+    }
+
+    /// <summary>
+    /// Der Anker, bei dem die Mitte der Aufstellung (dieselbe wie in
+    /// <see cref="Slots"/>) aus <paramref name="units"/> auf der Kachel
+    /// <paramref name="center"/> liegt (Nutzer 2026-11-08: „Der Zielpunkt ist
+    /// nur der Zentrum der Aufstellung“).
+    /// VERTRAG:
+    /// - Blickrichtung f = <paramref name="facing"/> normiert ((0, 0) gilt als
+    ///   (1, 0)); Schrittweite S = Spacing / Math.Max(|f.X|, |f.Y|) wie in
+    ///   <see cref="Slots"/>.
+    /// - Zeilen: frontRanks = Aufrunden(front.Count / PerRank), rangedRanks =
+    ///   Aufrunden(ranged.Count / PerRank) (0 ohne Einheiten der Rolle), flankRanks
+    ///   = Aufrunden(flank.Count / 2) (Reiter stehen paarweise nebeneinander);
+    ///   rows = max(frontRanks + rangedRanks, flankRanks).
+    /// - Die Aufstellung erstreckt sich in der Blickrichtung von t = 0 (vorderste
+    ///   Zeile, am Anker) bis t = −(rows − 1) * S; ihre Mitte liegt bei
+    ///   −(rows − 1) * S / 2. Querachse: symmetrisch, keine Verschiebung.
+    /// - Rückgabe: center + f * (rows − 1) * S / 2, gerundet auf die Kachel
+    ///   ((int)MathF.Floor(x + 0.5f), …). Ohne Einheiten: center.
+    /// </summary>
+    public static (int X, int Y) AnchorForCenter((int X, int Y) center, (float X, float Y) facing,
+        IReadOnlyList<UnitSnapshot> units)
+    {
+        int frontCount = units.Count(u => RoleOf(u.Kind) == FormationRole.Front);
+        int rangedCount = units.Count(u => RoleOf(u.Kind) == FormationRole.Ranged);
+        int flankCount = units.Count(u => RoleOf(u.Kind) == FormationRole.Flank);
+        int rows = Math.Max((frontCount + PerRank - 1) / PerRank
+                            + (rangedCount + PerRank - 1) / PerRank,
+                            (flankCount + 1) / 2);
+        if (rows == 0)
+            return center;
+
+        float len = MathF.Sqrt(facing.X * facing.X + facing.Y * facing.Y);
+        float fx = len > 0f ? facing.X / len : 1f;
+        float fy = len > 0f ? facing.Y / len : 0f;
+        float step = Spacing / Math.Max(Math.Abs(fx), Math.Abs(fy));
+        float offset = (rows - 1) * step / 2f;
+        return ((int)MathF.Floor(center.X + fx * offset + 0.5f),
+                (int)MathF.Floor(center.Y + fy * offset + 0.5f));
     }
 
     /// <summary>

@@ -171,6 +171,7 @@ public partial class RTSGameplayScreen
             a.UnitTarget = null;
             a.PreyTarget = tier;
             a.AttackTimer = 0f;
+            _marchFactor.Remove(a);   // B3: ein Befehl macht den Marsch-Tempo-Faktor unbrauchbar
             Vector2 stand = PreyStandPoint(a, center);
             a.TargetPosition = stand;
             a.Path = tileMap.FindPath(a.Position, stand);

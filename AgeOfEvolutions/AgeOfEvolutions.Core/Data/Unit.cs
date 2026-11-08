@@ -146,6 +146,21 @@ public class Unit
     /// <summary>Sekunden seit dem letzten Schlag; ein Schlag alle BuildingCombat.RELOAD_SECONDS.</summary>
     public float AttackTimer { get; set; }
 
+    /// <summary>
+    /// Der Sammelauftrag, zu dem der Dorfbewohner nach seiner Flucht zurückkehrt (B2,
+    /// Nutzer 2026-11-08: „Ist der Angriff vorbei müssen sie wieder die Arbeit aufnehmen,
+    /// wo sie vorher dran waren“). Nur in der Fluchtzeit weg von <see cref="Job"/>;
+    /// bewusst nicht Teil des Spielstands (Flucht und Rückkehr überleben kein Laden).
+    /// </summary>
+    public GatherJob ResumeJob { get; set; }
+
+    /// <summary>
+    /// Die Baustelle, an der der Dorfbewohner weiterbaut, wenn seine Flucht endet
+    /// (B2) — wie <see cref="ResumeJob"/>, nur in der Fluchtzeit weg von
+    /// <see cref="BuildSite"/> und nicht Teil des Spielstands.
+    /// </summary>
+    public Building ResumeSite { get; set; }
+
     // --- Schiffe (Wiking-Karte, Nutzer 2026-11-07) ---------------------------
 
     /// <summary>Ein Schiff fährt nur auf Wasser (Transport- und Kriegsschiff aus dem Hafen).</summary>

@@ -271,6 +271,103 @@ public class FormationTests
         Assert.Equal((20, 20), s[1]);
     }
 
+    // --- Aufstellung im Marsch (SlotsByPosition / AnchorForCenter, Nutzer 2026-11-08) ---
+
+    [Fact]
+    public void AnchorForCenter_setzt_die_Mitte_der_Aufstellung_auf_den_Zielplatz()
+    {
+        // Ein Glied (5 Nahkämpfer): die Aufstellung steht genau am Anker
+        var eins = new List<UnitSnapshot>();
+        for (int i = 0; i < 5; i++) eins.Add(U(1 + i, UnitKind.Militia, 0, i));
+        Assert.Equal((30, 30), Formation.AnchorForCenter((30, 30), (1f, 0f), eins));
+
+        // Zwei Glieder (9 Nahkämpfer): die Tiefe ist 2 Kacheln, die Mitte eine halbe
+        // dahinter → der Anker rückt eine Kachel in Blickrichtung vor
+        var zwei = new List<UnitSnapshot>(eins);
+        for (int i = 0; i < 4; i++) zwei.Add(U(11 + i, UnitKind.Militia, 0, i));
+        Assert.Equal((31, 30), Formation.AnchorForCenter((30, 30), (1f, 0f), zwei));
+        Assert.Equal((29, 30), Formation.AnchorForCenter((30, 30), (-1f, 0f), zwei));
+        Assert.Equal((30, 29), Formation.AnchorForCenter((30, 30), (0f, -1f), zwei));
+
+        // Ohne Einheiten bleibt der Punkt, wo er steht
+        Assert.Equal((12, 34), Formation.AnchorForCenter((12, 34), (0f, 1f), Array.Empty<UnitSnapshot>()));
+    }
+
+    [Fact]
+    public void Neun_Nahkaempfer_Mitte_der_Aufstellung_auf_dem_Zielplatz()
+    {
+        // Blick nach Osten: Glied 0 bei x 31, Glied 1 bei x 29 — die Mitte steht
+        // auf dem Zielplatz (30, 30)
+        var units = new List<UnitSnapshot>();
+        for (int i = 0; i < 9; i++) units.Add(U(1 + i, UnitKind.Militia, 0, i));
+        var anchor = Formation.AnchorForCenter((30, 30), (1f, 0f), units);
+        var s = Formation.SlotsByPosition(anchor, (1f, 0f), units, Open);
+        float mx = (float)s.Values.Average(v => v.X), my = (float)s.Values.Average(v => v.Y);
+        Assert.True(Math.Abs(mx - 30) <= 0.5f, $"Mitte x {mx} nicht auf 30");
+        Assert.True(Math.Abs(my - 30) <= 0.5f, $"Mitte y {my} nicht auf 30");
+        Assert.Equal(9, s.Values.Distinct().Count());
+    }
+
+    [Fact]
+    public void Vordere_Reihe_bleibt_vorn_beim_Marsch()
+    {
+        // Fünf Einheiten in der vorderen Reihe (x 12), vier hinter ihnen (x 10).
+        // Blick nach Osten: nach dem Marsch stehen alle vorderen beim Anker (x 20),
+        // alle hinteren eine Reihe dahinter (x 18) — niemand tauscht die Reihen.
+        var vorne = new List<UnitSnapshot>();
+        foreach (var y in new[] { 18, 19, 20, 21, 22 }) vorne.Add(U(1 + vorne.Count, UnitKind.Militia, 12, y));
+        var hinten = new List<UnitSnapshot>();
+        foreach (var y in new[] { 18, 19, 21, 22 }) hinten.Add(U(1 + vorne.Count + hinten.Count, UnitKind.Militia, 10, y));
+        var units = vorne.Concat(hinten).ToList();
+        var s = Formation.SlotsByPosition((20, 20), (1f, 0f), units, Open);
+        foreach (var u in vorne)
+            Assert.True(s[u.Id].X == 20, $"vorne {u.Id} auf {s[u.Id]} - erwartet die vordere Reihe (x 20)");
+        foreach (var u in hinten)
+            Assert.True(s[u.Id].X == 18, $"hinten {u.Id} auf {s[u.Id]} - erwartet die hintere Reihe (x 18)");
+        Assert.Equal(units.Count, s.Values.Distinct().Count());
+    }
+
+    [Fact]
+    public void Stehende_Welle_rueckt_als_Ganzes_ohne_Platztausch()
+    {
+        // Die Welle steht auf ihren Plätzen (Slots nach Id): die Aufstellung im Marsch
+        // gibt dieselben Plätze zurück — bis 2026-11-08 kannte nur die KI-Aufstellung
+        // (Slots) diese Ruhe, der Spieler-Marsch sortierte nach Id und tauschte
+        // bei jedem Marsch die Reiter über die Mitte hinweg.
+        var units = new List<UnitSnapshot>();
+        int id = 1;
+        foreach (var y in new[] { 30, 32, 34 }) units.Add(U(id++, UnitKind.Militia, 10, y));
+        foreach (var y in new[] { 31, 33 }) units.Add(U(id++, UnitKind.Archer, 8, y));
+        foreach (var y in new[] { 28, 36 }) units.Add(U(id++, UnitKind.Cavalry, 10, y));
+        var s1 = Formation.Slots((32, 32), (1f, 0f), units, Open);
+        var stehend = units.Select(u => U(u.Id, u.Kind, s1[u.Id].X, s1[u.Id].Y)).ToList();
+        var s2 = Formation.SlotsByPosition((32, 32), (1f, 0f), stehend, Open);
+        foreach (var u in units)
+            Assert.Equal(s1[u.Id], s2[u.Id]);
+    }
+
+    [Fact]
+    public void Reiter_bekommen_bei_Schraegstand_die_naechste_Flanke()
+    {
+        // Zwei Nahkämpfer in der Mitte, zwei Reiter schräg verstreut (links hinten,
+        // rechts vorn). Blick nach Osten: jeder Reiter nimmt seinen Flanken-Platz
+        // ohne die Mitte zu überqueren — links bleibt links, rechts bleibt rechts.
+        var units = new List<UnitSnapshot>
+        {
+            U(1, UnitKind.Militia, 14, 19),
+            U(2, UnitKind.Militia, 14, 21),
+            U(3, UnitKind.Cavalry, 12, 17),   // links
+            U(4, UnitKind.Cavalry, 16, 23),   // rechts
+        };
+        var s = Formation.SlotsByPosition((20, 20), (1f, 0f), units, Open);
+        // halbe Breite W = (2 - 1) / 2 * 2 = 1 → die Flanken-Plätze liegen bei y 20 ∓ 3
+        Assert.True(s[3].Y < 20, $"der linke Reiter {s[3]} ist nicht links");
+        Assert.True(s[4].Y > 20, $"der rechte Reiter {s[4]} ist nicht rechts");
+        Assert.True(s[3].X == 20, "der linke Reiter gehört in die vordere Reihe");
+        Assert.True(s[4].X == 20, "der rechte Reiter gehört in die vordere Reihe");
+        Assert.Equal(units.Count, s.Values.Distinct().Count());
+    }
+
     [Theory]
     [InlineData(0, "Defense")]
     [InlineData(1, "Normal")]

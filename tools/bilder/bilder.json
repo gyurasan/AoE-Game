@@ -10931,24 +10931,6 @@
     "negativ": "battering ram, log, tree trunk, iron ram head, spike"
    },
    {
-    "name": "rammbock_rad",
-    "seed": 12141,
-    "vorlage": "rammbock_12001_roh.png",
-    "maske": {
-     "ellipsen": [
-      [
-       838,
-       650,
-       100,
-       85
-      ]
-     ],
-     "weich": 8
-    },
-    "prompt": "A medieval battering ram cart seen from the side: below the front of the wooden shed, the large spoked wooden cart wheel with an iron rim and a round wooden hub, partly in the shadow of the shed, nothing in front of the wheel.",
-    "negativ": "battering ram, log, beam, iron cap, spike, knob, post, bollard, weapon"
-   },
-   {
     "name": "mangonel_ohne_arm",
     "seed": 12041,
     "vorlage": "mangonel_12012_roh.png",
@@ -11221,6 +11203,181 @@
     },
     "prompt": "A tall medieval counterweight trebuchet ready to throw: a high wooden A-frame on a heavy wooden base, a very long wooden throwing arm pivoting on an axle at the top of the frame, its long end pulled down to the left with a rope sling lying beside the base, its short end raised high on the right with a heavy wooden box counterweight hanging from it, bright blue painted beams on the base. The throwing arm and the counterweight have been taken off: above the A-frame only plain white background is visible, the frame with its axle and the base stay.",
     "negativ": "throwing arm, long beam, counterweight, hanging box, rope, sling"
+   }
+  ]
+ },
+ "teilanim": {
+  "_hinweis": "Acht Angriffsphasen je Belagerungswaffe aus tools/bilder/teilanim.py (bewegliche Teile aus dem Standbild gedreht und geschoben, Masken in teilanim.json), nicht aus qwen_image.py. Größere Leinwand im Maßstab des Standbilds: zielbreite aus der Ausgabe von teilanim.py, die Räder stehen an derselben Stelle. Seed 1 ist nur das Namensschema.",
+  "spielerfarben": true,
+  "blau_saettigung": 0.6,
+  "bilder": [
+   {
+    "name": "rammbock_angriff1",
+    "seed": 1,
+    "ziel": "Einheiten/rammbock_angriff1.png",
+    "figur": "rammbock_angriff",
+    "zielbreite": 569
+   },
+   {
+    "name": "rammbock_angriff2",
+    "seed": 1,
+    "ziel": "Einheiten/rammbock_angriff2.png",
+    "figur": "rammbock_angriff",
+    "zielbreite": 569
+   },
+   {
+    "name": "rammbock_angriff3",
+    "seed": 1,
+    "ziel": "Einheiten/rammbock_angriff3.png",
+    "figur": "rammbock_angriff",
+    "zielbreite": 569
+   },
+   {
+    "name": "rammbock_angriff4",
+    "seed": 1,
+    "ziel": "Einheiten/rammbock_angriff4.png",
+    "figur": "rammbock_angriff",
+    "zielbreite": 569
+   },
+   {
+    "name": "rammbock_angriff5",
+    "seed": 1,
+    "ziel": "Einheiten/rammbock_angriff5.png",
+    "figur": "rammbock_angriff",
+    "zielbreite": 569
+   },
+   {
+    "name": "rammbock_angriff6",
+    "seed": 1,
+    "ziel": "Einheiten/rammbock_angriff6.png",
+    "figur": "rammbock_angriff",
+    "zielbreite": 569
+   },
+   {
+    "name": "rammbock_angriff7",
+    "seed": 1,
+    "ziel": "Einheiten/rammbock_angriff7.png",
+    "figur": "rammbock_angriff",
+    "zielbreite": 569
+   },
+   {
+    "name": "rammbock_angriff8",
+    "seed": 1,
+    "ziel": "Einheiten/rammbock_angriff8.png",
+    "figur": "rammbock_angriff",
+    "zielbreite": 569
+   },
+   {
+    "name": "mangonel_angriff1",
+    "seed": 1,
+    "ziel": "Einheiten/mangonel_angriff1.png",
+    "figur": "mangonel_angriff",
+    "zielbreite": 534
+   },
+   {
+    "name": "mangonel_angriff2",
+    "seed": 1,
+    "ziel": "Einheiten/mangonel_angriff2.png",
+    "figur": "mangonel_angriff",
+    "zielbreite": 534
+   },
+   {
+    "name": "mangonel_angriff3",
+    "seed": 1,
+    "ziel": "Einheiten/mangonel_angriff3.png",
+    "figur": "mangonel_angriff",
+    "zielbreite": 534
+   },
+   {
+    "name": "mangonel_angriff4",
+    "seed": 1,
+    "ziel": "Einheiten/mangonel_angriff4.png",
+    "figur": "mangonel_angriff",
+    "zielbreite": 534
+   },
+   {
+    "name": "mangonel_angriff5",
+    "seed": 1,
+    "ziel": "Einheiten/mangonel_angriff5.png",
+    "figur": "mangonel_angriff",
+    "zielbreite": 534
+   },
+   {
+    "name": "mangonel_angriff6",
+    "seed": 1,
+    "ziel": "Einheiten/mangonel_angriff6.png",
+    "figur": "mangonel_angriff",
+    "zielbreite": 534
+   },
+   {
+    "name": "mangonel_angriff7",
+    "seed": 1,
+    "ziel": "Einheiten/mangonel_angriff7.png",
+    "figur": "mangonel_angriff",
+    "zielbreite": 534
+   },
+   {
+    "name": "mangonel_angriff8",
+    "seed": 1,
+    "ziel": "Einheiten/mangonel_angriff8.png",
+    "figur": "mangonel_angriff",
+    "zielbreite": 534
+   },
+   {
+    "name": "trebuchet_angriff1",
+    "seed": 1,
+    "ziel": "Einheiten/trebuchet_angriff1.png",
+    "figur": "trebuchet_angriff",
+    "zielbreite": 630
+   },
+   {
+    "name": "trebuchet_angriff2",
+    "seed": 1,
+    "ziel": "Einheiten/trebuchet_angriff2.png",
+    "figur": "trebuchet_angriff",
+    "zielbreite": 630
+   },
+   {
+    "name": "trebuchet_angriff3",
+    "seed": 1,
+    "ziel": "Einheiten/trebuchet_angriff3.png",
+    "figur": "trebuchet_angriff",
+    "zielbreite": 630
+   },
+   {
+    "name": "trebuchet_angriff4",
+    "seed": 1,
+    "ziel": "Einheiten/trebuchet_angriff4.png",
+    "figur": "trebuchet_angriff",
+    "zielbreite": 630
+   },
+   {
+    "name": "trebuchet_angriff5",
+    "seed": 1,
+    "ziel": "Einheiten/trebuchet_angriff5.png",
+    "figur": "trebuchet_angriff",
+    "zielbreite": 630
+   },
+   {
+    "name": "trebuchet_angriff6",
+    "seed": 1,
+    "ziel": "Einheiten/trebuchet_angriff6.png",
+    "figur": "trebuchet_angriff",
+    "zielbreite": 630
+   },
+   {
+    "name": "trebuchet_angriff7",
+    "seed": 1,
+    "ziel": "Einheiten/trebuchet_angriff7.png",
+    "figur": "trebuchet_angriff",
+    "zielbreite": 630
+   },
+   {
+    "name": "trebuchet_angriff8",
+    "seed": 1,
+    "ziel": "Einheiten/trebuchet_angriff8.png",
+    "figur": "trebuchet_angriff",
+    "zielbreite": 630
    }
   ]
  },

@@ -12,9 +12,18 @@ Unter den Teilen liegt der Rumpf: "rumpf_bild" - dieselbe Maschine ohne die bewe
 qwen_image.py neu gemalt -, sonst das Standbild mit ausgeschnittenen Teilen. Ein Teil mit
 "hinten": true liegt hinter dem Rumpf: der Rammbalken verschwindet beim Zurückziehen im Schuppen.
 "verlaengern": [dx, dy, n] zieht ein Teil n Pixel entgegen seiner Stoßrichtung nach (der Balken
-reicht dann auch beim Vorstoß bis in den Schuppen, statt eine Lücke zu lassen). "durch": Formen (fest
+reicht dann auch beim Vorstoß bis in den Schuppen, statt eine Lücke zu lassen); "verlaengern_in" (Formen)
+begrenzt das auf das Balkenende, sonst zögen Becher und Rammkopf Streifen nach. "durch": Formen (fest
 auf der Leinwand) - dort liegt ein hinteres Teil doch vor dem Rumpf: der Rammbalken vor der dunklen
 Schuppenöffnung, der Wurfarm vor dem hinteren Pfosten, aber hinter dem vorderen.
+
+Den Rumpf ausbessern: "weg" (Formen) löscht Stücke, die zu keinem Teil gehören (die Seilschlaufe,
+die vom Wurfarm durchhängt); "rumpf_kopie" füllt Löcher, wo ein Teil ausgeschnitten wurde, mit einem
+verschobenen und skalierten Stück des Standbilds (das Rad hinter dem Rammkopf aus dem Vorderrad);
+"kruemel": n löscht lose Stückchen unter n Bildpunkten (Seilenden und Splitter neben dem Wurfarm).
+Mit "ohne" in der Maske eines Teils bleibt, was vor dem Teil liegt, fest im Rumpf - der vordere
+Pfosten und die Lagerplatte, hinter denen der Wurfarm des Trebuchets schwingt. Das Loch, das dort
+im Teil bliebe, füllt "fuellen" (Felder wie "rumpf_kopie") mit dem verschobenen Balken davor.
 
 Ein hängendes Teil mit "tiefste": y (Rohbild) sinkt nie tiefer: reicht es mit dem gedrehten Arm
 weiter hinab, wird es so weit gehoben und das Seil darüber gekürzt - alles über dem Aufhängepunkt
@@ -100,8 +109,10 @@ def punkt_gedreht(p, um, grad, versatz):
             um[1] + x * math.sin(r) + y * math.cos(r) + versatz[1])
 
 
-def verlaengern(teil, dx, dy, n):
-    """Zieht ein Teil n Pixel in Richtung (dx, dy) nach: jede Kopie füllt nur, wo noch nichts ist."""
+def verlaengern(teil, dx, dy, n, nur=None):
+    """Zieht ein Teil n Pixel in Richtung (dx, dy) nach: jede Kopie füllt nur, wo noch nichts ist -
+    und, wenn 'nur' (Maske) gegeben ist, nur dort. Sonst zöge jeder Rand mit: der Becher des
+    Mangonels hinterließe Streifen neben dem Arm, der Rammkopf eine Kante über dem Balken."""
     laenge = math.hypot(dx, dy) or 1
     ex, ey = dx / laenge, dy / laenge
     erg = teil.copy()
@@ -109,8 +120,35 @@ def verlaengern(teil, dx, dy, n):
         sx, sy = int(round(ex * t)), int(round(ey * t))
         kopie = np.roll(np.roll(teil, sy, axis=0), sx, axis=1)
         leer = erg[:, :, 3] == 0
+        if nur is not None:
+            leer &= nur
         erg[leer] = kopie[leer]
     return erg
+
+
+def kopieren(ziel, stand, k, roh_b, roh_h):
+    """Füllt Löcher (Alpha 0) von 'ziel' innerhalb von k["maske"] aus dem Standbild: um k["von"]
+    genommen, auf k["nach"] gesetzt und um k["massstab"] (sonst 1) skaliert."""
+    H, W = stand.shape[:2]
+    loch = maske(k["maske"], roh_b, roh_h) & (ziel[:, :, 3] == 0)
+    ys, xs = np.nonzero(loch)
+    s = k.get("massstab", 1.0)
+    qx = np.round((xs - k["nach"][0] - RAND) / s + k["von"][0] + RAND).astype(int).clip(0, W - 1)
+    qy = np.round((ys - k["nach"][1] - RAND) / s + k["von"][1] + RAND).astype(int).clip(0, H - 1)
+    ziel[ys, xs] = stand[qy, qx]
+
+
+def kruemel_weg(bild, n_min):
+    """"kruemel": lose Stückchen unter n_min Bildpunkten löschen (Alpha > 8 zusammenhängend) -
+    Seilenden, Splitter und Pfostenspitzen, die neben einem ausgeschnittenen Teil stehen blieben
+    und beim Schwingen frei in der Luft hingen. Ihr halbdurchsichtiger Rand (2 px) geht mit."""
+    lab, n = ndimage.label(bild[:, :, 3] > 8)
+    if n:
+        groesse = ndimage.sum(np.ones(lab.shape), lab, range(1, n + 1))
+        klein = np.zeros(n + 1, bool)
+        klein[1:] = groesse < n_min
+        weg = klein[lab]
+        bild[weg | (ndimage.binary_dilation(weg, iterations=2) & (lab == 0))] = 0
 
 
 def zielbreite_der_figur(figur):
@@ -141,8 +179,16 @@ def figur(name, cfg):
             durch[t["name"]] = maske(t["durch"], roh_b, roh_h)
         bild = np.zeros_like(stand)
         bild[m] = stand[m]
+        # "fuellen": wie "rumpf_kopie", aber für das Teil selbst - wo im Standbild etwas davor lag
+        # (der vordere Pfosten vor dem Wurfarm, per "ohne" im Rumpf gelassen), hätte das Teil ein
+        # Loch, das beim Drehen sichtbar würde: es wird mit dem verschobenen Balken davor gefüllt
+        for k in t.get("fuellen", []):
+            kopieren(bild, stand, k, roh_b, roh_h)
+        if t.get("kruemel"):
+            kruemel_weg(bild, t["kruemel"])
         if "verlaengern" in t:
-            bild = verlaengern(bild, *t["verlaengern"])
+            nur = maske(t["verlaengern_in"], roh_b, roh_h) if "verlaengern_in" in t else None
+            bild = verlaengern(bild, *t["verlaengern"], nur=nur)
         teile[t["name"]] = (t, ausmalen(bild))
         belegt |= m
     if cfg.get("rumpf_bild"):
@@ -159,12 +205,9 @@ def figur(name, cfg):
     # aus dem Standbild füllen: um "von" genommen, auf "nach" gesetzt und skaliert. So entsteht das
     # Rad hinter dem Rammkopf aus dem sichtbaren Vorderrad
     for k in cfg.get("rumpf_kopie", []):
-        loch = maske(k["maske"], roh_b, roh_h) & (rumpf[:, :, 3] == 0)
-        ys, xs = np.nonzero(loch)
-        s = k.get("massstab", 1.0)
-        qx = np.round((xs - k["nach"][0] - RAND) / s + k["von"][0] + RAND).astype(int).clip(0, W - 1)
-        qy = np.round((ys - k["nach"][1] - RAND) / s + k["von"][1] + RAND).astype(int).clip(0, H - 1)
-        rumpf[ys, xs] = stand[qy, qx]
+        kopieren(rumpf, stand, k, roh_b, roh_h)
+    if cfg.get("kruemel"):
+        kruemel_weg(rumpf, cfg["kruemel"])
 
     # Kontrollbild: welcher Bildpunkt gehört zu welchem Teil
     probe = stand.copy()

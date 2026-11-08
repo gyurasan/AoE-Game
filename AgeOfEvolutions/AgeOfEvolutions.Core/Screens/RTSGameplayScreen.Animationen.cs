@@ -418,6 +418,7 @@ public partial class RTSGameplayScreen
         public float Flight;       // Flugzeit in Sekunden
         public float Age;          // Sekunden seit dem Abschuss
         public bool Fletched;      // der Schütze hat „Befiederte Pfeile“ erforscht (A4)
+        public int Stone;          // F15: 0 ein Pfeil, 1 der Stein des Katapults, 2 der große des Tribok
     }
     private readonly List<Arrow> _arrows = new();
 
@@ -440,6 +441,14 @@ public partial class RTSGameplayScreen
     internal const float ARROW_MAX_FLIGHT = 0.6f;
     internal const float ARROW_ARC = 0.22f;         // Scheitelhöhe als Anteil der Flugstrecke
 
+    // F15: Steine von Katapult und Tribok fliegen langsamer und in höherem Bogen
+    internal const float STONE_SPEED = 200f;        // Weltpixel je Sekunde
+    internal const float STONE_MIN_FLIGHT = 0.45f;
+    internal const float STONE_MAX_FLIGHT = 1.3f;
+    internal const float STONE_ARC = 0.32f;
+    internal const float STONE_SIZE = 6f;           // Weltpixel, Stein des Katapults
+    internal const float STONE_SIZE_LARGE = 9f;     // der des Tribok
+
     /// <summary>
     /// Flugzeit eines Pfeils über distance Weltpixel.
     /// VERTRAG: MathHelper.Clamp(distance / ARROW_SPEED, ARROW_MIN_FLIGHT, ARROW_MAX_FLIGHT).
@@ -447,17 +456,23 @@ public partial class RTSGameplayScreen
     internal static float ArrowFlight(float distance) => MathHelper.Clamp(distance / ARROW_SPEED, ARROW_MIN_FLIGHT, ARROW_MAX_FLIGHT);
 
     /// <summary>
+    /// Flugzeit eines Steins über distance Weltpixel (F15).
+    /// VERTRAG: MathHelper.Clamp(distance / STONE_SPEED, STONE_MIN_FLIGHT, STONE_MAX_FLIGHT).
+    /// </summary>
+    internal static float StoneFlight(float distance) => MathHelper.Clamp(distance / STONE_SPEED, STONE_MIN_FLIGHT, STONE_MAX_FLIGHT);
+
+    /// <summary>
     /// Wo der Pfeil a nach t Sekunden fliegt (Weltpixel), und in welche Richtung er zeigt: eine
     /// Wurfparabel von From nach To.
-    /// VERTRAG: s = Clamp(t / a.Flight, 0, 1); h = ARROW_ARC * Abstand(a.From, a.To); Rückgabe
-    /// Vector2.Lerp(a.From, a.To, s) + Vector2(0, -4 h s (1 - s)); angle = MathF.Atan2(d.Y, d.X) mit
-    /// d = (a.To - a.From) + Vector2(0, -4 h (1 - 2 s)).
+    /// VERTRAG: s = Clamp(t / a.Flight, 0, 1); h = (a.Stone &gt; 0 ? STONE_ARC : ARROW_ARC) *
+    /// Abstand(a.From, a.To); Rückgabe Vector2.Lerp(a.From, a.To, s) + Vector2(0, -4 h s (1 - s));
+    /// angle = MathF.Atan2(d.Y, d.X) mit d = (a.To - a.From) + Vector2(0, -4 h (1 - 2 s)).
     /// </summary>
     private static Vector2 ArrowAt(Arrow a, float t, out float angle)
     {
-        // Fortschritt auf der Strecke und Scheitelhöhe des Bogens
+        // Fortschritt auf der Strecke und Scheitelhöhe des Bogens - Steine fliegen höher (F15)
         float s = MathHelper.Clamp(t / a.Flight, 0, 1);
-        float h = ARROW_ARC * Vector2.Distance(a.From, a.To);
+        float h = (a.Stone > 0 ? STONE_ARC : ARROW_ARC) * Vector2.Distance(a.From, a.To);
         // Wurfparabel: waagerecht gleichmaessig, senkrecht der Bogen
         Vector2 pos = Vector2.Lerp(a.From, a.To, s) + new Vector2(0, -4 * h * s * (1 - s));
         // Richtung: Ableitung der Parabel
@@ -499,16 +514,23 @@ public partial class RTSGameplayScreen
     /// To = to, Flight = MathF.Max(1f / 60f, RELOAD_SECONDS - unit.AttackTimer), Fletched =
     /// PlayerOf(unit).Techs.IsResearched(Tech.Fletching) } (Age 0) - die Forschung des Spielers,
     /// dem der Schütze gehört, nicht die des Gegners (A4).
+    /// F15: Katapult und Tribok (StoneOf(unit.Type) &gt; 0) werfen stattdessen einen Stein: from =
+    /// StoneLaunchPoint(unit, to) (Becher bzw. Schlinge), flight = StoneFlight(Abstand), Stone =
+    /// StoneOf(unit.Type); sonst gilt alles wie beim Pfeil.
     /// </summary>
     private void MaybeLaunchArrow(Unit unit, float before)
     {
         // nur Fernkämpfer schießen Pfeile
         if (unit.AttackType != AttackType.Ranged)
             return;
-        // Bogen und Ziel, Flugzeit so, dass der Pfeil beim Treffer ankommt
+        // Bogen und Ziel, Flugzeit so, dass der Pfeil beim Treffer ankommt - Katapult und Tribok
+        // werfen einen Stein aus Becher oder Schlinge (F15)
         Vector2 to = ArrowTarget(unit);
-        Vector2 from = unit.Position + new Vector2(to.X < unit.Position.X ? -5f : 5f, -13f);
-        float flight = ArrowFlight(Vector2.Distance(from, to));
+        int stone = StoneOf(unit.Type);
+        Vector2 from = stone > 0
+            ? StoneLaunchPoint(unit, to)
+            : unit.Position + new Vector2(to.X < unit.Position.X ? -5f : 5f, -13f);
+        float flight = stone > 0 ? StoneFlight(Vector2.Distance(from, to)) : ArrowFlight(Vector2.Distance(from, to));
         float launch = AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS - flight;
         // der Schlagtakt hat die Abschusszeit ueberquert: Pfeil loslassen
         if (before < launch && unit.AttackTimer >= launch)
@@ -519,6 +541,7 @@ public partial class RTSGameplayScreen
                 Flight = MathF.Max(1f / 60f, AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS - unit.AttackTimer),
                 // nach „Befiederte Pfeile“ fliegt das bessere Bild - je Spieler
                 Fletched = PlayerOf(unit).Techs.IsResearched(AoE.Core.Economy.Tech.Fletching),
+                Stone = stone,
             });
     }
 
@@ -545,6 +568,7 @@ public partial class RTSGameplayScreen
     /// VERTRAG: je Pfeil a in _arrows:
     /// 1. Überspringen, wenn weder die Kachel von a.From noch die von a.To (tileMap.WorldToGrid, als int)
     ///    für Spieler 0 sichtbar ist (tileMap.IsTileVisible(x, y, 0)).
+    ///    Ein Stein (a.Stone &gt; 0, F15) zeichnet DrawStone, dann weiter mit dem nächsten.
     /// 2. p = WorldToScreen(ArrowAt(a, a.Age, out angle)); len = ArrowLength(a.Fletched) * cameraZoom;
     ///    thick = MathF.Max(1.5f, 1.2f * cameraZoom); dir = Vector2(MathF.Cos(angle), MathF.Sin(angle)).
     /// 3. Schatten: s = Clamp(a.Age / a.Flight, 0, 1); boden = WorldToScreen(Vector2.Lerp(a.From, a.To, s)
@@ -573,6 +597,13 @@ public partial class RTSGameplayScreen
             Vector2 gt = tileMap.WorldToGrid(a.To);
             if (!tileMap.IsTileVisible((int)gf.X, (int)gf.Y, 0) && !tileMap.IsTileVisible((int)gt.X, (int)gt.Y, 0))
                 continue;
+
+            // F15: Steine von Katapult und Tribok (RTSGameplayScreen.Belagerung)
+            if (a.Stone > 0)
+            {
+                DrawStone(spriteBatch, a);
+                continue;
+            }
 
             // 2. Position und Richtung des Pfeils auf dem Bildschirm
             Vector2 p = WorldToScreen(ArrowAt(a, a.Age, out float angle));

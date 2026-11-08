@@ -40,7 +40,16 @@
 // Wölfe prüft raubtiere (Raubtiere.cs: zuschlagen, nicht verfolgen, Gegenwehr, Jagd, Abstand),
 // ihre Lauf- und Angriffsphasen raubtieranim (RaubtierAnimation.cs). F1 prüft beschuss:
 // Wachturm und Stadtzentrum schießen auf nächste sichtbare Feinde im Takt, außerhalb der
-// Reichweite und an unbewaffneten Gebäuden bleibt der Gegner unverletzt.
+// Reichweite und an unbewaffneten Gebäuden bleibt der Gegner unverletzt. belagerung (F15): Katapult
+// und Tribok werfen Steine aus Becher und Schlinge, die beim Treffer landen, Wurf- und Stoßbild
+// laufen im Takt, die Trefferfläche ist so groß wie das Bild. flucht (B1, Nutzer 2026-11-08):
+// ein von einer feindlichen Einheit getroffener Dorfbewohner flieht statt sich zu wehren,
+// merkt sich seine Arbeit und kehrt nach dem Angriff von selbst zu ihr zurück; ein neuer
+// Befehl beendet die Flucht. schiffsklick (B2, Nutzer 2026-11-08): Linksklick auf das eigene
+// Transportschiff mit ausgewählten Landeinheiten = sie steigen ein, ohne Auswahl = das Schiff
+// wird ausgewählt. formation (B3, Nutzer 2026-11-08): zwei oder mehr Soldaten bewegen sich bei
+// einem Laufbefehl in Formation um den angeklickten Punkt (die MITTE der Aufstellung) und im
+// Gleichschritt; ein einzelner Soldat zielt exakt auf den Punkt.
 //
 // Jede genannte Gruppe läuft auf drei frisch erzeugten Karten. Die Spielschleife
 // läuft Bild für Bild (60 je Sekunde) mit denselben Methoden, die Update() im Spiel
@@ -153,6 +162,9 @@ for (int karte = 1; karte <= KARTEN; karte++)
         Pruefe($"Karte {karte}, Einsturz", () => Einsturz(karte, verstoesse));
     if (gruppen.Contains("pfeile"))
         Pruefe($"Karte {karte}, Pfeile", () => Pfeile(karte, verstoesse));
+    // Belagerungswaffen im Bild (F15): Steine statt Pfeile, Wurf- und Stoßbild im Takt, Trefferfläche
+    if (gruppen.Contains("belagerung"))
+        Pruefe($"Karte {karte}, Belagerung", () => Belagerung(karte, verstoesse));
     // Feuer und Rauch (A5) hängen nur an der Zeit, nicht an der Karte
     if (gruppen.Contains("feuer") && karte == 1)
         Pruefe("Feuer und Rauch", () => FeuerUndRauch(verstoesse));
@@ -199,6 +211,18 @@ for (int karte = 1; karte <= KARTEN; karte++)
     // auch aus dem Inselinneren, verstreut, Schiff in freiem Wasser, Klick am Schiffsrand
     if (gruppen.Contains("anlegen") && karte == 1)
         Pruefe("Anlegen", () => Anlegen(verstoesse));
+    // B1: der getroffene Dorfbewohner flieht statt zu wehren, kehrt nach dem Angriff
+    // von selbst zu seiner Arbeit zurück, ein neuer Befehl beendet die Flucht
+    if (gruppen.Contains("flucht"))
+        Pruefe($"Karte {karte}, Flucht", () => Flucht(karte, verstoesse));
+    // B2: Linksklick aufs eigene Transportschiff mit ausgewählten Landeinheiten =
+    // Einsteigen, ohne Auswahl = das Schiff wird ausgewählt
+    if (gruppen.Contains("schiffsklick") && karte == 1)
+        Pruefe("Schiffsklick", () => Schiffsklick(verstoesse));
+    // B3: zwei oder mehr Soldaten marschieren in Formation um den Punkt (Mitte der
+    // Aufstellung) und im Gleichschritt, ein einzelner Soldat läuft exakt auf den Punkt
+    if (gruppen.Contains("formation"))
+        Pruefe($"Karte {karte}, Formation", () => FormationMarsch(karte, verstoesse));
     // Warteschlange abbrechen: Klick aufs Feld, Shift+Klick fünf, Rechtsklick auf die Ausbildungstaste
     if (gruppen.Contains("warteschlange"))
         Pruefe($"Karte {karte}, Warteschlange", () => Warteschlange(karte, verstoesse));
@@ -3595,6 +3619,264 @@ static void FeuerUndRauch(List<string> verstoesse)
 
     if (verstoesse.Count == vorher)
         Console.WriteLine($"  ok  {wer}: je Haus und Schmiede ein Kamin, Rauch stetig und gestaffelt, Flackern {tief:0.00} bis {hoch:0.00}, Zungen und Funken nach Vertrag");
+}
+
+// Belagerungswaffen im Bild (F15, Nutzer 2026-11-08: „die Belagerungs Waffen werden noch nicht
+// Dargestellt im game“): Katapult und Tribok werfen Steine (Arrow.Stone 1 und 2) aus Becher und
+// Schlinge, die genau beim Treffer landen; das Wurfbild (SiegeAttackFrame) springt beim Loslassen
+// von 3 auf 4, der Rammbock zeigt beim Treffer Bild 5; die Trefferfläche ist so groß wie das Bild.
+//
+// VERTRAG: typ = typeof(RTSGameplayScreen); statische Methoden per typ.GetMethod(name,
+// BindingFlags.NonPublic | BindingFlags.Static) und .Invoke(null, ...), Instanzmethoden per w.Call.
+// wer = $"Karte {karte}, Belagerung"; vorher = verstoesse.Count.
+// 1. Werte: StoneOf(UnitType) gibt Ram 0, Catapult 1, Trebuchet 2, Archer 0. IsSiegeType(UnitType)
+//    ist true für Ram, Catapult, Trebuchet und false für Archer und Villager. StoneFlight(float)
+//    gibt für 0f 0.45f, für 200f 1.0f, für 1000f 1.3f (Toleranz 0.001). Jede Abweichung ein Verstoß
+//    mit Methode, Eingabe, Ist und Soll.
+// 2. Trefferfläche: w = new Welt(); platz = w.FreieKachel(w.Dorfbewohner().First(), 4). Für
+//    (UnitType.Ram, 44f), (UnitType.Catapult, 44f), (UnitType.Trebuchet, 72f): u = NeueEinheit(w,
+//    typ, 0, platz); r = (Rectangle)UnitWorldRect.Invoke(null, new object[] { u }). Verstoß, wenn
+//    |r.Width - breite| > 1 oder |r.Bottom - u.Position.Y| > 1 oder |r.Center.X - u.Position.X| > 1
+//    oder r.Height < 30. Dazu ein Archer an platz: Verstoß, wenn sein r.Width >= 30.
+// 3. Katapult auf ein Haus: w = new Welt(); pfeile = (System.Collections.IList)w.Get("_arrows");
+//    platz = w.FreieKachel(w.Dorfbewohner().First(), 6); haus = w.Map.AddBuilding((int)platz.X,
+//    (int)platz.Y, "Haus", 1, 2); kat = NeueEinheit(w, UnitType.Catapult, 0, new Vector2(platz.X - 4,
+//    platz.Y + 1)) - links vom Haus; ist dort kein Platz (platz.X - abstand < 1, das Haus steht am
+//    linken Kartenrand), rechts davon: new Vector2(platz.X + 1 + abstand, platz.Y + 1) (abstand 4
+//    beim Katapult, 6 beim Tribok, 1 beim Rammbock); w.Call("AttackBuilding", new List<Unit> { kat }, haus); mitte = new Vector2(
+//    (haus.X + 1f) * 32f, (haus.Y + 1f) * 32f - 32f * 0.4f). w.LaufeBis(..., 40f), Abbruch bei 3
+//    Treffern; je Aufruf (Zähler tick, int voriges = -1):
+//    - bild = (int)w.Call("SiegeAttackFrame", kat); ist (bool)w.Call("IsStriking", kat), kommt bild
+//      in das HashSet<int> gesehen;
+//    - jeder neue Eintrag a in pfeile (HashSet<object> bekannt): (int)Feldwert(a, "Stone") muss 1
+//      sein; von = (Vector2)Feldwert(a, "From") mit von.Y <= kat.Position.Y - 30 und
+//      |von.X - kat.Position.X| <= 30; (Vector2)Feldwert(a, "To") höchstens 1 px von mitte; bild == 4
+//      und voriges == 3. Jede verletzte Bedingung ein Verstoß, je Bedingung höchstens einer;
+//    - jeder bekannte Eintrag, der nicht mehr in pfeile steht: tick in landungen (und aus der
+//      Beobachtung nehmen); sinkt haus.Health gegenüber dem vorigen Aufruf: tick in treffer;
+//    - am Ende des Aufrufs voriges = bild.
+//    Danach: weniger als 2 Treffer → Verstoß „Testaufbau“; jeder Treffer braucht eine Landung mit
+//    |Landung - Treffer| <= 1, sonst ein Verstoß; fehlt in gesehen eines der Bilder 0 bis 7: ein
+//    Verstoß mit den fehlenden.
+// 4. Tribok auf ein Haus: wie 3, eigene Welt, UnitType.Trebuchet an new Vector2(platz.X - 6,
+//    platz.Y + 1), Abbruch beim ersten Treffer (er reißt das Haus mit einem Wurf ein). Jeder Stein
+//    mit Stone == 2 und von.Y <= tri.Position.Y - 40, sonst ein Verstoß. Kein Stein → Verstoß;
+//    kein Treffer → „Testaufbau“ (EIN Treffer genügt). Jeder Treffer braucht eine Landung wie in 3.
+//    Wurfbild 4/3 und die Bilder 0 bis 7 prüft der Tribok NICHT.
+// 5. Rammbock auf ein Haus: wie 3, eigene Welt, UnitType.Ram an new Vector2(platz.X - 1, platz.Y + 1),
+//    Abbruch bei 3 Treffern. Je Aufruf bild = SiegeAttackFrame(ram), bei IsStriking in gesehen;
+//    sinkt haus.Health in diesem Aufruf, muss bild 5 sein (sonst ein Verstoß, höchstens einer);
+//    pfeile.Count muss immer 0 sein (sonst ein Verstoß). Weniger als 2 Treffer → „Testaufbau“;
+//    fehlt in gesehen eines der Bilder 0 bis 7: ein Verstoß. Der Rammbock wirft nichts - die
+//    Prüfung „jeder Treffer braucht eine Landung“ aus 3 gilt für ihn NICHT.
+// 6. Ist verstoesse.Count == vorher: Console.WriteLine($"  ok  {wer}: ...") mit Zahl der Steine und
+//    Treffer je Gerät.
+static void Belagerung(int karte, List<string> verstoesse)
+{
+    var wer = $"Karte {karte}, Belagerung";
+    var vorher = verstoesse.Count;
+    var typ = typeof(RTSGameplayScreen);
+    var bf = BindingFlags.NonPublic | BindingFlags.Static;
+    var stoneOf = typ.GetMethod("StoneOf", bf);
+    var isSiege = typ.GetMethod("IsSiegeType", bf);
+    var stoneFlight = typ.GetMethod("StoneFlight", bf);
+    var unitWorldRect = typ.GetMethod("UnitWorldRect", bf);
+
+    // 1. Werte
+    var steinSoll = new (UnitType t, int s)[]
+    {
+        (UnitType.Ram, 0), (UnitType.Catapult, 1), (UnitType.Trebuchet, 2), (UnitType.Archer, 0)
+    };
+    foreach (var (t, s) in steinSoll)
+    {
+        var ist = (int)stoneOf.Invoke(null, new object[] { t });
+        if (ist != s)
+            verstoesse.Add($"{wer}: StoneOf({t}) = {ist}, soll {s}");
+    }
+    var siegeSoll = new (UnitType t, bool s)[]
+    {
+        (UnitType.Ram, true), (UnitType.Catapult, true), (UnitType.Trebuchet, true),
+        (UnitType.Archer, false), (UnitType.Villager, false)
+    };
+    foreach (var (t, s) in siegeSoll)
+    {
+        var ist = (bool)isSiege.Invoke(null, new object[] { t });
+        if (ist != s)
+            verstoesse.Add($"{wer}: IsSiegeType({t}) = {ist}, soll {s}");
+    }
+    var flightSoll = new (float e, float s)[] { (0f, 0.45f), (200f, 1.0f), (1000f, 1.3f) };
+    foreach (var (e, s) in flightSoll)
+    {
+        var ist = (float)stoneFlight.Invoke(null, new object[] { e });
+        if (Math.Abs(ist - s) > 0.001f)
+            verstoesse.Add($"{wer}: StoneFlight({e}) = {ist}, soll {s}");
+    }
+
+    // 2. Trefferfläche
+    {
+        var w = new Welt();
+        var platz = w.FreieKachel(w.Dorfbewohner().First(), 4);
+        var flaechen = new (UnitType t, float breite)[]
+        {
+            (UnitType.Ram, 44f), (UnitType.Catapult, 44f), (UnitType.Trebuchet, 72f)
+        };
+        foreach (var (t, breite) in flaechen)
+        {
+            var u = NeueEinheit(w, t, 0, platz);
+            var r = (Rectangle)unitWorldRect.Invoke(null, new object[] { u });
+            if (Math.Abs(r.Width - breite) > 1)
+                verstoesse.Add($"{wer}: Trefferfläche {t}: Breite {r.Width}, soll {breite}");
+            if (Math.Abs(r.Bottom - u.Position.Y) > 1)
+                verstoesse.Add($"{wer}: Trefferfläche {t}: Bottom {r.Bottom}, soll {u.Position.Y}");
+            if (Math.Abs(r.Center.X - u.Position.X) > 1)
+                verstoesse.Add($"{wer}: Trefferfläche {t}: Center.X {r.Center.X}, soll {u.Position.X}");
+            if (r.Height < 30)
+                verstoesse.Add($"{wer}: Trefferfläche {t}: Höhe {r.Height} < 30");
+        }
+        var archer = NeueEinheit(w, UnitType.Archer, 0, platz);
+        var ra = (Rectangle)unitWorldRect.Invoke(null, new object[] { archer });
+        if (ra.Width >= 30)
+            verstoesse.Add($"{wer}: Trefferfläche Archer: Breite {ra.Width} >= 30");
+    }
+
+    // 3-5. Geräte auf ein Haus
+    (int Steine, int Treffer) AufsHaus(UnitType geraet, float abstand, int stein, float hoehe, int bisTreffer)
+    {
+        var w = new Welt();
+        var pfeile = (System.Collections.IList)w.Get("_arrows");
+        var platz = w.FreieKachel(w.Dorfbewohner().First(), 6);
+        var haus = w.Map.AddBuilding((int)platz.X, (int)platz.Y, "Haus", 1, 2);
+        var xGer = platz.X - abstand < 1f ? platz.X + 1 + abstand : platz.X - abstand;
+        var u = NeueEinheit(w, geraet, 0, new Vector2(xGer, platz.Y + 1));
+        w.Call("AttackBuilding", new List<Unit> { u }, haus);
+        var mitte = new Vector2((haus.X + 1f) * 32f, (haus.Y + 1f) * 32f - 32f * 0.4f);
+        var gesehen = new HashSet<int>();
+        var bekannt = new HashSet<object>();
+        var unterwegs = new List<object>();
+        var landungen = new List<int>();
+        var treffer = new List<int>();
+        var steine = 0;
+        var steinFehler = false;
+        var loslassFehler = false;
+        var ramFehler = false;
+        var pfeileFehler = false;
+        var tick = 0;
+        var voriges = -1;
+        var lp = haus.Health;
+        w.LaufeBis(() =>
+        {
+            tick++;
+            var bild = (int)w.Call("SiegeAttackFrame", u);
+            if ((bool)w.Call("IsStriking", u))
+                gesehen.Add(bild);
+            foreach (var a in pfeile.Cast<object>().Where(bekannt.Add))
+            {
+                unterwegs.Add(a);
+                steine++;
+                if (stein > 0)
+                {
+                    var s = (int)Feldwert(a, "Stone");
+                    if (s != stein)
+                    {
+                        if (!steinFehler)
+                        {
+                            steinFehler = true;
+                            verstoesse.Add($"{wer}: {geraet}: Stein {s}, soll {stein}");
+                        }
+                    }
+                    var von = (Vector2)Feldwert(a, "From");
+                    if (von.Y > u.Position.Y - hoehe || Math.Abs(von.X - u.Position.X) > 30)
+                    {
+                        if (!steinFehler)
+                        {
+                            steinFehler = true;
+                            verstoesse.Add($"{wer}: {geraet}: Start {von}, soll Y <= {u.Position.Y - hoehe} und |X-Diff| <= 30");
+                        }
+                    }
+                    var zu = (Vector2)Feldwert(a, "To");
+                    if (Math.Abs(zu.X - mitte.X) > 1f || Math.Abs(zu.Y - mitte.Y) > 1f)
+                    {
+                        if (!steinFehler)
+                        {
+                            steinFehler = true;
+                            verstoesse.Add($"{wer}: {geraet}: Ziel {zu}, soll {mitte}");
+                        }
+                    }
+                    if (geraet == UnitType.Catapult && (bild != 4 || voriges != 3))
+                    {
+                        if (!loslassFehler)
+                        {
+                            loslassFehler = true;
+                            verstoesse.Add($"{wer}: Katapult: Bild {bild} (voriges {voriges}) beim Loslassen, soll 4 nach 3");
+                        }
+                    }
+                }
+            }
+            foreach (var a in unterwegs.ToList())
+            {
+                if (!pfeile.Contains(a))
+                {
+                    unterwegs.Remove(a);
+                    landungen.Add(tick);
+                }
+            }
+            if (haus.Health < lp)
+            {
+                treffer.Add(tick);
+                if (stein == 0 && bild != 5)
+                {
+                    if (!ramFehler)
+                    {
+                        ramFehler = true;
+                        verstoesse.Add($"{wer}: Rammbock: Bild {bild} beim Treffer, soll 5");
+                    }
+                }
+                lp = haus.Health;
+            }
+            if (stein == 0 && pfeile.Count != 0)
+            {
+                if (!pfeileFehler)
+                {
+                    pfeileFehler = true;
+                    verstoesse.Add($"{wer}: Rammbock: {pfeile.Count} Steine, soll 0");
+                }
+            }
+            voriges = bild;
+            return treffer.Count >= bisTreffer;
+        }, 40f);
+        var minTreffer = geraet == UnitType.Trebuchet ? 1 : 2;
+        if (treffer.Count < minTreffer)
+            verstoesse.Add($"{wer}: {geraet}: Testaufbau, nur {treffer.Count} Treffer");
+        if (stein > 0)
+        {
+            foreach (var t in treffer)
+            {
+                if (!landungen.Any(l => Math.Abs(l - t) <= 1))
+                {
+                    verstoesse.Add($"{wer}: {geraet}: Treffer bei Tick {t} ohne Landung (Landungen: {string.Join(", ", landungen)})");
+                    break;
+                }
+            }
+        }
+        if (geraet == UnitType.Catapult || geraet == UnitType.Ram)
+        {
+            var fehlend = new List<int>();
+            for (var i = 0; i <= 7; i++)
+                if (!gesehen.Contains(i))
+                    fehlend.Add(i);
+            if (fehlend.Count > 0)
+                verstoesse.Add($"{wer}: {geraet}: fehlende Bilder {string.Join(", ", fehlend)}");
+        }
+        return (steine, treffer.Count);
+    }
+
+    var kat = AufsHaus(UnitType.Catapult, 4f, 1, 30f, 3);
+    var tri = AufsHaus(UnitType.Trebuchet, 6f, 2, 40f, 1);
+    var ram = AufsHaus(UnitType.Ram, 1f, 0, 0f, 3);
+    if (tri.Steine == 0)
+        verstoesse.Add($"{wer}: Tribok: kein Stein geworfen");
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: Katapult {kat.Steine} Steine / {kat.Treffer} Treffer, Tribok {tri.Steine} Steine / {tri.Treffer} Treffer, Rammbock {ram.Steine} Steine / {ram.Treffer} Treffer");
 }
 
 // Pfeile (A3): ein Bogenschütze lässt jeden Pfeil so los, dass er genau beim Treffer ankommt;
@@ -10171,6 +10453,498 @@ static void Landart(int karte, List<string> verstoesse)
 
     if (verstoesse.Count == vorher)
         Console.WriteLine($"  ok  {wer}: {MapStyles.Name(style)} — Sand {sand / total:P0}, Wasser {wasser / total:P0}, Wiese {wiese / total:P0}, Wald {wald}, Schafe {schafe}, Fisch {fisch}");
+}
+
+// B1 (Nutzer 2026-11-08: „Dorfbewohner hören auf zu Arbeiten nach einem Angriff.
+// Dorfbewohner sollten flüchten nicht angreifen da sie keine Krieger sind. Ist der
+// Angriff vorbei müssen sie wieder die Arbeit aufnehmen wo sie vorher dran waren und
+// das selbständig.“): ein von einer feindlichen Einheit getroffener Dorfbewohner flieht
+// statt sich zu wehren, merkt sich seine Baustelle, kehrt nach dem Angriff von selbst
+// zu ihr zurück — und ein neuer Befehl beendet die Flucht und die gemerkte Arbeit.
+static void Flucht(int karte, List<string> verstoesse)
+{
+    string wer = $"Karte {karte}, Flucht";
+    int vorher = verstoesse.Count;
+    var w = new Welt();
+    w.Set("cameraZoom", 1f);
+    w.Set("cameraPosition", Vector2.Zero);
+    int T = w.Map.TileSize;
+
+    var frei = (int x, int y) => w.Map.GetTile(x, y) is { } t && w.Map.IsWalkable(x, y) && t.ResourceType == null
+        && string.IsNullOrEmpty(t.Building) && !w.Map.Units.Any(u => w.Map.WorldToGrid(u.Position) == new Vector2(x, y));
+    var freie = () => Enumerable.Range(0, w.Map.Width)
+        .SelectMany(x => Enumerable.Range(0, w.Map.Height).Select(y => new Vector2(x, y)))
+        .Where(c => frei((int)c.X, (int)c.Y));
+    var neu = (UnitType typ, Vector2 kachel) =>
+    {
+        var u = w.Map.AddUnit(typ, (int)kachel.X, (int)kachel.Y, 0);
+        u.TargetPosition = u.Position;
+        u.State = UnitState.Idle;
+        w.P1.AddUnit(u);
+        return u;
+    };
+    var neuFoe = (UnitType typ, Vector2 kachel) =>
+    {
+        var u = w.Map.AddUnit(typ, (int)kachel.X, (int)kachel.Y, 1);
+        u.TargetPosition = u.Position;
+        u.State = UnitState.Idle;
+        w.P2.AddUnit(u);
+        return u;
+    };
+    // wie im Spiel rechnet auch der Gegner seine Sicht von seiner Basis aus
+    void lauf(Func<bool> bedingung, float sekunden)
+        => w.LaufeBis(() => { w.Map.UpdateFogOfWarForPlayer(1, w.Map.Units); return bedingung(); }, sekunden);
+
+    // CanPlace verlangt erkannte Kacheln (IsTileExplored) — im Freiraum liegt
+    // Nebel, also aus (wie Anlegen und Jagd); danach wieder an
+    TileMap.TestNoFog = true;
+    try
+    {
+        // Freiraum weit von beiden Startdörfern, damit K6 und die Dorfsicht nicht mitmischen
+        if (Freiraum(w, 12f) is not { } start)
+        {
+            Console.WriteLine($"      {wer}: kein Platz 12 Kacheln von den Startdörfern - übersprungen");
+            return;   // keine Karte mit offenem Platz — überspringen
+        }
+        var dorf = neu(UnitType.Villager, freie()
+            .OrderBy(c => Vector2.Distance(w.Map.GridToWorld(c), start)).First());
+
+        // Eine Baustelle für den Dorfbewohner
+        var hausPlatz = freie()
+            .Where(c => Vector2.Distance(w.Map.GridToWorld(c), dorf.Position) >= 2f * T && Vector2.Distance(w.Map.GridToWorld(c), dorf.Position) <= 6f * T)
+            .OrderBy(c => Vector2.Distance(w.Map.GridToWorld(c), dorf.Position))
+            .Select(c => (Vector2?)c)
+            .FirstOrDefault(c => c != null && (bool)w.Call("CanPlace", BuildingType.House, c.Value));
+        if (hausPlatz == null)
+        {
+            Console.WriteLine($"      {wer}: kein Haus-Bauplatz 2–6 Kacheln frei - übersprungen");
+            return;   // kein Bauplatz in der Nähe — überspringen
+        }
+        w.Waehle(new List<Unit> { dorf });
+        w.Call("PlaceBuilding", BuildingType.House, hausPlatz.Value);
+        var haus = w.Map.Buildings.Last(b => b.OwnerId == 0);
+        lauf(() => dorf.State == UnitState.Building, 20f);
+        if (dorf.State != UnitState.Building)
+        {
+            string hud = (string)w.Get("hudMessage") ?? "";
+            bool gebaut = w.Map.Buildings.Any(b => b.OwnerId == 0 && b.Core.BuildingType == BuildingType.House);
+            Console.WriteLine($"      {wer}: [DIAG] kein Bau: dorf {dorf.State} @ {w.Map.WorldToGrid(dorf.Position)}, Haus vorhanden? {gebaut}, HUD „{hud}“");
+            verstoesse.Add($"{wer}: der Dorfbewohner beginnt in 20 s nicht zu bauen ({dorf.State}) - Aufbau nicht möglich");
+            return;
+        }
+
+        // Der Angreifer läuft aus 3 Kacheln auf den Bausoldaten zu
+        var angreiferKachel = freie()
+            .OrderBy(c => Math.Abs(Vector2.Distance(w.Map.GridToWorld(c), dorf.Position) / T - 3))
+            .Select(c => (Vector2?)c)
+            .FirstOrDefault(c => c != null && w.Map.FindPath(w.Map.GridToWorld(c.Value), dorf.Position).Count > 0);
+        if (angreiferKachel == null)
+        {
+            Console.WriteLine($"      {wer}: kein Angreifer-Platz mit Weg zum Bausoldaten - übersprungen");
+            return;   // kein Anmarschweg — überspringen
+        }
+        var angreifer = neuFoe(UnitType.Militia, angreiferKachel.Value);
+        w.Call("AttackUnit", new List<Unit> { angreifer }, dorf);
+        if (angreifer.UnitTarget != dorf)
+        {
+            Console.WriteLine($"      {wer}: kein Anmarschweg für den Angreifer - übersprungen");
+            return;   // kein Anmarschweg — überspringen
+        }
+        // Der Treffer und die Flucht müssen im selben Bild gemessen werden:
+        // ist die Bedrohung vorbei, nimmt der Dorfbewohner die Arbeit von selbst
+        // wieder auf (und das ist ja genau, was der Nutzer will)
+        lauf(() => dorf.Health < dorf.MaxHealth && (bool)w.Call("IsFleeing", dorf), 30f);
+        if (dorf.Health >= dorf.MaxHealth)
+        {
+            verstoesse.Add($"{wer}: der Dorfbewohner wird in 30 s nicht getroffen (Angreifer {angreifer.State} @ {w.Map.WorldToGrid(angreifer.Position)})");
+            return;
+        }
+        if (!(bool)w.Call("IsFleeing", dorf))
+        {
+            string hud = (string)w.Get("hudMessage") ?? "";
+            Console.WriteLine($"      {wer}: [DIAG] nach dem Treffer: dorf {dorf.State} @ {w.Map.WorldToGrid(dorf.Position)}, ResumeSite {(dorf.ResumeSite != null ? "gesetzt" : "leer")}, angreifer {angreifer.State} @ {w.Map.WorldToGrid(angreifer.Position)} (Ziel {angreifer.UnitTarget?.Name ?? "leer"}), HUD „{hud}“");
+            verstoesse.Add($"{wer}: nach dem Treffer flieht der Dorfbewohner nicht ({dorf.State}, Ziel {dorf.UnitTarget?.Name})");
+            return;
+        }
+        if (dorf.UnitTarget != null)
+            verstoesse.Add($"{wer}: der fliehende Dorfbewohner wehrt sich ({dorf.UnitTarget?.Name}) - er ist kein Krieger");
+        if (dorf.Job != null || dorf.BuildSite != null)
+            verstoesse.Add($"{wer}: der fliehende Dorfbewohner hat noch einen Auftrag (Job {dorf.Job?.Resource}, Baustelle {haus.Construction.Progress:P0})");
+        if (dorf.ResumeSite != haus)
+            verstoesse.Add($"{wer}: die Arbeit ist nicht gemerkt (ResumeSite {(dorf.ResumeSite != null ? "gesetzt" : "leer")})");
+        if (dorf.Path.Count > 0 && Vector2.Dot(dorf.TargetPosition - dorf.Position, dorf.Position - angreifer.Position) < 0f)
+            verstoesse.Add($"{wer}: der Fluchtpunkt ({w.Map.WorldToGrid(dorf.TargetPosition)}) liegt nicht weg vom Angreifer ({w.Map.WorldToGrid(angreifer.Position)})");
+        Console.WriteLine($"  ok  {wer}: der getroffene Dorfbewohner flieht statt zu kämpfen und merkt sich das Bau-Haus");
+
+        // 2) Ist der Angreifer tot, geht die Arbeit von selbst weiter, wo sie stand
+        //    (die Flucht hält, solange die Bedroht-Prüfung der Flucht-Logik sie hält)
+        w.Call("DestroyUnit", angreifer);
+        lauf(() => dorf.BuildSite == haus || dorf.Job != null, 30f);
+        if (dorf.BuildSite != haus && dorf.Job == null)
+            verstoesse.Add($"{wer}: nach dem Angriff kehrt der Dorfbewohner nicht von selbst zu seiner Arbeit zurück ({dorf.State})");
+        else if ((bool)w.Call("IsFleeing", dorf))
+            verstoesse.Add($"{wer}: der Flucht-Zustand bleibt nach der Rückkehr an die Arbeit hängen");
+        else
+            Console.WriteLine($"  ok  {wer}: ist der Angreifer tot, kehrt der Dorfbewohner von selbst zum Haus zurück ({dorf.State})");
+
+        // 4) Zweiter Angriff: die Flucht beginnt wieder — und ein neuer Befehl beendet sie
+        var angreifer2Kachel = freie()
+            .OrderBy(c => Math.Abs(Vector2.Distance(w.Map.GridToWorld(c), dorf.Position) / T - 3))
+            .Select(c => (Vector2?)c)
+            .FirstOrDefault(c => c != null && w.Map.FindPath(w.Map.GridToWorld(c.Value), dorf.Position).Count > 0);
+        if (angreifer2Kachel == null)
+        {
+            Console.WriteLine($"      {wer}: kein zweiter Angreifer-Platz mit Weg - übersprungen");
+            return;   // kein Anmarschweg — überspringen
+        }
+        var angreifer2 = neuFoe(UnitType.Militia, angreifer2Kachel.Value);
+        w.Call("AttackUnit", new List<Unit> { angreifer2 }, dorf);
+        if (angreifer2.UnitTarget == dorf)
+        {
+            int hpVorher = dorf.Health;   // vom ersten Angriff her unter Maximalwert
+            lauf(() => dorf.Health < hpVorher && (bool)w.Call("IsFleeing", dorf), 30f);
+            if (dorf.Health >= hpVorher)
+            {
+                Console.WriteLine($"      {wer}: zweiter Angreifer trifft in 30 s nicht ({angreifer2.State} @ {w.Map.WorldToGrid(angreifer2.Position)}) - übersprungen");
+                return;   // Angreifer kam nicht heran — überspringen
+            }
+            if ((bool)w.Call("IsFleeing", dorf))
+            {
+                var ziel = freie()
+                    .Where(c => Vector2.Distance(w.Map.GridToWorld(c), dorf.Position) >= 5f * T && Vector2.Distance(w.Map.GridToWorld(c), dorf.Position) <= 9f * T)
+                    .OrderBy(c => Math.Abs(Vector2.Distance(w.Map.GridToWorld(c), dorf.Position) / T - 7))
+                    .Select(c => (Vector2?)c)
+                    .FirstOrDefault(c => c != null && w.Map.FindPath(dorf.Position, w.Map.GridToWorld(c.Value)).Count > 0);
+                if (ziel != null)
+                {
+                    w.Call("IssueCommand", 0, new List<Unit> { dorf }, ziel.Value);
+                    if ((bool)w.Call("IsFleeing", dorf))
+                        verstoesse.Add($"{wer}: der neue Laufbefehl beendet die Flucht nicht ({dorf.State})");
+                    if (dorf.BuildSite != null || dorf.ResumeSite != null)
+                        verstoesse.Add($"{wer}: die gemerkte Arbeit überlebt den neuen Befehl (Baustelle {(dorf.BuildSite != null ? "gesetzt" : "leer")})");
+                    else if (dorf.Path.Count > 0)
+                        Console.WriteLine($"  ok  {wer}: ein neuer Befehl beendet die Flucht, der Dorfbewohner gehorcht ({dorf.State})");
+                }
+            }
+            else
+            {
+                Console.WriteLine($"      {wer}: [DIAG] 2. Treffer: dorf {dorf.State} @ {w.Map.WorldToGrid(dorf.Position)} (HP {dorf.Health}/{dorf.MaxHealth}, BuildSite {(dorf.BuildSite != null ? "gesetzt" : "leer")}, ResumeSite {(dorf.ResumeSite != null ? "gesetzt" : "leer")}); angreifer2 {angreifer2.State} @ {w.Map.WorldToGrid(angreifer2.Position)} (Ziel {angreifer2.UnitTarget?.Name ?? "leer"})");
+                verstoesse.Add($"{wer}: beim zweiten Treffer flieht der Dorfbewohner nicht ({dorf.State})");
+            }
+        }
+        w.Call("DestroyUnit", angreifer2);
+
+        if (verstoesse.Count == vorher)
+            Console.WriteLine($"  ok  {wer}: alles nach Nutzerwille (2026-11-08)");
+    }
+    finally
+    {
+        TileMap.TestNoFog = false;
+    }
+}
+
+// B2 (Nutzer 2026-11-08: „wenn ein oder mehrere Dorfbewohner ausgewählt ist und man ein
+// Transportschiff anklickt, soll nicht das Schiff ausgewählt werden sondern die Dorfbewohner
+// sollen an board gehen. Nur wenn keine Dorfbewohner ausgewählt sind, kann das Schiff mit
+// links klick ausgewählt werden.“): Linksklick aufs eigene Transportschiff — mit
+// ausgewählten Landeinheiten steigen sie ein, ohne Auswahl wird das Schiff gewählt.
+static void Schiffsklick(List<string> verstoesse)
+{
+    string wer = "Schiffsklick";
+    int vorher = verstoesse.Count;
+    var w = new Welt(MapSize.Standard, 1f, MapStyle.Wiking);
+    var map = w.Map;
+    int T = map.TileSize;
+    w.Set("screenBounds", new Rectangle(0, 0, map.Width * T, map.Height * T));
+    w.Set("cameraZoom", 1f);
+    w.Set("cameraPosition", Vector2.Zero);
+    foreach (var r in new[] { Resource.Food, Resource.Wood, Resource.Gold, Resource.Stone })
+        w.P1.Resources.Add(r, 20000);
+    var ages = (AgeProgress)typeof(Player).GetProperty("Ages")!.GetValue(w.P1)!;
+    ages.TryStart(w.P1.Resources);
+    ages.Update(1000f);
+    TileMap.TestNoFog = true;
+    try
+    {
+        // Hafen und Dorfbewohner auf der Startinsel (wie Anlegen): auf einer fremden
+        // Insel kämen die Bausoldaten nie an; Raubtiere in der Nähe töten sie (wie Anlegen)
+        var tcB = map.Buildings.First(b => b.OwnerId == 0 && b.Core.BuildingType == BuildingType.TownCenter);
+        var tcPos = new Point(tcB.X + tcB.Width / 2, tcB.Y + tcB.Height / 2);
+        var insel = map.LandRegion(tcPos.X, tcPos.Y);
+        var raubtiere = (int x, int y) =>
+        {
+            for (int dx = -12; dx <= 12; dx++)
+                for (int dy = -12; dy <= 12; dy++)
+                    if (map.IsLivePredator(x + dx, y + dy))
+                        return true;
+            return false;
+        };
+        var hafenKandidaten = new List<Point>();
+        for (int x = 0; x < map.Width; x++)
+            for (int y = 0; y < map.Height; y++)
+            {
+                if (map.LandRegion(x, y) != insel || !map.IsWalkable(x, y))
+                    continue;
+                if (Math.Max(Math.Abs(x - tcPos.X), Math.Abs(y - tcPos.Y)) > 20)
+                    continue;
+                if (raubtiere(x, y))
+                    continue;
+                if (!(bool)w.Call("CanPlace", BuildingType.Dock, new Vector2(x, y)))
+                    continue;
+                hafenKandidaten.Add(new Point(x, y));
+            }
+        hafenKandidaten.Sort((a, b) =>
+            Math.Max(Math.Abs(a.X - tcPos.X), Math.Abs(a.Y - tcPos.Y)).CompareTo(
+            Math.Max(Math.Abs(b.X - tcPos.X), Math.Abs(b.Y - tcPos.Y))));
+        Point? hafenKachel = hafenKandidaten.FirstOrDefault() is { } hk ? hk : null;
+        if (hafenKachel == null)
+        {
+            verstoesse.Add($"{wer}: kein Hafen-Platz auf der Startinsel");
+            return;
+        }
+        var dorf = w.Dorfbewohner()
+            .Where(u => u.OwnerId == 0
+                && map.LandRegion((int)map.WorldToGrid(u.Position).X, (int)map.WorldToGrid(u.Position).Y) == insel)
+            .OrderBy(u => Vector2.Distance(u.Position, new Vector2(hafenKachel.Value.X * T, hafenKachel.Value.Y * T)))
+            .Take(2).ToList();
+        if (dorf.Count < 2)
+        {
+            Console.WriteLine($"      {wer}: nicht genug Dorfbewohner auf der Startinsel - übersprungen");
+            return;
+        }
+        w.Waehle(dorf);
+        if (!(bool)w.Call("PlaceBuildingFor", 0, BuildingType.Dock, new Vector2(hafenKachel.Value.X, hafenKachel.Value.Y), dorf))
+        {
+            verstoesse.Add($"{wer}: der Hafen lässt sich nicht bauen");
+            return;
+        }
+        var hafenB = map.Buildings.Last(b => b.OwnerId == 0 && b.Core.BuildingType == BuildingType.Dock);
+        w.LaufeBis(() => hafenB.IsComplete, 90f);
+        if (!hafenB.IsComplete)
+        {
+            verstoesse.Add($"{wer}: der Hafen ist nach 90 s nicht fertig");
+            return;
+        }
+        if (!(bool)w.Call("TrainSoldierForOwner", 0, hafenB, UnitType.TransportShip))
+        {
+            verstoesse.Add($"{wer}: das Transportschiff lässt sich nicht ausbilden");
+            return;
+        }
+        w.LaufeBis(() => map.Units.Any(u => u.Type == UnitType.TransportShip && u.OwnerId == 0), 60f);
+        var schiff = map.Units.LastOrDefault(u => u.Type == UnitType.TransportShip && u.OwnerId == 0);
+        if (schiff == null)
+        {
+            verstoesse.Add($"{wer}: das Transportschiff erscheint nicht");
+            return;
+        }
+
+        // 1) Dorfbewohner auswählen und links aufs Schiff klicken: er steigt ein,
+        //    die Auswahl bleibt beim Dorfbewohner (nicht das Schiff)
+        var schiffK = map.WorldToGrid(schiff.Position);
+        Point? dorfKachel = null;
+        for (int x = 0; x < map.Width && dorfKachel == null; x++)
+            for (int y = 0; y < map.Height && dorfKachel == null; y++)
+            {
+                if (map.LandRegion(x, y) != insel || !map.IsWalkable(x, y))
+                    continue;
+                if (map.GetTile(x, y) is not { ResourceType: null, Building: null })
+                    continue;
+                if (map.Units.Any(u => !u.IsShip && map.WorldToGrid(u.Position) == new Vector2(x, y)))
+                    continue;
+                float dist = Math.Max(Math.Abs(x - schiffK.X), Math.Abs(y - schiffK.Y));
+                if (dist < 3f || dist > 6f)
+                    continue;
+                dorfKachel = new Point(x, y);
+            }
+        if (dorfKachel == null)
+        {
+            verstoesse.Add($"{wer}: kein Landkacheln-Ring 3–6 Kacheln um das Schiff gefunden");
+            return;
+        }
+        var d = map.AddUnit(UnitType.Villager, dorfKachel.Value.X, dorfKachel.Value.Y, 0);
+        w.P1.AddUnit(d);
+        w.Waehle(new List<Unit> { d });
+        w.Linksklick(schiff.Position);
+        var auswahl1 = w.Auswahl();
+        if (auswahl1.Count != 1 || auswahl1[0] != d)
+            verstoesse.Add($"{wer}: Linksklick aufs Schiff mit Dorfbewohner-Auswahl wählt das Schiff aus ({auswahl1.Count} in der Auswahl)");
+        if (d.BoardShip != schiff)
+            verstoesse.Add($"{wer}: der Dorfbewohner geht nicht an Bord (BoardShip {(d.BoardShip != null ? "gesetzt" : "leer")})");
+        w.LaufeBis(() => schiff.Passengers.Contains(d), 120f);
+        if (!schiff.Passengers.Contains(d))
+            verstoesse.Add($"{wer}: nach dem Linksklick ist der Dorfbewohner in 120 s nicht an Bord ({d.State})");
+        else
+            Console.WriteLine($"  ok  {wer}: Linksklick aufs Schiff mit Dorfbewohner-Auswahl = an Bord gehen, die Auswahl bleibt beim Dorfbewohner");
+
+        // 2) Ohne Auswahl: Linksklick aufs Schiff wählt es aus
+        w.Waehle(new List<Unit>());
+        w.Linksklick(schiff.Position);
+        var auswahl2 = w.Auswahl();
+        if (auswahl2.Count != 1 || auswahl2[0] != schiff)
+            verstoesse.Add($"{wer}: ohne Auswahl wählt der Linksklick das Schiff nicht aus ({auswahl2.Count} in der Auswahl)");
+        else
+            Console.WriteLine($"  ok  {wer}: ohne Auswahl wählt der Linksklick das Schiff aus");
+
+        if (verstoesse.Count == vorher)
+            Console.WriteLine($"  ok  {wer}: alles nach Nutzerwille (2026-11-08)");
+    }
+    finally
+    {
+        TileMap.TestNoFog = false;
+    }
+}
+
+// B3 (Nutzer 2026-11-08: „Wählt man zum Beispiel Bogenschützen aus und es ist mehr als
+// einer ausgewählt müssten sie immer sich in Formation bewegen und sich hinstellen. Der
+// Zielpunkt ist nur der Zentrum der Aufstellung. Das Gleich gilt für alle Arten von
+// Soldaten.“): zwei oder mehr Soldaten stellen sich bei einem Laufbefehl um den
+// angeklickten Punkt auf (Nahkämpfer vorn, Schützen dahinter, Reiter an den Flanken,
+// eine Kachel frei zwischen den Nachbarn, MITTE der Aufstellung auf dem Punkt) und
+// marschieren im Gleichschritt. Ein einzelner Soldat läuft exakt auf den Punkt,
+// eine gemischte Auswahl stellt nur die Soldaten auf.
+static void FormationMarsch(int karte, List<string> verstoesse)
+{
+    string wer = $"Karte {karte}, Formation";
+    int vorher = verstoesse.Count;
+    var w = new Welt();
+    w.Set("cameraZoom", 1f);
+    w.Set("cameraPosition", Vector2.Zero);
+    int T = w.Map.TileSize;
+
+    var frei = (int x, int y) => w.Map.GetTile(x, y) is { } t && w.Map.IsWalkable(x, y) && t.ResourceType == null
+        && string.IsNullOrEmpty(t.Building) && !w.Map.Units.Any(u => w.Map.WorldToGrid(u.Position) == new Vector2(x, y))
+        // keine fremden Einheiten in der Nähe: sonst greifen sie die Aufstellung an
+        // und ein Laufbefehl wird zum Angriffsbefehl (Karte 2, 2026-11-08)
+        && w.Map.Units.All(u => u.OwnerId == 0 || Vector2.Distance(w.Map.GridToWorld(new Vector2(x, y)), u.Position) >= 12f * T);
+    var freie = () => Enumerable.Range(0, w.Map.Width)
+        .SelectMany(x => Enumerable.Range(0, w.Map.Height).Select(y => new Vector2(x, y)))
+        .Where(c => frei((int)c.X, (int)c.Y));
+    var neu = (UnitType typ, Vector2 kachel) =>
+    {
+        var u = w.Map.AddUnit(typ, (int)kachel.X, (int)kachel.Y, 0);
+        u.TargetPosition = u.Position;
+        u.State = UnitState.Idle;
+        w.P1.AddUnit(u);
+        return u;
+    };
+
+    if (Freiraum(w, 12f) is not { } start)
+    {
+        Console.WriteLine($"      {wer}: kein Platz 12 Kacheln von den Startdörfern - übersprungen");
+        return;   // kein offener Platz — überspringen
+    }
+    var ziel = freie()
+        .Where(c => Vector2.Distance(w.Map.GridToWorld(c), start) >= 6f * T && Vector2.Distance(w.Map.GridToWorld(c), start) <= 10f * T)
+        .OrderBy(c => Math.Abs(Vector2.Distance(w.Map.GridToWorld(c), start) / T - 8))
+        .Select(c => (Vector2?)c)
+        .FirstOrDefault(c => c != null && w.Map.FindPath(start, w.Map.GridToWorld(c.Value)).Count > 0);
+    if (ziel == null)
+    {
+        Console.WriteLine($"      {wer}: kein erreichbarer Ziel-Punkt 6–10 Kacheln frei - übersprungen");
+        return;   // kein erreichbarer Punkt — überspringen
+    }
+    var staellchen = freie()
+        .Where(c => Vector2.Distance(w.Map.GridToWorld(c), start) >= 2f * T && Vector2.Distance(w.Map.GridToWorld(c), start) <= 5f * T)
+        .OrderBy(c => Vector2.Distance(w.Map.GridToWorld(c), start))
+        .ToList();
+    if (staellchen.Count < 6)
+    {
+        Console.WriteLine($"      {wer}: nur {staellchen.Count} freie Kacheln 2–5 Kacheln um {start} - übersprungen");
+        return;   // nicht genug freier Platz — überspringen
+    }
+    var zielWelt = w.Map.GridToWorld(ziel.Value);
+
+    // 1) Zwei Nahkämpfer + ein Bogenschütze: Aufstellung um den Punkt, Schütze hinten,
+    //    eine Kachel frei zwischen den Nachbarn, im Gleichschritt
+    var m1 = neu(UnitType.Militia, staellchen[0]);
+    var m2 = neu(UnitType.SpearMan, staellchen[1]);
+    var a1 = neu(UnitType.Archer, staellchen[2]);
+    w.Waehle(new List<Unit> { m1, m2, a1 });
+    w.Linksklick(zielWelt);
+
+    var tz = new (Unit s, Vector2 z)[]
+    {
+        (m1, w.Map.WorldToGrid(m1.TargetPosition)),
+        (m2, w.Map.WorldToGrid(m2.TargetPosition)),
+        (a1, w.Map.WorldToGrid(a1.TargetPosition)),
+    };
+    if (tz.Select(t => (t.z.X, t.z.Y)).Distinct().Count() != 3)
+        verstoesse.Add($"{wer}: die drei Soldaten zielen auf dieselbe Kachel - keine Aufstellung ({string.Join(" / ", tz.Select(t => t.z))})");
+    float mx = tz.Average(t => t.z.X), my = tz.Average(t => t.z.Y);
+    if (Math.Abs(mx - ziel.Value.X) > 1.5f || Math.Abs(my - ziel.Value.Y) > 1.5f)
+        verstoesse.Add($"{wer}: die Mitte der Aufstellung ({mx:0.#}, {my:0.#}) liegt nicht auf dem angeklickten Punkt ({ziel.Value})");
+    // Blickrichtung: vom Startschwerpunkt zum Punkt (wie im Code). Vorn = +Blick:
+    // die Nahkämpfer führen, der Bogenschütze schließt hinten ab.
+    var f = Vector2.Normalize(zielWelt - (m1.Position + m2.Position + a1.Position) / 3f);
+    float dotA = Vector2.Dot(tz[2].z - ziel.Value, f);
+    float dotM1 = Vector2.Dot(tz[0].z - ziel.Value, f);
+    float dotM2 = Vector2.Dot(tz[1].z - ziel.Value, f);
+    if (dotA >= 0f)
+        verstoesse.Add($"{wer}: der Bogenschütze ({tz[2].z}) schließt nicht hinten ab (Blick {f}, vorne {dotM1:0.##}/{dotM2:0.##})");
+    if (dotM1 <= 0f || dotM2 <= 0f)
+        verstoesse.Add($"{wer}: die Nahkämpfer ({tz[0].z} / {tz[1].z}) führen nicht vorn (Blick {f})");
+    if (Math.Max(Math.Abs(tz[0].z.X - tz[1].z.X), Math.Abs(tz[0].z.Y - tz[1].z.Y)) < 2)
+        verstoesse.Add($"{wer}: die beiden Nahkämpfer stehen nebeneinander ({tz[0].z} / {tz[1].z}) - eine Kachel soll frei sein");
+    foreach (var (s, z) in tz)
+    {
+        if (s.State != UnitState.Moving && s.State != UnitState.Idle)
+            verstoesse.Add($"{wer}: {s.Name} im unerwarteten Zustand {s.State}");
+        if (s.Path.Count == 0)
+            verstoesse.Add($"{wer}: {s.Name} hat keinen Weg zur Aufstellung");
+    }
+    var faktoren = (System.Collections.IDictionary)w.Get("_marchFactor");
+    foreach (var (s, _) in tz.Where(t => t.s.Path.Count > 0))
+    {
+        if (!faktoren.Contains(s))
+            verstoesse.Add($"{wer}: kein Marsch-Faktor (Gleichschritt) für {s.Name}");
+        else
+        {
+            float mar = (float)faktoren[s];
+            if (mar < 0.25f - 0.001f || mar > 1f + 0.001f)
+                verstoesse.Add($"{wer}: der Marsch-Faktor {mar:0.00} für {s.Name} liegt nicht in 0.25–1");
+        }
+    }
+    w.LaufeBis(() => tz.All(t => t.s.State == UnitState.Idle || Vector2.Distance(t.s.Position, t.s.TargetPosition) < T / 2f), 60f);
+    foreach (var (s, z) in tz)
+        if (s.State == UnitState.Moving && Vector2.Distance(s.Position, s.TargetPosition) > T / 2f)
+            verstoesse.Add($"{wer}: {s.Name} kommt in 60 s nicht am Aufstellungsplatz an");
+
+    // Die Aufstellungsgruppe rückt aus: ihre Figuren decken den Zielpunkt, und
+    // ein Klick darauf würde die Auswahl (Unit-Auswahl) treffen statt ein Befehl
+    // zu sein; außerdem greifen sie in der Nähe wandernde Gegner an
+    foreach (var alt in new[] { m1, m2, a1 })
+        w.Call("DestroyUnit", alt);
+
+    // 2) Ein einzelner Soldat läuft auf den Punkt (das bleibt, wie der Nutzer es will)
+    var solo = neu(UnitType.Militia, staellchen[3]);
+    w.Waehle(new List<Unit> { solo });
+    w.Linksklick(zielWelt);
+    if (Vector2.Distance(solo.TargetPosition, zielWelt) > 1.5f * T)
+    {
+        Console.WriteLine($"      {wer}: [DIAG] solo: Zustand {solo.State}, Ziel {w.Map.WorldToGrid(solo.TargetPosition)}, Start {w.Map.WorldToGrid(solo.Position)}; Auswahl {string.Join(",", w.Auswahl().Select(u => u.Name))}; m1 {w.Map.WorldToGrid(m1.Position)}/{m1.State}, m2 {w.Map.WorldToGrid(m2.Position)}/{m2.State}, a1 {w.Map.WorldToGrid(a1.Position)}/{a1.State}; Ziel-Punkt {ziel.Value}");
+        verstoesse.Add($"{wer}: ein einzelner Soldat zielt nicht auf den Punkt ({w.Map.WorldToGrid(solo.TargetPosition)} statt {ziel.Value})");
+    }
+    else
+        Console.WriteLine($"  ok  {wer}: zwei Nahkämpfer + Bogenschütze stellen sich um den Punkt auf (Mitte auf dem Punkt, Schütze hinten, Abstand, Gleichschritt), ein einzelner zielt drauf");
+    w.Call("DestroyUnit", solo);   // sonst deckt seine Figur den Punkt für den nächsten Klick
+
+    // 3) Gemischte Auswahl: die Soldaten stellen sich auf, der Dorfbewohner läuft auf den Punkt
+    var bau = neu(UnitType.Villager, staellchen[4]);
+    var sm = neu(UnitType.Militia, staellchen[5]);
+    var sa = neu(UnitType.Archer, staellchen[0]);
+    w.Waehle(new List<Unit> { bau, sm, sa });
+    w.Linksklick(zielWelt);
+    var tsm = w.Map.WorldToGrid(sm.TargetPosition);
+    var tsa = w.Map.WorldToGrid(sa.TargetPosition);
+    if ((tsm.X, tsm.Y) == (tsa.X, tsa.Y))
+        verstoesse.Add($"{wer}: in der gemischten Auswahl zielen die beiden Soldaten auf dieselbe Kachel ({tsm})");
+    if (Vector2.Distance(bau.TargetPosition, zielWelt) > 1.5f * T)
+        verstoesse.Add($"{wer}: der Dorfbewohner in der gemischten Auswahl zielt nicht auf den Punkt ({w.Map.WorldToGrid(bau.TargetPosition)})");
+    else
+        Console.WriteLine($"  ok  {wer}: in der gemischten Auswahl stellen sich die Soldaten auf, der Dorfbewohner läuft auf den Punkt");
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: alles nach Nutzerwille (2026-11-08)");
 }
 
 class Welt

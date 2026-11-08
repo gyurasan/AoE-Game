@@ -62,9 +62,14 @@ Spielbar sind Wirtschaft, Aufstieg durch die Zeitalter und Kampf gegen einen Com
   Dorfbewohner und Leisten sehen in jedem Zeitalter anders aus
 - Kampf: ein Linksklick auf einen Gegner oder ein fremdes Gebäude schickt die Auswahl hin. Nahkämpfer
   halten einen halben Schritt Abstand und blicken zum Gegner, Bogenschützen schießen aus vier Kacheln
-  Entfernung. Wer getroffen wird, wehrt sich von selbst - Soldaten wie Dorfbewohner -, und wer
-  seinen Gegner besiegt hat, greift den nächsten in der Nähe an. Mehrere Einheiten verteilen sich um
-  einen Zielpunkt, statt sich auf ihm zu stapeln. Auch Gebäude nehmen Schaden und lassen sich
+  Entfernung. Getroffene Soldaten wehren sich von selbst, und wer seinen Gegner besiegt hat, greift
+  den nächsten in der Nähe an. Dorfbewohner sind keine Krieger: getroffen fliehen sie sechs Kacheln
+  vom Angreifer weg und nehmen ihre Arbeit von selbst wieder auf - dasselbe Feld, denselben Baum,
+  dieselbe Baustelle -, sobald der Angreifer tot ist oder abgezogen; auf Befehl kämpfen sie trotzdem.
+  Mehrere Soldaten laufen in Aufstellung: der Klick ist ihre Mitte, Nahkämpfer stehen vorn,
+  Bogenschützen und Belagerung dahinter, Reiter an den Flanken, eine Kachel frei zwischen Nachbarn,
+  Blick in Marschrichtung; die Schnellen gehen im Takt der Langsamen, alle kommen zugleich an.
+  Dorfbewohner verteilen sich um den Zielpunkt. Auch Gebäude nehmen Schaden und lassen sich
   zerstören
 - Computergegner: eine eingebaute KI spielt die Gegenseite. Sie wirtschaftet, baut Lager an den
   Rohstoffen, schickt einen Kundschafter aus, steigt auf, bildet Soldaten aus, greift in Wellen an
@@ -75,14 +80,18 @@ Spielbar sind Wirtschaft, Aufstieg durch die Zeitalter und Kampf gegen einen Com
   dahinter, je eine Kachel Abstand -, Reiter greifen im Schwall an und ziehen sich hinter den Verband
   zurück. Wie sie im Vergleich zum Original arbeitet, steht in
   [Der Computergegner](docs/AoE-Computergegner.md)
-- Wilde Tiere: Schafe, Rehe, Kaninchen und Wildschweine zum Jagen, dazu Bären und Wolfsrudel. Wer
-  ihnen zu nahe kommt - Dorfbewohner wie Soldaten -, wird angegriffen; wer weggeht, ist sicher, sie
-  verfolgen niemanden. Von Gebäuden halten sie fünf Kacheln Abstand und ziehen sich vor neuen
-  zurück. Getroffene Soldaten wehren sich, ein Klick setzt die Auswahl auf ein Raubtier an -
-  Bogenschützen schießen aus sicherer Entfernung. Ein erlegter Bär liefert Fleisch, die Jäger
-  zerlegen ihn gleich. Bären und Wölfe laufen in acht Phasen und greifen in acht an: der Wolf duckt
-  sich, springt und beißt zu, der Bär richtet sich auf und schlägt mit der Pranke - der Biss trifft
-  genau mit dem Schaden ([Zeitlupe](docs/bilder/raubtiere.gif))
+- Wilde Tiere: Schafe, Rehe, Kaninchen und Wildschweine zum Jagen, dazu Bären und Wolfsrudel.
+  Rehe laufen vor näherenden Einheiten davon und müssen mit einem Angriff erlegt werden; ein
+  getroffenes Wildschwein wehrt sich und jagt seinen Angreifer 6 s lang bis zu 8 Kacheln - so lockt
+  man es in das Dorf. Ein einzelner Wolf oder ein einzelnes Wildschwein richtet an Dorfbewohnern nur
+  halb so viel Schaden an wie diese an ihm - vier oder mehr können einen besiegen, Soldaten und Bären
+  bleiben davon unberührt. Von Gebäuden halten Raubtiere fünf Kacheln Abstand und ziehen sich vor
+  neuen zurück. Getroffene Soldaten wehren sich, ein Klick setzt die Auswahl auf ein Raubtier an -
+  Bogenschützen schießen aus sicherer Entfernung. Ein erlegtes Tier liefert Fleisch, das in drei
+  sichtbaren Stufen verdirbt; die Jäger zerlegen einen Bären gleich. Bären und Wölfe laufen in acht
+  Phasen und greifen in acht an: der Wolf duckt sich, springt und beißt zu, der Bär richtet sich auf
+  und schlägt mit der Pranke - der Biss trifft genau mit dem Schaden
+  ([Zeitlupe](docs/bilder/raubtiere.gif))
 - Niederlage: wer weder Dorfbewohner noch Stadtzentrum hat, verliert; ein Endbildschirm nennt den
   Sieger
 - Geräusche: Axt, Spitzhacke, Hacke, Sichel und Hammer klingen im Takt der Arbeit, dazu Schwerter,
@@ -93,25 +102,42 @@ Spielbar sind Wirtschaft, Aufstieg durch die Zeitalter und Kampf gegen einen Com
 - Lebendige Landschaft: weiche Ufer und Sandstrände, Wasser mit Tiefe, Wellen, Schaum und
   Fischschwärmen; eine Wiese aus fünf Grassorten von kurzem Klee bis hüfthohem Gras, dazu Blumen
   und ausgedörrte Erde, im hohen Gras stecken die Figuren bis zur Hüfte; Beerenbüsche und
-  Trampelpfade, wo oft jemand läuft; Weizen und Bäume wiegen sich in denselben Windböen
+  Trampelpfade, wo oft jemand läuft; Weizen und Bäume wiegen sich in denselben Windböen; Waldkacheln
+  tragen zwei Bäume, die beim Hacken nacheinander in fünf Stufen fallen - stehend, umgefallen mit
+  Krone, zwei Stämme, ein Stamm, Stock
 - Dorfbewohner, Soldaten, Schafe und Wild gehen natürlich: Schritte nach der gelaufenen Strecke,
   Anfahren und Abbremsen, gerade Wege über freies Land, Blick in Laufrichtung und zur Arbeit; die
   Miliz holt zum Schwertschlag aus, der Späher stößt mit dem Speer
 - Drei Kartengrößen, im Hauptmenü wählbar: Standard (90×90), Kontinent (128×128) und
   World (181×181, die doppelte Fläche einer Kontinent-Karte); die Karte nimmt das
-  Seitenverhältnis des Fensters an. Direkt darunter wählt der Eintrag „KI“ die Stufe des
-  Computergegners (Defense, Normal, This is Sparta); beides bleibt gespeichert
+  Seitenverhältnis des Fensters an. Direkt darunter wählt der Eintrag „Land" den Kartentyp:
+  **Europa** wie bisher, **Ägypten** als Wüste mit Oasen (Seen ohne Fische, 50 % mehr Schafe,
+  grüne Ufer rund um das Wasser) und Palmen am Wasser, und **Wiking** als Inselgruppe, auf der die
+  Startpositionen auf verschiedenen Inseln stehen und nur Schiffe hinüberbringen. Noch darunter
+  wählt der Eintrag „KI“ die Stufe des Computergegners (Defense, Normal, This is Sparta); alles
+  bleibt gespeichert
+- Schiffe (Hafen, Wiking-Karte): Der Hafen bildet Transportschiffe (bis zu fünf Einheiten, 100 HP)
+  und Kriegsschiffe (120 HP) aus; Schiffe fahren nur auf Wasser. Eine oder mehrere Dorfbewohner
+  (oder andere Landeinheiten) auswählen und aufs eigene Transportschiff klicken - sie laufen ans
+  Wasser und steigen ein, statt das Schiff auszuwählen; auswählen lässt es sich mit dem Linksklick
+  nur, solange keine Landeinheit ausgewählt ist. Das Schiff wartet an
+  der Stelle, an der die meisten Einheiten warten; eine Einheit ohne erreichbare Anlegestelle
+  behält ihren Auftrag, und die Leiste meldet es. Die KI-Armee überquert die Inseln ebenfalls mit
+  Schiffen: die Welle setzt in Gruppen zu je fünf über, sammelt sich am Brückenkopf und marschiert
+  weiter mit denen, die drüben sind
 - Belagerung: die Belagerungswerkstatt bildet ab der Ritterzeit Rammbock (160 Holz, 75 Gold,
   36 s) und Katapult (160 Holz, 135 Gold, 46 s) aus, ab der Imperialzeit den Tribok (200 Holz,
-  200 Gold, 50 s), den auch die Burg baut. Noch ohne eigene Bilder (ein Quadrat in Spielerfarbe),
-  ohne Flächenschaden und ohne Auf- und Abbau des Triboks
+  200 Gold, 50 s), den auch die Burg baut. Die Geräte rollen über die Karte, der Tribok abgebaut
+  auf seinem Karren; im Angriff stößt der Rammbalken genau beim Treffer zu, Katapult und Tribok
+  schleudern Steine im hohen Bogen, die beim Treffer einschlagen. Noch ohne Flächenschaden und
+  ohne Auf- und Abbauzeit des Triboks
 - Spielstände: mehrere Plätze (Spielstand 1, 2, 3, …), im Hauptmenü laden, im Pausenmenü
   speichern oder überschreiben; einen Platz löscht man in der Liste mit der Löschtaste
   (Entf, am Gamepad Y) — einmal Ja/Nein bestätigen, und der Platz ist weg,
   die Nummer wird beim nächsten Speichern wieder frei
 
 Noch nicht da sind Handelskarren, Einheiten aus dem Kloster, die Einzigartigen der Burg und das
-eigene Verhalten der Belagerung (Bilder, Flächenschaden, Tribok nur gegen Gebäude), siehe
+eigene Verhalten der Belagerung (Flächenschaden, Tribok nur gegen Gebäude), siehe
 [TODO](TODO.md).
 
 ## Steuerung
@@ -119,7 +145,7 @@ eigene Verhalten der Belagerung (Bilder, Flächenschaden, Tribok nur gegen Gebä
 | Eingabe | Wirkung |
 |---|---|
 | Rechtsklick, Rahmen mit der rechten Taste | Einheiten auswählen |
-| Linksklick | Befehl: hingehen, sammeln, bauen, angreifen; auf eine eigene Einheit: auswählen; ohne Auswahl auf ein Gebäude: das Gebäude auswählen |
+| Linksklick | Befehl: hingehen (mehrere Soldaten in Aufstellung um den Klick), sammeln, bauen, angreifen; mit Landeinheiten in der Auswahl auf ein eigenes Transportschiff: einsteigen; auf eine eigene Einheit: auswählen; ohne Auswahl auf ein Gebäude: das Gebäude auswählen |
 | Linke Taste gedrückt ziehen | Karte verschieben |
 | Mausrad, `+` / `-` | Zoomen |
 | Pfeiltasten, Bildrand | Kamera schwenken |

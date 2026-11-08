@@ -1214,6 +1214,8 @@ public partial class RTSGameplayScreen : GameScreen
         }
         // Transport- und Kriegsschiff (RTSGameplayScreen.Schiffe)
         LoadShipSprites();
+        // Rammbock, Katapult, Tribok und ihre Steine (RTSGameplayScreen.Belagerung)
+        LoadSiegeSprites();
 
         // Start the camera on player 1's town center instead of the map corner.
         // Startzoom wie die Zoomgrenzen an der Fensterhöhe ausgerichtet; die
@@ -2425,6 +2427,9 @@ public partial class RTSGameplayScreen : GameScreen
         // Schiffe sind etwa zwei Kacheln lang (RTSGameplayScreen.Schiffe)
         if (unit.IsShip)
             return ShipWorldRect(unit);
+        // Belagerungswaffen so groß wie ihr Standbild (RTSGameplayScreen.Belagerung)
+        if (IsSiegeType(unit.Type))
+            return SiegeWorldRect(unit);
         // Maßstab der Figur aus SoldierSprites (der Späher zu Pferd 1,35);
         // ohne Eintrag gilt 1
         float scale = 1f;
@@ -2817,6 +2822,12 @@ public partial class RTSGameplayScreen : GameScreen
             // Gegners schickt die Auswahl gegen ihn - auch wenn ein eigener
             // Kämpfer davor steht (K5b)
             AttackUnit(selectedUnits, enemy);
+        else if (OwnUnitAt(worldPos) is { Type: UnitType.TransportShip } && selectedUnits.Any(u => !u.IsShip))
+            // B2 (Nutzer 2026-11-08): Linksklick auf das eigene Transportschiff mit
+            // ausgewählten Landeinheiten (Dorfbewohner, Soldaten) = sie steigen ein
+            // (IssueCommand → BoardUnits), statt das Schiff auszuwählen. Ohne
+            // Auswahl an Landeinheiten bleibt der Linksklick die Schiffswahl.
+            IssueCommand(gridPos);
         else if (OwnUnitAt(worldPos) != null)
             SelectSingleUnit(worldPos);
         else if (selectedUnits.Count == 0 && BuildingUnder(worldPos) is { } building)
@@ -2851,7 +2862,9 @@ public partial class RTSGameplayScreen : GameScreen
             if (unit.AttackPower <= 0)
                 continue;
 
-            // Sammelauftrag und Baustelle ab
+            // Sammelauftrag und Baustelle ab; eine laufende Flucht endet (B2)
+            StopFlee(unit);
+            _marchFactor.Remove(unit);   // B3: ein Befehl macht den Marsch-Tempo-Faktor unbrauchbar
             unit.Job = null;
             unit.BuildSite = null;
             unit.AttackTarget = target;
@@ -3051,8 +3064,12 @@ public partial class RTSGameplayScreen : GameScreen
             if (target.IsShip && !a.IsShip && a.AttackRange <= 0)
                 continue;
 
-            // Sammelauftrag und Baustelle ab
+            // Sammelauftrag und Baustelle ab; ein Dorfbewohner, der gerade
+            // flieht, kämpft auf diesen Befehl weiter (B2: „auf Befehl kämpft
+            // er weiter“) — die Flucht endet hier
             a.BoardShip = null;
+            StopFlee(a);
+            _marchFactor.Remove(a);   // B3: ein Befehl macht den Marsch-Tempo-Faktor unbrauchbar
             a.Job = null;
             a.BuildSite = null;
             a.AttackTarget = null;     // Gebäude-Angriff endet
@@ -3299,6 +3316,8 @@ public partial class RTSGameplayScreen : GameScreen
         owner.RemoveUnit(victim);      // Populations-Zähler + Player-Liste
         if (units.Contains(victim))
             units.Remove(victim);
+        // Ein fliehender Dorfbewohner stirbt: sein Flucht-Zustand geht weg (B2)
+        _flee.Remove(victim);
 
         // Alle, die gegen sie angriffen: nicht einfach aufhören (Idle), sondern
         // solange weiterkämpfen, bis keine Feinde mehr in der Nähe sind
@@ -3424,12 +3443,17 @@ public partial class RTSGameplayScreen : GameScreen
     /// </summary>
     internal void IssueCommand(int ownerId, List<Unit> selectedUnits, Vector2 gridPos)
     {
-        // Jeder Befehl beendet ein laufendes Einsteigen und ein geplantes Absetzen
+        // Jeder Befehl beendet ein laufendes Einsteigen und ein geplantes Absetzen,
+        // eine laufende Flucht (B2: „ein neuer Befehl beendet die Flucht“)
+        // und einen alten Marsch-Tempo-Faktor (B3: Gleichschritt gilt nur für
+        // den Marsch, der ihn gesetzt hat)
         foreach (var u in selectedUnits)
         {
             u.BoardShip = null;
             if (u.IsShip)
                 u.UnloadAt = null;
+            StopFlee(u);
+            _marchFactor.Remove(u);
         }
         // Klick der Landeinheiten auf das eigene Transportschiff: sie steigen ein
         if (selectedUnits.Any(u => !u.IsShip) && OwnTransportAt(gridPos, ownerId) is { } ferry)
@@ -3515,6 +3539,24 @@ public partial class RTSGameplayScreen : GameScreen
         bool spread = isMove && selectedUnits.Count > 1;
         var assigned = new List<Vector2>(selectedUnits.Count);   // bereits vergebene Standplätze
         bool fieldFull = false;
+
+        // Aufstellungs-Marsch (B3, Nutzer 2026-11-08: „…müssten sie immer sich in
+        // Formation bewegen und sich hinstellen. Der Zielpunkt ist nur der Zentrum
+        // der Aufstellung“): zwei oder mehr Soldaten des Befehls stellen sich wie
+        // die KI-Armee um den Klickpunkt auf — die MITTE der Aufstellung liegt auf
+        // dem Punkt; der Rest (Dorfbewohner) verteilt sich wie bisher.
+        if (isMove)
+        {
+            var army = selectedUnits.Where(u => u.OwnerId == ownerId && !(u.Core is CoreVillager)).ToList();
+            if (army.Count >= 2)
+            {
+                FormArmyMove(army, gridPos);
+                selectedUnits = selectedUnits.Where(u => !army.Contains(u)).ToList();
+                if (selectedUnits.Count == 0)
+                    return;
+                spread = true;
+            }
+        }
 
         foreach (var unit in selectedUnits)
         {
@@ -5511,6 +5553,10 @@ public partial class RTSGameplayScreen : GameScreen
         // Menschen. Der KI-Gegner (Owner 1) würde sonst stehen bleiben.
         foreach (var unit in units)
         {
+            // Flucht (B2): ein fliehender Dorfbewohner flieht weiter, kehrt zur
+            // Arbeit zurück oder beendet sie — VOR der Zustandsmaschine, damit
+            // ein befohlener Befehl im selben Bild sofort gilt
+            UpdateFlee(unit, dt);
             switch (unit.State)
             {
                 case UnitState.Moving:
@@ -5705,22 +5751,27 @@ public partial class RTSGameplayScreen : GameScreen
             // AUTOMATISCHE GEGENWEHR (Nutzer 2026-10-11: „wenn ein Soldat
             // angegriffen wird, muss er sich automatisch wehren"). Der
             // Getroffene schlägt zurück, sobald er (a) überhaupt angreifen
-            // kann (AttackPower > 0 — Soldat UND Dorfbewohner, wie in AoE)
-            // und (b) noch kein eigenes Ziel hat: dann bricht er aus
-            // Sammel-/Baustellung aus und greift den Angreifer an. Ist er
-            // schon selbst auf ein Ziel angesetzt (UnitTarget/AttackTarget
-            // gesetzt), bleibt sein Ziel unverändert — kein Abbrechen beim
-            // laufenden Kampf. Einheit-gegen-Einheit-Schaden läuft an genau
-            // dieser Stelle durch (HandleAttack ruft unit.Attack), daher
-            // deckt dieser Hook jeden Angriffsablauf ab: Klick-Auswahl,
+            // kann (AttackPower > 0) und (b) noch kein eigenes Ziel hat: dann
+            // bricht er aus Sammel-/Baustellung aus und greift den Angreifer
+            // an. Ist er schon selbst auf ein Ziel angesetzt (UnitTarget/
+            // AttackTarget gesetzt), bleibt sein Ziel unverändert — kein
+            // Abbrechen beim laufenden Kampf. Einheit-gegen-Einheit-Schaden
+            // läuft an genau dieser Stelle durch (HandleAttack ruft unit.Attack),
+            // daher deckt dieser Hook jeden Angriffsablauf ab: Klick-Auswahl,
             // KI-Befehl und die K6-TZ-Defense.
+            // DORFBEWOHNER (Nutzer 2026-11-08: „Dorfbewohner sollten flüchten
+            // nicht angreifen da sie keine Krieger sind"): statt der Gegenwehr
+            // die Flucht (StartFlee); auf Befehl angreifende wehren sich weiter
+            // (dann ist UnitTarget gesetzt und dieser Hook greift nicht).
             if (target.OwnerId != unit.OwnerId
-                && target.AttackPower > 0
                 && target.UnitTarget == null
                 && target.AttackTarget == null
                 && target.State != UnitState.Dead)
             {
-                AttackUnit(new List<Unit> { target }, unit);
+                if (target.Core is CoreVillager)
+                    StartFlee(target, unit);
+                else if (target.AttackPower > 0)
+                    AttackUnit(new List<Unit> { target }, unit);
             }
 
             // Tote Einheit: nicht hier entfernen (Units-Liste wird gerade
@@ -5982,6 +6033,7 @@ public partial class RTSGameplayScreen : GameScreen
         if (unit.Path.Count == 0)
         {
             unit.Pace = 0f;
+            _marchFactor.Remove(unit);   // B3: Marsch vorbei, der Gleichschritt-Faktor wirkt nicht mehr
             return true;
         }
 
@@ -6064,7 +6116,8 @@ public partial class RTSGameplayScreen : GameScreen
         // als auf der Wiese — der Status der Kachel unter den Füßen zählt.
         float wegBonus = tileMap.GetTile((int)before.X, (int)before.Y) is { RoadLevel: >= 1 }
             ? 1.2f : 1f;
-        var next = unit.Position + direction * unit.MovementSpeed * 40 * unit.Pace * dt * _unitSpeed * wegBonus;
+        // B3: Gleichschritt — das Tempo bleibt unter dem Marsch-Faktor
+        var next = unit.Position + direction * unit.MovementSpeed * 40 * MarchPace(unit, unit.Pace) * dt * _unitSpeed * wegBonus;
         var nextCell = tileMap.WorldToGrid(next);
         // dort ist etwas, das die Einheit erst jetzt sieht: nicht betreten, neuen Weg suchen
         if (nextCell != before && !tileMap.IsWalkable((int)nextCell.X, (int)nextCell.Y))
@@ -8307,6 +8360,11 @@ public partial class RTSGameplayScreen : GameScreen
                     {
                         DrawVillager(spriteBatch, unit, figure, screenPos, size, unitHover);
                     }
+                    else if (_siegeSprites.TryGetValue((unit.Type, unit.OwnerId), out var siegeFigure))
+                    {
+                        // Rammbock, Katapult, Tribok (F15): rollen statt zu wippen
+                        DrawSiege(spriteBatch, unit, siegeFigure, screenPos, unitHover);
+                    }
                     else if (_unitSprites.TryGetValue((unit.Type, unit.OwnerId), out var soldierFigure))
                     {
                         // Soldaten (P1): wie Dorfbewohner gezeichnet, mit ihrem Bild
@@ -8351,14 +8409,15 @@ public partial class RTSGameplayScreen : GameScreen
             var size = (int)(24 * cameraZoom);
             if (!margin.Contains((int)screenPos.X, (int)screenPos.Y)) continue;
 
-            // Schiffe: Rahmen und Balken über die ganze Trefferfläche (ShipWorldRect)
+            // Schiffe und Belagerungswaffen: Rahmen und Balken über die ganze Trefferfläche
+            // (ShipWorldRect, SiegeWorldRect)
             int sizeY = size;
-            if (unit.IsShip)
+            if (unit.IsShip || IsSiegeType(unit.Type))
             {
-                var shipRect = ShipWorldRect(unit);
-                size = (int)(shipRect.Width * cameraZoom);
-                sizeY = (int)(shipRect.Height * cameraZoom);
-                screenPos = WorldToScreen(new Vector2(shipRect.Center.X, shipRect.Bottom));
+                var area = UnitWorldRect(unit);
+                size = (int)(area.Width * cameraZoom);
+                sizeY = (int)(area.Height * cameraZoom);
+                screenPos = WorldToScreen(new Vector2(area.Center.X, area.Bottom));
             }
             if (unit.IsSelected)
             {
