@@ -1,5 +1,24 @@
 namespace AoE.Core.Ai;
 
+/// <summary>
+/// Die wählbare Aufstellung (Nutzer 2026-11-15: „soll man verschiedene Formationen
+/// auswählen können, für Verteidigung und für Angriff"): wer steht wo.
+/// </summary>
+public enum FormationLayout
+{
+    /// <summary>
+    /// Angriff (Standard, unverändert): Nahkämpfer vorn, Schützen und Belagerung dahinter,
+    /// Reiter an den Flanken — die Stoßlinie führt, die Schützen decken aus der zweiten Reihe.
+    /// </summary>
+    Angriff,
+    /// <summary>
+    /// Verteidigung: die Schusslinie (Schützen und Belagerung) steht vorn, der Schild
+    /// (Nahkämpfer) dahinter — dieselbe Tiefe wie <see cref="Angriff"/>, die Gruppen
+    /// tauschen nur die Reihen; Reiter bleiben an den Flanken.
+    /// </summary>
+    Verteidigung,
+}
+
 /// <summary>Die Rolle einer Einheit in der Aufstellung (<see cref="Formation"/>).</summary>
 public enum FormationRole
 {
@@ -47,6 +66,11 @@ public static class Formation
     /// VERTRAG:
     /// - Richtung: f = <paramref name="facing"/> normiert (Länge 1); ist facing (0, 0), gilt
     ///   f = (1, 0). Die Querachse ist p = (-f.Y, f.X). „Vorn" ist +f, „hinten" -f.
+    /// - Aufstellung: <see cref="FormationLayout.Angriff"/> (Standard, wie bisher: Nahkämpfer
+    ///   vorn, Schützen und Belagerung dahinter, Reiter an den Flanken). Bei
+    ///   <see cref="FormationLayout.Verteidigung"/> tauschen die Gruppen die Reihen — die
+    ///   Schusslinie (Ranged) steht vorn, der Schild (Front) dahinter; Flanken, Schrittweite
+    ///   und Tiefe bleiben gleich.
     /// - Die Einheiten werden nach <see cref="RoleOf"/>(Kind) in drei Gruppen geteilt (Front,
     ///   Ranged, Flank). In jeder Gruppe wird nach Id aufsteigend sortiert - eine feste
     ///   Reihenfolge: jede Einheit behält ihren Platz, solange die Gruppe gleich bleibt, und rückt
@@ -78,6 +102,14 @@ public static class Formation
     /// </summary>
     public static Dictionary<int, (int X, int Y)> Slots((int X, int Y) anchor, (float X, float Y) facing,
         IReadOnlyList<UnitSnapshot> units, Func<int, int, bool> walkable)
+        => Slots(anchor, facing, units, walkable, FormationLayout.Angriff);
+
+    /// <summary>
+    /// <see cref="Slots"/> mit der gewählten <paramref name="layout"/> (Standard:
+    /// <see cref="FormationLayout.Angriff"/>, also unverändert).
+    /// </summary>
+    public static Dictionary<int, (int X, int Y)> Slots((int X, int Y) anchor, (float X, float Y) facing,
+        IReadOnlyList<UnitSnapshot> units, Func<int, int, bool> walkable, FormationLayout layout)
     {
         var result = new Dictionary<int, (int X, int Y)>();
         var taken = new HashSet<(int X, int Y)>();
@@ -91,6 +123,8 @@ public static class Formation
         var front = units.Where(u => RoleOf(u.Kind) == FormationRole.Front).OrderBy(u => u.Id).ToList();
         var ranged = units.Where(u => RoleOf(u.Kind) == FormationRole.Ranged).OrderBy(u => u.Id).ToList();
         var flank = units.Where(u => RoleOf(u.Kind) == FormationRole.Flank).OrderBy(u => u.Id).ToList();
+        if (layout == FormationLayout.Verteidigung)
+            (front, ranged) = (ranged, front);
 
         PlaceGroups(anchor, fx, fy, px, py, step, front, ranged, flank, result, taken, walkable);
         return result;
@@ -170,11 +204,22 @@ public static class Formation
     ///   seinen Platz, bis jeder Reiter einen hat. So übernimmt niemand den Platz des
     ///   anderen über die Mitte hinweg, auch wenn die Reiter vor dem Marsch schräg
     ///   verstreut stehen.
+    /// - Aufstellung: wie in <see cref="Slots"/> — bei
+    ///   <see cref="FormationLayout.Verteidigung"/> tauschen Front und Schusslinie die
+    ///   Reihen, sonst nichts.
     /// - Rückgabe: für jede Einheit genau ein Eintrag Id → Kachel; leere Liste:
     ///   leeres Wörterbuch.
     /// </summary>
     public static Dictionary<int, (int X, int Y)> SlotsByPosition((int X, int Y) anchor, (float X, float Y) facing,
         IReadOnlyList<UnitSnapshot> units, Func<int, int, bool> walkable)
+        => SlotsByPosition(anchor, facing, units, walkable, FormationLayout.Angriff);
+
+    /// <summary>
+    /// <see cref="SlotsByPosition"/> mit der gewählten <paramref name="layout"/>
+    /// (Standard: <see cref="FormationLayout.Angriff"/>, also unverändert).
+    /// </summary>
+    public static Dictionary<int, (int X, int Y)> SlotsByPosition((int X, int Y) anchor, (float X, float Y) facing,
+        IReadOnlyList<UnitSnapshot> units, Func<int, int, bool> walkable, FormationLayout layout)
     {
         var result = new Dictionary<int, (int X, int Y)>();
         var taken = new HashSet<(int X, int Y)>();
@@ -205,6 +250,8 @@ public static class Formation
                           .OrderByDescending(u => Vornheit(u)).ThenBy(u => Querlage(u)).ThenBy(u => u.Id).ToList();
         var flank = units.Where(u => RoleOf(u.Kind) == FormationRole.Flank)
                          .OrderBy(u => u.Id).ToList();
+        if (layout == FormationLayout.Verteidigung)
+            (front, ranged) = (ranged, front);
 
         PlaceGroups(anchor, fx, fy, px, py, step, front, ranged, new List<UnitSnapshot>(), result, taken, walkable);
         AssignFlank(anchor, fx, fy, px, py, step, front.Count, ranged.Count, flank, result, taken, walkable);

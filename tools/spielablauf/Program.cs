@@ -10949,10 +10949,8 @@ static void FormationMarsch(int karte, List<string> verstoesse)
 {
     string wer = $"Karte {karte}, Formation";
     int vorher = verstoesse.Count;
-    var w = new Welt();
-    w.Set("cameraZoom", 1f);
-    w.Set("cameraPosition", Vector2.Zero);
-    int T = w.Map.TileSize;
+    Welt w = null;
+    int T = 0;
 
     var frei = (int x, int y) => w.Map.GetTile(x, y) is { } t && w.Map.IsWalkable(x, y) && t.ResourceType == null
         && string.IsNullOrEmpty(t.Building) && !w.Map.Units.Any(u => w.Map.WorldToGrid(u.Position) == new Vector2(x, y))
@@ -10971,30 +10969,76 @@ static void FormationMarsch(int karte, List<string> verstoesse)
         return u;
     };
 
-    if (Freiraum(w, 12f) is not { } start)
+    // Raum für die Aufstellung um einen Punkt (5 Einheiten, Schrittweite 2, PickTile-
+    // Suchradius 3): 7×7 Kacheln begehbar und ohne Gebäude — eine Engstelle, Wasser oder
+    // ein Haus verschöbe Plätze auf Ausweichkacheln (PickTile-Vertrag), und „vorn/hinten“
+    // zu messen würde Kartenlotterie.
+    bool raumFrei(Vector2 c)
     {
-        Console.WriteLine($"      {wer}: kein Platz 12 Kacheln von den Startdörfern - übersprungen");
-        return;   // kein offener Platz — überspringen
+        for (int dx = -3; dx <= 3; dx++)
+            for (int dy = -3; dy <= 3; dy++)
+            {
+                int x = (int)c.X + dx, y = (int)c.Y + dy;
+                if (x < 0 || y < 0 || x >= w.Map.Width || y >= w.Map.Height || !w.Map.IsWalkable(x, y))
+                    return false;
+            }
+        return true;
     }
-    var ziel = freie()
-        .Where(c => Vector2.Distance(w.Map.GridToWorld(c), start) >= 6f * T && Vector2.Distance(w.Map.GridToWorld(c), start) <= 10f * T)
-        .OrderBy(c => Math.Abs(Vector2.Distance(w.Map.GridToWorld(c), start) / T - 8))
-        .Select(c => (Vector2?)c)
-        .FirstOrDefault(c => c != null && w.Map.FindPath(start, w.Map.GridToWorld(c.Value)).Count > 0);
+    // Rohstoffe und Wild in diesem Raum abräumen, statt eine von Natur aus leere Fläche zu
+    // suchen: die gibt es auf den wenigsten Karten (2026-11-15 liefen so 6 von 9 Karten gar
+    // nicht, ein Lauf prüfte nichts und war grün). Wild muss weg, weil ein Klick neben ein
+    // Reh ein Jagdbefehl ist (PredatorAt sieht die Nachbarkacheln) statt ein Laufbefehl.
+    void raeume(Vector2 c)
+    {
+        for (int dx = -3; dx <= 3; dx++)
+            for (int dy = -3; dy <= 3; dy++)
+                if (w.Map.GetTile((int)c.X + dx, (int)c.Y + dy) is { } t
+                    && (t.ResourceType != null || t.Food != FoodSource.None))
+                {
+                    w.Map.ClearResourceAndRemoveSheep(t);
+                    t.Food = FoodSource.None;
+                }
+        w.Map.RebuildWildAnimals();
+    }
+
+    // Die Karten sind zufällig: passt eine nicht (kein offener Platz fern der Startdörfer,
+    // kein erreichbarer Punkt mit Raum), wird neu gewürfelt wie in Sichtkontakt — ein Lauf,
+    // der nichts prüft, darf nicht grün sein.
+    Vector2 start = default;
+    Vector2? ziel = null;
+    List<Vector2> staellchen = null;
+    for (int versuch = 0; versuch < 10 && ziel == null; versuch++)
+    {
+        w = new Welt();
+        w.Set("cameraZoom", 1f);
+        w.Set("cameraPosition", Vector2.Zero);
+        T = w.Map.TileSize;
+        if (Freiraum(w, 12f) is not { } platz)
+            continue;
+        var anfang = freie()
+            .Where(c => Vector2.Distance(w.Map.GridToWorld(c), platz) >= 2f * T && Vector2.Distance(w.Map.GridToWorld(c), platz) <= 5f * T)
+            .OrderBy(c => Vector2.Distance(w.Map.GridToWorld(c), platz))
+            .ToList();
+        if (anfang.Count < 6)
+            continue;
+        var punkt = freie()
+            .Where(c => Vector2.Distance(w.Map.GridToWorld(c), platz) >= 5f * T && Vector2.Distance(w.Map.GridToWorld(c), platz) <= 12f * T
+                        && raumFrei(c))
+            .OrderBy(c => Math.Abs(Vector2.Distance(w.Map.GridToWorld(c), platz) / T - 8))
+            .Select(c => (Vector2?)c)
+            .FirstOrDefault(c => c != null && w.Map.FindPath(platz, w.Map.GridToWorld(c.Value)).Count > 0);
+        if (punkt == null)
+            continue;
+        start = platz;
+        staellchen = anfang;
+        ziel = punkt;
+    }
     if (ziel == null)
     {
-        Console.WriteLine($"      {wer}: kein erreichbarer Ziel-Punkt 6–10 Kacheln frei - übersprungen");
-        return;   // kein erreichbarer Punkt — überspringen
+        verstoesse.Add($"{wer}: auf 10 Zufallskarten kein Platz für die Aufstellung (offener Platz, sechs Startkacheln, erreichbarer Punkt mit 7×7 Kacheln Raum) — nichts geprüft");
+        return;
     }
-    var staellchen = freie()
-        .Where(c => Vector2.Distance(w.Map.GridToWorld(c), start) >= 2f * T && Vector2.Distance(w.Map.GridToWorld(c), start) <= 5f * T)
-        .OrderBy(c => Vector2.Distance(w.Map.GridToWorld(c), start))
-        .ToList();
-    if (staellchen.Count < 6)
-    {
-        Console.WriteLine($"      {wer}: nur {staellchen.Count} freie Kacheln 2–5 Kacheln um {start} - übersprungen");
-        return;   // nicht genug freier Platz — überspringen
-    }
+    raeume(ziel.Value);
     var zielWelt = w.Map.GridToWorld(ziel.Value);
 
     // 1) Zwei Nahkämpfer + ein Bogenschütze: Aufstellung um den Punkt, Schütze hinten,
@@ -11086,8 +11130,174 @@ static void FormationMarsch(int karte, List<string> verstoesse)
     else
         Console.WriteLine($"  ok  {wer}: in der gemischten Auswahl stellen sich die Soldaten auf, der Dorfbewohner läuft auf den Punkt");
 
+    // 4) Formation wählbar (Nutzer 2026-11-15: „…soll man verschiedene Formationen
+    //    auswählen können, für Verteidigung und für Angriff“): zwei oder mehr
+    //    Soldaten in der Auswahl zeigen in der Leiste „Angriff“ und „Verteidigung“;
+    //    der Klick wählt die Aufstellung des nächsten Marsches — Angriff: Nahkämpfer
+    //    vorn, Schützen hinten (wie bisher); Verteidigung: Schusslinie vorn, Schild
+    //    hinten. Ein einzelner Soldat marschiert auf den Punkt — und zeigt keine Reihe.
+    w.Set("screenBounds", new Rectangle(0, 0, 2406, 1353));
+    raeume(ziel.Value);   // Wild kann in den Fällen 1–3 herangewandert sein
+    foreach (var alt in new[] { bau, sm, sa })
+        w.Call("DestroyUnit", alt);
+
+    var f1 = neu(UnitType.Militia, staellchen[1]);
+    var f2 = neu(UnitType.SpearMan, staellchen[2]);
+    var f3 = neu(UnitType.Militia, staellchen[3]);
+    var g1 = neu(UnitType.Archer, staellchen[4]);
+    var g2 = neu(UnitType.Archer, staellchen[5]);
+
+    w.Waehle(new List<Unit> { f1, f2, f3, g1, g2 });
+    w.Call("LayoutButtons");
+    var angTaste = w.Tasten().FirstOrDefault(t => t.Label == "Angriff");
+    var verTaste = w.Tasten().FirstOrDefault(t => t.Label == "Verteidigung");
+    if (angTaste.Label == null || verTaste.Label == null)
+        verstoesse.Add($"{wer}: mit 3 Soldaten + 2 Bogenschützen keine Formationstasten in der Leiste (da: {string.Join(" ", w.Tasten().Select(t => t.Label))})");
+
+    // ein einzelner Soldat stellt nicht auf und zeigt keine Formationstasten
+    var eins = neu(UnitType.Militia, staellchen[0]);
+    w.Waehle(new List<Unit> { eins });
+    w.Call("LayoutButtons");
+    if (w.Tasten().Any(t => t.Label is "Angriff" or "Verteidigung"))
+        verstoesse.Add($"{wer}: Formationstasten bei nur einem Soldaten in der Auswahl - nur zwei oder mehr stellen auf");
+
+    w.Waehle(new List<Unit> { f1, f2, f3, g1, g2 });
+    w.Call("LayoutButtons");
+    angTaste = w.Tasten().FirstOrDefault(t => t.Label == "Angriff");
+    verTaste = w.Tasten().FirstOrDefault(t => t.Label == "Verteidigung");
+    if (angTaste.Label == null || verTaste.Label == null)
+        verstoesse.Add($"{wer}: mit 3 Soldaten + 2 Bogenschützen keine Formationstasten in der Leiste (da: {string.Join(" ", w.Tasten().Select(t => t.Label))})");
+
+    // Blickrichtung wie in FormArmyMove: Schwerpunkt zum Klick
+    (float Nah, float Fern) Dots(Vector2 zielRef)
+    {
+        var centroid = (f1.Position + f2.Position + f3.Position + g1.Position + g2.Position) / 5f;
+        var f = Vector2.Normalize(zielRef - centroid);
+        float Dot(Unit u) => Vector2.Dot(w.Map.WorldToGrid(u.TargetPosition) - w.Map.WorldToGrid(zielRef), f);
+        float nah = Math.Min(Dot(f1), Math.Min(Dot(f2), Dot(f3)));
+        float fern = Math.Max(Dot(g1), Dot(g2));
+        return (nah, fern);
+    }
+
+    // Angriff (Standard): Klick auf die Taste, dann marschieren — Nahkämpfer vorn,
+    // Schützen hinten, die Mitte der Aufstellung auf dem Punkt
+    w.Klick(angTaste.Rect.Center);
+    if (!w.Get("_selectedFormation").Equals(AoE.Core.Ai.FormationLayout.Angriff))
+        verstoesse.Add($"{wer}: Klick auf „Angriff“ — die gewählte Aufstellung ist {w.Get("_selectedFormation")}");
+    w.Linksklick(zielWelt);
+    var (dNah, dFern) = Dots(zielWelt);
+    var mitte = (f1.TargetPosition + f2.TargetPosition + f3.TargetPosition + g1.TargetPosition + g2.TargetPosition) / 5f;
+    if (Vector2.Distance(w.Map.WorldToGrid(mitte), ziel.Value) > 1.5f)
+        verstoesse.Add($"{wer}: „Angriff“ — die Mitte der Aufstellung ({w.Map.WorldToGrid(mitte)}) liegt nicht auf dem Punkt ({ziel.Value})");
+    if (dNah <= 0f || dFern >= 0f)
+        verstoesse.Add($"{wer}: „Angriff“ — Nahkämpfer ({dNah:0.##}) führen nicht vor den Bogenschützen ({dFern:0.##})");
+    else
+        Console.WriteLine($"  ok  {wer}: „Angriff“ — Nahkämpfer vorn ({dNah:0.##}), Bogenschützen hinten ({dFern:0.##})");
+
+    // Verteidigung: Klick auf die Taste, neuer Marsch — Schusslinie vorn, Schild hinten
+    var ziel2 = freie()
+        .Where(c => Vector2.Distance(w.Map.GridToWorld(c), staellchen[0]) >= 4f * T
+                    && Vector2.Distance(w.Map.GridToWorld(c), staellchen[0]) <= 16f * T
+                    && Vector2.Distance(c, ziel.Value) >= 4f
+                    && raumFrei(c))
+        .OrderBy(c => Math.Abs(Vector2.Distance(w.Map.GridToWorld(c), staellchen[0]) / T - 8))
+        .Select(c => (Vector2?)c)
+        .FirstOrDefault(c => c != null && w.Map.FindPath(w.Map.GridToWorld(staellchen[0]), w.Map.GridToWorld(c.Value)).Count > 0);
+    // Kein zweiter Punkt mit Raum: derselbe Punkt noch einmal — die Soldaten stehen noch
+    // am Start (seit dem ersten Klick lief kein Bild), die Aufstellung baut sich dort mit
+    // getauschten Reihen neu. Übersprungen wird die Messung nie.
+    ziel2 ??= ziel;
+    raeume(ziel2.Value);
+    {
+        var ziel2Welt = w.Map.GridToWorld(ziel2.Value);
+        w.Klick(verTaste.Rect.Center);
+        if (!w.Get("_selectedFormation").Equals(AoE.Core.Ai.FormationLayout.Verteidigung))
+            verstoesse.Add($"{wer}: Klick auf „Verteidigung“ — die gewählte Aufstellung ist {w.Get("_selectedFormation")}");
+        w.Linksklick(ziel2Welt);
+        var (dNah2, dFern2) = Dots(ziel2Welt);
+        var mitte2 = (f1.TargetPosition + f2.TargetPosition + f3.TargetPosition + g1.TargetPosition + g2.TargetPosition) / 5f;
+        if (Vector2.Distance(w.Map.WorldToGrid(mitte2), ziel2.Value) > 1.5f)
+            verstoesse.Add($"{wer}: „Verteidigung“ — die Mitte der Aufstellung ({w.Map.WorldToGrid(mitte2)}) liegt nicht auf dem Punkt ({ziel2.Value})");
+        if (dFern2 <= 0f || dNah2 >= 0f)
+            verstoesse.Add($"{wer}: „Verteidigung“ — Bogenschützen ({dFern2:0.##}) führen nicht vor den Nahkämpfern ({dNah2:0.##})");
+        else
+            Console.WriteLine($"  ok  {wer}: „Verteidigung“ — Bogenschützen vorn ({dFern2:0.##}), Nahkämpfer hinten ({dNah2:0.##})");
+        // die Wahl bleibt, bis eine andere Formation gewählt wird
+        if (!w.Get("_selectedFormation").Equals(AoE.Core.Ai.FormationLayout.Verteidigung))
+            verstoesse.Add($"{wer}: die gewählte Aufstellung ist nicht geblieben ({w.Get("_selectedFormation")})");
+    }
+
+    w.Klick(angTaste.Rect.Center);
+    if (!w.Get("_selectedFormation").Equals(AoE.Core.Ai.FormationLayout.Angriff))
+        verstoesse.Add($"{wer}: der Klick auf „Angriff“ stellt die Aufstellung nicht zurück ({w.Get("_selectedFormation")})");
+
+    // 5) Soldat steht schon auf seinem Platz (Game-Crash 2026-11-15, Log 19:26 und 21:41 —
+    //    KeyNotFoundException „The given key '0'“ in FormArmyMove). FindPathKnown liefert
+    //    NUR DANN einen leeren Weg, wenn die Einheit bereits auf der besten Kachel steht
+    //    (Vertrag: „Ist das Ziel die Startkachel selbst, eine leere Liste“); ein wirklich
+    //    unerreichbarer Platz gibt den Weg bis zur nächstliegenden Kachel. Der frühere
+    //    „Ersatzplatz“-Zweig lief also genau dann, wenn ein Soldat schon richtig stand —
+    //    erst stürzte er ab (slots[0], die Ids laufen ab 1), nach der ersten Korrektur
+    //    schickte er den Soldaten auf den Platz des Nachbarn (zwei auf einer Kachel).
+    //    Verlangt: wer auf seinem Platz steht, bleibt dort; jeder Platz gehört genau einem.
+    //    Aufbau mit festem Blick (1, 0): Nahkämpfer eine Kachel östlich des Punkts (sein
+    //    Platz), Schütze drei Kacheln westlich — Schwerpunkt eine Kachel westlich des Punkts.
+    w.Call("SetSelectedFormation", AoE.Core.Ai.FormationLayout.Angriff);
+    int zx = (int)ziel.Value.X, zy = (int)ziel.Value.Y;
+    var h1 = neu(UnitType.Militia, new Vector2(zx + 1, zy));
+    var h2 = neu(UnitType.Archer, new Vector2(zx - 3, zy));
+    bool walkable5(int x, int y)
+        => x >= 0 && y >= 0 && x < w.Map.Width && y < w.Map.Height
+           && w.Map.IsWalkable(x, y) && string.IsNullOrEmpty(w.Map.GetTile(x, y).Building);
+    // die Plätze, wie FormArmyMove sie rechnet: Ids 1..N in Auswahl-Reihenfolge
+    Dictionary<int, (int X, int Y)> Plaetze5()
+    {
+        var snaps = new List<AoE.Core.Ai.UnitSnapshot>();
+        int id = 0;
+        foreach (var (u, kind) in new[] { (h1, AoE.Core.Ai.UnitKind.Militia), (h2, AoE.Core.Ai.UnitKind.Archer) })
+        {
+            var at = w.Map.WorldToGrid(u.Position);
+            snaps.Add(new AoE.Core.Ai.UnitSnapshot { Id = ++id, Owner = 0, Kind = kind, X = (int)at.X, Y = (int)at.Y, State = AoE.Core.Ai.UnitStateKind.Moving });
+        }
+        var anker = AoE.Core.Ai.Formation.AnchorForCenter((zx, zy), (1f, 0f), snaps);
+        return AoE.Core.Ai.Formation.SlotsByPosition(anker, (1f, 0f), snaps, walkable5);
+    }
+    (int X, int Y) Kachel5(Vector2 welt) { var g = w.Map.WorldToGrid(welt); return ((int)g.X, (int)g.Y); }
+
+    // a) nur der Nahkämpfer steht schon richtig
+    var plaetze = Plaetze5();
+    if (plaetze[1] != Kachel5(h1.Position))
+        verstoesse.Add($"{wer}: Prüfaufbau Fall 5 — der Nahkämpfer steht auf {Kachel5(h1.Position)}, sein Platz ist {plaetze[1]}");
+    w.Waehle(new List<Unit> { h1, h2 });
+    w.Call("FormArmyMove", new List<Unit> { h1, h2 }, ziel.Value);
+    var (k1, k2) = (Kachel5(h1.TargetPosition), Kachel5(h2.TargetPosition));
+    if (k1 == k2)
+        verstoesse.Add($"{wer}: steht ein Soldat schon auf seinem Platz, zielen beide auf dieselbe Kachel {k1} — jeder Platz gehört genau einem");
+    else if (k1 != plaetze[1] || h1.State != UnitState.Idle)
+        verstoesse.Add($"{wer}: der Nahkämpfer stand schon auf seinem Platz {plaetze[1]} und wird trotzdem verschickt (Ziel {k1}, {h1.State})");
+    else if (k2 != plaetze[2] || h2.State != UnitState.Moving)
+        verstoesse.Add($"{wer}: der Schütze läuft nicht auf seinen Platz {plaetze[2]} (Ziel {k2}, {h2.State})");
+    else
+        Console.WriteLine($"  ok  {wer}: ein Soldat steht schon auf seinem Platz — er bleibt, der andere läuft auf den eigenen ({k1} / {k2})");
+
+    // b) beide stehen schon richtig (derselbe Klick noch einmal): keiner rührt sich,
+    //    keiner tauscht mit dem Nachbarn
+    h2.Position = w.Map.GridToWorld(new Vector2(plaetze[2].X, plaetze[2].Y));
+    plaetze = Plaetze5();
+    if (plaetze[1] != Kachel5(h1.Position) || plaetze[2] != Kachel5(h2.Position))
+        verstoesse.Add($"{wer}: Prüfaufbau Fall 5b — Plätze {plaetze[1]} / {plaetze[2]}, die Soldaten stehen auf {Kachel5(h1.Position)} / {Kachel5(h2.Position)}");
+    w.Call("FormArmyMove", new List<Unit> { h1, h2 }, ziel.Value);
+    (k1, k2) = (Kachel5(h1.TargetPosition), Kachel5(h2.TargetPosition));
+    if (k1 != plaetze[1] || k2 != plaetze[2] || h1.State != UnitState.Idle || h2.State != UnitState.Idle)
+        verstoesse.Add($"{wer}: beide Soldaten standen schon auf ihren Plätzen {plaetze[1]} / {plaetze[2]} — sie müssen bleiben (Ziele {k1} / {k2}, {h1.State} / {h2.State})");
+    else
+        Console.WriteLine($"  ok  {wer}: beide stehen schon auf ihren Plätzen — keiner rührt sich, keiner tauscht");
+
+    foreach (var alt in new[] { f1, f2, f3, g1, g2, eins, h1, h2 })
+        w.Call("DestroyUnit", alt);
+
     if (verstoesse.Count == vorher)
-        Console.WriteLine($"  ok  {wer}: alles nach Nutzerwille (2026-11-08)");
+        Console.WriteLine($"  ok  {wer}: alles nach Nutzerwille (2026-11-08) + Formation wählbar (Angriff/Verteidigung, 2026-11-15)");
 }
 
 class Welt
@@ -11250,11 +11460,19 @@ class Welt
             T.GetField("selectedBuilding", F)?.SetValue(_screen, null);
     }
 
-    /// <summary>
-    /// Kurzer Linksklick auf einen Weltpunkt. Die Kamera steht im Ablauf auf
-    /// Ursprung und Zoom 1, Bildschirm- und Weltkoordinaten sind also gleich.
-    /// </summary>
-    public void Linksklick(Vector2 welt) => Call("LeftClick", welt);
+    /// <summary>Kurzer Linksklick auf einen Weltpunkt — Kamera und Zoom werden
+    /// mit umgerechnet (ScreenToWorld ist die Umkehrung).</summary>
+    public void Linksklick(Vector2 welt)
+    {
+        // ScreenToWorld(p) = p / zoom - kamera: Bildschirm- und Weltkoordinaten
+        // unterscheiden sich um Kamera und Zoom. ClampCamera kann die Kamera
+        // verschieben (z. B. wenn screenBounds breiter ist als die Karte —
+        // Formationstasten, 2026-11-15), deshalb Weltpunkt nach Bildschirm
+        // umrechnen: (welt + kamera) * zoom.
+        var kamera = (Vector2)Feld("cameraPosition").GetValue(_screen);
+        float zoom = (float)Feld("cameraZoom").GetValue(_screen);
+        Call("LeftClick", new Vector2((welt.X + kamera.X) * zoom, (welt.Y + kamera.Y) * zoom));
+    }
 
     /// <summary>
     /// Ein Bauplatz, auf den das Gebäude passt, möglichst <paramref name="abstand"/>

@@ -299,6 +299,8 @@ public partial class RTSGameplayScreen : GameScreen
         ("Doppelaxt", "Icons/doppelaxt"), ("Goldbergbau", "Icons/goldbergbau"),
         ("Schmiedekunst", "Icons/schmiedekunst"), ("Befiederte Pfeile", "Icons/befiederte_pfeile"),
         ("Schuppenpanzer", "Icons/schuppenpanzer"), ("Maurerkunst", "Icons/maurerkunst"),
+        // Formationstasten (LayoutButtons): oben steht, wer vorn steht
+        ("Angriff", "Icons/formation_angriff"), ("Verteidigung", "Icons/formation_verteidigung"),
     };
     private readonly Dictionary<string, Texture2D> _nameIcons = new();
 
@@ -398,6 +400,7 @@ public partial class RTSGameplayScreen : GameScreen
         public Func<string> LiveHint;   // Hinweis, der sich laufend ändert (Kurse am Markt) statt Hint, oder null
         public int TradeArrow;          // Markttasten (F8): 1 kaufen (Pfeil hoch), -1 verkaufen (Pfeil runter), sonst 0
         public bool IconOnDark;         // Symbol ohne eigenen Hintergrund (Rohstoffsymbol): dunkles Feld dahinter
+        public AoE.Core.Ai.FormationLayout? Formation; // Formationstaste (Angriff/Verteidigung): gold, solange sie gewählt ist
     }
 
     /// <summary>
@@ -836,6 +839,7 @@ public partial class RTSGameplayScreen : GameScreen
     private Data.Building _buttonsLayoutBuilding;   // und welches Gebäude ausgewählt war
     private int _buttonsLayoutTechs = -1;           // und welcher Forschungsstand galt (Techs.Version)
     private List<UnitType> _buttonsLayoutSelectionTypes = new();   // und welche Einheitenarten in der Auswahl waren
+    private int _buttonsLayoutArmy = -1;            // und wie viele Soldaten in der Auswahl waren (Formationstasten)
     private Rectangle _minimapRect;      // das gezeichnete Minimap-Feld (Klickfläche)
 
     // Abstand der Minimap zur Unterkante der Leiste; der 2-px-Rahmen liegt darin.
@@ -9147,7 +9151,8 @@ public partial class RTSGameplayScreen : GameScreen
                      + $"   Klick bricht eine Ausbildung ab   Shift+Klick {CANCEL_BATCH}   die Kosten kommen voll zurück";
         }
         else if (hovered.Name != null)
-            infoLine = $"{hovered.Name} ({hovered.Label}): {hovered.LiveHint?.Invoke() ?? hovered.Hint}";
+            infoLine = (hovered.Label == hovered.Name ? hovered.Name : $"{hovered.Name} ({hovered.Label})")
+                     + $": {hovered.LiveHint?.Invoke() ?? hovered.Hint}";
         else if (selectedBuilding != null && selectedUnits.Count == 0)
             infoLine = BuildingStatus(selectedBuilding);
         else if (selectedUnits.Count > 1)
@@ -9260,11 +9265,16 @@ public partial class RTSGameplayScreen : GameScreen
         // Die Auswahl-Filter-Tasten (eigene Reihe unten) hängen an den in der
         // Auswahl vertretenen Einheitenarten — die gehören zum Layout-Zustand
         var selectedTypes = selectedUnits.Select(u => u.Type).Distinct().ToList();
+        // Die Formationstasten (Angriff/Verteidigung) hängen an der Zahl der
+        // Soldaten in der Auswahl (wie der Aufstellungs-Marsch in IssueCommand:
+        // alles außer Dorfbewohnern und Schiffen) — zwei zeigen die Tasten, einer nicht
+        int armyCount = selectedUnits.Count(u => u.OwnerId == 0 && !u.IsShip && !(u.Core is CoreVillager));
         if (_buttons.Count > 0 && _buttonsLayoutHeight == screenBounds.Height
             && _buttonsLayoutBuilders == builders && _buttonsLayoutAge == age
             && _buttonsLayoutBuilding == selectedBuilding
             && _buttonsLayoutTechs == player1.Techs.Version
-            && _buttonsLayoutSelectionTypes.SequenceEqual(selectedTypes))
+            && _buttonsLayoutSelectionTypes.SequenceEqual(selectedTypes)
+            && _buttonsLayoutArmy == armyCount)
             return;
         _buttons.Clear();
         _buttonsLayoutHeight = screenBounds.Height;
@@ -9273,6 +9283,7 @@ public partial class RTSGameplayScreen : GameScreen
         _buttonsLayoutBuilding = selectedBuilding;
         _buttonsLayoutTechs = player1.Techs.Version;
         _buttonsLayoutSelectionTypes = selectedTypes;
+        _buttonsLayoutArmy = armyCount;
         int size = 60, gap = 6;
         int x = 10, y = screenBounds.Height - HUD_BOTTOM_HEIGHT + 14;
         // Q (Dorfbewohner) und A (Zeitalter) gibt es nur mit ausgewähltem
@@ -9345,17 +9356,38 @@ public partial class RTSGameplayScreen : GameScreen
         // Art (Dorfbewohner, Miliz, Bogenschütze, ...). Der Klick wählt aus der
         // aktuellen Auswahl nur diese Art (SelectOnlyType); die übrigen Einheiten
         // bleiben auf der Karte, nur ihre Auswahl hebt sich auf.
+        //
+        // Formationstasten: sind zwei oder mehr Soldaten ausgewählt, stehen in
+        // derselben untersten Reihe — rechts neben den Filtertasten, mit etwas
+        // Abstand — die Tasten der Aufstellungen (Angriff, Verteidigung). Der Klick
+        // wählt die Aufstellung des nächsten Aufstellungs-Marsches
+        // (SetSelectedFormation); die gewählte Taste ist gold markiert
+        // (DrawCommandButton, _selectedFormation). Eine eigene vierte Reihe gibt es
+        // nicht: die Leiste hat nur drei, die Filterreihe läge sonst auf der
+        // zweiten Bautastenreihe, sobald Dorfbewohner mit in der Auswahl sind.
+        int xBottom = 10;
+        int yBottom = screenBounds.Height - 6 - size;   // unterste Reihe, 6 px über dem Fensterboden
         if (selectedTypes.Count >= 2)
         {
-            int x3 = 10;
-            int y3 = screenBounds.Height - 6 - size;   // unterste Reihe, 6 px über dem Fensterboden
             foreach (var t in selectedTypes.OrderBy(t => (int)t))
             {
                 string name = CoreUnits.GermanName(t);
-                AddButton(ref x3, size, gap, y3, name, name,
+                AddButton(ref xBottom, size, gap, yBottom, name, name,
                           $"wählt in der Auswahl nur: {name}",
                           () => SelectOnlyType(t));
             }
+            xBottom += 2 * gap;   // sichtbare Lücke zwischen Filter- und Formationstasten
+        }
+        if (armyCount >= 2)
+        {
+            AddButton(ref xBottom, size, gap, yBottom, "Angriff", "Angriff",
+                      "Nahkämpfer vorn, Schützen dahinter — gilt für den nächsten Marsch",
+                      null, () => SetSelectedFormation(AoE.Core.Ai.FormationLayout.Angriff),
+                      null, AoE.Core.Ai.FormationLayout.Angriff);
+            AddButton(ref xBottom, size, gap, yBottom, "Verteidigung", "Verteidigung",
+                      "Schusslinie vorn, Schild dahinter — gilt für den nächsten Marsch",
+                      null, () => SetSelectedFormation(AoE.Core.Ai.FormationLayout.Verteidigung),
+                      null, AoE.Core.Ai.FormationLayout.Verteidigung);
         }
     }
 
@@ -9366,7 +9398,8 @@ public partial class RTSGameplayScreen : GameScreen
     }
 
     private void AddButton(ref int x, int size, int gap, int y, string label, string name,
-                           string hint, BuildingType? type, Action action, Action<int> rightAction = null)
+                           string hint, BuildingType? type, Action action, Action<int> rightAction = null,
+                           AoE.Core.Ai.FormationLayout? formation = null)
     {
         // Mit Symbol quadratisch - Name und Kosten nennt die Leiste beim Zeigen.
         // Ohne Symbol (Datei fehlt, tools/spielablauf) so breit wie der Name:
@@ -9384,6 +9417,7 @@ public partial class RTSGameplayScreen : GameScreen
             Rect = new Rectangle(x, y, width, size),
             Label = label, Name = name, Hint = hint,
             Type = type, Action = action, RightAction = rightAction, Icon = icon,
+            Formation = formation,
         });
         x += width + gap;
     }
@@ -9462,7 +9496,8 @@ public partial class RTSGameplayScreen : GameScreen
     private void DrawCommandButton(SpriteBatch sb, CommandButton b, Point cursor)
     {
         var r = b.Rect;
-        bool active = b.Type.HasValue && placing == b.Type.Value;
+        bool active = b.Type.HasValue && placing == b.Type.Value
+            || b.Formation.HasValue && b.Formation.Value == _selectedFormation;
         bool hover = r.Contains(cursor);
         bool pressed = hover && Mouse.GetState().LeftButton == ButtonState.Pressed;
         sb.Draw(px, new Rectangle(r.Left - 1, r.Top - 1, r.Width + 2, r.Height + 2),
@@ -9491,10 +9526,16 @@ public partial class RTSGameplayScreen : GameScreen
             }
             else
                 sb.Draw(b.Icon, inner, tint);
-            // Tastenbuchstabe oben links, mit Schatten lesbar auf dem Bild
-            var at = new Vector2(r.Left + 5, r.Top + 2);
-            sb.DrawString(ScreenManager.Font, b.Label, at + new Vector2(1, 1), Color.Black);
-            sb.DrawString(ScreenManager.Font, b.Label, at, active ? new Color(255, 228, 120) : Color.White);
+            // Tastenbuchstabe oben links, mit Schatten lesbar auf dem Bild. Die
+            // Formationstasten haben kein Kürzel: ihr Name läge quer über der oberen
+            // Reihe des Symbols (wer vorn steht) und ragte in die Nachbartaste — er
+            // steht beim Zeigen in der Leiste, die gewählte Taste trägt den Goldrahmen
+            if (!b.Formation.HasValue)
+            {
+                var at = new Vector2(r.Left + 5, r.Top + 2);
+                sb.DrawString(ScreenManager.Font, b.Label, at + new Vector2(1, 1), Color.Black);
+                sb.DrawString(ScreenManager.Font, b.Label, at, active ? new Color(255, 228, 120) : Color.White);
+            }
             if (b.TradeArrow != 0)
                 DrawTradeArrow(sb, r, b.TradeArrow > 0);
             if (active)
@@ -9518,6 +9559,16 @@ public partial class RTSGameplayScreen : GameScreen
         sb.DrawString(ScreenManager.Font, b.Name,
             new Vector2(r.Left + (r.Width - nameSize.X) / 2f, r.Bottom - nameSize.Y),
             active ? new Color(240, 210, 140) : new Color(214, 200, 170));
+        if (active)
+        {
+            // gewählte Formation: goldener Rahmen um die Taste (wie im Setzmodus,
+            // nur hier ohne Symbol)
+            var gold = new Color(255, 215, 0);
+            sb.Draw(px, new Rectangle(r.Left, r.Top, r.Width, 2), gold);
+            sb.Draw(px, new Rectangle(r.Left, r.Bottom - 2, r.Width, 2), gold);
+            sb.Draw(px, new Rectangle(r.Left, r.Top, 2, r.Height), gold);
+            sb.Draw(px, new Rectangle(r.Right - 2, r.Top, 2, r.Height), gold);
+        }
     }
 
     /// <summary>

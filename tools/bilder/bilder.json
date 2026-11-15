@@ -10806,6 +10806,24 @@
     "ziel": "Icons/formation_flanke.png"
    },
    {
+    "name": "formation_angriff",
+    "seed": 11841,
+    "prompt": "Three steel swords side by side in a row in the upper half, their blades pointing straight up, hilts at the bottom. Two thick light wooden bows, each with one arrow on the string pointing to the right, side by side in a row in the lower half.",
+    "stil": "Game user interface icon in 16-bit pixel art style, crisp square pixels, limited warm color palette, simple clear symbols arranged in two rows, plain flat dark brown background, no text.",
+    "negativ": "text, letters, numbers, words, watermark, logo, signature, frame, border, photo, realistic, 3d render, cluttered background, blurry, people, soldiers, hands, flying arrows",
+    "negativ_allein": true,
+    "ziel": "Icons/formation_angriff.png"
+   },
+   {
+    "name": "formation_verteidigung",
+    "seed": 11832,
+    "prompt": "Two wooden bows, each with one arrow on the string, side by side in a row in the upper half. Three round wooden shields with iron rims side by side in a row in the lower half.",
+    "stil": "Game user interface icon in 16-bit pixel art style, crisp square pixels, limited warm color palette, simple clear symbols arranged in two rows, plain flat dark brown background, no text.",
+    "negativ": "text, letters, numbers, words, watermark, logo, signature, frame, border, photo, realistic, 3d render, cluttered background, blurry, people, soldiers, hands, flying arrows",
+    "negativ_allein": true,
+    "ziel": "Icons/formation_verteidigung.png"
+   },
+   {
     "name": "trebuchet_aufbauen",
     "seed": 11711,
     "prompt": "A tall wooden trebuchet standing upright and ready to throw, a wooden mallet leaning against its frame.",

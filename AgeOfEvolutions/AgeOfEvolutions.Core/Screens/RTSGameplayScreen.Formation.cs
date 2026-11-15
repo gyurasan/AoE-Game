@@ -22,6 +22,12 @@ namespace AgeOfEvolutions.Core.Screens;
 // die Schnellen werden gebremst (MarchPace, mindestens MARCH_MIN_FACTOR), damit alle zugleich
 // ankommen. Ein Klick auf Baum, Stein oder Gold ist für Soldaten ein Laufbefehl wie jeder
 // andere (IssueCommand) — nur Dorfbewohner ernten.
+//
+// Aufstellung wählbar (Nutzer 2026-11-15: „…soll man verschiedene Formationen auswählen
+// können, für Verteidigung und für Angriff“): _selectedFormation steht auf
+// AoE.Core.Ai.FormationLayout (Angriff = Standard wie bisher, Verteidigung = Schusslinie
+// vorn, Schild dahinter); die Leiste bietet beides als Taste an (RTSGameplayScreen.LayoutButtons),
+// FormArmyMove marschiert in der gewählten Aufstellung.
 public partial class RTSGameplayScreen
 {
     /// <summary>
@@ -34,6 +40,24 @@ public partial class RTSGameplayScreen
     private readonly Dictionary<Unit, float> _marchFactor = new();
 
     /// <summary>
+    /// Die gewählte Aufstellung der nächsten Aufstellungs-Marsche (Standard
+    /// <see cref="AoE.Core.Ai.FormationLayout.Angriff"/> = wie bisher;
+    /// <see cref="SetSelectedFormation"/> oder die Leistentaste schaltet um).
+    /// Bewusst kein Spielstand: die Auswahl und Aufstellung sind Spieler-Zustand
+    /// wie <c>placing</c> — ein geladenes Spiel marschiert wie ein neues.
+    /// </summary>
+    private AoE.Core.Ai.FormationLayout _selectedFormation = AoE.Core.Ai.FormationLayout.Angriff;
+
+    /// <summary>
+    /// Die Aufstellung der nächsten Aufstellungs-Marsche wählen (Leistentaste
+    /// „Angriff"/„Verteidigung" oder Befehl). Die Wahl bleibt, bis eine andere
+    /// Formation gewählt wird — der nächste Laufbefehl der Soldaten marschiert
+    /// danach in ihr.
+    /// </summary>
+    internal void SetSelectedFormation(AoE.Core.Ai.FormationLayout layout)
+        => _selectedFormation = layout;
+
+    /// <summary>
     /// Der Aufstellungs-Marsch für <paramref name="marchers"/> (zwei oder mehr Soldaten
     /// eines Besitzers, keine Dorfbewohner, keine Schiffe) um <paramref name="gridPos"/>.
     /// VERTRAG:
@@ -41,10 +65,11 @@ public partial class RTSGameplayScreen
     ///   (Klick auf der Kachel-Mitte); liegt der Klick im Schwerpunkt, (1, 0).
     /// - Anker: <see cref="AoECoreAi.Formation.AnchorForCenter"/> auf der Klick-Kachel,
     ///   damit die MITTE der Aufstellung auf dem Klick liegt (SlotsByPosition).
-    /// - Plätze: <see cref="AoECoreAi.Formation.SlotsByPosition"/> — Nahkämpfer vorn,
-    ///   Schützen und Belagerung dahinter, Reiter an den Flanken, eine Kachel frei
-    ///   zwischen den Nachbarn; jeder bekommt den Platz, der zu seiner Lage passt
-    ///   (keine Kreuzungen).
+    /// - Plätze: <see cref="AoECoreAi.Formation.SlotsByPosition"/> in der gewählten
+    ///   Aufstellung <see cref="_selectedFormation"/> — Angriff (Standard): Nahkämpfer vorn,
+    ///   Schützen und Belagerung dahinter, Reiter an den Flanken; Verteidigung: Schusslinie
+    ///   vorn, Schild dahinter, Flanken gleich. Eine Kachel frei zwischen den Nachbarn;
+    ///   jeder bekommt den Platz, der zu seiner Lage passt (keine Kreuzungen).
     /// - Jede Einheit: Auftrag, Baustelle und Ziele fallen, sie läuft auf ihre
     ///   Kachel (FindPathKnown — nur mit dem Wissen des Besitzers, wie jeder
     ///   Laufbefehl), ohne Weg untätig.
@@ -92,34 +117,17 @@ public partial class RTSGameplayScreen
         var anchor = AoECoreAi.Formation.AnchorForCenter(
             ((int)gridPos.X, (int)gridPos.Y), ((float)facing.X, (float)facing.Y), snapshots);
         var slots = AoECoreAi.Formation.SlotsByPosition(anchor,
-            ((float)facing.X, (float)facing.Y), snapshots, Walkable);
+            ((float)facing.X, (float)facing.Y), snapshots, Walkable, _selectedFormation);
 
-        // Ein Slot wird nur zugeteilt, wenn die Einheit ihn auch erreichen kann:
-        // sonst bleibt sie am gemeinsamen Wegpunkt stehen und die Formation
-        // bricht zusammen (z. B. wenn ein Slot auf Wasser fällt).
-        var belegt = new HashSet<int>();
-        foreach (var u in marchers)
-        {
-            int bevorzugt = idOf[u];
-            bool erreichbar = tileMap.FindPathKnown(u.OwnerId, u.Position,
-                tileMap.GridToWorld(new Vector2(slots[bevorzugt].X, slots[bevorzugt].Y))).Count > 0;
-            if (!erreichbar)
-            {
-                for (int s = 0; s < slots.Count; s++)
-                {
-                    if (s == bevorzugt || belegt.Contains(s))
-                        continue;
-                    if (tileMap.FindPathKnown(u.OwnerId, u.Position,
-                        tileMap.GridToWorld(new Vector2(slots[s].X, slots[s].Y))).Count > 0)
-                    {
-                        idOf[u] = s;
-                        break;
-                    }
-                }
-            }
-            belegt.Add(idOf[u]);
-        }
-
+        // Jede Einheit behält den Platz, den SlotsByPosition ihr gibt (Schlüssel von slots
+        // sind die Ids aus idOf, 1..N — keine Indizes). Einen Ersatzplatz für einen
+        // „unerreichbaren“ Platz gibt es bewusst nicht: FindPathKnown liefert nur dann
+        // einen leeren Weg, wenn die Einheit schon auf der besten Kachel steht — dann
+        // bleibt sie stehen (unten: ohne Weg untätig); liegt der Platz hinter Wasser,
+        // führt der Weg bis zur nächstliegenden Kachel. Der frühere Ersatzzweig lief
+        // deshalb genau dann, wenn ein Soldat schon richtig stand: erst las er slots[0]
+        // (Game-Crash 2026-11-15, KeyNotFoundException), nach der ersten Korrektur
+        // schickte er ihn auf den Platz des Nachbarn — zwei Soldaten auf einer Kachel.
         var distances = new Dictionary<Unit, float>(marchers.Count);
         float slowest = 0f;
         foreach (var u in marchers)

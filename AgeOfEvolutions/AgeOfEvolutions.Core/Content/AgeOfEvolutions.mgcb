@@ -11573,6 +11573,30 @@
 /processorParam:TextureFormat=Color
 /build:Icons/formation_linie.png
 
+#begin Icons/formation_angriff.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=False
+/processorParam:GenerateMipmaps=True
+/processorParam:PremultiplyAlpha=True
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/build:Icons/formation_angriff.png
+
+#begin Icons/formation_verteidigung.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=False
+/processorParam:GenerateMipmaps=True
+/processorParam:PremultiplyAlpha=True
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/build:Icons/formation_verteidigung.png
+
 #begin Icons/fruchtwechsel.png
 /importer:TextureImporter
 /processor:TextureProcessor

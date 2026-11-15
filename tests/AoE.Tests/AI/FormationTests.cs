@@ -381,4 +381,117 @@ public class FormationTests
         Assert.Equal(level != 0, p.Raids);
         Assert.Equal(level != 1, p.FormationTactics);
     }
+
+    // --- Wählbare Aufstellung (FormationLayout, Nutzer 2026-11-15) ---
+
+    [Fact]
+    public void Verteidigung_Schuetzen_vorn_Nahkaempfer_hinten()
+    {
+        // Drei Nahkämpfer, zwei Schützen, Blick nach Osten: die Schusslinie
+        // führt (x 20), der Schild schließt ab (x 18) — umgekehrt wie beim Angriff
+        var units = new[]
+        {
+            U(1, UnitKind.Militia, 0, 0), U(2, UnitKind.Militia, 0, 1), U(3, UnitKind.Militia, 0, 2),
+            U(4, UnitKind.Archer, 0, 0), U(5, UnitKind.Archer, 0, 1),
+        };
+        var s = Formation.Slots((20, 20), (1f, 0f), units, Open, FormationLayout.Verteidigung);
+        Assert.Equal((20, 19), s[4]);
+        Assert.Equal((20, 21), s[5]);
+        Assert.Equal((18, 18), s[1]);
+        Assert.Equal((18, 20), s[2]);
+        Assert.Equal((18, 22), s[3]);
+        // jeder Schütze steht vor jedem Nahkämpfer
+        foreach (var a in units.Where(u => u.Kind == UnitKind.Archer))
+            foreach (var m in units.Where(u => u.Kind == UnitKind.Militia))
+                Assert.True(Depth(s[a.Id], (20, 20), (1f, 0f)) > Depth(s[m.Id], (20, 20), (1f, 0f)),
+                    $"Schütze {s[a.Id]} nicht vor Nahkämpfer {s[m.Id]}");
+    }
+
+    [Fact]
+    public void Angriff_ist_der_Standard_und_wechselt_die_Reihen_zurueck()
+    {
+        // Dieselben Einheiten: Angriff (und die alte Signatur) = Nahkämpfer vorn,
+        // Schützen dahinter; Verteidigung tauscht genau diese Reihen
+        var units = new[]
+        {
+            U(1, UnitKind.Militia, 0, 0), U(2, UnitKind.Militia, 0, 1), U(3, UnitKind.Militia, 0, 2),
+            U(4, UnitKind.Archer, 0, 0), U(5, UnitKind.Archer, 0, 1),
+        };
+        var alt = Formation.Slots((20, 20), (1f, 0f), units, Open);
+        var angriff = Formation.Slots((20, 20), (1f, 0f), units, Open, FormationLayout.Angriff);
+        Assert.Equal(alt, angriff);
+        Assert.Equal((20, 18), angriff[1]);
+        Assert.Equal((20, 20), angriff[2]);
+        Assert.Equal((20, 22), angriff[3]);
+        Assert.Equal((18, 19), angriff[4]);
+        Assert.Equal((18, 21), angriff[5]);
+
+        var verteidigung = Formation.Slots((20, 20), (1f, 0f), units, Open, FormationLayout.Verteidigung);
+        Assert.NotEqual(verteidigung, angriff);
+        // gleiche Tiefe: vorderste Reihe am Anker, letzte eine Gliedtiefe dahinter
+        Assert.Equal(angriff.Values.Min(v => v.X), verteidigung.Values.Min(v => v.X));
+        Assert.Equal(angriff.Values.Max(v => v.X), verteidigung.Values.Max(v => v.X));
+    }
+
+    [Fact]
+    public void Verteidigung_im_Marsch_Schusslinie_vorn_Schild_hinten()
+    {
+        // Verstreut stehend (wie nach dem Aufrücken): der Marsch in Verteidigung
+        // gibt den Schützen die vorderen Plätze, den Nahkämpfern die hinteren —
+        // unabhängig davon, wo sie gerade stehen
+        var units = new List<UnitSnapshot>();
+        int id = 1;
+        foreach (var y in new[] { 30, 32, 34, 36 }) units.Add(U(id++, UnitKind.Militia, 8, y));
+        foreach (var y in new[] { 31, 33 }) units.Add(U(id++, UnitKind.Archer, 10, y));
+        var s = Formation.SlotsByPosition((20, 20), (1f, 0f), units, Open, FormationLayout.Verteidigung);
+        Assert.Equal(6, s.Values.Distinct().Count());
+        foreach (var a in units.Where(u => u.Kind == UnitKind.Archer))
+            foreach (var m in units.Where(u => u.Kind == UnitKind.Militia))
+                Assert.True(s[a.Id].X > s[m.Id].X,
+                    $"Schütze {s[a.Id]} nicht vor Nahkämpfer {s[m.Id]} (Blick nach Osten)");
+        // und dasselbe Team in Angriff: die Nahkämpfer führen
+        var angriff = Formation.SlotsByPosition((20, 20), (1f, 0f), units, Open, FormationLayout.Angriff);
+        foreach (var a in units.Where(u => u.Kind == UnitKind.Archer))
+            foreach (var m in units.Where(u => u.Kind == UnitKind.Militia))
+                Assert.True(angriff[a.Id].X < angriff[m.Id].X,
+                    $"Angriff: Schütze {angriff[a.Id]} nicht hinter Nahkämpfer {angriff[m.Id]}");
+    }
+
+    [Fact]
+    public void Verteidigung_Reiter_bleiben_an_den_Flanken_und_die_Tiefe_waehlt_den_Anker_nicht()
+    {
+        // Zwei Nahkämpfer, zwei Schützen, zwei Reiter: in beiden Aufstellungen
+        // stehen die Reiter an den Flanken (gleiche Plätze), nur die Reihen von
+        // Nahkampf und Schusslinie tauschen — und der Anker bleibt unverändert
+        var units = new[]
+        {
+            U(1, UnitKind.Militia, 0, 19), U(2, UnitKind.Militia, 0, 21),
+            U(3, UnitKind.Archer, 0, 19), U(4, UnitKind.Archer, 0, 21),
+            U(5, UnitKind.Cavalry, 0, 10), U(6, UnitKind.Cavalry, 0, 30),
+        };
+        var angriff = Formation.Slots((20, 20), (1f, 0f), units, Open, FormationLayout.Angriff);
+        var verteidigung = Formation.Slots((20, 20), (1f, 0f), units, Open, FormationLayout.Verteidigung);
+        Assert.Equal(angriff[5], verteidigung[5]);
+        Assert.Equal(angriff[6], verteidigung[6]);
+        Assert.NotEqual(angriff[1], verteidigung[1]);
+        // Reiter außen: Querlage jenseits der halben Breite
+        foreach (var r in new[] { 5, 6 })
+        {
+            Assert.True(Math.Abs(verteidigung[r].Y - 20) >= 3, $"Reiter {r} nicht an der Flanke: {verteidigung[r]}");
+            Assert.True(Math.Abs(angriff[r].Y - 20) >= 3, $"Reiter {r} nicht an der Flanke: {angriff[r]}");
+        }
+    }
+
+    [Fact]
+    public void Verteidigung_nur_Schuetzen_oder_nur_Nahkaempfer_ist_dieselbe_Aufstellung()
+    {
+        // Ohne die andere Rolle gibt es nichts zu tauschen — die Aufstellung
+        // bleibt exakt gleich (Reihenfolge der Einheiten wie im Angriff)
+        var nurNah = new[] { U(1, UnitKind.Militia, 0, 0), U(2, UnitKind.Militia, 0, 1) };
+        Assert.Equal(Formation.Slots((20, 20), (1f, 0f), nurNah, Open, FormationLayout.Angriff),
+                     Formation.Slots((20, 20), (1f, 0f), nurNah, Open, FormationLayout.Verteidigung));
+        var nurSchuetzen = new[] { U(1, UnitKind.Archer, 0, 0), U(2, UnitKind.Archer, 0, 1) };
+        Assert.Equal(Formation.Slots((20, 20), (1f, 0f), nurSchuetzen, Open, FormationLayout.Angriff),
+                     Formation.Slots((20, 20), (1f, 0f), nurSchuetzen, Open, FormationLayout.Verteidigung));
+    }
 }
