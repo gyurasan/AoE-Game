@@ -3723,6 +3723,169 @@
         "dotnet run --project tools/spielablauf/Spielablauf.csproj -v q -- belagerung"
       ],
       "prompt": "Aufgabe F15c (Ablaufprüfung belagerung, Testaufbau am Kartenrand).\n\nDatei: tools/spielablauf/Program.cs (über 10000 Zeilen) - lies sie NICHT, lies keine andere Datei, liste keine Verzeichnisse auf.\n\nIn der lokalen Funktion AufsHaus (in der Funktion Belagerung) steht genau einmal diese Zeile:\n```\n        var u = NeueEinheit(w, geraet, 0, new Vector2(platz.X - abstand, platz.Y + 1));\n```\nFehler: Steht das Haus am linken Kartenrand (platz.X ist 1 oder 2), liegt platz.X - abstand außerhalb der Karte (negativ); das Gerät steht dann neben der Karte und greift nie an - die Abnahme meldet auf solchen Zufallskarten „Testaufbau, nur 0 Treffer“. Gemessen: platz (2, 43), Gerät auf Kachel -3.5.\nNeue Regel (VERTRAG im Kommentar über Belagerung, Punkt 3): das Gerät steht links vom Haus bei (platz.X - abstand, platz.Y + 1); ist platz.X - abstand kleiner als 1, steht es rechts vom Haus bei (platz.X + 1 + abstand, platz.Y + 1) - das Haus ist 2 Kacheln breit (platz.X und platz.X + 1).\nErsetze NUR diese eine Zeile mit genau einer replace_in_file-Ersetzung (SUCHTEXT die Zeile oben, mit 8 Leerzeichen Einrückung) durch zwei Zeilen: erst eine float-Variable mit der x-Kachel nach der Regel, dann die NeueEinheit-Zeile mit dieser Variable. Danach sofort finish, nicht nachlesen."
+    },
+    {
+      "id": "RF1",
+      "title": "Flucht vor Raubtieren: Gefahrenzone (TileMap.InPredatorDanger) und Quellensuche ohne Gefahrenzone",
+      "auto": false,
+      "max_turns": 6,
+      "context_files": [],
+      "allow_write": [
+        "AgeOfEvolutions/AgeOfEvolutions.Core/Data/TileMap.Raubtiere.cs",
+        "AgeOfEvolutions/AgeOfEvolutions.Core/Data/TileMapGatherWorld.cs"
+      ],
+      "verify": [
+        "dotnet build tests/AoE.Tests/AoE.Tests.csproj -v q --nologo",
+        "dotnet test tests/AoE.Tests/AoE.Tests.csproj --nologo -v q --no-build --filter \"FullyQualifiedName~RaubfluchtTests|FullyQualifiedName~RaubtiereTests|FullyQualifiedName~JagdTests\""
+      ],
+      "prompt": "Aufgabe RF1 (Flucht vor Raubtieren, Teil Kern). Wunsch des Nutzers: „Raubtiere können übrigens auch Flucht auslösen“ - ein gebissener Dorfbewohner flieht und sucht sich danach eine Quelle außerhalb der Bissweite.\n\nZwei Dateien, je GENAU EINE replace_in_file-Ersetzung. Lies KEINE Datei ganz, liste KEINE Verzeichnisse auf - alles Nötige steht hier. Nach der zweiten Ersetzung sofort finish, nicht nachlesen.\n\n1) Datei AgeOfEvolutions/AgeOfEvolutions.Core/Data/TileMap.Raubtiere.cs (partielle Klasse TileMap). Die Methode `public bool InPredatorDanger(int x, int y)` hat den Rumpf `        throw new NotImplementedException();` (diese Zeile mit 8 Leerzeichen kommt in der Datei GENAU EINMAL vor - sie ist der SUCHTEXT). Ersetze sie durch die Umsetzung dieses VERTRAGS:\ntrue genau dann, wenn ein lebendes Raubtier (Bär oder Wolf) auf einer Kachel (px, py) aus den Listen `_bearCoords` oder `_wolfCoords` (Typ `List<(int x, int y)>`, Felder derselben Klasse) steht, für die `IsLivePredator(px, py)` gilt (Methode derselben Klasse, bool) und deren Abstand `MathF.Sqrt((px - x)² + (py - y)²)` kleiner oder gleich `Settings.PredatorReachTiles + PREDATOR_DANGER_EXTRA_TILES` ist (Settings.PredatorReachTiles ist float, PREDATOR_DANGER_EXTRA_TILES eine float-Konstante derselben Klasse). Sonst false. Nichts verändern.\nForm: `float radius = ...;` dann `foreach (List<(int x, int y)> coords in new[] { _bearCoords, _wolfCoords })` und darin `foreach ((int px, int py) in coords)`; Abstand mit float dx, dy rechnen. `using System;` ist da (MathF).\n\n2) Datei AgeOfEvolutions/AgeOfEvolutions.Core/Data/TileMapGatherWorld.cs. In `FindNearestSource` stehen genau einmal diese drei Zeilen (16 Leerzeichen Einrückung, dann 20):\n```\n                if (resource == Resource.Food && _map.GetTile(x, y) is { Farm: true }\n                    && _map.IsFarmTaken(x, y))\n                    continue;\n```\nSUCHTEXT sind diese drei Zeilen. ERSATZ: dieselben drei Zeilen unverändert, danach drei neue Zeilen in derselben Einrückung:\n```\n                // In Bissweite eines Raubtiers arbeitet niemand\n                if (_map.InPredatorDanger(x, y))\n                    continue;\n```\n(_map ist das TileMap-Feld der Klasse.)\n\nDie Abnahme sind die Tests in tests/AoE.Tests/RaubfluchtTests.cs - du musst sie nicht lesen."
+    },
+    {
+      "id": "RF4",
+      "title": "Ablaufprüfung raubflucht: Holzfäller flieht vor dem Wolf, arbeitet woanders weiter, Jäger/Soldat/Locker fliehen nicht",
+      "auto": false,
+      "max_turns": 10,
+      "context_files": [],
+      "allow_write": [
+        "tools/spielablauf/Raubflucht.cs"
+      ],
+      "verify": [
+        "dotnet build tools/spielablauf/Spielablauf.csproj -v q --nologo"
+      ],
+      "prompt": "Aufgabe RF4 (Ablaufprüfung `raubflucht`, Flucht vor Raubtieren).\n\nDatei: tools/spielablauf/Raubflucht.cs (rund 190 Zeilen). Lies NUR diese Datei (einmal, ganz), lies KEINE andere Datei, liste KEINE Verzeichnisse auf - alle fremden Typen und Hilfen stehen unten. Die Datei enthält die statische Klasse `Raubflucht` mit fünf Methoden, deren Rumpf je eine Zeile `throw new NotImplementedException(\"<Name>\");` ist (Namen: Szene, WoandersWeiter, ZurueckNachDemErlegen, JaegerUndSoldatFliehenNicht, Wildschwein). Über jeder Methode steht im XML-Kommentar ein VERTRAG. Ersetze jede dieser fünf Zeilen mit je GENAU EINER replace_in_file-Ersetzung (SUCHTEXT: die Zeile mit 8 Leerzeichen Einrückung, z. B. `        throw new NotImplementedException(\"Szene\");`) durch die Umsetzung des VERTRAGS. Jede Ersetzung nur einmal; nach der fünften sofort finish, nicht nachlesen.\n\nUmgebung (C#, net10, ImplicitUsings an, Nullable aus; die usings der Datei genügen: AgeOfEvolutions.Core.Data, Microsoft.Xna.Framework, Aliasse UnitState, Resource, CorePosition, GatherJob):\n- `Welt` (Klasse im selben Projekt): `TileMap Map`, `object Call(string name, params object[] args)` (ruft eine Methode des Spielbildschirms; Rückgabe casten, z. B. `(bool)w.Call(\"IsFleeing\", v)`), `float LaufeBis(Func<bool> bedingung, float sekunden)` (lässt das Spiel laufen bis die Bedingung gilt, Rückgabe vergangene Sekunden).\n- Hilfen aus der Klasse `Raubtiere` (selbes Projekt, internal static): `Welt NeueWelt()` (ohne Argument aufrufen), `(int X, int Y, int D) Platz(Welt w)`, `WildAnimal Aufstellen(Welt w, FoodSource art, (int X, int Y, int D) p)`, `Unit Neu(Welt w, UnitType typ, int x, int y)`.\n- `TileMap`: `int Width`, `int Height`, `int TileSize`, `Tile GetTile(int x, int y)` (null außerhalb), `bool IsWalkable(int x, int y)`, `int BuildingDistance(int x, int y)`, `(int x, int y) StartPosition(int owner)`, `IReadOnlyList<Unit> Units` (oder List - nur lesen), `Vector2 GridToWorld(Vector2 kachel)` (Kachelmitte in Welt), `bool PlacePredator(FoodSource art, int x, int y)`, `(int X, int Y)? LocatePredator(WildAnimal tier)`, `bool DamageAnimal(int x, int y, int damage, Unit attacker = null)`, `bool InPredatorDanger(int x, int y)`, `List<Unit> FindPath(Vector2 von, Vector2 nach)` - Achtung, liefert List<Vector2>, also `u.Path = w.Map.FindPath(u.Position, u.TargetPosition);`, `MapSettings Settings` (darin `int BoarFood`), `int PredatorMaxHealth(FoodSource art)`, `void RebuildWildAnimals()`.\n- `Tile`: `TileType Type` (TileType.Grassland), `Resource? ResourceType`, `int ResourceAmount`, `FoodSource Food` (FoodSource.None/Wolf/Boar), `WildAnimal Animal`, `bool Farm`, `string Building`.\n- `WildAnimal`: `int Health`, `float WanderTimer`, `Unit ProvokedBy`, `float ProvokedSeconds` (alle get/set), neu per `new WildAnimal { Health = ..., WanderTimer = ... }`.\n- `Unit`: `Vector2 Position`, `Vector2 TargetPosition`, `List<Vector2> Path`, `UnitState State`, `int Health`, `int MaxHealth`, `GatherJob Job`, `GatherJob ResumeJob`, `WildAnimal PreyTarget`, `object Core`. `GatherJob`: Konstruktor `new GatherJob(int ownerId, Resource resource, CorePosition source)`, Eigenschaft `CorePosition Source` mit `int X`, `int Y`. `new CorePosition(x, y)`.\n- `UnitType.Villager`, `UnitType.Militia`; `UnitState.Gathering`, `UnitState.Moving`, `UnitState.Idle`, `UnitState.Dead`.\n\nHinweise: Szene gibt ein Tupel-nullable zurück: am Ende `return (w, v, (x, y), (wx, wy), wolf);`, sonst `return null;`. In den Fällen `if (Szene() is not { } s) { Console.WriteLine(...); return; }` und dann `var (w, v, baum, wk, wolf) = s;`. Für Vergleiche von Kachel-Tupeln `==` verwenden (z. B. `w.Map.LocatePredator(wolf) != wk` geht, weil (int X, int Y)? mit (int X, int Y) vergleichbar ist). Freie-Kachel-Prüfung als lokale Funktion `bool Frei(TileMap m, int x, int y)` in Szene. Abstände zwischen Weltpunkten mit `Vector2.Distance`. Verstöße als `verstoesse.Add($\"{wer}: ...\")` mit dem Text aus dem VERTRAG und den genannten Werten. Für Fall 3 eine Schleife über `new[] { (UnitType.Villager, \"Jäger\"), (UnitType.Militia, \"Miliz\") }`."
+    },
+    {
+      "id": "RF2",
+      "title": "Flucht vor Raubtieren: StartFleeAnimal, FleePointFrom, UpdateFlee mit Tier, ResumeWork außerhalb der Gefahrenzone",
+      "auto": false,
+      "max_turns": 14,
+      "context_files": [],
+      "allow_write": [
+        "AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.Flucht.cs"
+      ],
+      "verify": [
+        "dotnet build tools/spielablauf/Spielablauf.csproj -v q --nologo",
+        "dotnet run --project tools/spielablauf/Spielablauf.csproj -v q -- flucht"
+      ],
+      "prompt": "Aufgabe RF2 (Flucht vor Raubtieren, Teil Fluchtlogik). Wunsch des Nutzers: „Raubtiere können übrigens auch Flucht auslösen“.\n\nDatei: AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.Flucht.cs (rund 260 Zeilen, partielle Klasse RTSGameplayScreen). Lies NUR diese Datei, einmal ganz; lies KEINE andere Datei, liste KEINE Verzeichnisse auf. Die XML-Kommentare (VERTRAG) sind schon auf dem neuen Stand - der Code noch nicht. Mache GENAU diese Ersetzungen mit replace_in_file, jede nur einmal, danach sofort finish:\n\nSchritt 1 - FleeState: nach der Zeile `        public Unit From;       // der Angreifer, vor dem er flieht (null bei einem Tier)` steht schon `public WildAnimal Animal;` - nichts tun. In StartFlee nach `        state.From = attacker;` eine Zeile `        state.Animal = null;` einfügen (SUCHTEXT `        state.From = attacker;`).\n\nSchritt 2 - Die Methode `internal void StartFleeAnimal(Unit unit, WildAnimal animal, Vector2 from)` hat den Rumpf `        throw new NotImplementedException(\"StartFleeAnimal\");`. Ersetze diese Zeile durch dieselben Anweisungen wie im Rumpf von StartFlee (Arbeit nur bei der ersten Flucht merken, Job/BuildSite/UnitTarget/AttackTarget/PreyTarget/BoardShip null, AutoTarget false, FleeState holen oder anlegen), aber `state.From = null; state.Animal = animal;` und `state.Point = FleePointFrom(unit, from);`, danach wie dort TargetPosition, Path (tileMap.FindPath) und State.\n\nSchritt 3 - nichts zu tun: `FleePoint(Unit, Unit)` und `FleePointFrom(Unit unit, Vector2 from)` sind fertig, nicht anfassen.\n\nSchritt 4 - ResumeWork: im Zweig `if (unit.ResumeJob is { } job)` steht genau einmal\n```\n            _flee.Remove(unit);\n            unit.Job = job;\n            FollowJob(unit);\n```\nErsetze diese drei Zeilen (SUCHTEXT) durch:\n```\n            _flee.Remove(unit);\n            if (tileMap.InPredatorDanger(job.Source.X, job.Source.Y))\n            {\n                // Zurück in den Biss? Lieber die nächste gleiche Quelle außerhalb\n                if (gatherWorld.FindNearestSource(job.Source, job.Resource, GatherJob.SEARCH_RADIUS) is not { } safe)\n                    return;\n                job = new GatherJob(unit.OwnerId, job.Resource, safe, job.Carrying);\n            }\n            unit.Job = job;\n            FollowJob(unit);\n```\n\nSchritt 5 - UpdateFlee: Der Rumpf beginnt nach `if (!_flee.TryGetValue(unit, out var state)) return;` mit dem Block von `        var from = state.From;` bis einschließlich der Zeile `            state.Point = FleePoint(unit, from);`. Ersetze GENAU diesen Block (SUCHTEXT von `        var from = state.From;` bis `            state.Point = FleePoint(unit, from);`, wörtlich aus der Datei) durch eine Fassung, die zuerst `float ts = tileMap.TileSize; Vector2 danger; bool aimed;` deklariert und dann unterscheidet:\n- `if (state.Animal is { } animal)`: ist `animal.Slaughtered || animal.Health <= 0 || tileMap.LocatePredator(animal) is not { } lage` → `ResumeWork(unit); return;`. Ist `!tileMap.IsTileVisible(lage.X, lage.Y, unit.OwnerId)` → ResumeWork, return. Dann `danger = tileMap.GridToWorld(new Vector2(lage.X, lage.Y)); aimed = ReferenceEquals(animal.ProvokedBy, unit);`.\n- `else`: der bisherige Code für from (tot/fehlt → ResumeWork, return; unsichtbar → ResumeWork, return), dann `danger = from.Position; aimed = from.UnitTarget == unit;`.\nDanach `float dist = Vector2.Distance(unit.Position, danger);` und die bisherige Bedroht-Abfrage `if (dist <= FLEE_NEAR_TILES * ts || (aimed && dist <= FLEE_AIMED_TILES * ts))` mit `state.Calm = 0f;` und `state.Point = FleePointFrom(unit, danger);` - der Rest der Methode (TargetPosition, Path, State, return, Ruhe-Zähler) bleibt unverändert hinter dem SUCHTEXT stehen. `float ts` darf es danach nur einmal geben.\n\nTypen: `WildAnimal` (bool Slaughtered, int Health, Unit ProvokedBy), `tileMap.LocatePredator(WildAnimal)` liefert `(int X, int Y)?`, `tileMap.IsTileVisible(int x, int y, int owner)`, `tileMap.InPredatorDanger(int x, int y)`, `gatherWorld.FindNearestSource(CorePosition from, Resource resource, int maxDistance)` liefert `AoE.Core.Entities.Position?`, `GatherJob` (Alias vorhanden) mit `Source` (X, Y), `Resource`, `Carrying`, Konstruktor `(int ownerId, Resource resource, Position source, int carrying)`."
+    },
+    {
+      "id": "RF3",
+      "title": "Flucht vor Raubtieren: gebissene Dorfbewohner fliehen (UpdatePredators)",
+      "auto": false,
+      "max_turns": 4,
+      "context_files": [],
+      "allow_write": [
+        "AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.Raubtiere.cs"
+      ],
+      "verify": [
+        "dotnet build tools/spielablauf/Spielablauf.csproj -v q --nologo",
+        "dotnet run --project tools/spielablauf/Spielablauf.csproj -v q -- raubflucht flucht raubtiere jagd"
+      ],
+      "prompt": "Aufgabe RF3 (Flucht vor Raubtieren, Auslöser). Wunsch des Nutzers: „Raubtiere können übrigens auch Flucht auslösen“.\n\nDatei: AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.Raubtiere.cs (rund 540 Zeilen). Lies sie NICHT, lies keine andere Datei, liste keine Verzeichnisse auf. GENAU EINE replace_in_file-Ersetzung, danach sofort finish.\n\nIn der Methode `internal void UpdatePredators(float dt)` steht genau einmal (12 Leerzeichen, dann 16):\n```\n            {\n                AttackAnimal(new List<Unit> { s.Victim }, s.X, s.Y);\n            }\n```\nSUCHTEXT sind diese drei Zeilen. ERSATZ: dieselben drei Zeilen, danach ein `else if`-Zweig in derselben Einrückung nach diesem VERTRAG (er steht so im XML-Kommentar über der Methode):\nIst `!s.Killed`, ist `s.Victim.Core is AoE.Core.Entities.Villager`, sind `s.Victim.UnitTarget`, `s.Victim.AttackTarget` und `s.Victim.PreyTarget` alle `null`, steht auf `tileMap.GetTile(s.X, s.Y)?.Animal is { } tier` ein Tier und gilt `!ReferenceEquals(tier.ProvokedBy, s.Victim)`, dann `StartFleeAnimal(s.Victim, tier, tileMap.GridToWorld(new Vector2(s.X, s.Y)));`. Darüber eine Kommentarzeile `// Dorfbewohner fliehen vor dem Biss - außer Jäger und wer die Sau selbst gereizt hat`.\n(s ist ein PredatorStrike mit Victim (Unit), X, Y (int), Killed (bool). StartFleeAnimal(Unit, WildAnimal, Vector2) gibt es in derselben partiellen Klasse.)"
+    },
+    {
+      "id": "RF4b",
+      "title": "Ablaufprüfung raubflucht: Tupelnamen der Wolfkachel (X, Y) - Compilerfehler CS1061",
+      "auto": false,
+      "max_turns": 3,
+      "context_files": [],
+      "allow_write": [
+        "tools/spielablauf/Raubflucht.cs"
+      ],
+      "verify": [
+        "dotnet build tools/spielablauf/Spielablauf.csproj -v q --nologo"
+      ],
+      "prompt": "Aufgabe RF4b (Compilerfehler in tools/spielablauf/Raubflucht.cs). Lies auf KEINEN Fall eine Datei, liste keine Verzeichnisse auf. GENAU EINE replace_in_file-Ersetzung, danach sofort finish.\n\nRÜCKMELDUNG des Compilers: Raubflucht.cs(139,50): error CS1061: \"(int wx, int wy)\" enthält keine Definition für \"X\" (ebenso Y, Zeilen 139, 141, 151, 162). Ursache: die Variable ist mit den Tupelnamen wx, wy deklariert, benutzt wird aber wk.X und wk.Y.\n\nIn der Datei steht genau einmal die Zeile (8 Leerzeichen Einrückung):\n        (int wx, int wy)? wolfk = null;\nSUCHTEXT ist diese Zeile, ERSATZ:\n        (int X, int Y)? wolfk = null;\nSonst nichts ändern."
+    },
+    {
+      "id": "RF4c",
+      "title": "Ablaufprüfung raubflucht: Fall 5 Vorbeilaufen (gebissen im Laufen, läuft weiter)",
+      "auto": false,
+      "max_turns": 4,
+      "context_files": [],
+      "allow_write": [
+        "tools/spielablauf/Raubflucht.cs"
+      ],
+      "verify": [
+        "dotnet build tools/spielablauf/Spielablauf.csproj -v q --nologo"
+      ],
+      "prompt": "Aufgabe RF4c (Ablaufprüfung raubflucht, Fall 5 Vorbeilaufen).\n\nDatei: tools/spielablauf/Raubflucht.cs (rund 470 Zeilen). Lies sie NICHT, lies keine andere Datei, liste keine Verzeichnisse auf. GENAU EINE replace_in_file-Ersetzung, danach sofort finish.\n\nIn der Datei steht genau einmal (8 Leerzeichen Einrückung) die Zeile\n        throw new NotImplementedException(\"Vorbeilaufen\");\nim Rumpf von `static void Vorbeilaufen(int karte, List<string> verstoesse)`. SUCHTEXT ist diese Zeile; ERSATZ die Umsetzung dieses VERTRAGS (er steht so im XML-Kommentar darüber):\n\nwer = $\"Karte {karte}, Raubflucht vorbeilaufen\"; vorher = verstoesse.Count.\nw = Raubtiere.NeueWelt(); p = Raubtiere.Platz(w); wolf = Raubtiere.Aufstellen(w, FoodSource.Wolf, p); v = Raubtiere.Neu(w, UnitType.Villager, p.X + p.D * 4, p.Y);\nziel = w.Map.GridToWorld(new Vector2(p.X - p.D * 2, p.Y + 1)).\nLaufbefehl: v.Job = null; v.TargetPosition = ziel; v.Path = w.Map.FindPath(v.Position, ziel); v.State = UnitState.Moving. Ist v.Path.Count == 0: Console.WriteLine($\"      {wer}: kein Weg am Wolf vorbei - übersprungen\"); return;\na) w.LaufeBis(() => v.Health < v.MaxHealth, 15f). Ist danach v.Health == v.MaxHealth: Console.WriteLine($\"      {wer}: im Vorbeilaufen nicht gebissen - übersprungen\"); return;\nb) if ((bool)w.Call(\"IsFleeing\", v)) verstoesse.Add($\"{wer}: flieht beim Vorbeilaufen und vergisst den Laufbefehl\"); if (v.State != UnitState.Moving) verstoesse.Add($\"{wer}: nach dem Biss im Laufen {v.State} statt Moving\");\nc) float zeit = w.LaufeBis(() => Vector2.Distance(v.Position, ziel) <= 0.75f * w.Map.TileSize, 20f); ist danach Vector2.Distance(v.Position, ziel) > 0.75f * w.Map.TileSize: verstoesse.Add($\"{wer}: kommt nicht am Ziel an (steht auf {w.Map.WorldToGrid(v.Position)}, {v.State})\").\nd) if (w.Map.LocatePredator(wolf) != (p.X, p.Y)) verstoesse.Add($\"{wer}: der Wolf folgt - jetzt auf {w.Map.LocatePredator(wolf)}\");\nZuletzt: if (verstoesse.Count == vorher) Console.WriteLine($\"  ok  {wer}: gebissen, läuft weiter, nach {zeit:0.0} s am Ziel, {v.Health}/{v.MaxHealth} LP\");\n\nTypen: Raubtiere.Platz liefert (int X, int Y, int D); Raubtiere.Aufstellen liefert WildAnimal; Raubtiere.Neu liefert Unit. w.Map ist TileMap (GridToWorld/WorldToGrid nehmen und liefern Vector2, FindPath(Vector2, Vector2) liefert List<Vector2>, LocatePredator liefert (int X, int Y)?). UnitState ist per Alias da. Die Variable zeit wird in c) deklariert und in der ok-Zeile benutzt."
+    },
+    {
+      "id": "RF3b",
+      "title": "Flucht vor Raubtieren: wer im Laufen gebissen wird, läuft weiter (Bedingung im Auslöser)",
+      "auto": false,
+      "max_turns": 3,
+      "context_files": [],
+      "allow_write": [
+        "AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.Raubtiere.cs"
+      ],
+      "verify": [
+        "dotnet build tools/spielablauf/Spielablauf.csproj -v q --nologo",
+        "dotnet run --project tools/spielablauf/Spielablauf.csproj -v q -- raubflucht strassen raubtiere"
+      ],
+      "prompt": "Aufgabe RF3b (Flucht vor Raubtieren: Vorbeilaufen). Datei: AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.Raubtiere.cs - lies sie NICHT, lies keine andere Datei, liste keine Verzeichnisse auf. GENAU EINE replace_in_file-Ersetzung, danach sofort finish.\n\nIn UpdatePredators steht im else-if-Zweig der Flucht genau einmal (16 Leerzeichen Einrückung):\n                && s.Victim.PreyTarget is null\n                && tileMap.GetTile(s.X, s.Y)?.Animal is { } tier\nSUCHTEXT sind diese zwei Zeilen. ERSATZ: dieselben zwei Zeilen, aber dazwischen eine neue Zeile in derselben Einrückung:\n                && s.Victim.State is not (UnitState.Moving or UnitState.Returning)\n(UnitState ist per Alias in der Datei. Grund laut VERTRAG im Kommentar: wer gerade läuft, läuft weiter - Bär und Wolf verfolgen niemanden, ein Laufbefehl bleibt.)"
+    },
+    {
+      "id": "RF4d",
+      "title": "Ablaufprüfung raubflucht: Fall 3 beobachtet die Flucht 3,5 s lang in jedem Bild",
+      "auto": false,
+      "max_turns": 3,
+      "context_files": [],
+      "allow_write": [
+        "tools/spielablauf/Raubflucht.cs"
+      ],
+      "verify": [
+        "dotnet build tools/spielablauf/Spielablauf.csproj -v q --nologo",
+        "dotnet run --project tools/spielablauf/Spielablauf.csproj -v q -- raubflucht"
+      ],
+      "prompt": "Aufgabe RF4d (Ablaufprüfung raubflucht, Fall 3 schärfen). Datei tools/spielablauf/Raubflucht.cs - lies sie NICHT, lies keine andere Datei, liste keine Verzeichnisse auf. GENAU EINE replace_in_file-Ersetzung, danach sofort finish.\n\nGrund: Der Jäger bekommt den ersten Biss noch im Anlaufen (dort flieht niemand); 1 s danach hat der Wolf (Biss alle 1,5 s) noch nicht wieder zugebissen - ein Jäger, der fälschlich flöhe, fiele so nicht auf.\n\nIn der Methode JaegerUndSoldatFliehenNicht stehen genau einmal diese zwei Zeilen (12 Leerzeichen Einrückung):\n            w.LaufeBis(() => false, 1f);\n            if ((bool)w.Call(\"IsFleeing\", u))\nSUCHTEXT sind diese zwei Zeilen. ERSATZ (gleiche Einrückung):\n            // Zwei weitere Bisse abwarten (Wolf alle 1,5 s) und die Flucht in jedem Bild beobachten\n            bool floh = false;\n            w.LaufeBis(() => { floh |= (bool)w.Call(\"IsFleeing\", u); return false; }, 3.5f);\n            if (floh)\nDie Zeile mit verstoesse.Add darunter bleibt unverändert."
+    },
+    {
+      "id": "SV7",
+      "title": "Spielstand: die Arbeit vor einer Flucht (ResumeJob, ResumeSite) speichern und laden",
+      "auto": false,
+      "max_turns": 6,
+      "context_files": [],
+      "allow_write": [
+        "AgeOfEvolutions/AgeOfEvolutions.Core/Data/SaveGameMapper.cs"
+      ],
+      "verify": [
+        "dotnet build tests/AoE.Tests/AoE.Tests.csproj -v q --nologo",
+        "dotnet test tests/AoE.Tests/AoE.Tests.csproj --nologo -v q --no-build --filter \"FullyQualifiedName~FluchtSpielstandTests|FullyQualifiedName~SaveGame|FullyQualifiedName~Spielstand\""
+      ],
+      "prompt": "Aufgabe SV7 (Spielstand: gemerkte Arbeit vor einer Flucht). Datei AgeOfEvolutions/AgeOfEvolutions.Core/Data/SaveGameMapper.cs - lies sie NICHT, lies keine andere Datei, liste keine Verzeichnisse auf. GENAU DREI replace_in_file-Ersetzungen, danach sofort finish.\n\nNeue Felder in UnitSave (schon da, nicht anlegen): `GatherJobState ResumeJob` und `int? ResumeSite` (Index in Buildings). Am Unit (schon da): `GatherJob ResumeJob`, `Building ResumeSite`. Im Mapper gibt es schon die Hilfsmethode `IndexOf(liste, element)` (int? - null, wenn nicht drin) und `GatherJob.FromState(state)`.\n\n1) Capture. SUCHTEXT (genau einmal, 16 bzw. 12 Leerzeichen):\n                UnloadY = unit.UnloadAt?.Y,\n            });\nERSATZ:\n                UnloadY = unit.UnloadAt?.Y,\n                ResumeJob = unit.ResumeJob?.ToState(),\n                ResumeSite = IndexOf(map.Buildings, unit.ResumeSite),\n            });\n\n2) Restore Schritt 6. SUCHTEXT (genau einmal, 12 Leerzeichen):\n            unit.Job = us.Job is null ? null : GatherJob.FromState(us.Job);\nERSATZ: dieselbe Zeile und darunter\n            unit.ResumeJob = us.ResumeJob is null ? null : GatherJob.FromState(us.ResumeJob);\n\n3) Restore Schritt 7. SUCHTEXT (genau einmal, 12 Leerzeichen):\n            unit.AutoTarget = unit.UnitTarget != null && us.AutoTarget;\nERSATZ: dieselbe Zeile und darunter (im selben Stil wie BuildSite zwei Zeilen darüber):\n            unit.ResumeSite = us.ResumeSite is null || us.ResumeSite < 0 || us.ResumeSite >= map.Buildings.Count\n                ? null : map.Buildings[us.ResumeSite.Value];\n\nSonst nichts ändern."
+    },
+    {
+      "id": "SV9",
+      "title": "Ablaufprüfung raubflucht: Fall 6 Spielstand (flieht geladen weiter, dasselbe wie ohne Laden)",
+      "auto": false,
+      "max_turns": 6,
+      "context_files": [],
+      "allow_write": [
+        "tools/spielablauf/Raubflucht.cs"
+      ],
+      "verify": [
+        "dotnet build tools/spielablauf/Spielablauf.csproj -v q --nologo"
+      ],
+      "prompt": "Aufgabe SV9 (Ablaufprüfung raubflucht, Fall 6 Spielstand). Datei tools/spielablauf/Raubflucht.cs (rund 560 Zeilen). Lies NUR diese Datei, einmal ganz; lies keine andere Datei, liste keine Verzeichnisse auf.\n\nDie Methode `static void Spielstand(int karte, List<string> verstoesse)` am Ende der Klasse hat den Rumpf `        throw new NotImplementedException();` - ersetze ihn nach dem VERTRAG im XML-Kommentar darüber, Schritt für Schritt, mit genau den angegebenen Verstoß-Texten. Als SUCHTEXT nimm die Signaturzeile samt `{`, throw-Zeile und `}` (vier Zeilen) - die throw-Zeile allein ist nicht eindeutig. Halte dich im Stil an die anderen Fälle der Datei (Szene(), `var (w, v, baum, wk, wolf) = s;`, `var vorher = verstoesse.Count;`, am Ende ohne neue Verstöße eine ok-Zeile `Console.WriteLine($\"  ok  {wer}: geladen flieht er weiter und sammelt wie ohne Laden an {v.Job?.Source}\")`).\n\nVerfügbar: `SaveGame` und `SaveGameStore` (Namensraum AgeOfEvolutions.Core.Data, using steht da; SaveGameStore.Serialize(SaveGame) -> string, SaveGameStore.Deserialize(string) -> SaveGame), Konstruktor `new Welt(SaveGame)`, `w.Map.Units` (List<Unit>), `Unit.ResumeJob` (GatherJob mit `Source`, ein Position-Wert mit X und Y - mit == vergleichbar), `Unit.Job`. Eine replace_in_file-Ersetzung, danach sofort finish."
+    },
+    {
+      "id": "SV8",
+      "title": "Spielstand: Fluchtzustand erfassen und wiederherstellen (CaptureFlee, RestoreFlee)",
+      "auto": false,
+      "max_turns": 8,
+      "context_files": [],
+      "allow_write": [
+        "AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.Flucht.cs",
+        "AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs"
+      ],
+      "verify": [
+        "dotnet build tools/spielablauf/Spielablauf.csproj -v q --nologo",
+        "dotnet run --project tools/spielablauf/Spielablauf.csproj -v q -- raubflucht speichern flucht"
+      ],
+      "prompt": "Aufgabe SV8 (Spielstand: Fluchtzustand). Zwei Dateien. Lies NUR AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.Flucht.cs (rund 380 Zeilen), einmal ganz; AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs NICHT lesen (über 10000 Zeilen), keine andere Datei, keine Verzeichnisse.\n\nA) In AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.Flucht.cs haben `private void CaptureFlee(SaveGame save)` und `private void RestoreFlee(SaveGame save)` die Rümpfe `throw new NotImplementedException(\"CaptureFlee\");` bzw. `(\"RestoreFlee\")` (je genau einmal - das sind die SUCHTEXTE, 8 Leerzeichen). Ersetze sie nach dem VERTRAG im XML-Kommentar darüber. Hinweise: `_flee` ist ein Dictionary<Unit, FleeState>; FleeState hat die Felder From (Unit), Animal (WildAnimal), Calm (float), Point (Vector2); `tileMap.Units` ist eine List<Unit>; `tileMap.LocatePredator(WildAnimal)` liefert `(int X, int Y)?`; `tileMap.GetTile(x, y)` liefert die Kachel (oder null) mit `.Animal`. Die Felder von UnitSave heißen Fleeing (bool), FleeFrom (int?), FleeAnimalX/FleeAnimalY (int?), FleePointX/FleePointY (float), FleeCalm (float). SaveGame/UnitSave liegen in AgeOfEvolutions.Core.Data (using steht da).\n\nB) In AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs ZWEI Ersetzungen:\n1. SUCHTEXT (genau einmal, 8 Leerzeichen):\n        save.CameraCenterY = HUD_TOP_HEIGHT / cameraZoom + FreeHeight / (2f * cameraZoom) - cameraPosition.Y;\n        return save;\nERSATZ: die erste Zeile unverändert, dann `        // Wer gerade flieht, flieht geladen weiter (Raubflucht, B2)` und `        CaptureFlee(save);`, dann `        return save;`.\n2. SUCHTEXT (genau einmal; 8 bzw. 4 Leerzeichen):\n        BothSidesAi = save.BothSidesAi;\n    }\nERSATZ: die erste Zeile unverändert, dann `        // Fliehende Dorfbewohner fliehen weiter` und `        RestoreFlee(save);`, dann `    }`.\n\nInsgesamt vier replace_in_file-Ersetzungen, danach sofort finish."
     }
   ]
 }

@@ -91,8 +91,15 @@ public partial class RTSGameplayScreen
     /// ist s.Killed false, s.Victim.AttackPower größer 0, s.Victim.Category weder
     /// UnitCategory.Worker noch UnitCategory.Civilian und sind UnitTarget, AttackTarget und
     /// PreyTarget des Opfers alle null, dann AttackAnimal(new List&lt;Unit&gt; { s.Victim }, s.X, s.Y).
-    /// Dorfbewohner wehren sich nicht von selbst - sie arbeiten weiter, der Spieler kann sie auf
-    /// das Tier ansetzen.
+    /// Dorfbewohner wehren sich nicht von selbst - sie fliehen (Nutzer 2026-11-13: „Raubtiere
+    /// können übrigens auch Flucht auslösen“): ist s.Killed false, s.Victim.Core ein
+    /// AoE.Core.Entities.Villager, sind UnitTarget, AttackTarget und PreyTarget des Opfers alle
+    /// null, läuft das Opfer gerade nicht (State weder UnitState.Moving noch UnitState.Returning -
+    /// wer vorbeiläuft, läuft weiter: Bär und Wolf verfolgen niemanden, und ein Laufbefehl bleibt)
+    /// und steht auf tileMap.GetTile(s.X, s.Y) ein Tier (Animal nicht null), das das Opfer
+    /// nicht selbst gereizt hat (Animal.ProvokedBy ist nicht s.Victim - wer ein Wildschwein lockt,
+    /// läuft weiter), dann StartFleeAnimal(s.Victim, Animal, tileMap.GridToWorld(new Vector2(s.X,
+    /// s.Y))). Wer das Tier jagt (PreyTarget), kämpft weiter.
     /// </summary>
     internal void UpdatePredators(float dt)
     {
@@ -114,6 +121,18 @@ public partial class RTSGameplayScreen
                 && s.Victim.PreyTarget is null)
             {
                 AttackAnimal(new List<Unit> { s.Victim }, s.X, s.Y);
+            }
+            else if (!s.Killed
+                && s.Victim.Core is AoE.Core.Entities.Villager
+                && s.Victim.UnitTarget is null
+                && s.Victim.AttackTarget is null
+                && s.Victim.PreyTarget is null
+                && s.Victim.State is not (UnitState.Moving or UnitState.Returning)
+                && tileMap.GetTile(s.X, s.Y)?.Animal is { } tier
+                && !ReferenceEquals(tier.ProvokedBy, s.Victim))
+            {
+                // Dorfbewohner fliehen vor dem Biss - außer Jäger und wer die Sau selbst gereizt hat
+                StartFleeAnimal(s.Victim, tier, tileMap.GridToWorld(new Vector2(s.X, s.Y)));
             }
         }
     }

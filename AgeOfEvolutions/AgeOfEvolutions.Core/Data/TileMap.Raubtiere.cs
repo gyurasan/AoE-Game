@@ -87,6 +87,44 @@ public partial class TileMap
     }
 
     /// <summary>
+    /// Um so viele Kacheln reicht die Gefahrenzone eines Raubtiers über seine Bissweite
+    /// (Settings.PredatorReachTiles) hinaus: ein Dorfbewohner steht bis zu 0,71 Kacheln neben
+    /// der Mitte seiner Quelle - beißt ihn das Tier dort, liegt die Quelle höchstens
+    /// 1,25 + 0,71 Kacheln vom Tier entfernt.
+    /// </summary>
+    public const float PREDATOR_DANGER_EXTRA_TILES = 1f;
+
+    /// <summary>
+    /// Ob auf der Kachel (x, y) zu arbeiten heißt, von einem Raubtier gebissen zu werden
+    /// (Nutzer 2026-11-13: „Raubtiere können übrigens auch Flucht auslösen“ - ein geflohener
+    /// Dorfbewohner sucht sich danach eine Quelle außerhalb dieser Zone, statt immer wieder
+    /// in den Biss zurückzulaufen).
+    /// VERTRAG: true genau dann, wenn ein lebendes Raubtier (Bär oder Wolf, IsLivePredator) auf
+    /// einer Kachel (px, py) aus _bearCoords oder _wolfCoords steht, deren Abstand
+    /// MathF.Sqrt((px - x)² + (py - y)²) kleiner oder gleich Settings.PredatorReachTiles +
+    /// PREDATOR_DANGER_EXTRA_TILES ist. Wildschweine zählen nicht (sie sind selbst Jagdbeute).
+    /// Erlegte Bären (Slaughtered) und Kacheln, auf denen das Tier nicht mehr steht, zählen nicht.
+    /// Ändert nichts.
+    /// </summary>
+    public bool InPredatorDanger(int x, int y)
+    {
+        float radius = Settings.PredatorReachTiles + PREDATOR_DANGER_EXTRA_TILES;
+        foreach (List<(int x, int y)> coords in new[] { _bearCoords, _wolfCoords })
+        {
+            foreach ((int px, int py) in coords)
+            {
+                if (!IsLivePredator(px, py))
+                    continue;
+                float dx = px - x;
+                float dy = py - y;
+                if (MathF.Sqrt(dx * dx + dy * dy) <= radius)
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
     /// Schaden, den ein Wolf oder Wildschwein auf <paramref name="victim"/> trägt
     /// (Nutzer 2026-11-07): für Dorfbewohner (Arbeiter, Zivilist) höchstens die Hälfte
     /// ihres eigenen Schlages - der Dorfbewohner wehrt sich also mindestens doppelt so

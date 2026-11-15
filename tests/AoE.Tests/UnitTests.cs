@@ -30,7 +30,51 @@ public class UnitTests
         Assert.Equal(7, scout.Stats.VisionRange);
         Assert.Equal(2.7f, scout.Stats.Speed);
     }
-    
+
+    /// <summary>
+    /// Nutzer 2026-11-13: Dorfbewohner, Miliz und Bogenschützen laufen gleich schnell,
+    /// nur Reiter sind schneller. Geprüft über die Spielbrücke, damit auch die
+    /// Spieltypen, die auf eine Kernklasse abgebildet werden (Langbogen, Schwertkämpfer …),
+    /// das gemeinsame Fußtempo tragen.
+    /// </summary>
+    [Fact]
+    public void FootUnits_ShareOneSpeed_OnlyRidersAreFaster()
+    {
+        var foot = new[]
+        {
+            AgeOfEvolutions.Core.Data.UnitType.Villager,
+            AgeOfEvolutions.Core.Data.UnitType.Builder,
+            AgeOfEvolutions.Core.Data.UnitType.Monk,
+            AgeOfEvolutions.Core.Data.UnitType.Militia,
+            AgeOfEvolutions.Core.Data.UnitType.SpearMan,
+            AgeOfEvolutions.Core.Data.UnitType.HeavyInfantry,
+            AgeOfEvolutions.Core.Data.UnitType.ManAtArms,
+            AgeOfEvolutions.Core.Data.UnitType.Archer,
+            AgeOfEvolutions.Core.Data.UnitType.Longbowman,
+            AgeOfEvolutions.Core.Data.UnitType.Skirmisher,
+        };
+        foreach (var type in foot)
+            Assert.True(SpeedOf(type) == UnitSpeeds.Foot, $"{type} läuft {SpeedOf(type)} statt {UnitSpeeds.Foot}");
+
+        var riders = new[]
+        {
+            AgeOfEvolutions.Core.Data.UnitType.Scout,
+            AgeOfEvolutions.Core.Data.UnitType.Cavalry,
+            AgeOfEvolutions.Core.Data.UnitType.Paladin,
+            AgeOfEvolutions.Core.Data.UnitType.CamelRider,
+            AgeOfEvolutions.Core.Data.UnitType.ImperialCamel,
+        };
+        foreach (var type in riders)
+            Assert.True(SpeedOf(type) > UnitSpeeds.Foot, $"{type} ({SpeedOf(type)}) ist nicht schneller als Fußvolk");
+
+        // Belagerungsgeräte bleiben langsamer als Fußvolk
+        foreach (var type in new[] { AgeOfEvolutions.Core.Data.UnitType.Ram, AgeOfEvolutions.Core.Data.UnitType.Catapult, AgeOfEvolutions.Core.Data.UnitType.Trebuchet })
+            Assert.True(SpeedOf(type) < UnitSpeeds.Foot, $"{type} ({SpeedOf(type)}) ist nicht langsamer als Fußvolk");
+
+        static float SpeedOf(AgeOfEvolutions.Core.Data.UnitType type)
+            => AgeOfEvolutions.Core.Data.CoreUnits.Create(type, 0).Stats.Speed;
+    }
+
     [Fact]
     public void Spearman_HasCavalryBonus()
     {

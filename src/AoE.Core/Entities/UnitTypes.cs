@@ -4,6 +4,24 @@ using System.Collections.Generic;
 namespace AoE.Core.Entities;
 
 /// <summary>
+/// Lauftempo nach Fortbewegung (Nutzer 2026-11-13: „keinen Unterschied zwischen
+/// Dorfbewohner, Miliz und Bogenschützen was das Tempo angeht. Nur die Reiter sind
+/// schneller“). Alle Fußeinheiten - Dorfbewohner, Miliz, Speerkämpfer, Bogenschütze,
+/// Plänkler, Mönch - laufen gleich schnell; Reiter sind schneller, Belagerungsgeräte
+/// langsamer, Schiffe haben ihr eigenes Tempo auf dem Wasser.
+/// </summary>
+public static class UnitSpeeds
+{
+    /// <summary>
+    /// Tempo jeder Fußeinheit. Gleich dem bisherigen Dorfbewohner-Tempo, damit die
+    /// Wirtschaft (Sammelwege, Bauzeiten) unverändert bleibt; vorher liefen Miliz 0,8,
+    /// Speerkämpfer und Plänkler 0,75, Bogenschütze 0,7 und Mönch 0,85 - ein fliehender
+    /// Dorfbewohner war damit für jede Fußtruppe uneinholbar.
+    /// </summary>
+    public const float Foot = 0.9f;
+}
+
+/// <summary>
 /// Spezifische Einheiten-Typen
 /// </summary>
 public sealed class Villager : UnitEntity
@@ -27,7 +45,7 @@ public sealed class Villager : UnitEntity
             HitPoints = BASE_HP,
             BaseAttack = BASE_ATTACK,
             Range = 0,
-            Speed = 0.9f,
+            Speed = UnitSpeeds.Foot,
             VisionRange = 3
         };
         return stats;
@@ -87,7 +105,7 @@ public sealed class Militia : UnitEntity
             HitPoints = BASE_HP,
             BaseAttack = BASE_ATTACK,
             Range = 0,
-            Speed = 0.8f,
+            Speed = UnitSpeeds.Foot,
             VisionRange = 4
         };
         // Bonus gegen Kavallerie (Nutzer 2026-10-18: Reiter sollen die
@@ -121,7 +139,7 @@ public sealed class SpearMan : UnitEntity
             HitPoints = BASE_HP,
             BaseAttack = BASE_ATTACK,
             Range = 0,
-            Speed = 0.75f,
+            Speed = UnitSpeeds.Foot,
             VisionRange = 4
         };
         // Spezial: Bonus gegen Kavallerie (Nutzer 2026-10-18: Reiter sollen
@@ -159,7 +177,7 @@ public sealed class Archer : UnitEntity
             HitPoints = BASE_HP,
             BaseAttack = BASE_ATTACK,
             Range = 4,
-            Speed = 0.7f,
+            Speed = UnitSpeeds.Foot,
             VisionRange = 5
         };
         return stats;
@@ -189,7 +207,7 @@ public sealed class Skirmisher : UnitEntity
             HitPoints = BASE_HP,
             BaseAttack = BASE_ATTACK,
             Range = 4,
-            Speed = 0.75f,
+            Speed = UnitSpeeds.Foot,
             VisionRange = 5
         };
         // Spezial: Bonus gegen Bogenschützen
@@ -383,7 +401,7 @@ public sealed class Monk : UnitEntity
         {
             HitPoints = BASE_HP,
             Range = 0,
-            Speed = 0.85f,
+            Speed = UnitSpeeds.Foot,
             VisionRange = 4
         };
         return stats;

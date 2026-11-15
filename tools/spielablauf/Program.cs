@@ -306,6 +306,10 @@ for (int karte = 1; karte <= KARTEN; karte++)
     // folgen ihren Angreifern, Aas verdirbt
     if (gruppen.Contains("jagd"))
         Pruefe($"Karte {karte}, Jagd", () => Jagd.Pruefen(karte, verstoesse));
+    // Flucht vor Raubtieren (Nutzer 2026-11-13): gebissene Dorfbewohner fliehen und arbeiten
+    // außerhalb der Bissweite weiter; Jäger, Soldaten und Wildschwein-Locker fliehen nicht
+    if (gruppen.Contains("raubflucht"))
+        Pruefe($"Karte {karte}, Raubflucht", () => Raubflucht.Pruefen(karte, verstoesse));
     // Landart (Nutzer 2026-11-07): Karte 1 Ägypten, Karte 2 Wiking, Karte 3 Europa
     if (gruppen.Contains("land"))
         Pruefe($"Karte {karte}, Landart", () => Landart(karte, verstoesse));

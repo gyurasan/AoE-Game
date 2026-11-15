@@ -88,7 +88,9 @@ public sealed class TileMapGatherWorld : IGatherWorld
     /// Wild (Schaf oder Reh — ein anderer Dörfler erntet bzw. jagt es gerade)
     /// wird übersprungen — sonst laufen zwei Dörfler auf dasselbe Tier. Ebenso
     /// Feldkacheln, die schon jemand bearbeitet (TileMap.IsFarmTaken): je
-    /// Feldkachel ein Bauer.
+    /// Feldkachel ein Bauer. Und Kacheln in der Gefahrenzone eines Raubtiers
+    /// (TileMap.InPredatorDanger, Nutzer 2026-11-13) - dort würde der
+    /// Dorfbewohner gebissen und flöhe wieder.
     /// </summary>
     public CorePosition? FindNearestSource(CorePosition from, Resource resource, int maxDistance)
     {
@@ -115,6 +117,9 @@ public sealed class TileMapGatherWorld : IGatherWorld
                 // Bearbeitete Feldkachel überspringen — je Kachel ein Bauer
                 if (resource == Resource.Food && _map.GetTile(x, y) is { Farm: true }
                     && _map.IsFarmTaken(x, y))
+                    continue;
+                // In Bissweite eines Raubtiers arbeitet niemand
+                if (_map.InPredatorDanger(x, y))
                     continue;
 
                 best = cell;

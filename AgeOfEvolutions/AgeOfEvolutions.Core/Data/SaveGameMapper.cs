@@ -42,7 +42,10 @@ public static class SaveGameMapper
     ///   PointSave(p.X, p.Y), Pace, State, Health, AttackTimer, Job = unit.Job?.ToState();
     ///   BuildSite und AttackTarget = Index des Gebäudes in map.Buildings (IndexOf), UnitTarget =
     ///   Index der Einheit in map.Units - jeweils null, wenn kein Ziel gesetzt ist oder es nicht
-    ///   (mehr) in der Liste steht; AutoTarget; UnloadX/UnloadY = UnloadAt des Schiffs oder null.
+    ///   (mehr) in der Liste steht; AutoTarget; UnloadX/UnloadY = UnloadAt des Schiffs oder null;
+    ///   ResumeJob = unit.ResumeJob?.ToState(), ResumeSite = Index von unit.ResumeSite in
+    ///   map.Buildings (IndexOf, null wie oben) - die Arbeit vor einer Flucht. Den Fluchtzustand
+    ///   selbst (Fleeing, FleeFrom, ...) trägt der Spielbildschirm nach (CaptureFlee).
     ///   Danach die Passagiere aller Schiffe (Unit.Passengers, nicht in map.Units), je Schiff in
     ///   dessen Reihenfolge, mit denselben Werten und Aboard = Index des Schiffs.
     /// - Market = map.Market.ToState() (F8).
@@ -179,6 +182,8 @@ public static class SaveGameMapper
                 AutoTarget = unit.AutoTarget,
                 UnloadX = unit.UnloadAt?.X,
                 UnloadY = unit.UnloadAt?.Y,
+                ResumeJob = unit.ResumeJob?.ToState(),
+                ResumeSite = IndexOf(map.Buildings, unit.ResumeSite),
             });
         }
         // Passagiere an Bord: hinter allen Einheiten der Karte, mit dem Index ihres Schiffs
@@ -237,11 +242,12 @@ public static class SaveGameMapper
     /// 6. Einheiten in Listenreihenfolge: map.AddUnit(Type, 0, 0, OwnerId), dann Id, Position
     ///    (X, Y), TargetPosition, Path (neue Liste von Vector2), Pace, State; dann
     ///    TechEffects.ApplyAll(Besitzer.Techs, unit.Core) und erst danach Health; AttackTimer;
-    ///    Job = GatherJob.FromState(...) oder null. Die Einheiten kommen NICHT in
+    ///    Job = GatherJob.FromState(...) oder null; ResumeJob ebenso aus us.ResumeJob. Die Einheiten kommen NICHT in
     ///    player.Units (das macht der Spielbildschirm wie beim neuen Spiel).
     /// 7. Querverweise, erst wenn alle Gebäude und Einheiten stehen: BuildSite und
     ///    AttackTarget = map.Buildings[Index], UnitTarget = map.Units[Index]; null, wenn der
     ///    Index null ist oder außerhalb der Liste liegt. AutoTarget nur mit UnitTarget.
+    ///    ResumeSite = map.Buildings[Index] ebenso (null bei null oder außerhalb).
     /// 7b. Passagiere (Aboard = Index eines Schiffs): aus map.Units in die Passagierliste des
     ///    Schiffs, Position = Lage des Schiffs; UnloadAt aus UnloadX/UnloadY.
     /// 8. map.RebuildWildAnimals(); map.RestoreExplored(Id, Explored) je Spieler;
@@ -369,6 +375,7 @@ public static class SaveGameMapper
             unit.Health = us.Health;
             unit.AttackTimer = us.AttackTimer;
             unit.Job = us.Job is null ? null : GatherJob.FromState(us.Job);
+            unit.ResumeJob = us.ResumeJob is null ? null : GatherJob.FromState(us.ResumeJob);
         }
 
         // 7. Querverweise, erst wenn alle Gebäude und Einheiten stehen.
@@ -383,6 +390,8 @@ public static class SaveGameMapper
             unit.UnitTarget = us.UnitTarget is null || us.UnitTarget < 0 || us.UnitTarget >= map.Units.Count
                 ? null : map.Units[us.UnitTarget.Value];
             unit.AutoTarget = unit.UnitTarget != null && us.AutoTarget;
+            unit.ResumeSite = us.ResumeSite is null || us.ResumeSite < 0 || us.ResumeSite >= map.Buildings.Count
+                ? null : map.Buildings[us.ResumeSite.Value];
             if (us.UnloadX is int ux && us.UnloadY is int uy)
                 unit.UnloadAt = new Point(ux, uy);
         }

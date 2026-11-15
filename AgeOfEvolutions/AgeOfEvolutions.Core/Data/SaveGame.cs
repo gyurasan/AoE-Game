@@ -228,4 +228,29 @@ public sealed class UnitSave
     /// <summary>Schiff: die Landkachel, an der es absetzen soll (Unit.UnloadAt), oder null.</summary>
     public int? UnloadX { get; set; }
     public int? UnloadY { get; set; }
+
+    /// <summary>
+    /// Die Arbeit vor einer Flucht (Unit.ResumeJob), oder null - fehlt in alten Ständen.
+    /// </summary>
+    public GatherJobState ResumeJob { get; set; }
+
+    /// <summary>Die Baustelle vor einer Flucht (Unit.ResumeSite): Index in <see cref="SaveGame.Buildings"/>, oder null.</summary>
+    public int? ResumeSite { get; set; }
+
+    /// <summary>Die Einheit flieht gerade (B2, Raubflucht); fehlt in alten Ständen = false.</summary>
+    public bool Fleeing { get; set; }
+
+    /// <summary>Flucht vor einer Einheit: deren Index in <see cref="SaveGame.Units"/>, sonst null.</summary>
+    public int? FleeFrom { get; set; }
+
+    /// <summary>Flucht vor einem Tier: dessen Kachel, sonst null.</summary>
+    public int? FleeAnimalX { get; set; }
+    public int? FleeAnimalY { get; set; }
+
+    /// <summary>Der Fluchtpunkt in Weltkoordinaten.</summary>
+    public float FleePointX { get; set; }
+    public float FleePointY { get; set; }
+
+    /// <summary>Sekunden Ruhe am Fluchtpunkt.</summary>
+    public float FleeCalm { get; set; }
 }

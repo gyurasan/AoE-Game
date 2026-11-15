@@ -4206,7 +4206,8 @@ public partial class RTSGameplayScreen : GameScreen
     /// - RelativeZoom = cameraZoom / ZoomScale;
     /// - CameraCenterX/CameraCenterY = der Weltpunkt in der Mitte des Spielfelds zwischen den
     ///   Leisten: new Vector2(screenBounds.Width / (2f * cameraZoom), HUD_TOP_HEIGHT / cameraZoom
-    ///   + FreeHeight / (2f * cameraZoom)) - cameraPosition.
+    ///   + FreeHeight / (2f * cameraZoom)) - cameraPosition;
+    /// - der Fluchtzustand fliehender Dorfbewohner: CaptureFlee(save).
     /// Rückgabe: save.
     /// </summary>
     internal SaveGame CaptureSave()
@@ -4224,6 +4225,8 @@ public partial class RTSGameplayScreen : GameScreen
         // Weltpunkt in der Mitte des Spielfelds zwischen den Leisten
         save.CameraCenterX = screenBounds.Width / (2f * cameraZoom) - cameraPosition.X;
         save.CameraCenterY = HUD_TOP_HEIGHT / cameraZoom + FreeHeight / (2f * cameraZoom) - cameraPosition.Y;
+        // Wer gerade flieht, flieht geladen weiter (Raubflucht, B2)
+        CaptureFlee(save);
         return save;
     }
 
@@ -4232,7 +4235,8 @@ public partial class RTSGameplayScreen : GameScreen
     /// VERTRAG: (tileMap, player1, player2) = SaveGameMapper.Restore(save); _gameSeconds =
     /// save.GameSeconds; animationTime = save.AnimationTime; _aiProfile nach save.AiDifficulty
     /// genau wie in ApplyGameSettings (AiProfile.ForLevel: 0 Defense, 1 Normal, ab 2 Sparta); AiEnabled =
-    /// save.AiEnabled; BothSidesAi = save.BothSidesAi. Sonst nichts - gatherWorld, units, die
+    /// save.AiEnabled; BothSidesAi = save.BothSidesAi; zuletzt RestoreFlee(save) (fliehende
+    /// Dorfbewohner fliehen weiter). Sonst nichts - gatherWorld, units, die
     /// Spielerlisten und die Bevölkerung richtet LoadContent danach für beide Wege gleich ein.
     /// </summary>
     private void RestoreWorld(SaveGame save)
@@ -4245,6 +4249,8 @@ public partial class RTSGameplayScreen : GameScreen
         _aiProfile = AoE.Core.Ai.AiProfile.ForLevel(save.AiDifficulty);
         AiEnabled = save.AiEnabled;
         BothSidesAi = save.BothSidesAi;
+        // Fliehende Dorfbewohner fliehen weiter
+        RestoreFlee(save);
     }
 
     /// <summary>
