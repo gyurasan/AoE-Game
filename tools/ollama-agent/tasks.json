@@ -3886,6 +3886,51 @@
         "dotnet run --project tools/spielablauf/Spielablauf.csproj -v q -- raubflucht speichern flucht"
       ],
       "prompt": "Aufgabe SV8 (Spielstand: Fluchtzustand). Zwei Dateien. Lies NUR AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.Flucht.cs (rund 380 Zeilen), einmal ganz; AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs NICHT lesen (über 10000 Zeilen), keine andere Datei, keine Verzeichnisse.\n\nA) In AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.Flucht.cs haben `private void CaptureFlee(SaveGame save)` und `private void RestoreFlee(SaveGame save)` die Rümpfe `throw new NotImplementedException(\"CaptureFlee\");` bzw. `(\"RestoreFlee\")` (je genau einmal - das sind die SUCHTEXTE, 8 Leerzeichen). Ersetze sie nach dem VERTRAG im XML-Kommentar darüber. Hinweise: `_flee` ist ein Dictionary<Unit, FleeState>; FleeState hat die Felder From (Unit), Animal (WildAnimal), Calm (float), Point (Vector2); `tileMap.Units` ist eine List<Unit>; `tileMap.LocatePredator(WildAnimal)` liefert `(int X, int Y)?`; `tileMap.GetTile(x, y)` liefert die Kachel (oder null) mit `.Animal`. Die Felder von UnitSave heißen Fleeing (bool), FleeFrom (int?), FleeAnimalX/FleeAnimalY (int?), FleePointX/FleePointY (float), FleeCalm (float). SaveGame/UnitSave liegen in AgeOfEvolutions.Core.Data (using steht da).\n\nB) In AgeOfEvolutions/AgeOfEvolutions.Core/Screens/RTSGameplayScreen.cs ZWEI Ersetzungen:\n1. SUCHTEXT (genau einmal, 8 Leerzeichen):\n        save.CameraCenterY = HUD_TOP_HEIGHT / cameraZoom + FreeHeight / (2f * cameraZoom) - cameraPosition.Y;\n        return save;\nERSATZ: die erste Zeile unverändert, dann `        // Wer gerade flieht, flieht geladen weiter (Raubflucht, B2)` und `        CaptureFlee(save);`, dann `        return save;`.\n2. SUCHTEXT (genau einmal; 8 bzw. 4 Leerzeichen):\n        BothSidesAi = save.BothSidesAi;\n    }\nERSATZ: die erste Zeile unverändert, dann `        // Fliehende Dorfbewohner fliehen weiter` und `        RestoreFlee(save);`, dann `    }`.\n\nInsgesamt vier replace_in_file-Ersetzungen, danach sofort finish."
+    },
+    {
+      "id": "PR1",
+      "title": "Ablaufprüfung neubauten: der Hafen (D) gehört in die erste Tastenreihe",
+      "auto": false,
+      "max_turns": 3,
+      "context_files": [],
+      "allow_write": [
+        "tools/spielablauf/Program.cs"
+      ],
+      "verify": [
+        "dotnet build tools/spielablauf/Spielablauf.csproj -v q --nologo",
+        "dotnet run --project tools/spielablauf/Spielablauf.csproj -v q -- neubauten"
+      ],
+      "prompt": "Aufgabe PR1 (Ablaufprüfung neubauten). Datei tools/spielablauf/Program.cs (über 11000 Zeilen) - lies sie auf KEINEN Fall, lies keine andere Datei, liste keine Verzeichnisse auf. Arbeite nur mit replace_in_file; die SUCHTEXTE stehen unten wörtlich und kommen genau einmal vor. Danach sofort finish.\n\nGrund: Seit es den Hafen gibt, zeigt die erste Tastenreihe der Bauleiste in JEDEM Zeitalter auch die Taste D (Hafen) - nach dem Wachturm T (den es erst ab der Feudalzeit gibt) und vor dem Punkt. Die Prüfung erwartet die Reihe noch ohne D und ist deshalb auf jeder Karte rot ([H M F B G D .] statt [H M F B G .]).\n\nGENAU EINE Ersetzung. SUCHTEXT (zwei Zeilen, 8 bzw. 12 Leerzeichen Einrückung):\n        var obenSoll = new[] { \"H\", \"M\", \"F\", \"B\", \"G\", \"T\", \".\" }\n            .Where(l => l != \"T\" || age >= Age.Feudal).ToArray();\nERSATZ: davor eine neue Kommentarzeile (8 Leerzeichen) `// Der Hafen (D) steht seit 2026-11-07 in jedem Zeitalter in der ersten Reihe, hinter dem Wachturm`, dann dieselben zwei Zeilen, nur dass im Feld zwischen \"T\" und \".\" der Eintrag \"D\" steht. Die Where-Zeile bleibt unverändert."
+    },
+    {
+      "id": "PR2",
+      "title": "Ablaufprüfung zielwechsel: A und B mit 1 Lebenspunkt (Dorfbewohner fliehen seit B2)",
+      "auto": false,
+      "max_turns": 3,
+      "context_files": [],
+      "allow_write": [
+        "tools/spielablauf/Program.cs"
+      ],
+      "verify": [
+        "dotnet build tools/spielablauf/Spielablauf.csproj -v q --nologo",
+        "dotnet run --project tools/spielablauf/Spielablauf.csproj -v q -- zielwechsel"
+      ],
+      "prompt": "Aufgabe PR2 (Ablaufprüfung zielwechsel). Datei tools/spielablauf/Program.cs (über 11000 Zeilen) - lies sie auf KEINEN Fall, lies keine andere Datei, liste keine Verzeichnisse auf. Arbeite nur mit replace_in_file; die SUCHTEXTE stehen unten wörtlich und kommen genau einmal vor. Danach sofort finish.\n\nGrund: Seit B2 (2026-11-08) flieht ein getroffener Dorfbewohner. Die Miliz verfolgt A über viele Kacheln; stirbt A endlich, liegt B weiter als 6 Kacheln weg, und der Soldat findet kein nächstes Ziel - die Prüfung ist auf jeder Karte rot, obwohl der Zielwechsel im Spiel stimmt. Mit einem Lebenspunkt fallen A und B beim ersten Treffer, bevor sie fliehen können.\n\nGENAU EINE Ersetzung. SUCHTEXT (zwei Zeilen, 4 Leerzeichen Einrückung):\n    var a = Neu(UnitType.Villager, 1, aPos);\n    var b = Neu(UnitType.Villager, 1, bPos);\nERSATZ: dieselben zwei Zeilen unverändert, darunter (4 Leerzeichen Einrückung) zwei Kommentarzeilen, die den Grund in einem Satz nennen (getroffene Dorfbewohner fliehen seit B2; mit 1 LP fallen sie beim ersten Treffer, sonst läge B nach der Verfolgung außerhalb der 6 Kacheln von NearestLiveEnemy), und dann zwei Zuweisungen: die Eigenschaft Health (int, setzbar) von a und von b bekommt den Wert 1."
+    },
+    {
+      "id": "PR3",
+      "title": "Ablaufprüfung blick: seitlicher Stand nach Pixelabstand statt nach Kachel",
+      "auto": false,
+      "max_turns": 4,
+      "context_files": [],
+      "allow_write": [
+        "tools/spielablauf/Program.cs"
+      ],
+      "verify": [
+        "dotnet build tools/spielablauf/Spielablauf.csproj -v q --nologo",
+        "dotnet run --project tools/spielablauf/Spielablauf.csproj -v q -- blick"
+      ],
+      "prompt": "Aufgabe PR3 (Ablaufprüfung blick). Datei tools/spielablauf/Program.cs (über 11000 Zeilen) - lies sie auf KEINEN Fall, lies keine andere Datei, liste keine Verzeichnisse auf. Arbeite nur mit replace_in_file; die SUCHTEXTE stehen unten wörtlich und kommen genau einmal vor. Danach sofort finish.\n\nGrund: Seit den näheren Arbeitspunkten (WorkStandPoint) steht ein Dorfbewohner eine halbe Kachel neben der Mitte seiner Quelle. Kommt er von links, liegt dieser Punkt genau auf der Kachelgrenze, und WorldToGrid meldet die Kachel der Quelle - die Prüfung hält ihn dann für jemanden, der über oder unter der Quelle steht, obwohl er seitlich steht. Maßgeblich ist der waagrechte Abstand in Weltpixeln.\n\nZWEI Ersetzungen, jede genau einmal.\n\n1. SUCHTEXT (zwei Zeilen, 12 Leerzeichen Einrückung):\n            var quelle = v.Job.Source;\n            var stand = w.Map.WorldToGrid(v.Position);\nERSATZ: nur die erste der beiden Zeilen (die Zeile mit `var stand` entfällt - die Variable wird nicht mehr gebraucht).\n\n2. SUCHTEXT (eine Zeile, 12 Leerzeichen Einrückung):\n            if ((int)stand.X == quelle.X)\nERSATZ: zwei Kommentarzeilen (12 Leerzeichen), die den Grund oben in eigenen Worten kurz nennen, dann eine if-Zeile mit dieser Bedingung: der Betrag (MathF.Abs) des Unterschieds zwischen v.Position.X und der Mitte der Quellenkachel `quelle.X * 32 + 16` ist kleiner als 8f. Die geschweiften Klammern und alles Weitere darunter bleiben, wie sie sind - ersetze wirklich nur diese eine if-Zeile."
     }
   ]
 }

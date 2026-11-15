@@ -1432,11 +1432,12 @@ static void Blick(List<string> verstoesse)
             if (v.Job?.Phase != AoE.Core.Economy.GatherPhase.Gathering) continue;
             for (int i = 0; i < 30; i++) w.Call("UpdateUnitMotion", 1f / 60f);
             var quelle = v.Job.Source;
-            var stand = w.Map.WorldToGrid(v.Position);
             bool seiteFrei = w.Map.IsWalkable(quelle.X - 1, quelle.Y) || w.Map.IsWalkable(quelle.X + 1, quelle.Y)
                              || Enumerable.Range(-1, 3).Any(dy => w.Map.IsWalkable(quelle.X - 1, quelle.Y + dy) || w.Map.IsWalkable(quelle.X + 1, quelle.Y + dy));
             arbeiten++;
-            if ((int)stand.X == quelle.X)
+            // Seitliche Position: maßgeblich ist der waagrechte Weltpixelabstand zur
+            // Kachelmitte der Quelle, nicht die Kachel, die WorldToGrid meldet.
+            if (MathF.Abs(v.Position.X - (quelle.X * 32 + 16)) < 8f)
             {
                 darueber++;
                 Soll(!seiteFrei, $"{res}: steht genau über/unter der Quelle ({quelle.X},{quelle.Y}), obwohl daneben Platz ist");
@@ -4695,7 +4696,8 @@ static void Neubauten(int karte, List<string> verstoesse)
         var tasten = w.Tasten();
         var oben = tasten.Where(t => t.Rect.Y == obenY).ToList();
         var unten = tasten.Where(t => t.Rect.Y != obenY).ToList();
-        var obenSoll = new[] { "H", "M", "F", "B", "G", "T", "." }
+        // Der Hafen (D) steht seit 2026-11-07 in jedem Zeitalter in der ersten Reihe, hinter dem Wachturm
+        var obenSoll = new[] { "H", "M", "F", "B", "G", "T", "D", "." }
             .Where(l => l != "T" || age >= Age.Feudal).ToArray();
         var untenSoll = neu.Where(e => e.Ab <= age).Select(e => e.Taste.ToString()).ToArray();
         if (!oben.Select(t => t.Label).SequenceEqual(obenSoll))
@@ -9203,6 +9205,9 @@ static void Zielwechsel(int karte, List<string> verstoesse)
     var miliz = Neu(UnitType.Militia, 0, milizPos);
     var a = Neu(UnitType.Villager, 1, aPos);
     var b = Neu(UnitType.Villager, 1, bPos);
+    // Seit B2 fliehen getroffene Dorfbewohner; mit 1 LP fallen sie beim ersten Treffer, sonst läge B nach der Verfolgung außerhalb der 6 Kacheln von NearestLiveEnemy.
+    a.Health = 1;
+    b.Health = 1;
     w.Map.UpdateFogOfWarForPlayer(0, w.Map.Units);
     if (!w.Map.IsTileExplored((int)aPos.X, (int)aPos.Y, 0) || !w.Map.IsTileExplored((int)bPos.X, (int)bPos.Y, 0))
     {
