@@ -78,8 +78,11 @@ public sealed class ArmyCommander
     /// <summary>Kacheln je Marschschritt.</summary>
     public const int MarchStep = 3;
 
-    /// <summary>Spätestens nach so vielen Sekunden geht der Marsch weiter, auch wenn Nachzügler fehlen.</summary>
-    public const double StepTimeoutSeconds = 8;
+    /// <summary>Spätestens nach so vielen Sekunden geht der Marsch weiter, auch wenn Nachzügler fehlen.
+    /// 10 statt 8 seit F15: ein Katapult braucht für einen Schritt von <see cref="MarchStep"/> Kacheln
+    /// bei Tempo 0,5 rund 6 s plus Befehlsverzögerung — die Frist ist der Notfall für Geräte hinter
+    /// Mauern und Freund, nicht der Regel-Takt.</summary>
+    public const double StepTimeoutSeconds = 10;
 
     /// <summary>Spätestens nach so vielen Sekunden Sammeln zieht eine Welle los, auch wenn noch nicht
     /// alle auf ihren Plätzen stehen (verkeilte Einheiten).</summary>
@@ -520,9 +523,19 @@ public sealed class ArmyCommander
             return;
         }
         // wer im Geplänkel kämpft oder als Reiter jagt, zählt für den Schritt nicht mit
-        double inPlace = InPlace(wave.Where(u => !responders.Contains(u.Id)
-                                                 && (Formation.RoleOf(u.Kind) != FormationRole.Flank || !hunting)).ToList(), slots);
-        if (inPlace >= InPlaceShare || now - _stepAt >= StepTimeoutSeconds)
+        var frei = wave.Where(u => !responders.Contains(u.Id)
+                                   && (Formation.RoleOf(u.Kind) != FormationRole.Flank || !hunting)).ToList();
+        double inPlace = InPlace(frei, slots);
+        // F15: Geräte marschieren im eigenen Tempo (Katapult 0,5 gegen Fußvolk 0,9). Da sie
+        // unter dem Anteil von <see cref="InPlaceShare"/> bleiben, schritt der Verband sonst
+        // immer im Fußvolk-Tempo weiter und die Geräte fielen von Schritt zu Schritt weiter
+        // zurück (gemessen 2026-11-15: „in Form" 30–46 % statt 74–84 % vor F15). Der nächste
+        // Schritt wartet deshalb auch auf die nicht kämpfenden Geräte; die Frist unten hält
+        // den Marsch lebendig, falls ein Gerät hinter Mauern oder Freund steht.
+        bool slowHome = frei.All(u => u.Kind != UnitKind.Catapult
+                                      || !slots.ContainsKey(u.Id) || u.HasAttack
+                                      || Cheb(u.X, u.Y, slots[u.Id].X, slots[u.Id].Y) <= InPlaceTolerance);
+        if (inPlace >= InPlaceShare && slowHome || now - _stepAt >= StepTimeoutSeconds)
         {
             if (inPlace < InPlaceShare)
                 ctx.Log?.Invoke($"MARSCH: Frist abgelaufen, {inPlace:P0} auf dem Platz bei ({Anchor.X},{Anchor.Y})");

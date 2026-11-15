@@ -175,6 +175,30 @@ public class Unit
     /// </summary>
     public List<Unit> Passengers => _passengers ??= new List<Unit>();
 
+    // --- Tribok-Aufbau (F15, Nutzer-Reihenfolge 2026-11-13) -------------------
+
+    /// <summary>
+    /// Tribok: true = aufgebaut (Balken steht, feuerbereit). Ein aufgestellter
+    /// Tribok fährt nicht — erst der Abbau (Taste S oder jeder Laufbefehl) macht
+    /// ihn wieder fahrbar; der Abbau dauert <c>SiegeRules.PACK_SECONDS</c> Sekunden.
+    /// Nur für <see cref="UnitType.Trebuchet"/> gesetzt, andere Typen bleiben false.
+    /// </summary>
+    public bool Deployed { get; set; }
+
+    /// <summary>Tribok: ein Auf-/Abbau läuft gerade; <see cref="DeployTimer"/> zählt ihn herunter.</summary>
+    public bool Deploying { get; set; }
+
+    /// <summary>Tribok: verbleibende Sekunden des laufenden Auf-/Abbaus (0 = keiner).</summary>
+    public float DeployTimer { get; set; }
+
+    /// <summary>
+    /// Dorfbewohner: das eigene beschädigte Belagerungsgerät, das er repariert
+    /// (F15, analog <see cref="BuildSite"/> beim Gebäude), oder null. Bewusst
+    /// nicht im Spielstand — ein Auftrag überlebt das Laden nicht, der Arbeiter
+    /// wird geladen untätig.
+    /// </summary>
+    public Unit RepairTarget { get; set; }
+
     /// <summary>Landeinheit: das eigene Schiff, zu dem sie läuft, um einzusteigen, oder null.</summary>
     public Unit BoardShip { get; set; }
 
@@ -225,6 +249,9 @@ public class Unit
     public int Attack(Unit defender)
     {
         int damage = DamageAgainst(defender);
+        // F15: Der Rammbock schlägt gegen Einheiten fast nichts (auf 1 gedeckelt);
+        // seine 125 wirken nur gegen Gebäude (BuildingCombat.DamagePerHit).
+        damage = AoE.Core.Combat.SiegeRules.DamageToUnits(Core.Type, damage);
         defender.Health = System.Math.Max(0, defender.Health - damage);
         if (defender.Health == 0)
             defender.State = UnitState.Dead;

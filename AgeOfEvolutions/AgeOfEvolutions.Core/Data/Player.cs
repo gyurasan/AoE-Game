@@ -25,6 +25,8 @@ public class Player
     // Bevölkerungsgrenze: rechnet RTSGameplayScreen.UpdatePopulationLimits aus
     // den Gebäuden des Spielers (Stadtzentrum und Haus je 5, höchstens 200)
     public int PopulationLimit { get; set; }
+    /// <summary>Belegte Plätze — Summe über die Einheiten, Belagerungsgeräte
+    /// zählen mehrere (F15, Regel in AoE.Core.Combat.SiegeRules.Slots).</summary>
     public int PopulationCount { get; set; }
     
     // Civilization bonus
@@ -106,13 +108,13 @@ public class Player
     
     public void AddUnit(Unit unit)
     {
-        PopulationCount++;
+        PopulationCount += CoreUnits.PopulationSlots(unit.Type);   // F15: Geräte belegen mehrere Plätze
         Units.Add(unit);
     }
-    
+
     public void RemoveUnit(Unit unit)
     {
-        PopulationCount--;
+        PopulationCount = Math.Max(0, PopulationCount - CoreUnits.PopulationSlots(unit.Type));
         Units.Remove(unit);
     }
 }

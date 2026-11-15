@@ -314,6 +314,9 @@ public sealed class Ram : UnitEntity
         };
         // Spezial: riesiger Bonus gegen Gebäude
         stats.AddAttackBonus(UnitClass.Building, 125);
+        // F15: hohe Fernkampf-Rüstung — der Archer-Wert zählt bei Fernangriffen
+        // (UnitStats.GetTotalArmor), Pfeile prallen am Panzer der Bockleiter ab.
+        stats.AddArmorBonus(UnitClass.Archer, 15);
         return stats;
     }
 }

@@ -62,6 +62,19 @@ public static class CoreUnits
     }
 
     /// <summary>
+    /// Bevölkerungsplätze, die ein Typ belegt (F15): Belagerungsgeräte mehrere
+    /// (Regel in <c>AoE.Core.Combat.SiegeRules.Slots</c>), sonst eins wie bisher.
+    /// Der Spieltyp <see cref="UnitType.Catapult"/> heißt im Kern "Mangonel".
+    /// </summary>
+    public static int PopulationSlots(UnitType type) => AoE.Core.Combat.SiegeRules.Slots(type switch
+    {
+        UnitType.Ram => "Ram",
+        UnitType.Catapult => "Mangonel",
+        UnitType.Trebuchet => "Trebuchet",
+        _ => "other",
+    });
+
+    /// <summary>
     /// Anzeigename auf Deutsch. Den führt das Spiel selbst, weil die
     /// Kernbibliothek bewusst keine Lokalisierung kennt.
     /// </summary>

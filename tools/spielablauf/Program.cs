@@ -165,6 +165,9 @@ for (int karte = 1; karte <= KARTEN; karte++)
     // Belagerungswaffen im Bild (F15): Steine statt Pfeile, Wurf- und Stoßbild im Takt, Trefferfläche
     if (gruppen.Contains("belagerung"))
         Pruefe($"Karte {karte}, Belagerung", () => Belagerung(karte, verstoesse));
+    // Belagerungsregeln (F15): Rammbock-Deckel, Mindestreichweite, Fläche, Tribok-Aufbau, Reparatur
+    if (gruppen.Contains("belagerung"))
+        Pruefe($"Karte {karte}, Belagerung Regeln", () => BelagerungRegeln(karte, verstoesse));
     // Feuer und Rauch (A5) hängen nur an der Zeit, nicht an der Karte
     if (gruppen.Contains("feuer") && karte == 1)
         Pruefe("Feuer und Rauch", () => FeuerUndRauch(verstoesse));
@@ -3882,6 +3885,137 @@ static void Belagerung(int karte, List<string> verstoesse)
         verstoesse.Add($"{wer}: Tribok: kein Stein geworfen");
     if (verstoesse.Count == vorher)
         Console.WriteLine($"  ok  {wer}: Katapult {kat.Steine} Steine / {kat.Treffer} Treffer, Tribok {tri.Steine} Steine / {tri.Treffer} Treffer, Rammbock {ram.Steine} Steine / {ram.Treffer} Treffer");
+}
+
+// F15-Belagerungsregeln: Rammbock-Deckel gegen Einheiten, Mindestreichweite und
+// Flächenschaden des Katapults, Tribok-Aufbau und Zielwahl „nur Gebäude",
+// und die Reparatur eines Geräts durch Dorfbewohner
+static void BelagerungRegeln(int karte, List<string> verstoesse)
+{
+    var wer = $"Karte {karte}, Belagerung Regeln";
+    var vorher = verstoesse.Count;
+
+    // 1) Rammbock gegen eine Einheit: ein Schlag deckelt auf 1, er schlägt aber zu
+    {
+        var w = new Welt();
+        var platz = w.FreieKachel(w.Dorfbewohner().First(), 6);
+        var ram = NeueEinheit(w, UnitType.Ram, 0, platz);
+        var ziel = NeueEinheit(w, UnitType.Militia, 1, new Vector2(platz.X + 1, platz.Y));
+        w.Call("AttackUnit", new List<Unit> { ram }, ziel);
+        var lp = ziel.Health;
+        w.LaufeBis(() => false, 4f);   // vier Sekunden: zwei Schläge zu je 1
+        int verlust = lp - ziel.Health;
+        if (verlust > 2)
+            verstoesse.Add($"{wer}: Rammbock gegen Einheit {verlust} Schaden in 4 s, soll <= 2");
+        if (verlust < 1)
+            verstoesse.Add($"{wer}: Rammbock gegen Einheit ohne jeden Schaden, soll 1 je Schlag");
+    }
+
+    // 2) Katapult: steht ein Ziel zu nah, wirft es nicht; der erste Wurf kommt
+    //    erst aus mindestens 2,5 Kacheln, und die Fläche trifft den Nachbarn
+    {
+        var w = new Welt();
+        var platz = w.FreieKachel(w.Dorfbewohner().First(), 8);
+        var kat = NeueEinheit(w, UnitType.Catapult, 0, platz);
+        var ziel = NeueEinheit(w, UnitType.Villager, 1, new Vector2(platz.X + 1, platz.Y));
+        var nebe = NeueEinheit(w, UnitType.Villager, 1, new Vector2(platz.X + 1, platz.Y + 1));
+        w.Call("AttackUnit", new List<Unit> { kat }, ziel);
+        var lp = ziel.Health;
+        var lpn = nebe.Health;   // schon vor dem ersten Wurf merken — die Fläche kommt mit ihm
+        w.LaufeBis(() => false, 1.2f);
+        if (ziel.Health < lp)
+            verstoesse.Add($"{wer}: Katapult warf aus 1 Kachel, soll erst ab 3");
+        var geschossen = false;
+        var abwurfAbstand = 0f;
+        w.LaufeBis(() =>
+        {
+            if (!geschossen && ziel.Health < lp)
+            {
+                geschossen = true;
+                abwurfAbstand = Vector2.Distance(kat.Position, ziel.Position) / 32f;
+            }
+            return geschossen && nebe.Health < lpn;
+        }, 14f);
+        if (!geschossen)
+            verstoesse.Add($"{wer}: Katapult warf in 14 s nie");
+        else if (abwurfAbstand < 2.5f)
+            verstoesse.Add($"{wer}: erster Wurf aus {abwurfAbstand:0.0} Kacheln, soll >= 2,5");
+        if (nebe.Health >= lpn)
+            verstoesse.Add($"{wer}: Flächenschaden traf den Nachbarn binnen 1 Kachel nicht");
+    }
+
+    // 3) Tribok: kein Einheitenziel, Gebäude erst nach dem Aufbau, aufgebaut steht er
+    {
+        var w = new Welt();
+        var platz = w.FreieKachel(w.Dorfbewohner().First(), 6);
+        var trib = NeueEinheit(w, UnitType.Trebuchet, 0, platz);
+        var feind = NeueEinheit(w, UnitType.Militia, 1, new Vector2(platz.X + 4, platz.Y));
+        w.Call("AttackUnit", new List<Unit> { trib }, feind);
+        if (trib.UnitTarget != null)
+            verstoesse.Add($"{wer}: Tribok nahm ein Einheitenziel an");
+        var lp = feind.Health;
+        w.LaufeBis(() => false, 5f);
+        if (feind.Health < lp)
+            verstoesse.Add($"{wer}: Tribok warf auf eine Einheit");
+
+        var haus = w.Map.AddBuilding((int)platz.X + 7, (int)platz.Y, "Haus", 1, 2);
+        w.Call("AttackBuilding", new List<Unit> { trib }, haus);
+        var hauslp = haus.Health;
+        w.LaufeBis(() => false, 3f);   // Anmarsch + 4 s Aufbau: vorher kein Wurf
+        if (haus.Health < hauslp)
+            verstoesse.Add($"{wer}: Tribok warf vor dem Aufbau");
+        w.LaufeBis(() => haus.Health < hauslp, 15f);
+        if (haus.Health >= hauslp)
+            verstoesse.Add($"{wer}: Tribok warf auch nach 15 s nicht aufs Haus");
+        if (!trib.Deployed)
+            verstoesse.Add($"{wer}: Tribok stand nach dem Werfen nicht aufgebaut");
+        var stand = trib.Position;
+        w.LaufeBis(() => false, 1f);
+        if (Vector2.Distance(stand, trib.Position) > 1f)
+            verstoesse.Add($"{wer}: aufgebauter Tribok ist gelaufen");
+
+        // Laufbefehl: erst abbauen (2 s), dann fahren
+        var zielKachel = new Vector2(platz.X - 4, platz.Y);
+        if (w.Map.IsWalkable((int)zielKachel.X, (int)zielKachel.Y))
+        {
+            w.Call("IssueCommand", 0, new List<Unit> { trib }, zielKachel);
+            // Der Abbau beginnt im ersten Bild, das den Weg abläuft - ein Bild warten
+            w.LaufeBis(() => !trib.Deployed, 1f);
+            if (trib.Deployed)
+                verstoesse.Add($"{wer}: Tribok blieb nach dem Laufbefehl aufgebaut");
+            var weg = stand;
+            w.LaufeBis(() => Vector2.Distance(weg, trib.Position) > 8f, 12f);
+            if (Vector2.Distance(weg, trib.Position) <= 8f)
+                verstoesse.Add($"{wer}: Tribok fuhr nach dem Abbau nicht los");
+        }
+    }
+
+    // 4) Dorfbewohner repariert ein beschädigtes Gerät: Holz vorher ab, Stärke wächst
+    {
+        var w = new Welt();
+        w.P1.Resources.Add(Resource.Gold, 500);   // Tribok-Hälfte kostet 100 Holz + 100 Gold
+        var bauer = w.Dorfbewohner().First();
+        var platz = w.FreieKachel(bauer, 5);
+        var trib = NeueEinheit(w, UnitType.Trebuchet, 0, platz);
+        trib.Health = trib.MaxHealth / 2;
+        var holz = w.P1.Resources[Resource.Wood];
+        var annahme = (bool)w.Call("RepairDeviceFor", 0, trib, new List<Unit> { bauer });
+        if (!annahme)
+            verstoesse.Add($"{wer}: Reparatur-Auftrag abgelehnt");
+        if (w.P1.Resources[Resource.Wood] >= holz)
+            verstoesse.Add($"{wer}: Reparatur ohne Holzabzug");
+        w.LaufeBis(() => trib.Health >= trib.MaxHealth, 120f);
+        if (trib.Health < trib.MaxHealth)
+            verstoesse.Add($"{wer}: Reparatur stellte in 120 s nicht voll her " +
+                           $"({trib.Health}/{trib.MaxHealth}, Bauer {bauer.State})");
+        // Der Auftrag endet ein Bild nach dem letzten Fortschritt — kurz nachgeben
+        w.LaufeBis(() => bauer.RepairTarget == null, 10f);
+        if (bauer.RepairTarget != null)
+            verstoesse.Add($"{wer}: Bauer ließ nach der Fertigstellung nicht ab");
+    }
+
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}");
 }
 
 // Pfeile (A3): ein Bogenschütze lässt jeden Pfeil so los, dass er genau beim Treffer ankommt;
@@ -11189,6 +11323,7 @@ class Welt
             UpdateAges?.Invoke(_screen, new object[] { dt });
             Call("UpdateConstruction", dt);
             Call("UpdateRepair", dt);
+            Call("UpdateDeviceRepair", dt);   // F15: Reparatur der Belagerungsgeräte
             Call("UpdateSheepClaims");
             Map.RegrowCrop(dt);
             Map.RegrowGrass(dt);

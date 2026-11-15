@@ -324,6 +324,7 @@ public sealed class AiBridge : IWorldState, IWorldActions
             UnitKind.Spearman => Data.UnitType.SpearMan,
             UnitKind.Archer   => Data.UnitType.Archer,
             UnitKind.Cavalry  => Data.UnitType.Scout,
+            UnitKind.Catapult => Data.UnitType.Catapult,   // F15: Katapult aus der Belagerungswerkstatt
             _                 => null,
         };
         if (unitType is null) return;

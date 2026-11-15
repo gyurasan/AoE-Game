@@ -1,3 +1,4 @@
+using System.Linq;
 using AoE.Core.Ai;
 using AoE.Core.Economy;
 using AoE.Core.Entities;
@@ -12,7 +13,7 @@ namespace AoE.Tests;
 /// </summary>
 public class ArmyMixTests
 {
-    private static FakeWorld Welt(Age age, bool range = true, bool stable = true)
+    private static FakeWorld Welt(Age age, bool range = true, bool stable = true, bool workshop = false)
     {
         var w = new FakeWorld { Age = age, PopulationCount = 10, PopulationCapacity = 60,
                                 Resources = new ResourceVector(3000, 3000, 3000, 3000) };
@@ -20,6 +21,7 @@ public class ArmyMixTests
         w.AddBuilding(BuildingType.Barracks, 20, 10, complete: true);
         if (range) w.AddBuilding(BuildingType.ArcheryRange, 10, 20, complete: true);
         if (stable) w.AddBuilding(BuildingType.Stable, 20, 20, complete: true);
+        if (workshop) w.AddBuilding(BuildingType.SiegeWorkshop, 25, 25, complete: true);
         return w;
     }
 
@@ -28,15 +30,17 @@ public class ArmyMixTests
     private const string Miliz = "soldier(Barracks,Militia)";
     private const string Bogen = "soldier(ArcheryRange,Archer)";
     private const string Reiter = "soldier(Stable,Cavalry)";
+    private const string Katapult = "soldier(SiegeWorkshop,Catapult)";
 
     [Fact]
     public void Sparta_bildet_alle_drei_Arten_aus_nach_Fehlbetrag()
     {
         var w = Welt(Age.Feudal);
         Tick(AiProfile.Sparta, w);
-        // ohne Soldaten: Fehlbetrag 0,40 / 0,35 / 0,25 → Miliz, Bogen, Reiter
-        int m = w.Log.IndexOf(Miliz), b = w.Log.IndexOf(Bogen), r = w.Log.IndexOf(Reiter);
-        Assert.True(m >= 0 && b > m && r > b, string.Join(" ", w.Log));
+        // ohne Soldaten: Fehlbetrag 0,25 / 0,35 / 0,25 (F15: Nahkampf-Anteil 25 %)
+        // → Bogen zuerst, dann Miliz und Reiter (Gleichstand in Kandidatenreihenfolge)
+        int b = w.Log.IndexOf(Bogen), m = w.Log.IndexOf(Miliz), r = w.Log.IndexOf(Reiter);
+        Assert.True(b >= 0 && m > b && r > m, string.Join(" ", w.Log));
     }
 
     [Fact]
@@ -79,23 +83,71 @@ public class ArmyMixTests
     [Fact]
     public void Sparta_in_der_Dunklen_Zeit_Milizen_nur_bis_zu_ihrem_Anteil_am_Soll()
     {
-        // Anteil Nahkampf 40 % von 20 = 8: danach wartet Sparta auf Schießstand und Stall der
-        // Feudalzeit, statt das Soll mit Milizen zu füllen
+        // F15: Anteil Nahkampf 25 % von 20 = 5, doch der Deckel liegt nie unter der
+        // Aufstieg-Mindestarmee (6) — sonst kommt Sparta aus der Dunklen Zeit nie weg.
+        // Bei 8 Milizen wartet Sparta auf Schießstand, Stall und Werkstatt der späteren
+        // Zeitalter, statt das Soll mit Milizen zu füllen.
         var w = Welt(Age.Dark);
         for (int i = 0; i < 8; i++) w.AddSoldier(30, 30, UnitKind.Militia);
         Tick(AiProfile.Sparta, w);
         Assert.DoesNotContain(w.Log, l => l.StartsWith("soldier("));
 
-        var sieben = Welt(Age.Dark);
-        for (int i = 0; i < 7; i++) sieben.AddSoldier(30, 30, UnitKind.Militia);
-        Tick(AiProfile.Sparta, sieben);
-        Assert.Contains(Miliz, sieben.Log);
+        var sechs = Welt(Age.Dark);
+        for (int i = 0; i < 6; i++) sechs.AddSoldier(30, 30, UnitKind.Militia);
+        Tick(AiProfile.Sparta, sechs);
+        Assert.DoesNotContain(sechs.Log, l => l.StartsWith("soldier("));
+
+        var vier = Welt(Age.Dark);
+        for (int i = 0; i < 4; i++) vier.AddSoldier(30, 30, UnitKind.Militia);
+        Tick(AiProfile.Sparta, vier);
+        Assert.Contains(Miliz, vier.Log);
+
+        // 5 = über dem Anteil (5), aber unter dem Aufstieg-Deckel (6): Miliz bildet weiter aus
+        var fünf = Welt(Age.Dark);
+        for (int i = 0; i < 5; i++) fünf.AddSoldier(30, 30, UnitKind.Militia);
+        Tick(AiProfile.Sparta, fünf);
+        Assert.Contains(Miliz, fünf.Log);
+    }
+
+    [Fact]
+    public void Sparta_bildet_ab_Ritterzeit_Katapulte_aus()
+    {
+        // F15: 15 % der Armee sind Belagerungsgeräte — aber erst ab der Ritterzeit
+        var ritter = Welt(Age.Castle, workshop: true);
+        Tick(AiProfile.Sparta, ritter);
+        Assert.Contains(Katapult, ritter.Log);
+
+        var feudale = Welt(Age.Feudal, workshop: true);
+        Tick(AiProfile.Sparta, feudale);
+        Assert.DoesNotContain(Katapult, feudale.Log);
+
+        // ohne Werkstatt steht nichts zum Ausbilden
+        var ohne = Welt(Age.Castle);
+        Tick(AiProfile.Sparta, ohne);
+        Assert.DoesNotContain(Katapult, ohne.Log);
+    }
+
+    [Fact]
+    public void Sparta_baut_die_Belagerungswerkstatt_ab_der_Ritterzeit()
+    {
+        var w = Welt(Age.Castle);
+        for (int i = 0; i < 4; i++) w.AddVillager();   // bauen kann die KI nur mit Leuten
+        for (int i = 0; i < 200 && !w.Log.Any(s => s.StartsWith("build(SiegeWorkshop,")); i++)
+            Tick(AiProfile.Sparta, w);
+        Assert.True(w.Log.Any(s => s.StartsWith("build(SiegeWorkshop,")), string.Join(" | ", w.Log));
+
+        // Normal und Defense bauen sie nie (SiegePercent 0)
+        var normal = Welt(Age.Castle);
+        for (int i = 0; i < 4; i++) normal.AddVillager();
+        for (int i = 0; i < 200 && !normal.Log.Any(s => s.StartsWith("build(SiegeWorkshop,")); i++)
+            Tick(AiProfile.Standard, normal);
+        Assert.DoesNotContain(normal.Log, s => s.StartsWith("build(SiegeWorkshop,"));
     }
 
     [Theory]
     [InlineData(0, 6)]   // Defense: greift nie an, steigt trotzdem auf
     [InlineData(1, 5)]   // Normal wie bisher (RaidMinSoldiers)
-    [InlineData(2, 6)]   // Sparta: unter dem Miliz-Anteil des Solls (8)
+    [InlineData(2, 6)]   // Sparta: über dem Miliz-Anteil des Solls (5) — die Armee muss wachsen
     public void Aufstieg_braucht_die_Mindestarmee_der_Stufe(int stufe, int armee)
     {
         var p = AiProfile.ForLevel(stufe);
@@ -115,7 +167,7 @@ public class ArmyMixTests
     [Fact]
     public void Eingereihte_zaehlen_mit()
     {
-        // 7 Milizen im Feld, eine in der Warteschlange: Anteil am Soll (8) erreicht
+        // 7 Milizen im Feld, eine in der Warteschlange: Miliz-Anteil am Soll (5, F15) erreicht
         var w = Welt(Age.Dark);
         for (int i = 0; i < 7; i++) w.AddSoldier(30, 30, UnitKind.Militia);
         w.Queued[UnitKind.Militia] = 1;

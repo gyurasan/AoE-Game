@@ -1,8 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using AgeOfEvolutions.Core.Data;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Resource = AoE.Core.Entities.Resource;
+using UnitState = AoE.Core.Entities.UnitState;
+using CoreVillager = AoE.Core.Entities.Villager;
+using BuildingRules = AoE.Core.Economy.BuildingRules;
 
 namespace AgeOfEvolutions.Core.Screens;
 
@@ -68,6 +73,61 @@ public partial class RTSGameplayScreen
 
     internal static bool IsSiegeType(UnitType type)
         => type is UnitType.Ram or UnitType.Catapult or UnitType.Trebuchet;
+
+    /// <summary>Leistenmeldung (F15): Tribok auf einen Einheitenbefehl gesetzt.</summary>
+    internal const string TRIBOK_BUILDINGS_ONLY = "Der Tribok wirft nur gegen Gebäude";
+
+    /// <summary>
+    /// Tribok-Aufbau je Bild (F15): der Timer läuft ab, und am Ende wird aus der
+    /// Absicht (<see cref="Unit.Deploying"/>) der Zustand (<see cref="Unit.Deployed"/>).
+    /// Wird für alle Einheiten gerufen — Nicht-Triboks und Geräte ohne laufenden
+    /// Auf-/Abbau gehen sofort zurück.
+    /// </summary>
+    private static void UpdateSiegeDeploy(Unit unit, float dt)
+    {
+        if (unit.Type != UnitType.Trebuchet || unit.DeployTimer <= 0f)
+            return;
+        unit.DeployTimer -= dt;
+        if (unit.DeployTimer > 0f)
+            return;
+        unit.DeployTimer = 0f;
+        unit.Deployed = unit.Deploying;   // der Aufbau ist fertig, der Abbau vorbei
+        unit.Deploying = false;
+    }
+
+    /// <summary>
+    /// Triboks der eigenen Auswahl auf- bzw. abbauen (Taste S, F15): steht der
+    /// Balken, wird abgebaut (danach fahrbar); steht er nicht, aufgebaut
+    /// (danach feuerfest, aber unbeweglich). Ein laufender Aufbau kippt zum
+    /// Abbau und umgekehrt. Gibt zurück, ob überhaupt ein Tribok ausgewählt war
+    /// — nur dann gilt S als verbraucht und schaltet keinen Schießstand-Setzmodus.
+    /// </summary>
+    private bool TryToggleSiegeDeploy()
+    {
+        var devices = new List<Unit>();
+        foreach (var u in selectedUnits)
+            if (u.OwnerId == 0 && u.Type == UnitType.Trebuchet)
+                devices.Add(u);
+        if (devices.Count == 0)
+            return false;
+
+        foreach (var d in devices)
+        {
+            if (d.Deployed || d.Deploying)
+            {
+                d.Deployed = false;
+                d.Deploying = false;                                  // Abbau, auch aus dem Aufbau
+                d.DeployTimer = AoE.Core.Combat.SiegeRules.PACK_SECONDS;
+            }
+            else
+            {
+                d.Deploying = true;
+                d.DeployTimer = AoE.Core.Combat.SiegeRules.SETUP_SECONDS;
+            }
+        }
+        ShowHudMessage(devices[0].Deploying ? "Der Tribok baut auf" : "Der Tribok fährt zusammen");
+        return true;
+    }
 
     /// <summary>Welchen Stein eine Einheit wirft: 1 das Katapult, 2 der Tribok (der große), sonst 0
     /// (Pfeil oder gar nichts).</summary>
@@ -187,14 +247,18 @@ public partial class RTSGameplayScreen
         Texture2D figure = stand;
         float bob = 0f, tilt = 0f;
 
+        // F15: Der Tribok zeigt das Karrenbild, solange er NICHT aufgebaut ist —
+        // im Fahren ebenso wie im Stehen (beim Auf-/Abbau). Aufgebaut steht und
+        // wirft er im vollen Bild.
+        if (unit.Type == UnitType.Trebuchet && !unit.Deployed
+            && _trebuchetPacked.TryGetValue(unit.OwnerId, out var packedIdle))
+        {
+            figure = packedIdle;
+            scale = TREBUCHET_PACKED_LENGTH * cameraZoom / packedIdle.Width;
+        }
+
         if (moving)
         {
-            // Der Tribok fährt abgebaut auf seinem Karren
-            if (unit.Type == UnitType.Trebuchet && _trebuchetPacked.TryGetValue(unit.OwnerId, out var packed))
-            {
-                figure = packed;
-                scale = TREBUCHET_PACKED_LENGTH * cameraZoom / packed.Width;
-            }
             // Holzräder auf unebenem Boden: ein leichtes Rumpeln nach der Strecke, nicht nach der Uhr
             bob = (1f - MathF.Cos(motion.Walked * 0.7f)) * 0.4f * cameraZoom;
             tilt = MathF.Sin(motion.Walked * 0.35f) * 0.012f;
@@ -242,5 +306,159 @@ public partial class RTSGameplayScreen
                              size / Math.Max(tex.Width, tex.Height), SpriteEffects.None, 0f);
         else
             spriteBatch.Draw(px, p, null, new Color(120, 118, 112), spin, new Vector2(0.5f), size, SpriteEffects.None, 0f);
+    }
+
+    // --- Geräte-Reparatur (F15): Dorfbewohner flicken beschädigte Belagerungsgeräte -------------
+
+    /// <summary>Laufende Reparatur-Aufträge für Belagerungsgeräte: Gerät zu Auftrag
+    /// (Kosten einmalig vorher abgezogen, wie bei der Gebäude-Reparatur). Gebäude
+    /// haben ihren eigenen Auftrag (Building.Repair) — hier laufen nur die Geräte.</summary>
+    private readonly Dictionary<Unit, AoE.Core.Economy.Repair> _deviceRepairs = new();
+
+    /// <summary>
+    /// Reparatur-Angebot für ein Gerät: Kosten = Ausbildungspreis × fehlender
+    /// Anteil (je Rohstoff mindestens 1), Dauer = Ausbildungszeit × fehlender
+    /// Anteil — genau die anteilige Regel der Gebäude-Reparatur, nur auf den
+    /// Ausbildungs-Eintrag in <see cref="Products"/> gelegt. Für Typen ohne
+    /// Ausbildungseintrag null.
+    /// </summary>
+    private static (Dictionary<Resource, int> Cost, float Seconds)? DeviceRepairQuote(Unit device)
+    {
+        foreach (var entry in Products)
+        {
+            if (entry.Unit != device.Type)
+                continue;
+            float fraction = BuildingRules.MissingFraction(device.Health, device.MaxHealth);
+            if (fraction <= 0f)
+                return null;
+            var cost = new Dictionary<Resource, int>();
+            foreach (var (res, amount) in entry.Cost)
+                cost[res] = Math.Max(1, (int)Math.Ceiling(amount * fraction));
+            return (cost, entry.Seconds * fraction);
+        }
+        return null;
+    }
+
+    /// <summary>Das eigene beschädigte Belagerungsgerät auf der angeklickten
+    /// Kachel, oder null (F15).</summary>
+    private Unit DamagedDeviceAt(Vector2 gridPos, int ownerId)
+    {
+        foreach (var u in units)
+        {
+            if (u.OwnerId != ownerId || !IsSiegeType(u.Type) || u.IsShip
+                || u.State == UnitState.Dead || u.Health >= u.MaxHealth)
+                continue;
+            var cell = tileMap.WorldToGrid(u.Position);
+            if ((int)cell.X == (int)gridPos.X && (int)cell.Y == (int)gridPos.Y)
+                return u;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Reparatur-Auftrag für ein Gerät (F15), Spiegel von
+    /// <see cref="RepairBuildingFor"/>: Kosten anteilig zum Schaden und einmalig
+    /// vorher abgezogen; die Dauer läuft wie an der Gebäudefront mit
+    /// SpeedFactor über die angekommenen Dorfbewohner. Ist der Auftrag schon
+    /// da (weitere Arbeiter kommen dazu), kostet es nichts mehr. Rückgabe true,
+    /// wenn der Auftrag angelegt oder beigetreten wurde.
+    /// </summary>
+    internal bool RepairDeviceFor(int ownerId, Unit device, List<Unit> workers)
+    {
+        if (device == null || device.OwnerId != ownerId || !IsSiegeType(device.Type))
+            return false;
+        if (device.Health >= device.MaxHealth)
+            return false;   // kein Schaden — nichts zu reparieren und nichts zu zahlen
+
+        if (!_deviceRepairs.ContainsKey(device))
+        {
+            var quote = DeviceRepairQuote(device);
+            if (quote == null)
+                return false;
+            var owner = ownerId == 0 ? player1 : player2;
+            if (!owner.Resources.PayCost(quote.Value.Cost))
+            {
+                if (ownerId == 0)
+                {
+                    var fehlt = new List<string>();
+                    foreach (var (res, amt) in quote.Value.Cost)
+                        if (owner.Resources[res] < amt)
+                            fehlt.Add($"{amt} {ResourceName(res)}");
+                    ShowHudMessage($"Zur Reparatur fehlen: {string.Join(" + ", fehlt)}");
+                }
+                return false;
+            }
+            _deviceRepairs[device] =
+                new AoE.Core.Economy.Repair(quote.Value.Seconds, device.MaxHealth - device.Health);
+            if (ownerId == 0)
+                ShowHudMessage($"{device.Name} wird repariert ({CostText(quote.Value.Cost)})");
+        }
+
+        foreach (var u in workers ?? new List<Unit>())
+            if (u.OwnerId == ownerId && u.Core is CoreVillager)
+                SendToRepairDevice(u, device);
+        return true;
+    }
+
+    /// <summary>Der Dorfbewohner bekommt den Weg zum Gerät; am Gerät stellt er
+    /// sich im selben Abstand hin, in dem er auch an einer Wand steht. Ein
+    /// laufender Sammelauftrag oder Baustelle endet (Befehl wie an der Baustelle).</summary>
+    private void SendToRepairDevice(Unit worker, Unit device)
+    {
+        worker.Job = null;
+        worker.BuildSite = null;
+        worker.RepairTarget = device;
+        var dir = worker.Position - device.Position;
+        if (dir.Length() < 0.5f)
+            dir = new Vector2(-1, 0);
+        dir.Normalize();
+        worker.TargetPosition = device.Position + dir * (0.9f * tileMap.TileSize);
+        worker.Path = PathToStand(worker, worker.TargetPosition);
+        worker.State = worker.Path.Count > 0 ? UnitState.Moving : UnitState.Building;
+    }
+
+    /// <summary>
+    /// Geräte-Reparatur je Bild, Spiegel von <see cref="UpdateRepair"/>: gezählt
+    /// werden nur Dorfbewohner, die am Gerät stehen (State Building). Die Stärke
+    /// steigt mit dem Fortschritt über die Ausgangsstärke hinaus, nie über das
+    /// Maximum. Ein totes oder weggefahrenes Gerät verliert den Auftrag, die
+    /// Arbeiter werden untätig.
+    /// </summary>
+    private void UpdateDeviceRepair(float dt)
+    {
+        foreach (var (device, repair) in _deviceRepairs.ToList())
+        {
+            if (device.State == UnitState.Dead || !units.Contains(device))
+            {
+                _deviceRepairs.Remove(device);
+                ReleaseDeviceRepairers(device);
+                continue;
+            }
+            int repairers = units.Count(u => u.RepairTarget == device && u.State == UnitState.Building);
+            if (repair.Update(dt * _productionSpeed, repairers))
+            {
+                device.Health = Math.Min(device.MaxHealth, repair.HpAt(repair.Progress, device.MaxHealth));
+                _deviceRepairs.Remove(device);
+                ReleaseDeviceRepairers(device);
+            }
+            else if (repairers > 0)
+            {
+                int targetHp = repair.HpAt(repair.Progress, device.MaxHealth);
+                if (targetHp > device.Health)
+                    device.Health = Math.Min(device.MaxHealth, targetHp);
+            }
+        }
+    }
+
+    /// <summary>Geräte-Reparatur beendet (fertig, Gerät tot oder gefahren): die
+    /// Arbeiter lassen ab und werden untätig.</summary>
+    private void ReleaseDeviceRepairers(Unit device)
+    {
+        foreach (var u in units.Where(u => u.RepairTarget == device).ToList())
+        {
+            u.RepairTarget = null;
+            u.Path.Clear();
+            u.State = UnitState.Idle;
+        }
     }
 }

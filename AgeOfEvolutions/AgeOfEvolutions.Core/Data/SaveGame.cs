@@ -222,6 +222,11 @@ public sealed class UnitSave
     /// <summary>Die Einheit hat UnitTarget von selbst gewählt (Unit.AutoTarget); fehlt in alten Ständen = false.</summary>
     public bool AutoTarget { get; set; }
 
+    /// <summary>Tribok: aufgebaut (Unit.Deployed, F15); fehlt in alten Ständen = false.
+    /// Ein laufender Auf-/Abbau wird nicht getragen — geladen steht das Gerät
+    /// abgebaut und baut sich beim nächsten Gebäudeangriff von selbst wieder auf.</summary>
+    public bool Deployed { get; set; }
+
     /// <summary>Passagier: Index seines Schiffs in <see cref="SaveGame.Units"/>, oder null (an Land).</summary>
     public int? Aboard { get; set; }
 

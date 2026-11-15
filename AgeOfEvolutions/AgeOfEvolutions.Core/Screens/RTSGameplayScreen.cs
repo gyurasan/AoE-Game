@@ -1315,6 +1315,7 @@ public partial class RTSGameplayScreen : GameScreen
         UpdateAges((float)gameTime.ElapsedGameTime.TotalSeconds);
         UpdateConstruction((float)gameTime.ElapsedGameTime.TotalSeconds);
         UpdateRepair((float)gameTime.ElapsedGameTime.TotalSeconds);
+        UpdateDeviceRepair((float)gameTime.ElapsedGameTime.TotalSeconds);   // F15: Belagerungsgeräte
         tileMap.RegrowCrop((float)gameTime.ElapsedGameTime.TotalSeconds);
         tileMap.RegrowGrass((float)gameTime.ElapsedGameTime.TotalSeconds);
         tileMap.Market.Update((float)gameTime.ElapsedGameTime.TotalSeconds);   // Kurse kehren langsam zurück (F8)
@@ -2254,6 +2255,13 @@ public partial class RTSGameplayScreen : GameScreen
         if (keyboard.IsKeyDown(Keys.A) && previousKeyboard.IsKeyUp(Keys.A))
             AdvanceAge();
 
+        // F15: S baut aufgestellte Triboks der Auswahl ab und aufgebaute auf —
+        // nur wenn überhaupt ein Tribok ausgewählt ist, sonst gehört S wie bisher
+        // dem Baumenü (Schießstand).
+        if (keyboard.IsKeyDown(Keys.S) && previousKeyboard.IsKeyUp(Keys.S)
+            && selectedBuilding == null && TryToggleSiegeDeploy())
+        { }
+
         // Baumenü: H Haus, M Mühle, F Holzfällerlager, B Bergbaulager, G Farm,
         // ab der Feudalzeit T Wachturm. Die Gebäude der zweiten Reihe ebenso,
         // je mit dem Buchstaben ihrer Taste (BuildMenu).
@@ -2867,6 +2875,7 @@ public partial class RTSGameplayScreen : GameScreen
             _marchFactor.Remove(unit);   // B3: ein Befehl macht den Marsch-Tempo-Faktor unbrauchbar
             unit.Job = null;
             unit.BuildSite = null;
+            unit.RepairTarget = null;     // F15: auch eine Geräte-Reparatur endet hier
             unit.AttackTarget = target;
             unit.PreyTarget = null;       // Raubtier-Angriff endet (RT)
             unit.AttackTimer = 0f;
@@ -2929,6 +2938,9 @@ public partial class RTSGameplayScreen : GameScreen
     {
         int ts = tileMap.TileSize;
         int ring = Math.Max(1, unit.AttackRange);
+        // F15: Mindestreichweite — der Mangonel nimmt keine Kacheln dentro des
+        // inneren Rings (er würde zu nah stehen und nicht werfen können).
+        int floorTiles = (int)Math.Ceiling(AoE.Core.Combat.SiegeRules.MinRangeTiles(unit.Core.Type));
         // Ein Schiff steht auf befahrbarem Wasser seines Gewässers statt auf begehbarem Land
         var shipCell = tileMap.WorldToGrid(unit.Position);
         int water = unit.IsShip ? tileMap.WaterRegion((int)shipCell.X, (int)shipCell.Y) : 0;
@@ -2949,6 +2961,16 @@ public partial class RTSGameplayScreen : GameScreen
                     : tileMap.IsWalkable(x, y);
                 if (!onRing || !standable)
                     continue;
+
+                // F15: Kacheln innerhalb der Mindestreichweite des Geräts sind
+                // verbotene Standplätze (Chebyshev-Abstand zur Grundfläche)
+                if (floorTiles > 0)
+                {
+                    int dx = Math.Max(Math.Max(target.X - x, x - (target.X + target.Width - 1)), 0);
+                    int dy = Math.Max(Math.Max(target.Y - y, y - (target.Y + target.Height - 1)), 0);
+                    if (Math.Max(dx, dy) < floorTiles)
+                        continue;
+                }
 
                 var cell = new Vector2(x, y);
                 float distance = Vector2.DistanceSquared(GridToWorld(cell), unit.Position);
@@ -3064,6 +3086,16 @@ public partial class RTSGameplayScreen : GameScreen
             if (target.IsShip && !a.IsShip && a.AttackRange <= 0)
                 continue;
 
+            // F15: Der Tribok wirft nur gegen Gebäude — auf Einheitenbefehl
+            // bleibt er, was er war (Gebäudeziele erreicht er weiter über
+            // AttackBuilding), und die Leiste sagt es dem Spieler.
+            if (AoE.Core.Combat.SiegeRules.OnlyBuildings(a.Core.Type))
+            {
+                if (a.OwnerId == 0)
+                    ShowHudMessage(TRIBOK_BUILDINGS_ONLY);
+                continue;
+            }
+
             // Sammelauftrag und Baustelle ab; ein Dorfbewohner, der gerade
             // flieht, kämpft auf diesen Befehl weiter (B2: „auf Befehl kämpft
             // er weiter“) — die Flucht endet hier
@@ -3072,6 +3104,7 @@ public partial class RTSGameplayScreen : GameScreen
             _marchFactor.Remove(a);   // B3: ein Befehl macht den Marsch-Tempo-Faktor unbrauchbar
             a.Job = null;
             a.BuildSite = null;
+            a.RepairTarget = null;     // F15: auch eine Geräte-Reparatur endet hier
             a.AttackTarget = null;     // Gebäude-Angriff endet
             a.PreyTarget = null;       // Raubtier-Angriff endet (RT)
             a.UnitTarget = target;
@@ -3454,6 +3487,7 @@ public partial class RTSGameplayScreen : GameScreen
                 u.UnloadAt = null;
             StopFlee(u);
             _marchFactor.Remove(u);
+            u.RepairTarget = null;   // F15: jeder neue Befehl beendet eine Geräte-Reparatur
         }
         // Klick der Landeinheiten auf das eigene Transportschiff: sie steigen ein
         if (selectedUnits.Any(u => !u.IsShip) && OwnTransportAt(gridPos, ownerId) is { } ferry)
@@ -3530,6 +3564,14 @@ public partial class RTSGameplayScreen : GameScreen
             // Nicht bezahlbar: die Meldung steht in der Leiste (Spieler 0);
             // der Befehl ist ein Laufbefehl wie zuvor.
         }
+
+        // F15: Klick mit Dorfbewohnern auf ein eigenes beschädigtes Belagerungs-
+        // gerät: sie reparieren es — Kosten anteilig zum Schaden wie am Gebäude.
+        // Ohne Dorfbewohner in der Auswahl bleibt es ein Laufbefehl wie zuvor.
+        if (selectedUnits.Any(u => u.OwnerId == ownerId && u.Core is CoreVillager)
+            && DamagedDeviceAt(gridPos, ownerId) is { } device
+            && RepairDeviceFor(ownerId, device, selectedUnits))
+            return;
 
         // Laufbefehl: eine einzige Einheit läuft auf den exakten
         // angeklickten Punkt; mehrere verteilen sich im Umkreis (je ein
@@ -4710,8 +4752,11 @@ public partial class RTSGameplayScreen : GameScreen
             // Forscht das Gebäude gerade, bildet es nicht aus (P2)
             if (building.Research.IsBusy)
                 continue;
-            // Die fertige Einheit aufheben: sie erscheint am Gebäude (P1)
-            if (!building.Training.Update(dts, player.PopulationCount, player.PopulationLimit, out var finished))
+            // Die fertige Einheit aufheben: sie erscheint am Gebäude (P1).
+            // F15: Belagerungsgeräte belegen mehrere Plätze — die Warteschlange
+            // bildet nur aus, wenn der Bedarf der vordersten Einheit noch passt.
+            if (!building.Training.Update(dts, player.PopulationCount, player.PopulationLimit,
+                    t => CoreUnits.PopulationSlots(t), out var finished))
                 continue;
 
             if (!Spawn(building, finished, player))
@@ -5563,6 +5608,7 @@ public partial class RTSGameplayScreen : GameScreen
             // Arbeit zurück oder beendet sie — VOR der Zustandsmaschine, damit
             // ein befohlener Befehl im selben Bild sofort gilt
             UpdateFlee(unit, dt);
+            UpdateSiegeDeploy(unit, dt);   // F15: Tribok-Aufbau/-Abbau zählt herunter
             switch (unit.State)
             {
                 case UnitState.Moving:
@@ -5586,9 +5632,13 @@ public partial class RTSGameplayScreen : GameScreen
                         }
                         else if (unit.BuildSite != null && (!unit.BuildSite.IsComplete || unit.BuildSite.Repair != null))
                             unit.State = UnitState.Building;   // am Bauplatz angekommen (oder zur Reparatur)
+                        else if (unit.RepairTarget is { } device && device.State != UnitState.Dead
+                                 && Vector2.Distance(unit.Position, device.Position) <= 1.5f * tileMap.TileSize)
+                            unit.State = UnitState.Building;   // am Gerät angekommen (F15)
                         else
                         {
                             unit.BuildSite = null;
+                            unit.RepairTarget = null;   // F15: Gerät doch nicht erreicht - Auftrag fallen lassen
                             unit.State = UnitState.Idle;
                         }
                     }
@@ -5598,6 +5648,18 @@ public partial class RTSGameplayScreen : GameScreen
                     // Gebäude-Angriff?
                     if (unit.AttackTarget is { } building && tileMap.Buildings.Contains(building))
                     {
+                        // F15: Der Tribok wirft erst aus dem Aufbau — ist er noch nicht
+                        // bereit, baut er sich von selbst auf (Taste S tut dasselbe
+                        // manuell, jeder Laufbefehl baut ihn wieder ab).
+                        if (unit.Type == UnitType.Trebuchet && !unit.Deployed)
+                        {
+                            if (!unit.Deploying)
+                            {
+                                unit.Deploying = true;
+                                unit.DeployTimer = AoE.Core.Combat.SiegeRules.SETUP_SECONDS;
+                            }
+                            break;
+                        }
                         float before = unit.AttackTimer;
                         unit.AttackTimer += dt;
                         // Ein Schütze lässt den Pfeil so los, dass er beim Treffer ankommt (A3)
@@ -5607,7 +5669,15 @@ public partial class RTSGameplayScreen : GameScreen
                             unit.AttackTimer -= AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS;
                             // Hörbar beim Angreifer: der Bogen oder der Schlag an der Wand
                             EmitSound(unit.AttackType == AttackType.Ranged ? "bogen" : "gebaeude", unit.Position);
-                            if (AoE.Core.Combat.BuildingCombat.Hit(unit.Core, building.Core))
+                            // F15: Vor dem Schlag die Hauptschlag-Stärke merken —
+                            // die Hälfte davon bekommen Gegner im Einschlagradius ab.
+                            int primaryHit = AoE.Core.Combat.BuildingCombat.DamagePerHit(unit.Core, building.Core);
+                            bool buildingFalls = AoE.Core.Combat.BuildingCombat.Hit(unit.Core, building.Core);
+                            ApplySiegeSplash(unit, new Vector2(
+                                    (building.X + building.Width / 2f) * tileMap.TileSize,
+                                    (building.Y + building.Height / 2f) * tileMap.TileSize),
+                                AoE.Core.Combat.SiegeRules.SplashDamage(primaryHit));
+                            if (buildingFalls)
                             {
                                 RegisterDamageTaken(building.OwnerId);
                                 DestroyBuilding(building);   // zerstört
@@ -5639,7 +5709,17 @@ public partial class RTSGameplayScreen : GameScreen
 
                 case UnitState.Building:
                     // Gebaut wird je Baustelle in UpdateConstruction, repariert in
-                    // UpdateRepair; hier nur aufräumen, wenn die Arbeit weg ist
+                    // UpdateRepair; Geräte-Reparatur (F15) tickt in UpdateDeviceRepair.
+                    // Hier nur aufräumen, wenn die Arbeit weg ist.
+                    if (unit.RepairTarget != null)
+                    {
+                        if (unit.RepairTarget.State == UnitState.Dead || !_deviceRepairs.ContainsKey(unit.RepairTarget))
+                        {
+                            unit.RepairTarget = null;
+                            unit.State = UnitState.Idle;
+                        }
+                        break;   // der Arbeiter steht am Gerät — UpdateDeviceRepair zählt ihn
+                    }
                     if (unit.BuildSite == null || (unit.BuildSite.IsComplete && unit.BuildSite.Repair == null))
                     {
                         unit.BuildSite = null;
@@ -5706,9 +5786,37 @@ public partial class RTSGameplayScreen : GameScreen
             return;
         }
 
+        // F15: Der Tribok wirft nur gegen Gebäude — ein Einheitenziel (etwa aus
+        // einem alten Spielstand) lässt er fallen und steht untätig.
+        if (AoE.Core.Combat.SiegeRules.OnlyBuildings(unit.Core.Type))
+        {
+            unit.UnitTarget = null;
+            unit.State = UnitState.Idle;
+            return;
+        }
+
         // In Reichweite? (Chebyshev, pixelgenau — gleiche Rechnung wie der
         // Standpunkt, an dem die Einheit hält, siehe InAttackRange)
         bool inRange = InAttackRange(unit, target);
+
+        // F15: Mindestreichweite — steht ein Feind näher als die Mindestwurfweite
+        // (Mangonel 3 Kacheln), wirft das Gerät nicht, sondern weicht auf den
+        // Abstand zurück; von dort gilt die ganz normale Reichweiten-Regel.
+        float minPx = AoE.Core.Combat.SiegeRules.MinRangeTiles(unit.Core.Type) * tileMap.TileSize;
+        if (minPx > 0f)
+        {
+            float ddx = unit.Position.X - target.Position.X;
+            float ddy = unit.Position.Y - target.Position.Y;
+            float dist = MathF.Sqrt(ddx * ddx + ddy * ddy);
+            if (dist < minPx)
+            {
+                var away = dist > 0.01f ? new Vector2(ddx, ddy) / dist : new Vector2(1f, 0f);
+                var back = target.Position + away * (minPx + _combatSpacingTiles * tileMap.TileSize);
+                unit.Path = PathToStand(unit, back);
+                unit.State = UnitState.Moving;
+                return;
+            }
+        }
         if (!inRange)
         {
             // Von selbst gewähltes Ziel (AutoRespond) außer Sicht des Besitzers:
@@ -5747,7 +5855,11 @@ public partial class RTSGameplayScreen : GameScreen
         if (unit.AttackTimer >= AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS)
         {
             unit.AttackTimer -= AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS;
-            unit.Attack(target);
+            int hitDamage = unit.Attack(target);
+            // F15: Flächenschaden — Mangonel und Tribok treffen beim Schlag auch
+            // gegnerische Einheiten binnen dem Radius um das Getroffene.
+            ApplySiegeSplash(unit, target.Position,
+                AoE.Core.Combat.SiegeRules.SplashDamage(hitDamage));
             RegisterDamageTaken(target.OwnerId);
 
             // Der Bogen erklingt beim Schützen, Hieb und Klinge beim Getroffenen
@@ -5782,6 +5894,37 @@ public partial class RTSGameplayScreen : GameScreen
 
             // Tote Einheit: nicht hier entfernen (Units-Liste wird gerade
             // von UpdateUnits iteriert) — der Aufräumer übernimmt.
+        }
+    }
+
+    /// <summary>
+    /// Flächenschaden der Wurfgeräte (F15): beim Einschlag eines Mangonel- oder
+    /// Tribok-Schusses trifft <paramref name="splash"/> (Schadenswert, siehe
+    /// SiegeRules.SplashDamage) auch feindliche EINHEITEN binnen
+    /// <see cref="AoE.Core.Combat.SiegeRules.SplashRadiusTiles"/> Luftlinie um
+    /// <paramref name="center"/> — Schiffe und der Getroffene selbst nicht
+    /// (der bekam den vollen Schlag). Tote Einheiten räumt der Aufräumer am
+    /// Ende von UpdateUnits; Verbündete bleiben verschont (kein Beschuss
+    /// eigener Leute, wie in AoE). Kein Schallsignal pro Nebenperson — das
+    /// überhört im Getümmel sonst nichts, rauscht aber bei jedem Wurf.
+    /// </summary>
+    private void ApplySiegeSplash(Unit attacker, Vector2 center, int splash)
+    {
+        if (splash <= 0)
+            return;
+        float radius = AoE.Core.Combat.SiegeRules.SplashRadiusTiles(attacker.Core.Type) * tileMap.TileSize;
+        if (radius <= 0f)
+            return;
+        foreach (var u in units)
+        {
+            if (u.OwnerId == attacker.OwnerId || u.State == UnitState.Dead || u.IsShip)
+                continue;
+            if (Vector2.Distance(u.Position, center) > radius)
+                continue;
+            u.Health = Math.Max(0, u.Health - splash);
+            if (u.Health == 0)
+                u.State = UnitState.Dead;
+            RegisterDamageTaken(u.OwnerId);
         }
     }
 
@@ -6036,6 +6179,25 @@ public partial class RTSGameplayScreen : GameScreen
         // Schiffe fahren nur auf Wasser (RTSGameplayScreen.Schiffe)
         if (unit.IsShip)
             return StepShip(unit, dt);
+
+        // F15: Ein Gerät, das wegfährt, verliert seinen Reparatur-Auftrag —
+        // die Arbeiter, die dort standen, werden untätig
+        if (_deviceRepairs.Remove(unit))
+            ReleaseDeviceRepairers(unit);
+
+        // F15: Ein aufgebauter Tribok fährt erst, nachdem er den Balken
+        // eingepackt hat — jeder Laufbefehl löst den Abbau aus, und während
+        // Auf-/Abbau steht er still (der Weg bleibt erhalten).
+        if (unit.Type == UnitType.Trebuchet && (unit.Deployed || unit.Deploying))
+        {
+            unit.Deployed = false;
+            unit.Deploying = false;
+            unit.DeployTimer = AoE.Core.Combat.SiegeRules.PACK_SECONDS;
+            return false;
+        }
+        if (unit.Type == UnitType.Trebuchet && unit.DeployTimer > 0f)
+            return false;   // Abbau läuft noch
+
         if (unit.Path.Count == 0)
         {
             unit.Pace = 0f;

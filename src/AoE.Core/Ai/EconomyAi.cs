@@ -932,7 +932,7 @@ public sealed class EconomyAi : IAi
         // zählt die Warteschlangen mit: sonst reiht die KI jede halbe Sekunde weiter Milizen ein,
         // bis die ersten fertig sind, und das Soll ist voll, bevor die Feudalzeit Schießstand und
         // Stall freigibt (gemessen 2026-11-07: Defense mit 21 Milizen, 0 Bogenschützen).
-        if (Profile.ArcherPercent > 0 || Profile.CavalryPercent > 0)
+        if (Profile.ArcherPercent > 0 || Profile.CavalryPercent > 0 || Profile.SiegePercent > 0)
         {
             int queued = QueuedArmy(state);
             if (inField + queued >= Profile.SoldierTarget) return;
@@ -993,15 +993,20 @@ public sealed class EconomyAi : IAi
         int cavalry = state.Units.Count(u => u.Kind == UnitKind.Cavalry
                                              && u.State != UnitStateKind.Dead)
                       + state.QueuedSoldiers(UnitKind.Cavalry);
+        int siege = state.Units.Count(u => u.Kind == UnitKind.Catapult
+                                             && u.State != UnitStateKind.Dead)
+                    + state.QueuedSoldiers(UnitKind.Catapult);
         int total = state.Units.Count(u => u.Kind != UnitKind.Villager
                                           && u.State != UnitStateKind.Dead)
                     + QueuedArmy(state);
 
         var candidates = new List<(BuildingType Building, UnitKind Kind, int Share, int Have)>
         {
-            (BuildingType.Barracks,    UnitKind.Militia, 100 - Profile.ArcherPercent - Profile.CavalryPercent, melee),
+            (BuildingType.Barracks,    UnitKind.Militia, 100 - Profile.ArcherPercent - Profile.CavalryPercent - Profile.SiegePercent, melee),
             (BuildingType.ArcheryRange, UnitKind.Archer, Profile.ArcherPercent, archers),
             (BuildingType.Stable,      UnitKind.Cavalry, Profile.CavalryPercent, cavalry),
+            // F15: Belagerungsgeräte (Sparta) — Katapulte aus der Werkstatt, ab der Ritterzeit
+            (BuildingType.SiegeWorkshop, UnitKind.Catapult, Profile.SiegePercent, siege),
         };
         candidates = candidates
             .Where(c => c.Share > 0
@@ -1009,7 +1014,9 @@ public sealed class EconomyAi : IAi
                         && (c.Building != BuildingType.ArcheryRange
                             || state.Age >= Age.Feudal)
                         && (c.Building != BuildingType.Stable
-                            || state.Age >= Age.Feudal))
+                            || state.Age >= Age.Feudal)
+                        && (c.Building != BuildingType.SiegeWorkshop
+                            || state.Age >= Age.Castle))
             .ToList();
 
         var ordered = candidates
@@ -1027,7 +1034,14 @@ public sealed class EconomyAi : IAi
 
         // Miliz-Rückfallregel: die Armee wächst weiter, bis TrainSoldiers
         // am Soll (SoldierTarget) aufhört - Milizen aber nur bis zu ihrem Anteil am Soll.
-        int meleeCap = ((100 - Profile.ArcherPercent - Profile.CavalryPercent) * Profile.SoldierTarget + 99) / 100;
+        // Der Deckel bleibt nie unter der Aufstieg-Mindestarmee: in der Dunklen Zeit
+        // bilden Schießstand und Stall noch nicht aus, und bliebe der Deckel unter
+        // AgeUpArmy, wartete die Armee für immer unterhalb der Mindestruppe, statt
+        // aufzusteigen (gemessen 2026-11-15: Sparta mit 25 % Nahkampf-Anteil = Deckel 5
+        // < AgeUpArmy 6 - steckte 30 min in der Dunklen Zeit fest).
+        int meleeCap = Math.Max(Profile.AgeUpArmy,
+                        ((100 - Profile.ArcherPercent - Profile.CavalryPercent - Profile.SiegePercent)
+                         * Profile.SoldierTarget + 99) / 100);
         if (melee < meleeCap
             && state.Buildings.Any(b => b.Type == BuildingType.Barracks && b.IsComplete))
             actions.TrainSoldier(BuildingType.Barracks, UnitKind.Militia);
@@ -1065,6 +1079,19 @@ public sealed class EconomyAi : IAi
             && !state.Buildings.Any(b => b.Type == BuildingType.Stable))
         {
             if (TryBuildNear(state, actions, workers, BuildingType.Stable, workersFor: 1, allowPool: true, anchor: null))
+                return true;
+        }
+
+        // F15: Belagerungswerkstatt (Sparta) ab der Ritterzeit — 200 Holz kosten sie und
+        // die Katapulte dahinter 160 Holz + 135 Gold; beides zusammen will die Reserve
+        // 320 Holz, damit nicht Werkstatt und Goldausbildung um denselben Batzen streiten.
+        if (Profile.SiegePercent > 0
+            && AgeRules.IsUnlocked(BuildingType.SiegeWorkshop, state.Age)
+            && state.Resources.Wood >= 320
+            && state.Buildings.Any(b => b.Type == BuildingType.Barracks && b.IsComplete)
+            && !state.Buildings.Any(b => b.Type == BuildingType.SiegeWorkshop))
+        {
+            if (TryBuildNear(state, actions, workers, BuildingType.SiegeWorkshop, workersFor: 2, allowPool: true, anchor: null))
                 return true;
         }
 

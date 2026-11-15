@@ -111,6 +111,17 @@ public sealed class TrainingQueue<T> where T : notnull
     /// höchstens eine Einheit fertig.
     /// </summary>
     public bool Update(float dt, int population, int capacity, [MaybeNullWhen(false)] out T finished)
+        => Update(dt, population, capacity, null, out finished);
+
+    /// <summary>
+    /// Wie die Überladung ohne <paramref name="slotsOf"/>, aber mit Platzbedarf
+    /// je Einheitstyp (F15, Belagerungsgeräte belegen mehrere Plätze): die
+    /// vorderste Einheit bildet sich nur aus, wenn <paramref name="population"/>
+    /// plus ihr Bedarf (mindestens 1, aus <paramref name="slotsOf"/>) noch durch
+    /// <paramref name="capacity"/> passt — sonst steht die Ausbildung still.
+    /// </summary>
+    public bool Update(float dt, int population, int capacity, System.Func<T, int>? slotsOf,
+        [MaybeNullWhen(false)] out T finished)
     {
         finished = default;
         if (_entries.Count == 0)
@@ -118,7 +129,8 @@ public sealed class TrainingQueue<T> where T : notnull
             IsBlocked = false;
             return false;
         }
-        if (population >= capacity)
+        int cost = Math.Max(1, slotsOf?.Invoke(_entries[0].Unit) ?? 1);
+        if (population + cost > capacity)
         {
             IsBlocked = true;
             return false;

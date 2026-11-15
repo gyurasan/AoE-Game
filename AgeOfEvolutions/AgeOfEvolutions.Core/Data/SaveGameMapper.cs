@@ -184,6 +184,7 @@ public static class SaveGameMapper
                 UnloadY = unit.UnloadAt?.Y,
                 ResumeJob = unit.ResumeJob?.ToState(),
                 ResumeSite = IndexOf(map.Buildings, unit.ResumeSite),
+                Deployed = unit.Deployed,   // F15: Tribok-Aufbau überlebt das Laden
             });
         }
         // Passagiere an Bord: hinter allen Einheiten der Karte, mit dem Index ihres Schiffs
@@ -376,6 +377,7 @@ public static class SaveGameMapper
             unit.AttackTimer = us.AttackTimer;
             unit.Job = us.Job is null ? null : GatherJob.FromState(us.Job);
             unit.ResumeJob = us.ResumeJob is null ? null : GatherJob.FromState(us.ResumeJob);
+            unit.Deployed = us.Deployed;   // F15: alter Stand ohne Feld = abgebaut
         }
 
         // 7. Querverweise, erst wenn alle Gebäude und Einheiten stehen.

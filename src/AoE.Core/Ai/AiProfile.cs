@@ -66,6 +66,12 @@ public sealed record AiProfile
     /// Armee in Prozent. Größer 0: die KI baut einen Stall.</summary>
     public int CavalryPercent { get; init; }
 
+    /// <summary>Anteil der Belagerungsgeräte (Katapult aus der Belagerungswerkstatt,
+    /// ab der Ritterzeit) an der Armee in Prozent (F15). Größer 0: die KI baut eine
+    /// Werkstatt — ohne Geräte kommt eine Wellenarmee gegen Türme und Mauern kaum
+    /// durch (gemessen 2026-11-07: Sparta bricht Defense in 30 min nicht).</summary>
+    public int SiegePercent { get; init; }
+
     /// <summary>So viele Wachtürme baut die KI ab der Feudalzeit am Dorf.</summary>
     public int TowerCount { get; init; }
 
@@ -109,8 +115,10 @@ public sealed record AiProfile
         HomeDefenseRadius = 10,
     };
 
-    /// <summary>This is Sparta: große gemischte Armee (40 % Nahkampf, 35 % Bogen,
-    /// 25 % Reiter), Angriff in Aufstellung, Reiter im Schwall.</summary>
+    /// <summary>This is Sparta: große gemischte Armee (25 % Nahkampf, 35 % Bogen,
+    /// 25 % Reiter, 15 % Belagerung — F15), Angriff in Aufstellung, Reiter im
+    /// Schwall. Die Geräte gehören zur Welle: erst mit ihnen bricht die Welle
+    /// bewachte Dörfer.</summary>
     public static AiProfile Sparta { get; } = new()
     {
         HouseHeadroom     = 5,
@@ -124,6 +132,7 @@ public sealed record AiProfile
         FormationTactics  = true,
         ArcherPercent     = 35,
         CavalryPercent    = 25,
+        SiegePercent      = 15,
     };
 
     /// <summary>

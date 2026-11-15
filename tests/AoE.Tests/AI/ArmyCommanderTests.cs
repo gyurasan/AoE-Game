@@ -354,6 +354,48 @@ public class ArmyCommanderTests
     }
 
     [Fact]
+    public void Marsch_wartet_aufs_Katapult_und_geht_nach_der_Frist_weiter()
+    {
+        // F15: Geräte marschieren langsamer als Fußvolk. Der Verband darf nicht im
+        // Fußvolk-Tempo von Platz zu Platz eilen, während das Katapult zurückfällt.
+        var w = Dorf();
+        Armee(w, 5, 5, 2);
+        var kat = new[] { w.AddSoldier(9, 9, UnitKind.Catapult), w.AddSoldier(10, 9, UnitKind.Catapult) };
+        var army = new ArmyCommander(AiProfile.Sparta);
+        var ctx = new AiContext(1);
+        Run(army, w, ctx, 10, () => army.Phase == ArmyPhase.March);
+        Assert.Equal(ArmyPhase.March, army.Phase);
+        Assert.Contains(army.Wave, id => kat.Contains(id));   // die Geräte gehören zur Welle
+        Run(army, w, ctx, 60, () => Math.Max(Math.Abs(army.Anchor.X - 6), Math.Abs(army.Anchor.Y - 6)) >= 20);
+        Assert.Equal(ArmyPhase.March, army.Phase);
+
+        // Das Katapult bleibt zurück: jeden Takt zurück nach (9, 9) gesetzt, die anderen
+        // marschieren wie gehabt auf ihre Plätze.
+        void Takt()
+        {
+            int from = w.Log.Count;
+            ctx.Time += 0.5;
+            army.Tick(w, w, ctx);
+            Apply(w, from);
+            foreach (int id in kat)
+            {
+                int k = w.AllUnits.FindIndex(u => u.Id == id);
+                var u = w.AllUnits[k];
+                w.AllUnits[k] = new UnitSnapshot { Id = u.Id, Owner = u.Owner, Kind = u.Kind, X = 9, Y = 9,
+                                                   State = UnitStateKind.Idle, Health = u.Health, MaxHealth = u.MaxHealth };
+            }
+        }
+        int cheb((int X, int Y) a, (int X, int Y) b) => Math.Max(Math.Abs(a.X - b.X), Math.Abs(a.Y - b.Y));
+        var a0 = army.Anchor;
+        for (int i = 0; i < 16; i++) Takt();   // 8 s: unter der Frist (10 s)
+        Assert.True(cheb(army.Anchor, a0) <= ArmyCommander.MarchStep,
+            $"Verband {cheb(army.Anchor, a0)} Kacheln weitergerückt, obwohl das Katapult fehlt");
+        for (int i = 0; i < 24; i++) Takt();   // über die Frist: der Marsch bleibt nicht stehen (zwei Schritte)
+        Assert.True(army.Phase == ArmyPhase.March && cheb(army.Anchor, a0) > ArmyCommander.MarchStep,
+            $"auch nach der Frist kein Schritt (Phase {army.Phase}, Anker {army.Anchor})");
+    }
+
+    [Fact]
     public void Kampf_Nahkaempfer_vorn_Schuetzen_schiessen_aus_der_zweiten_Reihe()
     {
         var (army, w, ctx, ids) = Losgezogen(melee: 6, archers: 6, riders: 0);
