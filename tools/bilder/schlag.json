@@ -297,5 +297,55 @@
    {"name": "durchziehen", "oberarm": -312, "unterarm": -29, "rumpf": 4},
    {"name": "zurueck", "oberarm": -332, "unterarm": 11, "rumpf": 2}
   ]
+ },
+ "bogenschuetze": {
+  "modus": "bogen",
+  "bild": "soldaten/bogenschuetze_spannt_14203.png",
+  "rumpf_bild": "soldaten/bogenschuetze_spannt_ohne_14211.png",
+  "figur": "bogenschuetze",
+  "arm": {"schulter": [355, 348], "ellbogen": [275, 314], "hand": [410, 303]},
+  "oberarm_breite": 26, "unterarm_breite": 34, "arm_differenz": 60,
+  "faust": [412, 303, 40, 30],
+  "nocke": [442, 292],
+  "pfeil": [442, 292, 862, 294, 16],
+  "sehne": {"oben": [636, 48], "unten": [620, 607]},
+  "sehne_dicke": 6,
+  "bogenhand": [[778, 322, 26, 32]],
+  "rumpf_weg": [[505, 290, 752, 290, 15], [798, 291, 866, 291, 24], [636, 48, 500, 214, 9], [515, 462, 612, 596, 9]],
+  "rumpf_flicken_hell": [[438, 276, 506, 304, 170]],
+  "phasen": [
+   {"name": "bereit", "zug": 0.0},
+   {"name": "ziehen1", "zug": 0.25},
+   {"name": "ziehen2", "zug": 0.5},
+   {"name": "ziehen3", "zug": 0.75},
+   {"name": "ziehen4", "zug": 0.92},
+   {"name": "voll", "zug": 1.0},
+   {"name": "los", "zug": 1.0, "pfeil": false, "sehne": "ruhe", "hand_versatz": [-14, -4]},
+   {"name": "zurueck", "zug": 0.45, "pfeil": false, "sehne": "ruhe"}
+  ]
+ },
+ "kamelreiter": {
+  "bild": "soldaten/kamelreiter_14104.png",
+  "rumpf_bild": "soldaten/kamelreiter_ohne_arm_14113.png",
+  "figur": "kamelreiter",
+  "arm": {"schulter": [468, 168], "ellbogen": [500, 218], "hand": [543, 268]},
+  "oberarm_breite": 26, "unterarm_breite": 26,
+  "waffe": [[548, 245, 575, 140, 30], [575, 140, 583, 18, 24], [528, 308, 548, 245, 22]],
+  "nicht_arm": [],
+  "kopf": [425, 110, 72, 92],
+  "schulterkappe": [470, 172, 24, 30],
+  "schulter_schnitt": 192,
+  "radieren": [[555, 20, 610, 270]],
+  "huefte": [430, 320],
+  "phasen": [
+   {"name": "bereit", "oberarm": 0, "unterarm": 0, "rumpf": 0},
+   {"name": "ausholen", "oberarm": -10, "unterarm": 30, "rumpf": 0},
+   {"name": "oben", "oberarm": -25, "unterarm": 55, "rumpf": 0, "hinter_kopf": true},
+   {"name": "ueber_kopf", "oberarm": -30, "unterarm": 70, "rumpf": 0, "hinter_kopf": true},
+   {"name": "vor_kopf", "oberarm": -15, "unterarm": 25, "rumpf": 0},
+   {"name": "treffer", "oberarm": 10, "unterarm": -50, "rumpf": 0},
+   {"name": "durchziehen", "oberarm": 15, "unterarm": -70, "rumpf": 0},
+   {"name": "zurueck", "oberarm": 5, "unterarm": -30, "rumpf": 0}
+  ]
  }
 }

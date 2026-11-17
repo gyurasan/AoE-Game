@@ -21,6 +21,9 @@ Den Rumpf ausbessern: "weg" (Formen) löscht Stücke, die zu keinem Teil gehöre
 die vom Wurfarm durchhängt); "rumpf_kopie" füllt Löcher, wo ein Teil ausgeschnitten wurde, mit einem
 verschobenen und skalierten Stück des Standbilds (das Rad hinter dem Rammkopf aus dem Vorderrad);
 "kruemel": n löscht lose Stückchen unter n Bildpunkten (Seilenden und Splitter neben dem Wurfarm).
+"bild_leer": dieselbe Maschine nach dem Wurf (Becher ohne Stein, per Inpainting nur dort neu gemalt);
+eine Phase mit {"teil": {"leer": true}} schneidet dieses Teil aus jenem Bild - gleiche Masken, gleiche
+Leinwand für alle Phasen.
 Mit "ohne" in der Maske eines Teils bleibt, was vor dem Teil liegt, fest im Rumpf - der vordere
 Pfosten und die Lagerplatte, hinter denen der Wurfarm des Trebuchets schwingt. Das Loch, das dort
 im Teil bliebe, füllt "fuellen" (Felder wie "rumpf_kopie") mit dem verschobenen Balken davor.
@@ -170,26 +173,39 @@ def figur(name, cfg):
     roh_b, roh_h = W - 2 * RAND, H - 2 * RAND
     deckend = stand[:, :, 3] > 8
 
-    teile = {}
-    durch = {}
-    belegt = np.zeros((H, W), bool)
-    for t in cfg["teile"]:
-        m = maske(t["maske"], roh_b, roh_h) & deckend
-        if "durch" in t:
-            durch[t["name"]] = maske(t["durch"], roh_b, roh_h)
-        bild = np.zeros_like(stand)
-        bild[m] = stand[m]
+    def schneiden(t, quelle):
+        """Das Teil aus 'quelle' schneiden: Maske über den deckenden Pixeln, dann fuellen, kruemel
+        und verlaengern."""
+        m = maske(t["maske"], roh_b, roh_h) & (quelle[:, :, 3] > 8)
+        bild = np.zeros_like(quelle)
+        bild[m] = quelle[m]
         # "fuellen": wie "rumpf_kopie", aber für das Teil selbst - wo im Standbild etwas davor lag
         # (der vordere Pfosten vor dem Wurfarm, per "ohne" im Rumpf gelassen), hätte das Teil ein
         # Loch, das beim Drehen sichtbar würde: es wird mit dem verschobenen Balken davor gefüllt
         for k in t.get("fuellen", []):
-            kopieren(bild, stand, k, roh_b, roh_h)
+            kopieren(bild, quelle, k, roh_b, roh_h)
         if t.get("kruemel"):
             kruemel_weg(bild, t["kruemel"])
         if "verlaengern" in t:
             nur = maske(t["verlaengern_in"], roh_b, roh_h) if "verlaengern_in" in t else None
             bild = verlaengern(bild, *t["verlaengern"], nur=nur)
-        teile[t["name"]] = (t, ausmalen(bild))
+        return m, ausmalen(bild)
+
+    # "bild_leer": dieselbe Maschine nach dem Wurf (der Becher des Mangonels ohne Stein, mit
+    # qwen_image.py nur dort neu gemalt). Phasen mit "leer": true schneiden ihre Teile aus diesem
+    # Bild - Rumpf, Masken und Drehpunkte bleiben, alle Phasen bekommen dieselbe Leinwand
+    leer_bild = schlag.lade(AUSGABE / cfg["bild_leer"]) if cfg.get("bild_leer") else None
+    teile = {}
+    teile_leer = {}
+    durch = {}
+    belegt = np.zeros((H, W), bool)
+    for t in cfg["teile"]:
+        if "durch" in t:
+            durch[t["name"]] = maske(t["durch"], roh_b, roh_h)
+        m, bild = schneiden(t, stand)
+        teile[t["name"]] = (t, bild)
+        if leer_bild is not None:
+            teile_leer[t["name"]] = schneiden(t, leer_bild)[1]
         belegt |= m
     if cfg.get("rumpf_bild"):
         rumpf = schlag.lade(AUSGABE / cfg["rumpf_bild"])
@@ -222,6 +238,8 @@ def figur(name, cfg):
         lagen = {}
         for tname, (t, bild) in teile.items():
             p = phase.get(tname, {})
+            if p.get("leer"):
+                bild = teile_leer[tname]
             if "haengt_an" in t:
                 eltern = t["haengt_an"]
                 et, _ = teile[eltern["teil"]]

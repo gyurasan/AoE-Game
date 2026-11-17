@@ -549,6 +549,12 @@ public partial class RTSGameplayScreen : GameScreen
         ["Gebaeude/imperial/kloster"] = new(278, 78, 52, 42),
         ["Gebaeude/imperial/burg"] = new(270, 12, 143, 66),
         ["Gebaeude/imperial/wunder"] = new(428, 39, 163, 119),
+        // Hafen: das zeitlose Bild ist zugleich das der Dunklen Zeit (2026-11-17)
+        ["Gebaeude/hafen"] = new(330, 42, 54, 32),
+        ["Gebaeude/dunkel/hafen"] = new(330, 42, 54, 32),
+        ["Gebaeude/feudal/hafen"] = new(327, 48, 49, 33),
+        ["Gebaeude/ritter/hafen"] = new(310, 97, 51, 36),
+        ["Gebaeude/imperial/hafen"] = new(334, 25, 48, 30),
     };
     // Türmitte der Abgabestellen je Bild, als Anteil der Bildbreite, am Bild gemessen
     private static readonly Dictionary<string, float> DoorCenters = new()

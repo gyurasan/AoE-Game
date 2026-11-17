@@ -233,5 +233,29 @@
    {"huefte": [425, 660], "knie": [375, 795], "knoechel": [325, 885], "zehe": [410, 945]},
    {"huefte": [540, 660], "knie": [560, 770], "knoechel": [600, 885], "zehe": [700, 930]}
   ]
+ },
+ "kamelreiter": {
+  "bild": "soldaten/kamelreiter_14104.png",
+  "saum": 640, "breite": 40, "schritt": 140, "verlaengerung": 25,
+  "gang": {"stand": 0.62, "ferse_ende": 0.08, "zehe_anfang": 0.4, "ferse_grad": 6.0, "zehe_grad": -28.0, "schwung_hub": 0.12},
+  "rumpf": [[196, 500, 226, 605]],
+  "beine": [
+   {"huefte": [240, 615], "knie": [238, 760], "knoechel": [242, 815], "zehe": [283, 876], "knick": "hinten", "saum": 628, "versatz": 0.0, "ferse_x": -10},
+   {"huefte": [320, 630], "knie": [358, 745], "knoechel": [377, 795], "zehe": [425, 812], "knick": "hinten", "saum": 630, "versatz": 0.5, "ferse_x": -10},
+   {"huefte": [492, 650], "knie": [493, 795], "knoechel": [496, 928], "zehe": [534, 986], "saum": 660, "versatz": 0.1, "ferse_x": -12},
+   {"huefte": [582, 632], "knie": [580, 755], "knoechel": [590, 893], "zehe": [637, 932], "saum": 635, "versatz": 0.6, "ferse_x": -12}
+  ]
+ },
+ "berittener_schuetze": {
+  "bild": "soldaten/berittener_schuetze_14301.png",
+  "saum": 700, "breite": 45, "schritt": 150,
+  "gang": {"stand": 0.62, "ferse_ende": 0.08, "zehe_anfang": 0.4, "ferse_grad": 6.0, "zehe_grad": -28.0, "schwung_hub": 0.12},
+  "rumpf": [[370, 645, 465, 730], [150, 560, 215, 690]],
+  "beine": [
+   {"huefte": [345, 580], "knie": [365, 745], "knoechel": [378, 778], "zehe": [405, 798], "knick": "hinten", "saum": 595, "versatz": 0.5, "ferse_x": -10},
+   {"huefte": [650, 670], "knie": [635, 860], "knoechel": [645, 910], "zehe": [680, 940], "saum": 685, "versatz": 0.75, "ferse_x": -12},
+   {"huefte": [255, 570], "knie": [235, 760], "knoechel": [245, 810], "zehe": [275, 836], "knick": "hinten", "saum": 585, "versatz": 0.0, "ferse_x": -10},
+   {"huefte": [555, 660], "knie": [545, 805], "knoechel": [552, 940], "zehe": [585, 985], "saum": 675, "versatz": 0.25, "ferse_x": -12}
+  ]
  }
 }

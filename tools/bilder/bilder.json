@@ -7966,6 +7966,226 @@
     "negativ": "sword, blade, weapon, hand, fist, arm hanging down, sleeve hanging down, extra arm, glove, dagger",
     "vorfuellen": "krieger_5122_roh.png",
     "staerke": 0.6
+   },
+   {
+    "name": "kamelreiter",
+    "seed": 14104,
+    "ziel": "Einheiten/kamelreiter.png",
+    "figur": "kamelreiter",
+    "prompt": "A medieval camel rider on a tan one-humped dromedary camel, the rider in a bright blue tunic with a brown leather belt and a white cloth head wrap, a curved sabre held upright in his right hand, the camel with a simple saddle blanket over the hump and a rope bridle, the whole camel visible from head to hooves with its four long thin legs clearly separated, standing pose turned slightly to the right.",
+    "negativ": "two humps, bactrian camel, horse, extra leg, five legs, missing leg, shield, spear, lance, shadow"
+   },
+   {
+    "name": "bogenschuetze_spannt",
+    "seed": 14201,
+    "figur": "bogenschuetze",
+    "vorlage": "bogenschuetze_beine_4651_roh.png",
+    "staerke": 0.92,
+    "maske": {
+     "rechtecke": [
+      [
+       150,
+       0,
+       800,
+       625
+      ],
+      [
+       540,
+       600,
+       170,
+       55
+      ]
+     ]
+    },
+    "prompt": "A medieval archer in a bright blue tunic with a brown leather belt, brown trousers, leather boots and a green hood, a quiver of arrows on his back, seen from the side in profile facing right, shooting: his left arm stretched straight out to the right holding a tall wooden longbow upright, his right hand pulling the bow string back to his cheek, one arrow on the string pointing straight to the right, the whole bow visible from tip to tip, focused face.",
+    "negativ": "second bow, extra arm, extra hand, three arms, crossbow, bow on the back, arrow pointing at the viewer, shadow"
+   },
+   {
+    "name": "berittener_schuetze",
+    "seed": 14301,
+    "figur": "berittener_schuetze",
+    "vorlage": "spaeher_ohne_speer_4671_roh.png",
+    "staerke": 0.9,
+    "maske": {
+     "rechtecke": [
+      [
+       330,
+       0,
+       290,
+       470
+      ]
+     ]
+    },
+    "prompt": "A medieval mounted archer on a brown horse, the rider in a bright blue tunic with a brown leather belt and a green hood, a quiver of arrows on his back, a short curved wooden bow held upright in his left hand, the horse with a simple saddle and bridle, the whole horse visible from ears to hooves, standing pose turned slightly to the right.",
+    "negativ": "spear, lance, sword, shield, second bow, extra hand, extra arm, crossbow, shadow",
+    "ziel": "Einheiten/berittener_schuetze.png",
+    "zielbreite": 128
+   },
+   {
+    "name": "bogenschuetze_spannt_ohne",
+    "seed": 14211,
+    "vorfuellen": "bogenschuetze_spannt_14203_roh.png",
+    "vorlage": "bogenschuetze_spannt_ohne_vorlage.png",
+    "staerke": 0.6,
+    "maske": {
+     "rechtecke": [
+      [
+       255,
+       272,
+       193,
+       80
+      ]
+     ],
+     "linien": [
+      [
+       633,
+       50,
+       505,
+       212,
+       10
+      ],
+      [
+       445,
+       335,
+       622,
+       608,
+       10
+      ],
+      [
+       440,
+       292,
+       862,
+       294,
+       14
+      ]
+     ],
+     "ohne": {
+      "ellipsen": [
+       [
+        793,
+        325,
+        24,
+        28
+       ]
+      ]
+     }
+    },
+    "prompt": "A medieval archer in a bright blue tunic with a brown leather belt, brown trousers, leather boots and a green hood, a quiver of arrows on his back, seen from the side in profile facing right, his left arm stretched straight out to the right holding a tall wooden longbow upright. The bow has no string and there is no arrow. His right arm hangs down behind his body, his face and green scarf are fully visible.",
+    "negativ": "arrow, bow string, string, hand in front of the face, fist, raised right arm, second bow"
+   },
+   {
+    "name": "kamelreiter_ohne_arm",
+    "seed": 14111,
+    "vorfuellen": "kamelreiter_14104_roh.png",
+    "vorlage": "kamelreiter_ohne_arm_vorlage.png",
+    "staerke": 0.6,
+    "maske": {
+     "linien": [
+      [
+       468,
+       168,
+       500,
+       218,
+       50
+      ],
+      [
+       500,
+       218,
+       545,
+       268,
+       50
+      ],
+      [
+       548,
+       245,
+       575,
+       140,
+       30
+      ],
+      [
+       575,
+       140,
+       583,
+       22,
+       26
+      ],
+      [
+       528,
+       305,
+       548,
+       245,
+       24
+      ]
+     ],
+     "ellipsen": [
+      [
+       543,
+       268,
+       32,
+       36
+      ]
+     ]
+    },
+    "prompt": "A medieval camel rider on a tan one-humped dromedary camel, the rider in a bright blue tunic with a brown leather belt and a white cloth head wrap, his right arm lowered out of sight behind his body, no sword, the camel with a simple saddle blanket over the hump and a rope bridle, standing pose turned slightly to the right.",
+    "negativ": "sword, sabre, blade, weapon, raised arm, hand, fist, extra arm"
+   },
+   {
+    "name": "kaiserlicher_kamelreiter",
+    "seed": 14121,
+    "figur": "kaiserlicher_kamelreiter",
+    "vorlage": "kamelreiter_14104_roh.png",
+    "staerke": 0.85,
+    "maske": {
+     "rechtecke": [
+      [
+       300,
+       0,
+       300,
+       330
+      ],
+      [
+       200,
+       300,
+       260,
+       190
+      ]
+     ],
+     "ohne": {
+      "linien": [
+       [
+        548,
+        245,
+        575,
+        140,
+        30
+       ],
+       [
+        575,
+        140,
+        583,
+        22,
+        26
+       ],
+       [
+        528,
+        305,
+        548,
+        245,
+        24
+       ]
+      ],
+      "ellipsen": [
+       [
+        543,
+        268,
+        30,
+        34
+       ]
+      ]
+     }
+    },
+    "prompt": "An elite heavy camel rider on a tan one-humped dromedary camel, the rider in a shining steel mail shirt and lamellar armor over a bright blue tunic, a pointed steel helmet wrapped with a white cloth, a curved sabre held upright in his right hand, an ornate saddle cloth in bright blue with golden trim and tassels over the hump, standing pose turned slightly to the right.",
+    "negativ": "two humps, horse, shield, spear, lance, second sword, extra hand, extra arm, shadow"
    }
   ]
  },
@@ -9428,6 +9648,118 @@
     "seed": 1,
     "ziel": "Einheiten/krieger_lauf8.png",
     "figur": "krieger",
+    "zielbreite": 128
+   },
+   {
+    "name": "kamelreiter_lauf1",
+    "seed": 1,
+    "ziel": "Einheiten/kamelreiter_lauf1.png",
+    "figur": "kamelreiter",
+    "zielbreite": 128
+   },
+   {
+    "name": "kamelreiter_lauf2",
+    "seed": 1,
+    "ziel": "Einheiten/kamelreiter_lauf2.png",
+    "figur": "kamelreiter",
+    "zielbreite": 128
+   },
+   {
+    "name": "kamelreiter_lauf3",
+    "seed": 1,
+    "ziel": "Einheiten/kamelreiter_lauf3.png",
+    "figur": "kamelreiter",
+    "zielbreite": 128
+   },
+   {
+    "name": "kamelreiter_lauf4",
+    "seed": 1,
+    "ziel": "Einheiten/kamelreiter_lauf4.png",
+    "figur": "kamelreiter",
+    "zielbreite": 128
+   },
+   {
+    "name": "kamelreiter_lauf5",
+    "seed": 1,
+    "ziel": "Einheiten/kamelreiter_lauf5.png",
+    "figur": "kamelreiter",
+    "zielbreite": 128
+   },
+   {
+    "name": "kamelreiter_lauf6",
+    "seed": 1,
+    "ziel": "Einheiten/kamelreiter_lauf6.png",
+    "figur": "kamelreiter",
+    "zielbreite": 128
+   },
+   {
+    "name": "kamelreiter_lauf7",
+    "seed": 1,
+    "ziel": "Einheiten/kamelreiter_lauf7.png",
+    "figur": "kamelreiter",
+    "zielbreite": 128
+   },
+   {
+    "name": "kamelreiter_lauf8",
+    "seed": 1,
+    "ziel": "Einheiten/kamelreiter_lauf8.png",
+    "figur": "kamelreiter",
+    "zielbreite": 128
+   },
+   {
+    "name": "berittener_schuetze_lauf1",
+    "seed": 1,
+    "ziel": "Einheiten/berittener_schuetze_lauf1.png",
+    "figur": "berittener_schuetze",
+    "zielbreite": 128
+   },
+   {
+    "name": "berittener_schuetze_lauf2",
+    "seed": 1,
+    "ziel": "Einheiten/berittener_schuetze_lauf2.png",
+    "figur": "berittener_schuetze",
+    "zielbreite": 128
+   },
+   {
+    "name": "berittener_schuetze_lauf3",
+    "seed": 1,
+    "ziel": "Einheiten/berittener_schuetze_lauf3.png",
+    "figur": "berittener_schuetze",
+    "zielbreite": 128
+   },
+   {
+    "name": "berittener_schuetze_lauf4",
+    "seed": 1,
+    "ziel": "Einheiten/berittener_schuetze_lauf4.png",
+    "figur": "berittener_schuetze",
+    "zielbreite": 128
+   },
+   {
+    "name": "berittener_schuetze_lauf5",
+    "seed": 1,
+    "ziel": "Einheiten/berittener_schuetze_lauf5.png",
+    "figur": "berittener_schuetze",
+    "zielbreite": 128
+   },
+   {
+    "name": "berittener_schuetze_lauf6",
+    "seed": 1,
+    "ziel": "Einheiten/berittener_schuetze_lauf6.png",
+    "figur": "berittener_schuetze",
+    "zielbreite": 128
+   },
+   {
+    "name": "berittener_schuetze_lauf7",
+    "seed": 1,
+    "ziel": "Einheiten/berittener_schuetze_lauf7.png",
+    "figur": "berittener_schuetze",
+    "zielbreite": 128
+   },
+   {
+    "name": "berittener_schuetze_lauf8",
+    "seed": 1,
+    "ziel": "Einheiten/berittener_schuetze_lauf8.png",
+    "figur": "berittener_schuetze",
     "zielbreite": 128
    }
   ]
@@ -11221,6 +11553,26 @@
     },
     "prompt": "A tall medieval counterweight trebuchet ready to throw: a high wooden A-frame on a heavy wooden base, a very long wooden throwing arm pivoting on an axle at the top of the frame, its long end pulled down to the left with a rope sling lying beside the base, its short end raised high on the right with a heavy wooden box counterweight hanging from it, bright blue painted beams on the base. The throwing arm and the counterweight have been taken off: above the A-frame only plain white background is visible, the frame with its axle and the base stay.",
     "negativ": "throwing arm, long beam, counterweight, hanging box, rope, sling"
+   },
+   {
+    "name": "mangonel_leer",
+    "seed": 14502,
+    "vorfuellen": "mangonel_12012_roh.png",
+    "vorlage": "mangonel_leer_vorlage.png",
+    "staerke": 0.6,
+    "maske": {
+     "ellipsen": [
+      [
+       152,
+       64,
+       50,
+       36
+      ]
+     ]
+    },
+    "prompt": "A medieval mangonel torsion catapult: a low heavy wooden frame on four solid wooden wheels, a thick bundle of twisted ropes across the frame, a long wooden throwing arm pulled down and back to the left with an empty iron cup at its end: the stone has just been thrown, the dark hollow inside of the empty cup is visible, a padded wooden crossbar standing upright at the front, bright blue painted planks on its side.",
+    "negativ": "stone, rock, boulder, ball, round stone in the cup",
+    "_hinweis": "gewählt 14502 (14501 Fleck am Rand, 14503 Rand offen); Quelle für bild_leer in teilanim.json"
    }
   ]
  },
@@ -11513,6 +11865,191 @@
     "ziel": "Einheiten/fischerboot.png",
     "figur": "fischerboot",
     "prompt": "A small medieval fishing boat: a short open wooden boat with a clinker-built hull of overlapping planks, a low curved bow and stern, one short mast with a small square sail with bright blue and white vertical stripes, a brown fishing net draped over the side of the hull, a wicker basket full of silver fish and a pair of oars on deck."
+   },
+   {
+    "name": "kriegsschiff_ohne_ruder",
+    "seed": 14401,
+    "vorfuellen": "kriegsschiff_13011_roh.png",
+    "vorlage": "kriegsschiff_ohne_ruder_vorlage.png",
+    "staerke": 0.6,
+    "maske": {
+     "linien": [
+      [
+       175,
+       667,
+       306,
+       529,
+       20
+      ],
+      [
+       175,
+       667,
+       214,
+       626,
+       36
+      ],
+      [
+       218,
+       699,
+       357,
+       552,
+       20
+      ],
+      [
+       218,
+       699,
+       258,
+       657,
+       36
+      ],
+      [
+       267,
+       725,
+       409,
+       576,
+       20
+      ],
+      [
+       267,
+       725,
+       306,
+       684,
+       36
+      ],
+      [
+       317,
+       749,
+       460,
+       599,
+       20
+      ],
+      [
+       317,
+       749,
+       356,
+       707,
+       36
+      ],
+      [
+       367,
+       777,
+       513,
+       623,
+       20
+      ],
+      [
+       367,
+       777,
+       406,
+       735,
+       36
+      ],
+      [
+       417,
+       799,
+       563,
+       646,
+       20
+      ],
+      [
+       417,
+       799,
+       456,
+       757,
+       36
+      ],
+      [
+       467,
+       825,
+       615,
+       670,
+       20
+      ],
+      [
+       467,
+       825,
+       506,
+       784,
+       36
+      ],
+      [
+       515,
+       844,
+       661,
+       690,
+       20
+      ],
+      [
+       515,
+       844,
+       554,
+       802,
+       36
+      ],
+      [
+       578,
+       877,
+       727,
+       720,
+       20
+      ],
+      [
+       578,
+       877,
+       618,
+       835,
+       36
+      ]
+     ],
+     "ohne": {
+      "ellipsen": [
+       [
+        302,
+        515,
+        31,
+        40
+       ],
+       [
+        362,
+        540,
+        31,
+        40
+       ],
+       [
+        427,
+        570,
+        31,
+        40
+       ],
+       [
+        493,
+        605,
+        31,
+        40
+       ],
+       [
+        558,
+        637,
+        31,
+        40
+       ],
+       [
+        625,
+        665,
+        31,
+        40
+       ],
+       [
+        695,
+        693,
+        31,
+        40
+       ]
+      ]
+     }
+    },
+    "prompt": "A medieval war galley: a long narrow wooden longship with a clinker-built hull, a carved dragon head on the high curved prow, one mast with a bright blue square sail, a row of round wooden shields painted bright blue along the gunwale. The oars have been pulled in: no oars stick out of the hull, the hull side below the shields shows only plain overlapping planks.",
+    "negativ": "oars, oar, paddles, poles, sticks"
    }
   ]
  },
@@ -11536,6 +12073,31 @@
     "seed": 13101,
     "ziel": "Gebaeude/hafen.png",
     "prompt": "A medieval wooden harbor dock: a large square wooden pier platform of thick planks standing on many wooden stilts, a small timber boathouse with a thatched roof on the back half of the platform, coils of rope, barrels and crates on the planks, a wooden crane beam, and a small blue flag on a tall pole beside the boathouse, the flag flying to the right."
+   },
+   {
+    "name": "hafen_dunkel",
+    "seed": 13101,
+    "ziel": "Gebaeude/dunkel/hafen.png",
+    "_hinweis": "Dunkle Zeit = das bisherige zeitlose Bild (Schilfdach), gleicher Seed wie hafen",
+    "prompt": "A medieval wooden harbor dock: a large square wooden pier platform of thick planks standing on many wooden stilts, a small timber boathouse with a thatched roof on the back half of the platform, coils of rope, barrels and crates on the planks, a wooden crane beam, and a small blue flag on a tall pole beside the boathouse, the flag flying to the right."
+   },
+   {
+    "name": "hafen_feudal",
+    "seed": 14001,
+    "ziel": "Gebaeude/feudal/hafen.png",
+    "prompt": "A medieval wooden harbor dock: a large square pier platform of sawn planks standing on many thick wooden stilts, a timber boathouse with plank walls on a low stone base and a wooden shingle roof on the back half of the platform, coils of rope, barrels and crates on the planks, a wooden crane beam with a hanging hook, and a small blue flag on a tall pole beside the boathouse, the flag flying to the right."
+   },
+   {
+    "name": "hafen_ritter",
+    "seed": 14011,
+    "ziel": "Gebaeude/ritter/hafen.png",
+    "prompt": "A medieval harbor quay: a large square pier platform of thick planks on sturdy stone pillars, a two-storey half-timbered warehouse with a grey stone ground floor and a red clay tile roof on the back half of the platform, a wooden treadwheel crane, barrels, crates and sacks on the planks, and a small blue flag on a tall pole beside the warehouse, the flag flying to the right."
+   },
+   {
+    "name": "hafen_imperial",
+    "seed": 14021,
+    "ziel": "Gebaeude/imperial/hafen.png",
+    "prompt": "A grand late medieval harbor: a large square pier platform of cut stone blocks on stone pillars, an ornate cream limestone warehouse with arched doors, decorated stepped gables and a dark grey slate roof on the back half of the platform, a large wooden crane, an iron lantern post, barrels and crates, and a small blue flag on a tall pole beside the warehouse, the flag flying to the right."
    }
   ]
  },

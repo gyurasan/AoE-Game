@@ -24,6 +24,7 @@
  },
  "mangonel": {
   "bild": "belagerung/mangonel_12012.png",
+  "bild_leer": "belagerung/mangonel_leer_14502.png",
   "figur": "mangonel",
   "art": "angriff",
   "teile": [
@@ -37,10 +38,10 @@
    {"arm": {"winkel": -4}},
    {"arm": {"winkel": 20}},
    {"arm": {"winkel": 55}},
-   {"arm": {"winkel": 82}},
-   {"arm": {"winkel": 76}},
-   {"arm": {"winkel": 45}},
-   {"arm": {"winkel": 15}}
+   {"arm": {"winkel": 82, "leer": true}},
+   {"arm": {"winkel": 76, "leer": true}},
+   {"arm": {"winkel": 45, "leer": true}},
+   {"arm": {"winkel": 15, "leer": true}}
   ]
  },
  "trebuchet": {

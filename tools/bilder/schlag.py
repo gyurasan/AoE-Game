@@ -30,7 +30,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw
 from scipy import ndimage
 
 HIER = Path(__file__).resolve().parent
@@ -311,10 +311,174 @@ def speer(name, cfg):
     ausgeben(name, cfg, bilder, W, H)
 
 
+def _drehen(teil, um, grad, versatz=(0.0, 0.0)):
+    """RGBA-Feld um 'um' (Leinwandpixel) im Uhrzeigersinn drehen, danach verschieben (wie
+    teilanim.drehen; eigene Kopie, weil teilanim dieses Modul einbindet)."""
+    bild = Image.fromarray(teil)
+    r = math.radians(grad)
+    c, s = math.cos(r), math.sin(r)
+    ux, uy = um
+    x0, y0 = ux + versatz[0], uy + versatz[1]
+    koeff = (c, s, ux - c * x0 - s * y0, -s, c, uy + s * x0 - c * y0)
+    return np.array(bild.transform(bild.size, Image.AFFINE, koeff, resample=Image.BICUBIC))
+
+
+def bogen(name, cfg):
+    """Bogenschuss (Modus "bogen"): die Zughand zieht die Sehne bis an die Wange, der Pfeil fliegt.
+
+    "bild" zeigt den Schützen mit voll gespanntem Bogen, "rumpf_bild" dasselbe Bild ohne Zugarm,
+    Sehne und Pfeil (qwen_image.py mit vorfuellen). Der Zugarm ist, was im Standbild deckt und im
+    Rumpf fehlt oder anders aussieht ("arm_differenz"), nah am Skelett "arm" (schulter, ellbogen,
+    hand) - Oberarm und Unterarm samt Faust. Ohne Pfeil und Sehne: was auf der Pfeillinie rechts
+    der Nocke liegt und was auf den Sehnenlinien außerhalb der Faust ("faust", Ellipse) liegt.
+
+    Je Phase "zug" (0 = Sehne in Ruhe, 1 = voll gespannt): die Nocke liegt auf der Pfeillinie
+    zwischen der geraden Sehne (Bogenspitzen "sehne" oben/unten) und ihrer Lage im Standbild, die
+    Faust geht mit ihr, der Ellbogen folgt aus beiden Knochenlängen und bleibt auf derselben Seite
+    wie im Standbild. "pfeil": false lässt den Pfeil weg; "sehne": "ruhe" spannt die Sehne gerade
+    statt zur Nocke (nach dem Schuss); "hand_versatz" [dx, dy] schiebt die Faust zusätzlich (sie
+    schnellt beim Loslassen zurück). Der Pfeil wird aus dem Standbild geschnitten ("pfeil": Linie
+    von der Nocke zur Spitze und Dicke), Lücken im Schaft (unter der Bogenhand) mit der nächsten
+    Spalte links gefüllt; die Bogenhand ("bogenhand", Ellipsen aus dem Rumpf) liegt über dem Pfeil.
+    Schichten: Rumpf, Sehne, Pfeil, Bogenhand, Oberarm, Unterarm."""
+    verschoben = lambda p: (p[0] + RAND, p[1] + RAND)   # noqa: E731
+    a = lade(AUSGABE / cfg["bild"])
+    rumpf = lade(AUSGABE / cfg["rumpf_bild"])
+    H, W = a.shape[:2]
+    yy, xx = np.mgrid[0:H, 0:W]
+    deckend = a[:, :, 3] > 8
+    # Den Rumpf ausbessern: "rumpf_weg" (Linien [x1, y1, x2, y2, Dicke]) macht durchsichtig, was das
+    # Inpainting über dem Hintergrund stehen ließ (ein neu gemalter Pfeil, Sehnenreste);
+    # "rumpf_flicken_hell" [x0, y0, x1, y1, Schwelle] füllt helle Reste (Pfeilfedern vor der Wange)
+    # mit der Farbe des nächsten dunkleren Pixels im Rechteck
+    for x1, y1, x2, y2, dicke in cfg.get("rumpf_weg", []):
+        rumpf[abstand_strecke(xx, yy, (x1 + RAND, y1 + RAND), (x2 + RAND, y2 + RAND)) < dicke / 2, 3] = 0
+    for x0, y0, x1, y1, schwelle in cfg.get("rumpf_flicken_hell", []):
+        aus = rumpf[y0 + RAND:y1 + RAND, x0 + RAND:x1 + RAND]
+        hell = aus[:, :, :3].min(axis=2) > schwelle
+        if hell.any() and (~hell).any():
+            _, (ny, nx) = ndimage.distance_transform_edt(hell, return_indices=True)
+            aus[hell] = aus[ny[hell], nx[hell]]
+
+    def ellipsen(liste):
+        m = np.zeros((H, W), bool)
+        for cx, cy, rx, ry in liste:
+            m |= ((xx - cx - RAND) / rx) ** 2 + ((yy - cy - RAND) / ry) ** 2 <= 1
+        return m
+
+    S, E0, H0 = (np.array(verschoben(cfg["arm"][n]), float) for n in ("schulter", "ellbogen", "hand"))
+    N0 = np.array(verschoben(cfg["nocke"]), float)
+    px1, py1, px2, py2, pdicke = cfg["pfeil"]
+    P1, P2 = np.array(verschoben((px1, py1)), float), np.array(verschoben((px2, py2)), float)
+    oben, unten = (np.array(verschoben(cfg["sehne"][n]), float) for n in ("oben", "unten"))
+
+    # Was zum Zugarm gehört: anders als im Rumpf und nah am Skelett
+    rgb_a, rgb_r = a[:, :, :3].astype(np.int16), rumpf[:, :, :3].astype(np.int16)
+    anders = deckend & ((rumpf[:, :, 3] <= 8) | (np.abs(rgb_a - rgb_r).sum(axis=2) > cfg["arm_differenz"]))
+    faust = ellipsen([cfg["faust"]])
+    auf_pfeil = (abstand_strecke(xx, yy, P1, P2) < pdicke / 2) & (xx > N0[0] + 2)
+    auf_sehne = ((abstand_strecke(xx, yy, oben, N0) < 6) | (abstand_strecke(xx, yy, unten, N0) < 6)) & ~faust
+    anders_arm = ndimage.binary_opening(anders & ~auf_pfeil & ~auf_sehne, iterations=2)
+    ab_ober, ab_unter = abstand_strecke(xx, yy, S, E0), abstand_strecke(xx, yy, E0, H0)
+    band = (ab_ober < cfg["oberarm_breite"]) | (ab_unter < cfg["unterarm_breite"]) | faust
+    for x0, y0, x1, y1 in cfg.get("nicht_arm", []):
+        band[y0 + RAND:y1 + RAND, x0 + RAND:x1 + RAND] = False
+    flaechen, _ = ndimage.label(anders_arm)
+    beruehrt = np.unique(flaechen[band & anders_arm])
+    arm = np.isin(flaechen, beruehrt[beruehrt > 0]) & band
+    unterarm = arm & ((ab_unter < ab_ober) | faust)
+    oberarm = arm & ~unterarm
+    # Gelenkscheibe am Ellbogen im Unterarm - so bleibt das Gelenk bei jedem Winkel geschlossen
+    unterarm |= arm & (np.hypot(xx - E0[0], yy - E0[1]) < cfg["unterarm_breite"] * 0.8)
+
+    def schicht(maske, quelle=a):
+        t = quelle.copy()          # Farbe auch außerhalb (lade hat sie ausgemalt): sauberes Drehen
+        t[~maske, 3] = 0
+        return t
+
+    teil_ober, teil_unter = schicht(oberarm), schicht(unterarm)
+    # Der Pfeil: auf der Linie, anders als im Rumpf, ohne die Bogenhand; Lücken im Schaft füllt die
+    # nächste Spalte links (der Pfeil liegt fast waagrecht)
+    bogenhand = ellipsen(cfg.get("bogenhand", []))
+    pfeil = deckend & (abstand_strecke(xx, yy, P1, P2) < pdicke / 2) & anders & ~bogenhand & (xx >= N0[0] - 4)
+    teil_pfeil = schicht(pfeil)
+    spalten = np.nonzero(pfeil.any(axis=0))[0]
+    if len(spalten):
+        y_lo, y_hi = int(min(P1[1], P2[1]) - pdicke), int(max(P1[1], P2[1]) + pdicke)
+        letzte = None
+        for x in range(int(spalten.min()), int(spalten.max()) + 1):
+            if pfeil[y_lo:y_hi, x].any():
+                letzte = x
+            elif letzte is not None:
+                teil_pfeil[y_lo:y_hi, x] = teil_pfeil[y_lo:y_hi, letzte]
+    teil_bogenhand = schicht(bogenhand & (rumpf[:, :, 3] > 8), rumpf)
+
+    # Nocke in Ruhe: Schnitt der Pfeillinie mit der geraden Sehne
+    d_pf = (P2 - P1) / np.linalg.norm(P2 - P1)
+    d_se = unten - oben
+    # N0 + t*d_pf = oben + u*d_se
+    mat = np.array([[d_pf[0], -d_se[0]], [d_pf[1], -d_se[1]]])
+    t_ruhe = np.linalg.solve(mat, oben - N0)[0]
+    N_ruhe = N0 + t_ruhe * d_pf
+    L1, L2 = np.linalg.norm(E0 - S), np.linalg.norm(H0 - E0)
+    def kreuz(u, v):
+        return u[0] * v[1] - u[1] * v[0]
+
+    seite = np.sign(kreuz(H0 - S, E0 - S))
+
+    def winkel(v):
+        return math.degrees(math.atan2(v[1], v[0]))
+
+    sf = cfg.get("sehne_farbe", [[52, 38, 28], [146, 116, 82]])
+    bilder = []
+    for ph in cfg["phasen"]:
+        N = N_ruhe + ph["zug"] * (N0 - N_ruhe)
+        Hn = N + (H0 - N0) + np.array(ph.get("hand_versatz", (0, 0)), float)
+        # Reicht der gestreckte Arm nicht bis zur Hand (Sehne in Ruhe beim stark gebogenen Bogen),
+        # schiebt sich die Schulter um den Rest vor; der Oberarm geht mit
+        d = np.linalg.norm(Hn - S)
+        Sp = S + max(0.0, d - (L1 + L2 - 1.0)) * (Hn - S) / d
+        d = np.linalg.norm(Hn - Sp)
+        ach = (Hn - Sp) / d
+        aa = (L1 ** 2 - L2 ** 2 + d ** 2) / (2 * d)
+        hh = math.sqrt(max(L1 ** 2 - aa ** 2, 0.0))
+        senk = np.array([-ach[1], ach[0]])
+        E = Sp + aa * ach + hh * senk
+        if np.sign(kreuz(Hn - Sp, E - Sp)) != seite:
+            E = Sp + aa * ach - hh * senk
+        lage_ober = _drehen(teil_ober, S, winkel(E - Sp) - winkel(E0 - S), Sp - S)
+        lage_unter = _drehen(teil_unter, E0, winkel(Hn - E) - winkel(H0 - E0), E - E0)
+
+        bild = Image.fromarray(rumpf.copy())
+        sehne = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        zeich = ImageDraw.Draw(sehne)
+        punkte = [tuple(oben), tuple(unten)] if ph.get("sehne") == "ruhe" else [tuple(oben), tuple(N), tuple(unten)]
+        zeich.line(punkte, fill=tuple(sf[0]) + (255,), width=cfg.get("sehne_dicke", 6), joint="curve")
+        zeich.line(punkte, fill=tuple(sf[1]) + (255,), width=max(1, cfg.get("sehne_dicke", 6) // 2), joint="curve")
+        bild = Image.alpha_composite(bild, sehne)
+        if ph.get("pfeil", True):
+            v = N - N0
+            lage_pfeil = np.roll(np.roll(teil_pfeil, int(round(v[1])), axis=0), int(round(v[0])), axis=1)
+            bild = Image.alpha_composite(bild, Image.fromarray(lage_pfeil))
+        bild = Image.alpha_composite(bild, Image.fromarray(teil_bogenhand))
+        bild = Image.alpha_composite(bild, Image.fromarray(lage_ober))
+        bild = Image.alpha_composite(bild, Image.fromarray(lage_unter))
+        bilder.append(bild)
+
+    # Kontrollbild: Oberarm rot, Unterarm grün, Pfeil gelb, Bogenhand blau
+    probe = a.copy()
+    for m, farbe in ((oberarm, (255, 0, 0)), (unterarm, (0, 255, 0)), (pfeil, (255, 230, 0)), (bogenhand, (0, 90, 255))):
+        probe[m, :3] = (0.45 * probe[m, :3] + 0.55 * np.array(farbe)).astype(np.uint8)
+    (AUSGABE / "schlag").mkdir(parents=True, exist_ok=True)
+    Image.fromarray(probe[RAND:H - RAND, RAND:W - RAND]).save(AUSGABE / "schlag" / f"{name}_teile.png")
+    ausgeben(name, cfg, bilder, W, H)
+
+
 def main():
     alle = json.loads((HIER / "schlag.json").read_text(encoding="utf-8"))
+    modi = {"speer": speer, "bogen": bogen}
     for name in sys.argv[1:] or list(alle):
-        (speer if alle[name].get("modus") == "speer" else figur)(name, alle[name])
+        modi.get(alle[name].get("modus"), figur)(name, alle[name])
 
 
 if __name__ == "__main__":
