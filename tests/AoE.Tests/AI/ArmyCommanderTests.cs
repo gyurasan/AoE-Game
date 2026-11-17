@@ -437,7 +437,7 @@ public class ArmyCommanderTests
         var a = army.Anchor; var f = army.Facing;
         int ex = a.X + (int)MathF.Round(f.X * 5), ey = a.Y + (int)MathF.Round(f.Y * 5);
         w.AddEnemy(new EnemyInfo(ex + 1, ey - 1, IsBuilding: false, Health: 40, Kind: UnitKind.Militia));
-        w.AddEnemy(new EnemyInfo(ex + 2, ey, IsBuilding: false, Health: 40, Kind: UnitKind.Militia));
+        w.AddEnemy(new EnemyInfo(ex + 3, ey - 2, IsBuilding: false, Health: 40, Kind: UnitKind.Militia));   // 3 vom Schützen: keine Wache (KK2)
         w.AddEnemy(new EnemyInfo(ex, ey, IsBuilding: false, Health: 30, Kind: UnitKind.Archer));
 
         int from = w.Log.Count;
@@ -699,6 +699,416 @@ public class ArmyCommanderTests
         var ctx = new AiContext(1);
         for (int i = 0; i < 10; i++) { ctx.Time += 0.5; army.Tick(w, w, ctx); }   // läuft, kommt nicht an
         Assert.Single(w.Log, l => l.StartsWith($"move({id},"));
+    }
+
+    // ------------------------------------------------------------------ Kampf-KI 2026-11-17 (KK1-KK3)
+
+    private static int Cheb((int X, int Y) a, (int X, int Y) b) => Math.Max(Math.Abs(a.X - b.X), Math.Abs(a.Y - b.Y));
+
+    /// <summary>Die Einheit schlägt (laut Spiel) gerade auf ein Gebäude ein bzw. kämpft gegen eine Einheit.</summary>
+    private static void SetAttack(FakeWorld w, int id, bool building)
+    {
+        int k = w.AllUnits.FindIndex(u => u.Id == id);
+        var u = w.AllUnits[k];
+        w.AllUnits[k] = new UnitSnapshot { Id = u.Id, Owner = u.Owner, Kind = u.Kind, X = u.X, Y = u.Y, State = UnitStateKind.Idle,
+                                           Health = u.Health, MaxHealth = u.MaxHealth, HasAttack = true, AttacksBuilding = building };
+    }
+
+    private static void Versetze(FakeWorld w, int id, int x, int y)
+    {
+        int k = w.AllUnits.FindIndex(u => u.Id == id);
+        var u = w.AllUnits[k];
+        w.AllUnits[k] = new UnitSnapshot { Id = u.Id, Owner = u.Owner, Kind = u.Kind, X = x, Y = y, State = UnitStateKind.Idle,
+                                           Health = u.Health, MaxHealth = u.MaxHealth };
+    }
+
+    /// <summary>Eine Welle (6 Nahkämpfer, 4 Schützen, ein Katapult) belagert das Gebäude bei (50, 50);
+    /// danach schlägt jeder der Welle laut Spiel auf das Gebäude ein.</summary>
+    private static (ArmyCommander Army, FakeWorld W, AiContext Ctx) Belagernd()
+    {
+        var w = Dorf();
+        Armee(w, 6, 4, 0);
+        int kat = w.AddSoldier(10, 10, UnitKind.Catapult);
+        w.AddSoldier(11, 10, UnitKind.Militia);
+        var army = new ArmyCommander(AiProfile.Sparta);
+        var ctx = new AiContext(1);
+        Run(army, w, ctx, 400, () => army.Phase == ArmyPhase.Siege);
+        Assert.Equal(ArmyPhase.Siege, army.Phase);
+        Run(army, w, ctx, 0.5);
+        Assert.Contains(kat, army.Wave);
+        foreach (int id in army.Wave) SetAttack(w, id, building: true);
+        return (army, w, ctx);
+    }
+
+    [Fact]
+    public void Gebaeudeschlaeger_wehren_sich_nur_gegen_nahe_Feinde_Vertrag()
+    {
+        UnitSnapshot S(UnitKind k, bool building = true, bool attack = true)
+            => new() { Id = 1, Kind = k, X = 10, Y = 10, State = UnitStateKind.Idle, HasAttack = attack, AttacksBuilding = building };
+        var miliz2 = new EnemyInfo(12, 9, IsBuilding: false, Health: 40, Kind: UnitKind.Militia);     // Abstand 2
+        var miliz3 = new EnemyInfo(13, 10, IsBuilding: false, Health: 40, Kind: UnitKind.Militia);    // Abstand 3
+        var reiter1 = new EnemyInfo(9, 9, IsBuilding: false, Health: 45, Kind: UnitKind.Cavalry);     // Abstand 1
+        var dorf1 = new EnemyInfo(11, 10, IsBuilding: false, Health: 25, Kind: UnitKind.Villager);    // Abstand 1
+        var unbekannt2 = new EnemyInfo(10, 12, IsBuilding: false, Health: 40);                        // Art null, Abstand 2
+        var haus1 = new EnemyInfo(11, 11, IsBuilding: true, Health: 300);                             // Abstand 1
+        var bogen6 = new EnemyInfo(16, 4, IsBuilding: false, Health: 30, Kind: UnitKind.Archer);      // Abstand 6
+        var dorf6 = new EnemyInfo(4, 13, IsBuilding: false, Health: 25, Kind: UnitKind.Villager);     // Abstand 6
+        var bogen7 = new EnemyInfo(17, 10, IsBuilding: false, Health: 30, Kind: UnitKind.Archer);     // Abstand 7
+
+        // Nahkämpfer: nur Soldaten (auch unbekannter Art) höchstens DefendRadius weit
+        Assert.Equal(2, ArmyCommander.DefendRadius);
+        Assert.True(ArmyCommander.DefendsItself(S(UnitKind.Militia), new[] { miliz2 }));
+        Assert.True(ArmyCommander.DefendsItself(S(UnitKind.Militia), new[] { reiter1 }));
+        Assert.True(ArmyCommander.DefendsItself(S(UnitKind.Militia), new[] { unbekannt2 }));
+        Assert.True(ArmyCommander.DefendsItself(S(UnitKind.Spearman), new[] { miliz3, miliz2 }));
+        Assert.False(ArmyCommander.DefendsItself(S(UnitKind.Militia), new[] { miliz3 }));
+        Assert.False(ArmyCommander.DefendsItself(S(UnitKind.Militia), new[] { dorf1 }));
+        Assert.False(ArmyCommander.DefendsItself(S(UnitKind.Militia), new[] { haus1 }));
+        Assert.False(ArmyCommander.DefendsItself(S(UnitKind.Militia), new[] { dorf1, haus1, miliz3, bogen6 }));
+        Assert.False(ArmyCommander.DefendsItself(S(UnitKind.Militia), Array.Empty<EnemyInfo>()));
+        // wer kein Gebäude angreift: nie (unverändert)
+        Assert.False(ArmyCommander.DefendsItself(S(UnitKind.Militia, building: false), new[] { miliz2 }));
+        Assert.False(ArmyCommander.DefendsItself(S(UnitKind.Militia, building: false, attack: false), new[] { miliz2 }));
+        Assert.False(ArmyCommander.DefendsItself(S(UnitKind.Archer, building: false), new[] { dorf1 }));
+        // Schützen: jede Einheit in ArcherReach, auch Dorfbewohner, kein Gebäude
+        Assert.True(ArmyCommander.DefendsItself(S(UnitKind.Archer), new[] { dorf1 }));
+        Assert.True(ArmyCommander.DefendsItself(S(UnitKind.Archer), new[] { bogen6 }));
+        Assert.True(ArmyCommander.DefendsItself(S(UnitKind.Archer), new[] { bogen7, dorf6 }));
+        Assert.False(ArmyCommander.DefendsItself(S(UnitKind.Archer), new[] { bogen7 }));
+        Assert.False(ArmyCommander.DefendsItself(S(UnitKind.Archer), new[] { haus1 }));
+        // Reiter und Katapulte: nie
+        Assert.False(ArmyCommander.DefendsItself(S(UnitKind.Cavalry), new[] { miliz2, dorf1, reiter1 }));
+        Assert.False(ArmyCommander.DefendsItself(S(UnitKind.Catapult), new[] { miliz2, dorf1, reiter1 }));
+    }
+
+    [Fact]
+    public void Belagerung_Nahkaempfer_wehrt_sich_gegen_Soldaten_neben_ihm_die_anderen_schlagen_weiter()
+    {
+        var (army, w, ctx) = Belagernd();
+        var wave = army.Wave.Select(id => U(w, id)).ToList();
+        var front = wave.Where(u => u.Kind == UnitKind.Militia).ToList();
+        var archers = wave.Where(u => u.Kind == UnitKind.Archer).ToList();
+        int kat = wave.Single(u => u.Kind == UnitKind.Catapult).Id;
+        // eine freie Kachel höchstens 2 neben genau einem Nahkämpfer, mindestens 3 von allen anderen
+        // und mehr als KiteDistance von jedem Schützen
+        UnitSnapshot? victim = null; (int X, int Y) spot = default;
+        foreach (var m in front)
+        {
+            for (int dy = -2; dy <= 2 && victim is null; dy++)
+                for (int dx = -2; dx <= 2 && victim is null; dx++)
+                {
+                    var p = (m.X + dx, m.Y + dy);
+                    if (wave.Any(u => (u.X, u.Y) == p) || p == (50, 50)) continue;
+                    if (front.Any(o => o.Id != m.Id && Cheb((o.X, o.Y), p) <= 2)) continue;
+                    if (archers.Any(a => Cheb((a.X, a.Y), p) <= ArmyCommander.KiteDistance)) continue;
+                    victim = m; spot = p;
+                }
+            if (victim is not null) break;
+        }
+        Assert.NotNull(victim);
+        w.AddEnemy(new EnemyInfo(spot.X, spot.Y, IsBuilding: false, Health: 40, IsAttackingUs: true, Kind: UnitKind.Militia));
+
+        int from = w.Log.Count;
+        ctx.Time += 0.5;
+        army.Tick(w, w, ctx);
+        var log = w.Log.Skip(from).ToList();
+        Assert.Equal(ArmyPhase.Engage, army.Phase);
+        Assert.Contains($"attack({victim!.Id},{spot.X},{spot.Y})", log);
+        // die anderen Nahkämpfer schlagen weiter aufs Gebäude ein: kein neuer Befehl
+        foreach (var o in front.Where(o => o.Id != victim.Id))
+            Assert.DoesNotContain(log, l => l.StartsWith($"attack({o.Id},") || l.StartsWith($"move({o.Id},"));
+        // Schützen in Bogenweite schießen auf den Soldaten, die übrigen bleiben am Gebäude
+        foreach (var a in archers)
+        {
+            if (Cheb((a.X, a.Y), spot) <= ArmyCommander.ArcherReach)
+                Assert.Contains($"attack({a.Id},{spot.X},{spot.Y})", log);
+            else
+                Assert.DoesNotContain(log, l => l.StartsWith($"attack({a.Id},") || l.StartsWith($"move({a.Id},"));
+        }
+        Assert.Contains(archers, a => Cheb((a.X, a.Y), spot) <= ArmyCommander.ArcherReach);
+        // das Katapult bleibt am Gebäude
+        Assert.DoesNotContain(log, l => l.StartsWith($"attack({kat},") || l.StartsWith($"move({kat},"));
+    }
+
+    [Fact]
+    public void Belagerung_ein_Dorfbewohner_holt_die_Nahkaempfer_nicht_vom_Gebaeude()
+    {
+        var (army, w, ctx) = Belagernd();
+        var wave = army.Wave.Select(id => U(w, id)).ToList();
+        var front = wave.Where(u => u.Kind == UnitKind.Militia).ToList();
+        var m = front[0];
+        var p = new[] { (m.X + 1, m.Y), (m.X - 1, m.Y), (m.X, m.Y + 1), (m.X, m.Y - 1) }
+            .First(q => !wave.Any(u => (u.X, u.Y) == q) && q != (50, 50));
+        w.AddEnemy(new EnemyInfo(p.Item1, p.Item2, IsBuilding: false, Health: 25, IsAttackingUs: true, Kind: UnitKind.Villager));
+
+        int from = w.Log.Count;
+        ctx.Time += 0.5;
+        army.Tick(w, w, ctx);
+        var log = w.Log.Skip(from).ToList();
+        foreach (var o in front)
+            Assert.DoesNotContain(log, l => l.StartsWith($"attack({o.Id},") || l.StartsWith($"move({o.Id},"));
+    }
+
+    [Fact]
+    public void Bewachtes_Reiterziel_Vertrag()
+    {
+        EnemyInfo M(int x, int y, UnitKind? k = UnitKind.Militia) => new(x, y, IsBuilding: false, Health: 40, Kind: k);
+        var bogen = new EnemyInfo(20, 20, IsBuilding: false, Health: 30, Kind: UnitKind.Archer);
+        Assert.Equal(2, ArmyCommander.GuardRadius);
+        Assert.Equal(2, ArmyCommander.GuardLimit);
+        Assert.False(ArmyCommander.Guarded(bogen, new[] { bogen }));
+        Assert.False(ArmyCommander.Guarded(bogen, Array.Empty<EnemyInfo>()));
+        Assert.False(ArmyCommander.Guarded(bogen, new[] { bogen, M(21, 20) }));                       // eine Wache
+        Assert.True(ArmyCommander.Guarded(bogen, new[] { bogen, M(21, 20), M(18, 22) }));             // Abstand 1 und 2
+        Assert.False(ArmyCommander.Guarded(bogen, new[] { bogen, M(21, 20), M(23, 20) }));            // zweite 3 weit
+        Assert.True(ArmyCommander.Guarded(bogen, new[] { bogen, M(21, 20), M(22, 22, UnitKind.Spearman) }));
+        Assert.True(ArmyCommander.Guarded(bogen, new[] { M(19, 19, UnitKind.Cavalry), bogen, M(21, 21) }));
+        // keine Wachen: Dorfbewohner, Schützen, Katapulte, unbekannte Art, Gebäude
+        Assert.False(ArmyCommander.Guarded(bogen, new[]
+        {
+            bogen, M(21, 20, UnitKind.Villager), M(19, 20, UnitKind.Villager), M(20, 21, UnitKind.Archer),
+            M(20, 19, UnitKind.Catapult), M(21, 21, null), new EnemyInfo(19, 19, IsBuilding: true, Health: 500),
+            new EnemyInfo(21, 19, IsBuilding: true, Health: 500),
+        }));
+        // ein Nahkämpfer zählt sich nicht selbst als Wache
+        var miliz = M(30, 30);
+        Assert.False(ArmyCommander.Guarded(miliz, new[] { miliz, M(31, 30) }));
+        Assert.True(ArmyCommander.Guarded(miliz, new[] { miliz, M(31, 30), M(29, 29) }));
+        var reiter = M(40, 10, UnitKind.Cavalry);
+        Assert.False(ArmyCommander.Guarded(reiter, new[] { reiter, M(41, 11, UnitKind.Spearman) }));
+        // ein Gebäude ist kein Nahkämpfer: nichts abziehen
+        var haus = new EnemyInfo(50, 40, IsBuilding: true, Health: 300);
+        Assert.True(ArmyCommander.Guarded(haus, new[] { haus, M(51, 40), M(49, 40) }));
+        Assert.False(ArmyCommander.Guarded(haus, new[] { haus, M(51, 40) }));
+    }
+
+    [Fact]
+    public void Reiter_stuermen_kein_bewachtes_Ziel_sondern_ein_freies()
+    {
+        var (army, w, ctx, ids) = Losgezogen(melee: 5, archers: 5, riders: 3);
+        var riders = ids.Skip(10).ToList();
+        var a = army.Anchor; var f = army.Facing;
+        // Feindtrupp 5 vor dem Anker, ein Schütze direkt dahinter (bewacht)
+        int ex = a.X + (int)MathF.Round(f.X * 5), ey = a.Y + (int)MathF.Round(f.Y * 5);
+        Trupp(w, ex, ey);
+        int bx = ex + (int)MathF.Round(f.X * 1), by = ey + (int)MathF.Round(f.Y * 1);
+        w.AddEnemy(new EnemyInfo(bx, by, IsBuilding: false, Health: 30, Kind: UnitKind.Archer));
+
+        // nur Bewachtes in Reichweite: die Reiter bleiben in Bereitschaft
+        int from = w.Log.Count;
+        ctx.Time += 0.5;
+        army.Tick(w, w, ctx);
+        Assert.Equal(ArmyPhase.Engage, army.Phase);
+        Assert.Equal(CavalryMode.Ready, army.WaveCavalry);
+        foreach (int id in riders)
+            Assert.DoesNotContain(w.Log.Skip(from), l => l.StartsWith($"attack({id},"));
+
+        // ein freier Schütze seitlich, 6 weit: auf den geht der Schwall
+        int sx = a.X + (int)MathF.Round(-f.Y * 6), sy = a.Y + (int)MathF.Round(f.X * 6);
+        w.AddEnemy(new EnemyInfo(sx, sy, IsBuilding: false, Health: 30, Kind: UnitKind.Archer));
+        from = w.Log.Count;
+        ctx.Time += 0.5;
+        army.Tick(w, w, ctx);
+        Assert.Equal(CavalryMode.Charging, army.WaveCavalry);
+        foreach (int id in riders)
+        {
+            Assert.Contains($"attack({id},{sx},{sy})", w.Log.Skip(from));
+            Assert.DoesNotContain($"attack({id},{bx},{by})", w.Log.Skip(from));
+        }
+    }
+
+    [Fact]
+    public void Turmleine_Vertrag()
+    {
+        var known = new Dictionary<(int X, int Y), EnemyInfo>
+        {
+            [(40, 40)] = new EnemyInfo(40, 40, IsBuilding: true, Health: 600, IsTownCenter: true, IsArmed: true),
+            [(60, 40)] = new EnemyInfo(60, 40, IsBuilding: true, Health: 150),   // Lager, 20 vom Stadtzentrum
+            [(46, 44)] = new EnemyInfo(46, 44, IsBuilding: true, Health: 150),   // Haus, 6 vom Stadtzentrum
+        };
+        Assert.Null(ArmyCommander.UnderFire(null, known));
+        Assert.Null(ArmyCommander.UnderFire((70, 70), known));   // unbekanntes Ziel
+        Assert.Null(ArmyCommander.UnderFire((40, 40), known));   // Ziel ist selbst bewehrt
+        Assert.Null(ArmyCommander.UnderFire((46, 44), known));   // Ziel liegt im Feuer
+        var fire = ArmyCommander.UnderFire((60, 40), known);
+        Assert.NotNull(fire);
+        Assert.True(fire!(40, 40));
+        Assert.True(fire(31, 49));    // genau ArmedCover (9) weit
+        Assert.True(fire(49, 31));
+        Assert.False(fire(50, 40));   // 10 weit
+        Assert.False(fire(60, 40));
+        Assert.False(fire(40, 50));
+
+        // ein zweiter Turm zählt mit; spätere Änderungen an known ändern die Leine nicht
+        known[(80, 40)] = new EnemyInfo(80, 40, IsBuilding: true, Health: 500, IsArmed: true);
+        var fire2 = ArmyCommander.UnderFire((60, 40), known);
+        Assert.NotNull(fire2);
+        Assert.True(fire2!(75, 45));
+        Assert.True(fire2(40, 40));
+        known.Remove((80, 40));
+        known.Remove((40, 40));
+        Assert.True(fire2(75, 45));
+        Assert.True(fire2(40, 40));
+
+        // ohne bewehrte Gebäude: Leine, aber nirgends Feuer
+        var still = ArmyCommander.UnderFire((60, 40), new Dictionary<(int X, int Y), EnemyInfo>
+        {
+            [(60, 40)] = new EnemyInfo(60, 40, IsBuilding: true, Health: 150),
+        });
+        Assert.NotNull(still);
+        Assert.False(still!(60, 40));
+        Assert.False(still(0, 0));
+    }
+
+    /// <summary>Stadtzentrum (bewehrt) bei (40, 40), Holzfällerlager draußen bei (52, 30): die
+    /// Welle (6 Nahkämpfer, 4 Schützen, 2 Reiter) belagert das Lager.</summary>
+    private static (ArmyCommander Army, FakeWorld W, AiContext Ctx) LagerNebenStadtzentrum()
+    {
+        var w = Dorf(enemyBase: false);
+        w.AddEnemy(new EnemyInfo(40, 40, IsBuilding: true, Health: 600, IsTownCenter: true, IsArmed: true));
+        w.AddEnemy(new EnemyInfo(52, 30, IsBuilding: true, Health: 150));
+        Armee(w, 7, 4, 2);
+        var army = new ArmyCommander(AiProfile.Sparta);
+        var ctx = new AiContext(1);
+        Run(army, w, ctx, 400, () => army.Phase == ArmyPhase.Siege);
+        Assert.Equal(ArmyPhase.Siege, army.Phase);
+        Assert.Equal((52, 30), army.Target);
+        Run(army, w, ctx, 0.5);
+        return (army, w, ctx);
+    }
+
+    /// <summary>Freie Kachel im Feuer des Stadtzentrums (40, 40), die allen <paramref name="units"/> am nächsten liegt.</summary>
+    private static (int X, int Y) NaechsteImFeuer(FakeWorld w, IReadOnlyList<UnitSnapshot> units)
+        => Enumerable.Range(31, 19).SelectMany(x => Enumerable.Range(31, 19).Select(y => (X: x, Y: y)))
+            .Where(q => Cheb(q, (40, 40)) <= ArmyCommander.ArmedCover && q != (40, 40) && !w.AllUnits.Any(u => (u.X, u.Y) == q))
+            .OrderBy(q => units.Max(u => Cheb((u.X, u.Y), q))).ThenBy(q => q.X).ThenBy(q => q.Y).First();
+
+    [Fact]
+    public void Turmleine_Reiter_jagen_bei_der_Belagerung_keine_Dorfbewohner_im_Feuer()
+    {
+        var (army, w, ctx) = LagerNebenStadtzentrum();
+        var riders = army.Wave.Select(id => U(w, id)).Where(u => u.Kind == UnitKind.Cavalry).ToList();
+        Assert.Equal(2, riders.Count);
+        // der Dorfbewohner im Feuer steht jedem Reiter NÄHER als der draußen - ohne Leine nähme jeder ihn
+        var inFire = NaechsteImFeuer(w, riders);
+        var free = Enumerable.Range(0, 64).SelectMany(x => Enumerable.Range(0, 64).Select(y => (X: x, Y: y)))
+            .Where(q => Cheb(q, (40, 40)) > ArmyCommander.ArmedCover && q != (52, 30) && !w.AllUnits.Any(u => (u.X, u.Y) == q)
+                        && riders.All(r => Cheb((r.X, r.Y), q) > Cheb((r.X, r.Y), inFire) && Cheb((r.X, r.Y), q) <= ArmyCommander.ChargeRange))
+            .OrderBy(q => riders.Max(r => Cheb((r.X, r.Y), q))).ThenBy(q => q.X).ThenBy(q => q.Y).First();
+        Assert.All(riders, r => Assert.True(Cheb((r.X, r.Y), inFire) <= ArmyCommander.ChargeRange));
+        w.AddEnemy(new EnemyInfo(inFire.X, inFire.Y, IsBuilding: false, Health: 25, Kind: UnitKind.Villager));
+        w.AddEnemy(new EnemyInfo(free.X, free.Y, IsBuilding: false, Health: 25, Kind: UnitKind.Villager));
+        int from = w.Log.Count;
+        Run(army, w, ctx, 2);
+        var log = w.Log.Skip(from).ToList();
+        foreach (var r in riders)
+            Assert.DoesNotContain($"attack({r.Id},{inFire.X},{inFire.Y})", log);
+        Assert.Contains(log, l => riders.Any(r => l == $"attack({r.Id},{free.X},{free.Y})"));
+    }
+
+    [Fact]
+    public void Turmleine_Reiter_jagen_beim_Marsch_keine_Dorfbewohner_im_Feuer()
+    {
+        var w = Dorf(enemyBase: false);
+        w.AddEnemy(new EnemyInfo(40, 40, IsBuilding: true, Health: 600, IsTownCenter: true, IsArmed: true));
+        w.AddEnemy(new EnemyInfo(52, 30, IsBuilding: true, Health: 150));
+        Armee(w, 7, 4, 2);
+        var army = new ArmyCommander(AiProfile.Sparta);
+        var ctx = new AiContext(1);
+        Run(army, w, ctx, 30, () => army.Phase == ArmyPhase.March);
+        Assert.Equal(ArmyPhase.March, army.Phase);
+        // weitermarschieren, bis die Mitte der Reiter höchstens ChargeRange - 2 vom Feuer steht
+        List<UnitSnapshot> Riders() => army.Wave.Select(id => U(w, id)).Where(u => u.Kind == UnitKind.Cavalry).ToList();
+        UnitSnapshot Mid() { var rs = Riders(); return new UnitSnapshot { X = (int)Math.Round(rs.Average(r => r.X)), Y = (int)Math.Round(rs.Average(r => r.Y)) }; }
+        Run(army, w, ctx, 400, () => army.Phase != ArmyPhase.March
+            || Cheb((Mid().X, Mid().Y), NaechsteImFeuer(w, new[] { Mid() })) <= ArmyCommander.ChargeRange - 2);
+        Assert.Equal(ArmyPhase.March, army.Phase);
+        Assert.Equal(CavalryMode.Ready, army.WaveCavalry);
+        var riders = Riders();
+        var mid = Mid();
+        var inFire = NaechsteImFeuer(w, new[] { mid });
+        w.AddEnemy(new EnemyInfo(inFire.X, inFire.Y, IsBuilding: false, Health: 25, Kind: UnitKind.Villager));
+        int from = w.Log.Count;
+        ctx.Time += 0.5;
+        army.Tick(w, w, ctx);
+        Assert.Equal(CavalryMode.Ready, army.WaveCavalry);
+        foreach (var r in riders)
+            Assert.DoesNotContain(w.Log.Skip(from), l => l.StartsWith($"attack({r.Id},"));
+
+        // ein Dorfbewohner draußen, ebenso weit von der Mitte der Reiter: Schwall
+        int d = Cheb((mid.X, mid.Y), inFire);
+        var free = Enumerable.Range(0, 64).SelectMany(x => Enumerable.Range(0, 64).Select(y => (X: x, Y: y)))
+            .Where(q => Cheb(q, (40, 40)) > ArmyCommander.ArmedCover && !w.AllUnits.Any(u => (u.X, u.Y) == q)
+                        && Cheb((mid.X, mid.Y), q) == d && riders.Any(r => Cheb((r.X, r.Y), q) <= ArmyCommander.ChargeRange))
+            .OrderBy(q => q.X).ThenBy(q => q.Y).First();
+        w.AddEnemy(new EnemyInfo(free.X, free.Y, IsBuilding: false, Health: 25, Kind: UnitKind.Villager));
+        from = w.Log.Count;
+        ctx.Time += 0.5;
+        army.Tick(w, w, ctx);
+        Assert.Equal(CavalryMode.Charging, army.WaveCavalry);
+        Assert.Contains(w.Log.Skip(from), l => riders.Any(r => l == $"attack({r.Id},{free.X},{free.Y})"));
+    }
+
+    [Fact]
+    public void Turmleine_wer_im_Feuer_steht_kehrt_zurueck()
+    {
+        var (army, w, ctx) = LagerNebenStadtzentrum();
+        int m = army.Wave.First(id => U(w, id).Kind == UnitKind.Militia);
+        Versetze(w, m, 45, 37);   // 5 vom Stadtzentrum
+        int from = w.Log.Count;
+        ctx.Time += 0.5;
+        army.Tick(w, w, ctx);
+        var moves = w.Log.Skip(from).Select(l => MoveRe.Match(l)).Where(x => x.Success && int.Parse(x.Groups[1].Value) == m)
+                     .Select(x => (int.Parse(x.Groups[2].Value), int.Parse(x.Groups[3].Value))).ToList();
+        Assert.NotEmpty(moves);
+        Assert.All(moves, p => Assert.True(Cheb(p, (40, 40)) > ArmyCommander.ArmedCover, $"Rückweg nach {p} liegt im Feuer"));
+    }
+
+    [Fact]
+    public void Turmleine_Feinde_im_Feuer_loesen_keinen_Kampf_aus_draussen_schon()
+    {
+        var (army, w, ctx) = LagerNebenStadtzentrum();
+        var wave = army.Wave.Select(id => U(w, id)).ToList();
+        // eine Kachel im Feuer, höchstens EngageRadius von der Welle, aber keiner der Welle steht im Feuer
+        Assert.All(wave, u => Assert.True(Cheb((u.X, u.Y), (40, 40)) > ArmyCommander.ArmedCover, $"{u.Kind} bei ({u.X},{u.Y}) im Feuer"));
+        var p = Enumerable.Range(31, 19).SelectMany(x => Enumerable.Range(31, 19).Select(y => (X: x, Y: y)))
+            .Where(q => Cheb(q, (40, 40)) <= ArmyCommander.ArmedCover)
+            .OrderBy(q => wave.Min(u => Cheb((u.X, u.Y), q))).ThenBy(q => q.X).ThenBy(q => q.Y).First();
+        Assert.True(wave.Min(u => Cheb((u.X, u.Y), p)) <= ArmyCommander.EngageRadius);
+        w.AddEnemy(new EnemyInfo(p.X, p.Y, IsBuilding: false, Health: 40, IsAttackingUs: true, Kind: UnitKind.Militia));
+        w.AddEnemy(new EnemyInfo(p.X, p.Y, IsBuilding: false, Health: 40, Kind: UnitKind.Militia));
+        w.AddEnemy(new EnemyInfo(p.X, p.Y, IsBuilding: false, Health: 40, Kind: UnitKind.Militia));
+        Run(army, w, ctx, 1);
+        Assert.Equal(ArmyPhase.Siege, army.Phase);
+
+        // derselbe Trupp draußen neben der Welle: Kampf
+        w.ClearEnemies();
+        w.AddEnemy(new EnemyInfo(40, 40, IsBuilding: true, Health: 600, IsTownCenter: true, IsArmed: true));
+        w.AddEnemy(new EnemyInfo(52, 30, IsBuilding: true, Health: 150));
+        Trupp(w, 56, 26);
+        Run(army, w, ctx, 0.5);
+        Assert.Equal(ArmyPhase.Engage, army.Phase);
+    }
+
+    [Fact]
+    public void Ohne_Turmleine_wenn_das_Ziel_selbst_im_Feuer_liegt()
+    {
+        // einziges unbewehrtes Gebäude steht 6 neben dem Stadtzentrum: die Welle muss hinein,
+        // die Reiter jagen auch Dorfbewohner im Feuer
+        var w = Dorf(enemyBase: false);
+        w.AddEnemy(new EnemyInfo(40, 40, IsBuilding: true, Health: 600, IsTownCenter: true, IsArmed: true));
+        w.AddEnemy(new EnemyInfo(46, 44, IsBuilding: true, Health: 150));
+        Armee(w, 7, 4, 2);
+        var army = new ArmyCommander(AiProfile.Sparta);
+        var ctx = new AiContext(1);
+        Run(army, w, ctx, 400, () => army.Phase == ArmyPhase.Siege);
+        Assert.Equal(ArmyPhase.Siege, army.Phase);
+        Assert.Equal((46, 44), army.Target);
+        var riders = army.Wave.Where(id => U(w, id).Kind == UnitKind.Cavalry).ToList();
+        w.AddEnemy(new EnemyInfo(43, 47, IsBuilding: false, Health: 25, Kind: UnitKind.Villager));   // 7 vom Stadtzentrum
+        int from = w.Log.Count;
+        Run(army, w, ctx, 2);
+        Assert.Contains(w.Log.Skip(from), l => riders.Any(id => l == $"attack({id},43,47)"));
     }
 
     // ------------------------------------------------------------------ Einbindung

@@ -388,7 +388,8 @@ public sealed class AiBridge : IWorldState, IWorldActions
             BuildingId = u.BuildSite is { } s ? s.Id.GetHashCode() : null,
             Health = u.Health,
             MaxHealth = u.MaxHealth,
-            HasAttack = u.AttackTarget is not null || u.UnitTarget is not null
+            HasAttack = u.AttackTarget is not null || u.UnitTarget is not null,
+            AttacksBuilding = u.AttackTarget is not null && u.UnitTarget is null
         };
     }
 

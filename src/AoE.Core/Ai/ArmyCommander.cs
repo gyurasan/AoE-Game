@@ -155,6 +155,21 @@ public sealed class ArmyCommander
     /// zurückschlagenden Dorfbewohner jede Welle auf (gemessen 2026-11-07).</summary>
     public const int ArmedCover = 9;
 
+    /// <summary>Gebäudeschläger wehren sich: ein Feindsoldat höchstens so weit (Chebyshev) vom
+    /// Nahkämpfer, der gerade ein Gebäude angreift, holt ihn in den Kampf (gemessen 2026-11-17:
+    /// Milizen schlugen weiter auf ein Bergbaulager ein, während sieben Feindmilizen sie
+    /// niedermachten - 47 von 786 Toten in 32 Duellen gegen Defense).</summary>
+    public const int DefendRadius = 2;
+
+    /// <summary>Wachen eines Reiterziels: feindliche Nahkämpfer (Miliz, Speer, Reiter) höchstens so
+    /// weit (Chebyshev) vom Ziel (<see cref="Guarded"/>).</summary>
+    public const int GuardRadius = 2;
+
+    /// <summary>Ab so vielen Wachen gilt ein Ziel als bewacht: die Reiter (Späher, 45 LP, 3 Angriff
+    /// gegen die Miliz mit 40 LP, 4 Angriff) stürmen es nicht (gemessen 2026-11-17: 152 von 265
+    /// toten Spähern fielen neben drei und mehr Feindmilizen).</summary>
+    public const int GuardLimit = 2;
+
     /// <summary>Höchstens so viele bewaffnete Feinde bei der marschierenden Welle sind ein Geplänkel: der
     /// Verband marschiert weiter, nur einzelne kümmern sich darum.</summary>
     public const int SkirmishMax = 2;
@@ -424,10 +439,17 @@ public sealed class ArmyCommander
             return;
         }
 
+        // Turmleine: liegt das Ziel frei, jagt niemand Feinden unter Turm oder Stadtzentrum nach -
+        // wer im Feuer steht, kehrt auf seinen Platz zurück (liegt der selbst im Feuer: zum Anker)
+        _underFire = UnderFire(Target, _knownBuildings);
+        if (_underFire is { } fire)
+            foreach (var u in wave.Where(u => fire(u.X, u.Y)))
+                MoveTo(actions, u, _slots.TryGetValue(u.Id, out var slot) && !fire(slot.X, slot.Y) ? slot : Anchor, now, force: true);
+
         // Bewaffnete Feinde (oder wer uns angreift) in der Nähe: Kampf nach Rollen. Ein einzelner
         // Dorfbewohner hält die Welle nicht auf - den jagen die Reiter im Vorbeiziehen (gemessen
         // 2026-11-07: der Späher des Gegners stoppte die Welle alle 12 s, sie kam kaum voran).
-        var near = visible.Where(e => !e.IsBuilding
+        var near = visible.Where(e => !e.IsBuilding && !(_underFire?.Invoke(e.X, e.Y) ?? false)
                                       && (e.Kind != UnitKind.Villager || e.IsAttackingUs)
                                       && wave.Any(u => Cheb(u.X, u.Y, e.X, e.Y) <= (e.IsAttackingUs ? EngageRadius + 4 : EngageRadius)))
                           .ToList();
@@ -493,7 +515,7 @@ public sealed class ArmyCommander
         var riders = wave.Where(u => Formation.RoleOf(u.Kind) == FormationRole.Flank).ToList();
         var prey = skirmish
             ? near
-            : visible.Where(e => !e.IsBuilding && e.Kind == UnitKind.Villager
+            : visible.Where(e => !e.IsBuilding && e.Kind == UnitKind.Villager && !(_underFire?.Invoke(e.X, e.Y) ?? false)
                                  && riders.Any(r => Cheb(r.X, r.Y, e.X, e.Y) <= ChargeRange)).ToList();
         if (prey.Count > 0 || _waveCav.Mode != CavalryMode.Ready)
             _waveCav.Step(state, actions, ctx, this, riders, prey, Facing, Anchor);
@@ -645,7 +667,7 @@ public sealed class ArmyCommander
     /// <summary>Belagerung: alle greifen das Zielgebäude an; Reiter jagen sichtbare Dorfbewohner in der Nähe.</summary>
     private void Siege(IWorldActions actions, List<UnitSnapshot> wave, IReadOnlyList<EnemyInfo> visible, (int X, int Y) target)
     {
-        var villagers = visible.Where(e => !e.IsBuilding && e.Kind == UnitKind.Villager).ToList();
+        var villagers = visible.Where(e => !e.IsBuilding && e.Kind == UnitKind.Villager && !(_underFire?.Invoke(e.X, e.Y) ?? false)).ToList();
         foreach (var u in wave)
         {
             if (u.HasAttack) continue;
@@ -659,6 +681,10 @@ public sealed class ArmyCommander
             actions.Attack(u.Id, target.X, target.Y);
         }
     }
+
+    /// <summary>Die Turmleine dieses Takts (<see cref="UnderFire"/>), null = keine Leine.
+    /// <see cref="RunWave"/> setzt sie, <see cref="Siege"/> liest sie.</summary>
+    private Func<int, int, bool>? _underFire;
 
     private void EndWave(AiContext ctx, string why)
     {
@@ -697,7 +723,7 @@ public sealed class ArmyCommander
         var load = new Dictionary<(int X, int Y), int>();
         foreach (var u in front)
         {
-            if (u.HasAttack) continue;
+            if (u.HasAttack && !DefendsItself(u, targets)) continue;
             EnemyInfo? best = null;
             int bestScore = int.MaxValue;
             foreach (var e in targets)
@@ -716,7 +742,7 @@ public sealed class ArmyCommander
         foreach (var u in ranged)
         {
             if (Kite(state, actions, u, targets, facing, now)) continue;
-            if (u.HasAttack) continue;
+            if (u.HasAttack && !DefendsItself(u, targets)) continue;
             var shot = targets.Where(e => Cheb(u.X, u.Y, e.X, e.Y) <= ArcherReach)
                               .OrderByDescending(e => e.IsAttackingUs)
                               .ThenBy(e => Cheb(u.X, u.Y, e.X, e.Y))
@@ -755,6 +781,75 @@ public sealed class ArmyCommander
         return true;
     }
 
+    /// <summary>
+    /// Gebäudeschläger wehrt sich (KK1, Nutzer 2026-11-17 „Kampf AI optimieren“): darf
+    /// <paramref name="u"/>, der gerade ein Gebäude angreift, in <see cref="Fight"/> einen neuen
+    /// Angriffsbefehl bekommen? Bis dahin übersprang Fight jede Einheit mit HasAttack - auch die,
+    /// die neben Feindsoldaten weiter auf eine Mauer einschlugen.
+    /// VERTRAG:
+    /// - u.AttacksBuilding false (kämpft nicht oder gegen eine Einheit): false.
+    /// - Nahkämpfer (Formation.RoleOf(u.Kind) == FormationRole.Front): true genau dann, wenn in
+    ///   enemies ein e mit !e.IsBuilding, e.Kind != UnitKind.Villager und
+    ///   Cheb(u.X, u.Y, e.X, e.Y) &lt;= DefendRadius steht. Dorfbewohner zählen hier NICHT (die halten
+    ///   eine Belagerung nicht auf); Kind null zählt mit (null != Villager).
+    /// - Schützen (u.Kind == UnitKind.Archer): true genau dann, wenn in enemies ein e mit
+    ///   !e.IsBuilding und Cheb(u.X, u.Y, e.X, e.Y) &lt;= ArcherReach steht - auch ein Dorfbewohner
+    ///   (Pfeile richten an Mauern kaum etwas aus).
+    /// - Alle anderen (Reiter, Katapulte): false - Katapulte bleiben am Gebäude.
+    /// - enemies leer: false.
+    /// </summary>
+    public static bool DefendsItself(UnitSnapshot u, IReadOnlyList<EnemyInfo> enemies)
+    {
+        if (!u.AttacksBuilding) return false;
+        if (Formation.RoleOf(u.Kind) == FormationRole.Front)
+            return enemies.Any(e => !e.IsBuilding && e.Kind != UnitKind.Villager && Cheb(u.X, u.Y, e.X, e.Y) <= DefendRadius);
+        if (u.Kind == UnitKind.Archer)
+            return enemies.Any(e => !e.IsBuilding && Cheb(u.X, u.Y, e.X, e.Y) <= ArcherReach);
+        return false;
+    }
+
+    /// <summary>
+    /// Bewachtes Reiterziel (KK2): steht <paramref name="e"/> im Schutz feindlicher Nahkämpfer?
+    /// Dann stürmen die Reiter es nicht (<see cref="CavalryCycle"/>).
+    /// VERTRAG:
+    /// - Wache ist jedes o in enemies mit !o.IsBuilding, o.Kind ist UnitKind.Militia,
+    ///   UnitKind.Spearman oder UnitKind.Cavalry (NICHT null, Villager, Archer, Catapult) und
+    ///   Cheb(o.X, o.Y, e.X, e.Y) &lt;= GuardRadius.
+    /// - Ist e selbst so ein Nahkämpfer (!e.IsBuilding und Kind Militia, Spearman oder Cavalry),
+    ///   hat es sich eben mitgezählt (es steht selbst in enemies, Abstand 0): genau 1 abziehen.
+    /// - Ergebnis: Zahl der Wachen &gt;= GuardLimit.
+    /// - enemies leer: false.
+    /// </summary>
+    public static bool Guarded(EnemyInfo e, IReadOnlyList<EnemyInfo> enemies)
+    {
+        static bool Melee(EnemyInfo o) => !o.IsBuilding && o.Kind is UnitKind.Militia or UnitKind.Spearman or UnitKind.Cavalry;
+        int guards = enemies.Count(o => Melee(o) && Cheb(o.X, o.Y, e.X, e.Y) <= GuardRadius);
+        if (Melee(e)) guards--;
+        return guards >= GuardLimit;
+    }
+
+    /// <summary>
+    /// Turmleine (KK3): wo liegt das Feuer bewehrter Gebäude, aus dem sich die Welle heraushält?
+    /// (gemessen 2026-11-17: nach gewonnener Feldschlacht jagten Schützen und Milizen Dorfbewohnern
+    /// bis unter Turm und Stadtzentrum nach - 31 % der Toten fielen dort.)
+    /// VERTRAG:
+    /// - null, wenn target null ist, target kein Schlüssel in known ist oder known[target].IsArmed
+    ///   (die Welle greift selbst einen Turm oder ein Stadtzentrum an: keine Leine).
+    /// - armed = alle Werte a in known mit a.IsArmed (darf leer sein).
+    /// - cover(x, y) = true genau dann, wenn ein a in armed mit Cheb(a.X, a.Y, x, y) &lt;= ArmedCover existiert.
+    /// - Liegt das Ziel selbst im Feuer (cover(target.X, target.Y)): null - die Welle muss hinein.
+    /// - Sonst cover als Funktion (bei leerem armed liefert sie immer false). Sie liest armed, nicht
+    ///   known: spätere Änderungen an known ändern das Ergebnis nicht.
+    /// </summary>
+    public static Func<int, int, bool>? UnderFire((int X, int Y)? target, IReadOnlyDictionary<(int X, int Y), EnemyInfo> known)
+    {
+        if (target is not { } t || !known.TryGetValue(t, out var tb) || tb.IsArmed) return null;
+        var armed = known.Values.Where(a => a.IsArmed).ToList();
+        bool Cover(int x, int y) => armed.Any(a => Cheb(a.X, a.Y, x, y) <= ArmedCover);
+        if (Cover(t.X, t.Y)) return null;
+        return Cover;
+    }
+
     private static bool IsMelee(EnemyInfo e)
         => e.Kind is null or UnitKind.Militia or UnitKind.Spearman or UnitKind.Cavalry or UnitKind.Villager;
 
@@ -773,7 +868,7 @@ public sealed class ArmyCommander
             double now = ctx.Time;
             var mid = Centroid(riders);
             EnemyInfo? Pick() =>
-                enemies.Where(e => Cheb(mid.X, mid.Y, e.X, e.Y) <= ChargeRange)
+                enemies.Where(e => Cheb(mid.X, mid.Y, e.X, e.Y) <= ChargeRange && !Guarded(e, enemies))
                        .OrderBy(e => e.Kind is UnitKind.Archer or UnitKind.Catapult ? 0
                                    : e.Kind == UnitKind.Villager ? 1 : 2)
                        .ThenBy(e => Cheb(mid.X, mid.Y, e.X, e.Y))

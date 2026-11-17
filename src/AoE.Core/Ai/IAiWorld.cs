@@ -212,6 +212,11 @@ public sealed class UnitSnapshot
     /// jedem Takt "Angegriffen auf (x,y)" für dieselbe Einheit ausgeben und
     /// damit den Schlag-Timer zurücksetzen muss.</summary>
     public bool HasAttack { get; init; }
+
+    /// <summary>Der laufende Angriff gilt einem Gebäude und keiner Einheit (dann ist auch
+    /// <see cref="HasAttack"/> gesetzt). Daran erkennt die Armeeführung Gebäudeschläger, die sich
+    /// wehren sollen, wenn ein Feindsoldat sie bedrängt (<see cref="ArmyCommander.DefendsItself"/>).</summary>
+    public bool AttacksBuilding { get; init; }
 }
 
 /// <summary>Snapshot eines Gebäudes des Spielers.</summary>
