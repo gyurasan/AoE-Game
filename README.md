@@ -2,28 +2,40 @@
 
 Ein Age-of-Empires-I-artiges Echtzeitstrategiespiel, implementiert in C# mit MonoGame unter .NET 10.
 
-![Hauptmenü](docs/bilder/hauptmenue.jpg)
+![Hauptmenü vor einem Dorfplatz: Neues Spiel, Karte, KI-Stufe, Land, Spiel laden, Einstellungen, Beenden](docs/bilder/hauptmenue.jpg)
 
-![Am Stadtzentrum der Dunklen Zeit: das ausgewählte Langhaus bildet Dorfbewohner aus, an der Mühle wird ein Feld mit Weizen geerntet, daneben Häuser, Holzfäller- und Bergbaulager, Goldadern, Schafe und ein See mit Strand](docs/bilder/spielszene.jpg)
+*Das Hauptmenü: direkt unter „Neues Spiel“ stehen Kartengröße, Stufe des Computergegners und das
+Land (Europa, Ägypten, Wiking); unten zeigt es die Version und ob ein Update bereitliegt.*
+
+![Am Stadtzentrum der Dunklen Zeit: das ausgewählte Langhaus bildet Dorfbewohner aus, an der Mühle wird ein Feld mit Weizen geerntet, zwei Dorfbewohner bauen ein Haus, daneben Häuser, Holzfäller- und Bergbaulager, Goldadern, Steinbruch, Schafe und ein See mit Strand](docs/bilder/spielszene.jpg)
 
 *In der Dunklen Zeit ist das Stadtzentrum ein strohgedecktes Langhaus, hier ausgewählt: grüner Rahmen,
 Lebensbalken und unten in der Leiste sein Status - es bildet gerade Dorfbewohner aus, einer wartet
-noch. Zwei Dorfbewohner ernten das Feld an der Mühle, andere fällen Holz und schürfen Gold an den
-Lagern; Schafe ziehen über die Wiese, am See liegt ein Sandstrand. Jedes Gebäude, jeder Baum und jede
-Figur wirft seinen Schatten in seiner eigenen Form, alle in dieselbe Richtung.*
+noch. Zwei Dorfbewohner ernten das Feld an der Mühle, zwei bauen ein weiteres Haus, andere fällen
+Holz und schürfen Gold an den Lagern; Schafe ziehen über die Wiese, am See liegt ein Sandstrand, am
+Waldrand streifen ein Wildschwein und ein Wolf. Jedes Gebäude, jeder Baum und jede Figur wirft seinen
+Schatten in seiner eigenen Form, alle in dieselbe Richtung.*
 
-![Gefecht in der Feudalzeit: eigene Miliz gegen gegnerische Miliz, dahinter die eigenen Bogenschützen, der Späher greift einen gegnerischen Bogenschützen an der angeschlagenen Kaserne an](docs/bilder/kampf.jpg)
+![Gefecht in der Ritterzeit: die blaue Armee in Aufstellung mit Katapult dahinter, die rote Miliz stürmt in ihre Reihe, an den Flanken kämpfen die Späher, rechts die rote Kaserne](docs/bilder/kampf.jpg)
 
-*Ein Gefecht in der Feudalzeit, für die Aufnahme aufgestellt, blau gegen rot: die ausgewählte Miliz
-hält einen halben Schritt Abstand zum Gegner und blickt ihn an, die Bogenschützen schießen aus der
-zweiten Reihe, der Späher reitet einen gegnerischen Bogenschützen an. Wer getroffen wird, wehrt sich
-von selbst; die Balken zeigen die Lebenspunkte, auch die der angeschlagenen Kaserne.*
+*Ein Gefecht in der Ritterzeit, für die Aufnahme aufgestellt, blau gegen rot: die blaue Armee ist in
+Aufstellung marschiert - Nahkämpfer vorn, Bogenschützen dahinter, das Katapult hinten, die Späher an
+den Flanken. Die rote Miliz stürmt in die Reihe, an beiden Flanken treffen die Reiter aufeinander,
+dahinter warten die roten Bogenschützen vor ihrer Kaserne. Nahkämpfer halten einen halben Schritt
+Abstand zum Gegner und blicken ihn an; wer getroffen wird, wehrt sich von selbst.*
 
 ![Kartenausschnitt ohne Nebel](docs/bilder/karte.jpg)
 
-*Ein Kartenausschnitt, für die Aufnahme ohne Nebel: das Stadtzentrum, davor ein Trampelpfad am
-Steinbruch vorbei, Wald, zwei Seen mit Strand, Goldadern und dazwischen die Wiese aus kurzem, hohem und
-trockenem Gras, Klee und Blumen.*
+*Ein Kartenausschnitt, für die Aufnahme ohne Nebel: das Stadtzentrum mit den ersten Dorfbewohnern,
+Goldadern, eine Schafherde, Steinbrüche, Wald, drei Seen mit Strand - am rechten steht ein Bär - und
+dazwischen die Wiese aus kurzem, hohem und trockenem Gras, Klee und Blumen.*
+
+![Links die Wiking-Karte: das Dorf auf seiner Insel mit Hafen und zwei Schiffen; rechts Ägypten: Wüste mit Oasen und Palmen](docs/bilder/landarten.jpg)
+
+*Die beiden anderen Länder, ebenfalls ohne Nebel: links **Wiking** - das Dorf auf seiner Insel mit
+Wald, Steinbrüchen, Gold und Rehen, am Ufer der Hafen mit Transport- und Kriegsschiff; rechts
+**Ägypten** - Wüste mit Grasbüscheln, das Dorf auf einem grünen Fleck im Sand, daneben zwei Oasen
+mit Palmen.*
 
 ![Dieselbe Siedlung in den vier Zeitaltern](docs/bilder/zeitalter.jpg)
 
@@ -31,12 +43,13 @@ trockenem Gras, Klee und Blumen.*
 wechseln mit dem Aufstieg — vom Langhaus mit Strohdach über Holzbau und Burg bis zum Rathaus aus
 hellem Haustein, die Leiste von dunklem Holz über helles Holz und Mauerwerk bis Marmor.*
 
-![Alle Gebäude der Imperialzeit mit Mauerreihen, unten die zwei Tastenreihen der Dorfbewohner](docs/bilder/gebaeude.jpg)
+![Alle Gebäude der Imperialzeit mit Mauerreihen, Hafen und Belagerungsgeräten, unten die zwei Tastenreihen der Dorfbewohner](docs/bilder/gebaeude.jpg)
 
-*In der Imperialzeit steht jedes Gebäude bereit: Stadtzentrum, Kaserne, Schießstand, Stall,
-Schmiede, Markt, ein weiteres Stadtzentrum, Belagerungswerkstatt, Universität, Kloster, Burg und das
-Wunder, davor je eine Mauer aus Palisaden und aus Stein. Mit ausgewählten Dorfbewohnern zeigt die
-Leiste beide Tastenreihen.*
+*In der Imperialzeit steht jedes Gebäude bereit - oben Stadtzentrum, Kaserne, Schießstand, Stall,
+Schmiede, Markt und die Belagerungswerkstatt mit Rammbock, Katapult und Tribok davor; darunter
+Universität, Kloster, Burg, das Wunder, Wachturm, Haus, Mühle, Holzfäller- und Bergbaulager. Davor
+je eine Mauer aus Palisaden und aus Stein, am See der Hafen mit Transport- und Kriegsschiff. Mit
+ausgewählten Dorfbewohnern zeigt die Leiste beide Tastenreihen.*
 
 ## Spielstand
 
@@ -129,15 +142,18 @@ Spielbar sind Wirtschaft, Aufstieg durch die Zeitalter und Kampf gegen einen Com
   36 s) und Katapult (160 Holz, 135 Gold, 46 s) aus, ab der Imperialzeit den Tribok (200 Holz,
   200 Gold, 50 s), den auch die Burg baut. Die Geräte rollen über die Karte, der Tribok abgebaut
   auf seinem Karren; im Angriff stößt der Rammbalken genau beim Treffer zu, Katapult und Tribok
-  schleudern Steine im hohen Bogen, die beim Treffer einschlagen. Noch ohne Flächenschaden und
-  ohne Auf- und Abbauzeit des Triboks
+  schleudern Steine im hohen Bogen, die beim Treffer einschlagen und auch Gegner bis eine Kachel
+  daneben mit halbem Schaden treffen. Das Katapult wirft erst ab drei Kacheln und weicht zurück,
+  wenn ein Gegner näher kommt; der Tribok schießt nur auf Gebäude und muss dafür aufgebaut werden
+  (`S`, 4 s, Abbauen 2 s); der Rammbock richtet gegen Einheiten fast nichts aus. Rammbock und
+  Katapult belegen zwei Plätze der Bevölkerung, der Tribok drei. Beschädigte Geräte reparieren
+  Dorfbewohner per Klick
 - Spielstände: mehrere Plätze (Spielstand 1, 2, 3, …), im Hauptmenü laden, im Pausenmenü
   speichern oder überschreiben; einen Platz löscht man in der Liste mit der Löschtaste
   (Entf, am Gamepad Y) — einmal Ja/Nein bestätigen, und der Platz ist weg,
   die Nummer wird beim nächsten Speichern wieder frei
 
-Noch nicht da sind Handelskarren, Einheiten aus dem Kloster, die Einzigartigen der Burg und das
-eigene Verhalten der Belagerung (Flächenschaden, Tribok nur gegen Gebäude), siehe
+Noch nicht da sind Handelskarren, Einheiten aus dem Kloster und die Einzigartigen der Burg, siehe
 [TODO](TODO.md).
 
 ## Steuerung
@@ -153,6 +169,7 @@ eigene Verhalten der Belagerung (Flächenschaden, Tribok nur gegen Gebäude), si
 | `Q` | Im ausgewählten Gebäude ausbilden oder forschen; ohne Auswahl Dorfbewohner im Stadtzentrum |
 | `W` `E` | Weitere Forschungen: Webstuhl im Stadtzentrum, Befiederte Pfeile und Schuppenpanzer in der Schmiede; in der Belagerungswerkstatt Katapult und Tribok (`Q` Rammbock, in der Burg `Q` Tribok) |
 | `A` | Aufstieg ins nächste Zeitalter |
+| `S` | Mit Triboks in der Auswahl: aufbauen bzw. abbauen (sonst Schießstand bauen) |
 | `Q` `W` `E` / `Y` `X` `C` | Am ausgewählten Markt: 100 Nahrung, Holz, Stein kaufen / verkaufen, mit `Shift` 500 |
 | `H` `M` `F` `B` `G` `T` | Haus, Mühle, Holzfällerlager, Bergbaulager, Farm, Wachturm |
 | `K` `P` `S` `L` `E` `R` `W` | Zweite Tastenreihe: Kaserne, Palisadenmauer, Schießstand, Stall, Schmiede, Markt, Steinmauer |
