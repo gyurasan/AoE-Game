@@ -50,7 +50,10 @@
 // Transportschiff mit ausgewählten Landeinheiten = sie steigen ein, ohne Auswahl = das Schiff
 // wird ausgewählt. formation (B3, Nutzer 2026-11-08): zwei oder mehr Soldaten bewegen sich bei
 // einem Laufbefehl in Formation um den angeklickten Punkt (die MITTE der Aufstellung) und im
-// Gleichschritt; ein einzelner Soldat zielt exakt auf den Punkt.
+// Gleichschritt; ein einzelner Soldat zielt exakt auf den Punkt. angriffsort (AM1, Nutzer
+// 2026-11-27, Angriffsort.cs): jeder Treffer gegen Spieler 0 meldet seinen Ort (Kacheln, beim
+// Getroffenen) für den roten Kreis auf der Minikarte - Schuss, Schlag aufs Gebäude (Gebäudemitte),
+// Turmpfeil und Wolfsbiss; ein Treffer gegen Spieler 1 legt keinen Ort an.
 //
 // Jede genannte Gruppe läuft auf drei frisch erzeugten Karten. Die Spielschleife
 // läuft Bild für Bild (60 je Sekunde) mit denselben Methoden, die Update() im Spiel
@@ -219,6 +222,10 @@ for (int karte = 1; karte <= KARTEN; karte++)
     // von selbst zu seiner Arbeit zurück, ein neuer Befehl beendet die Flucht
     if (gruppen.Contains("flucht"))
         Pruefe($"Karte {karte}, Flucht", () => Flucht(karte, verstoesse));
+    // AM1: jeder Treffer gegen Spieler 0 meldet seinen Ort für den Kreis auf der Minikarte -
+    // beim Getroffenen (Schuss, Gebäudeschlag, Turm, Wolf), ein Treffer gegen Spieler 1 nicht
+    if (gruppen.Contains("angriffsort"))
+        Pruefe($"Karte {karte}, Angriffsort", () => Angriffsort.Pruefen(karte, verstoesse));
     // B2: Linksklick aufs eigene Transportschiff mit ausgewählten Landeinheiten =
     // Einsteigen, ohne Auswahl = das Schiff wird ausgewählt
     if (gruppen.Contains("schiffsklick") && karte == 1)

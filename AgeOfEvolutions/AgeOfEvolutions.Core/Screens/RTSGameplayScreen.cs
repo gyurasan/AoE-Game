@@ -363,6 +363,10 @@ public partial class RTSGameplayScreen : GameScreen
     private double _lastDamageP0;
     private double _lastDamageP1;
 
+    // Angriffsorte für die Minikarte (AM1): jeder Treffer gegen Spieler 0 meldet seinen Ort
+    // (RegisterDamageTaken), die Minikarte zeichnet je Ort einen kleinen roten Kreis.
+    private readonly AoE.Core.Combat.AttackAlerts _attackAlerts = new();
+
     // Rot für die Bevölkerung am Limit und den Hinweis dazu
     private static readonly Color LimitColor = new Color(235, 80, 60);
 
@@ -852,6 +856,17 @@ public partial class RTSGameplayScreen : GameScreen
     // Seitenlänge 80 % mehr als die frühere 192-px-Minimap, siehe MinimapRect.
     private const int MINIMAP_MARGIN = 4;
     private const int MINIMAP_SIZE = 346;
+    // Angriffskreis auf der Minikarte (AM1): Radius in Pixeln, Farbe und Deckkraft - auch voll
+    // leicht durchsichtig, Gelände und Einheitenpunkte scheinen durch
+    // (Nutzer 2026-11-27: „darf etwas dicker sein der rote kreis und leicht pulsierend“ -
+    // Radius 11 statt 9, Rand 4,5 statt 3 px, deckender; die Scheibe ist ALERT_SUPERSAMPLE-fach
+    // fein angelegt, damit sie beim Pulsieren glatt skaliert)
+    private const int ALERT_RADIUS = 11;
+    private const float ALERT_RIM = 4.5f;
+    private const int ALERT_SUPERSAMPLE = 4;
+    private const float ALERT_OPACITY = 0.75f;
+    private static readonly Color AlertColor = new Color(235, 45, 35);
+    private Texture2D _alertDisc;
 
     // Bauen (C5): Dorfbewohner wählen, Taste drücken, Bauplatz anklicken.
     // Kosten, Bauzeit und Größe kommen aus AoE.Core (BuildingRules); der Name
@@ -1269,6 +1284,7 @@ public partial class RTSGameplayScreen : GameScreen
         px?.Dispose(); px = null;
         _fogMask?.Dispose(); _fogMask = null; _fogMaskBuf = null; _fogBlur = null; _fogRaw = null; _fogTemp = null;
         _alarmSound?.Dispose(); _alarmSound = null;
+        _alertDisc?.Dispose(); _alertDisc = null;   // Angriffskreis der Minikarte (AM1)
         foreach (var t in tileTex.Values) t?.Dispose();
         tileTex.Clear();
         foreach (var t in waterTex) t?.Dispose();
@@ -1345,6 +1361,7 @@ public partial class RTSGameplayScreen : GameScreen
         if (_underAttackTimer > 0f)
             _underAttackTimer -= (float)gameTime.ElapsedGameTime.TotalSeconds;
         _gameSeconds += gameTime.ElapsedGameTime.TotalSeconds;
+        _attackAlerts.Prune(_gameSeconds);   // AM1: vorbei ist vorbei
 
         // Nebel des Krieges: Sicht von Spieler 0 im Takt FOG_INTERVAL neu rechnen
         fogTimer -= (float)gameTime.ElapsedGameTime.TotalSeconds;
@@ -5689,11 +5706,11 @@ public partial class RTSGameplayScreen : GameScreen
                                 AoE.Core.Combat.SiegeRules.SplashDamage(primaryHit));
                             if (buildingFalls)
                             {
-                                RegisterDamageTaken(building.OwnerId);
+                                RegisterDamageTaken(building.OwnerId, BuildingCenter(building));
                                 DestroyBuilding(building);   // zerstört
                             }
                             else
-                                RegisterDamageTaken(building.OwnerId);
+                                RegisterDamageTaken(building.OwnerId, BuildingCenter(building));
                         }
                     }
                     else if (unit.UnitTarget is not null && unit.UnitTarget.State != UnitState.Dead)
@@ -5870,7 +5887,7 @@ public partial class RTSGameplayScreen : GameScreen
             // gegnerische Einheiten binnen dem Radius um das Getroffene.
             ApplySiegeSplash(unit, target.Position,
                 AoE.Core.Combat.SiegeRules.SplashDamage(hitDamage));
-            RegisterDamageTaken(target.OwnerId);
+            RegisterDamageTaken(target.OwnerId, target.Position);
 
             // Der Bogen erklingt beim Schützen, Hieb und Klinge beim Getroffenen
             EmitSound(UnitHitSound(unit, target),
@@ -5934,7 +5951,7 @@ public partial class RTSGameplayScreen : GameScreen
             u.Health = Math.Max(0, u.Health - splash);
             if (u.Health == 0)
                 u.State = UnitState.Dead;
-            RegisterDamageTaken(u.OwnerId);
+            RegisterDamageTaken(u.OwnerId, u.Position);
         }
     }
 
@@ -6129,14 +6146,18 @@ public partial class RTSGameplayScreen : GameScreen
     /// <summary>
     /// Der Spieler <paramref name="playerId"/> hat gerade einen Treffer
     /// kassiert — Uhr aktualisieren und (nur bei Spieler 0) die Alarm-Warnung
-    /// setzen, weil die Ansicht dem Menschen gehört.
+    /// setzen, weil die Ansicht dem Menschen gehört, und den Ort
+    /// <paramref name="worldPos"/> (Weltpixel: der Getroffene bzw. die Gebäudemitte)
+    /// für den Kreis auf der Minikarte melden (AM1).
     /// </summary>
-    private void RegisterDamageTaken(int playerId)
+    private void RegisterDamageTaken(int playerId, Vector2 worldPos)
     {
         if (playerId == 0)
         {
             _lastDamageP0 = _gameSeconds;
             RaiseUnderAttack();
+            // AM1: der Ort in Kacheln für die Minikarte
+            _attackAlerts.Report(worldPos.X / tileMap.TileSize, worldPos.Y / tileMap.TileSize, _gameSeconds);
         }
         else
         {
@@ -9845,6 +9866,9 @@ public partial class RTSGameplayScreen : GameScreen
                     u.OwnerId == 0 ? Color.White : new Color(235, 70, 60));
         }
 
+        // Angriffsorte (AM1): über Gelände und Einheiten, unter dem Kameraausschnitt
+        DrawAttackAlerts(sb, r);
+
         // Kameraausschnitt: der Kartenbereich zwischen den beiden Leisten
         float gx0 = MathHelper.Clamp(-cameraPosition.X / ts, 0f, mapW);
         float gx1 = MathHelper.Clamp((-cameraPosition.X + screenBounds.Width / cameraZoom) / ts, 0f, mapW);
@@ -9866,6 +9890,68 @@ public partial class RTSGameplayScreen : GameScreen
         sb.Draw(px, new Rectangle(f.Left, f.Bottom - 1, f.Width, 1), color);
         sb.Draw(px, new Rectangle(f.Left, f.Top, 1, f.Height), color);
         sb.Draw(px, new Rectangle(f.Right - 1, f.Top, 1, f.Height), color);
+    }
+
+    /// <summary>
+    /// Scheibe für den Angriffskreis (AM1), weiß, einmal angelegt: innen zu 70 % gedeckt, ein
+    /// ALERT_RIM Bildschirmpixel breiter Rand voll, die Kante 1 Bildschirmpixel weich - so bleibt
+    /// der Kreis auch über rotem Einheitengewimmel als Kreis erkennbar. ALERT_SUPERSAMPLE-fach
+    /// feiner als gezeichnet, damit das Pulsieren glatt skaliert.
+    /// VERTRAG: ist _alertDisc nicht null, _alertDisc. Sonst k = ALERT_SUPERSAMPLE; n = 2 *
+    /// ALERT_RADIUS * k; je Bildpunkt (x, y): d = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f),
+    /// new Vector2(n / 2f, n / 2f)); edge = MathHelper.Clamp((n / 2f - d) / k, 0f, 1f); fill = d >=
+    /// n / 2f - ALERT_RIM * k ? 1f : 0.7f; Farbe Color.White * (edge * fill). _alertDisc = new
+    /// Texture2D(graphicsDevice, n, n) mit SetData dieser Farben (Zeile für Zeile, Index y * n + x);
+    /// Rückgabe _alertDisc.
+    /// </summary>
+    private Texture2D AlertDiscTexture()
+    {
+        if (_alertDisc != null)
+            return _alertDisc;
+        int k = ALERT_SUPERSAMPLE;
+        int n = 2 * ALERT_RADIUS * k;
+        Color[] data = new Color[n * n];
+        for (int y = 0; y < n; y++)
+        {
+            for (int x = 0; x < n; x++)
+            {
+                float d = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), new Vector2(n / 2f, n / 2f));
+                float edge = MathHelper.Clamp((n / 2f - d) / k, 0f, 1f);
+                float fill = d >= n / 2f - ALERT_RIM * k ? 1f : 0.7f;
+                data[y * n + x] = Color.White * (edge * fill);
+            }
+        }
+        _alertDisc = new Texture2D(graphicsDevice, n, n);
+        _alertDisc.SetData(data);
+        return _alertDisc;
+    }
+
+    /// <summary>
+    /// Die Angriffsorte auf der Minikarte (AM1, Nutzer 2026-11-27: „Wird man angegriffen sollte
+    /// auf der Minikarte angezeigt werden wo der Angriff stattfindet“, „darf etwas dicker sein der
+    /// rote kreis und leicht pulsierend“): je Ort ein roter, leicht durchsichtiger Kreis um seine
+    /// Mitte, der leicht pulsiert - über Gelände und Einheiten, unter dem Kameraausschnitt; er
+    /// blendet aus, wenn keine Treffer mehr kommen.
+    /// VERTRAG: disc = AlertDiscTexture(); origin = new Vector2(disc.Width / 2f, disc.Height / 2f);
+    /// foreach spot in _attackAlerts.Spots: a = AoE.Core.Combat.AttackAlerts.Alpha(spot,
+    /// _gameSeconds); ist a nicht größer als 0f, weiter mit dem nächsten; c = MinimapPoint(spot.X,
+    /// spot.Y, r); scale = ALERT_RADIUS * AoE.Core.Combat.AttackAlerts.Pulse(spot, _gameSeconds) /
+    /// origin.X; sb.Draw(disc, c, null, AlertColor * (ALERT_OPACITY * a), 0f, origin, scale,
+    /// SpriteEffects.None, 0f).
+    /// </summary>
+    private void DrawAttackAlerts(SpriteBatch sb, Rectangle r)
+    {
+        var disc = AlertDiscTexture();
+        var origin = new Vector2(disc.Width / 2f, disc.Height / 2f);
+        foreach (var spot in _attackAlerts.Spots)
+        {
+            float a = AoE.Core.Combat.AttackAlerts.Alpha(spot, _gameSeconds);
+            if (a <= 0f)
+                continue;
+            var c = MinimapPoint(spot.X, spot.Y, r);
+            float scale = ALERT_RADIUS * AoE.Core.Combat.AttackAlerts.Pulse(spot, _gameSeconds) / origin.X;
+            sb.Draw(disc, c, null, AlertColor * (ALERT_OPACITY * a), 0f, origin, scale, SpriteEffects.None, 0f);
+        }
     }
 
     // --- Ende Minimap ------------------------------------------------------------

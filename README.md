@@ -115,6 +115,9 @@ Spielbar sind Wirtschaft, Aufstieg durch die Zeitalter und Kampf gegen einen Com
   daneben ausklingend, links und rechts nach der Lage auf dem Bildschirm
 - Nebel des Krieges, Minimap, Zoom und Kamera; ein Klick ins Schwarze wirkt immer - die Wegsuche
   plant nur mit dem, was der Spieler schon gesehen hat
+- Angriffswarnung: wird man angegriffen, glüht die obere Leiste rot, ein Warnsignal erklingt, und auf
+  der Minimap pulsiert ein roter Kreis, wo der Angriff stattfindet - er verblasst einige Sekunden
+  nach dem letzten Treffer
 - Lebendige Landschaft: weiche Ufer und Sandstrände, Wasser mit Tiefe, Wellen, Schaum und
   Fischschwärmen; eine Wiese aus fünf Grassorten von kurzem Klee bis hüfthohem Gras, dazu Blumen
   und ausgedörrte Erde, im hohen Gras stecken die Figuren bis zur Hüfte; Beerenbüsche und

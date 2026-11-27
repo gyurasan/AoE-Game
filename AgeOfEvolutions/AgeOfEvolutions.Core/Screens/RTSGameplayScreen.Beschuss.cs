@@ -81,7 +81,7 @@ public partial class RTSGameplayScreen
             {
                 b.BombardTimer -= BombardReload;
                 target.Health = Math.Max(0, target.Health - BuildingCombat.DamageToUnit(b.Core, target.Core));
-                RegisterDamageTaken(target.OwnerId);
+                RegisterDamageTaken(target.OwnerId, target.Position);
                 EmitSound("bogen", BuildingCenter(b));
                 if (target.Health == 0)
                     target.State = UnitState.Dead;

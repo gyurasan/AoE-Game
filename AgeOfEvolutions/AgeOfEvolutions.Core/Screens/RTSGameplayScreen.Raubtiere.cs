@@ -84,7 +84,7 @@ public partial class RTSGameplayScreen
     /// Raubtiere takten und ihre Schläge beantworten. UpdateUnits ruft es jedes Bild direkt
     /// nach AutoRespond auf.
     /// VERTRAG: strikes = tileMap.UpdatePredators(dt, units). Für jeden Schlag s mit Damage
-    /// größer 0: EmitSound("treffer", s.Victim.Position); RegisterDamageTaken(s.Victim.OwnerId).
+    /// größer 0: EmitSound("treffer", s.Victim.Position); RegisterDamageTaken(s.Victim.OwnerId, s.Victim.Position).
     /// Der Schaden selbst ist im Kern schon auf die Zuleitung begrenzt (Zivilistenschaden:
     /// Wolf und Wildschwein beißen einen Dorfbewohner gedämpft, mindestens 1), daher ist jeder
     /// hier sichtbare Schlag hörbar und meldet Beschuss. Gegenwehr nur für Soldaten:
@@ -110,7 +110,7 @@ public partial class RTSGameplayScreen
             if (s.Damage > 0)
             {
                 EmitSound("treffer", s.Victim.Position);
-                RegisterDamageTaken(s.Victim.OwnerId);
+                RegisterDamageTaken(s.Victim.OwnerId, s.Victim.Position);
             }
             // Gegenwehr nur für Soldaten: Dorfbewohner wehren sich nicht von selbst.
             if (!s.Killed
