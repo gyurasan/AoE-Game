@@ -1,4 +1,6 @@
 ﻿using System;
+using AgeOfEvolutions.Core.Audio;
+using AgeOfEvolutions.Core.Settings;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
@@ -13,6 +15,9 @@ namespace AgeOfEvolutions.Screens;
 /// Vorher lag hier noch das blaue Gebirge aus der Platformer-Vorlage
 /// (Layer0_2), ins 800×480-Raster gestreckt mit schwarzen Rändern - nur das
 /// Hauptmenü verdeckte es mit seinem eigenen Bild.
+/// Dazu spielt er die Menümusik (<see cref="MenuMusic"/>, Nutzer 2026-11-27):
+/// sie blendet mit ihm ein und aus, folgt der Option „Lautstärke“ sofort und
+/// hört auf, wenn er mit dem Spielstart entladen wird.
 /// </summary>
 class BackgroundScreen : GameScreen
 {
@@ -24,6 +29,20 @@ class BackgroundScreen : GameScreen
 
     ContentManager content;
     Texture2D backgroundTexture;
+
+    // Menümusik: lädt über content, deshalb vor content.Unload() anhalten
+    readonly MenuMusic music = new MenuMusic();
+    SettingsManager<AgeOfEvolutionsSettings> settingsManager;
+
+    /// <summary>
+    /// Die Option „Lautstärke“ in Prozent (0–100).
+    /// VERTRAG: return settingsManager?.Settings?.SoundVolume ?? 60;
+    /// (60 ist der Standard der Einstellungen, falls es keine gibt.)
+    /// </summary>
+    private int SoundVolumePercent()
+    {
+        return settingsManager?.Settings?.SoundVolume ?? 60;
+    }
 
     /// <summary>
     /// Initializes a new instance of the BackgroundScreen class.
@@ -53,6 +72,9 @@ class BackgroundScreen : GameScreen
         {
             backgroundTexture = null;
         }
+
+        settingsManager = ScreenManager.Game.Services.GetService<SettingsManager<AgeOfEvolutionsSettings>>();
+        music.Start(content, MenuMusic.Volume(SoundVolumePercent(), TransitionAlpha));
     }
 
     /// <summary>
@@ -60,6 +82,7 @@ class BackgroundScreen : GameScreen
     /// </summary>
     public override void UnloadContent()
     {
+        music.Stop();
         content.Unload();
     }
 
@@ -74,6 +97,7 @@ class BackgroundScreen : GameScreen
     {
         // Force coveredByOtherScreen to false to prevent the screen from transitioning off.
         base.Update(gameTime, otherScreenHasFocus, false);
+        music.SetVolume(MenuMusic.Volume(SoundVolumePercent(), TransitionAlpha));
     }
 
     /// <summary>

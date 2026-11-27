@@ -4,8 +4,12 @@
          gegen MonoGame.Framework.Native, die Apps und Werkzeuge liefern
          WindowsDX bzw. DesktopGL aus. Schwimmen die Pakete getrennt (3.8.*),
          kann Core auf eine neuere MonoGame.Framework.dll zeigen, als die App
-         mitbringt, und die Exe stirbt beim Start mit FileLoadException. -->
-    <MonoGameVersion>3.8.6</MonoGameVersion>
+         mitbringt, und die Exe stirbt beim Start mit FileLoadException.
+         3.8.6.1 statt 3.8.6 (2026-11-27, Menümusik): in 3.8.6 lädt WindowsDX keinen
+         Song - Song.PlatformInitialize fragt per ComObject.As<MediaSource>(object)
+         die .NET-Hülle statt des Media-Foundation-Objekts ab (E_NOINTERFACE);
+         3.8.6.1 ruft wieder QueryInterface<MediaSource>() auf. -->
+    <MonoGameVersion>3.8.6.1</MonoGameVersion>
 
     <!-- Repository-Version: ohne Angabe fällt MSBuild auf die Default 1.0.0.0
          zurück und das Hauptmenü zeigt „Version 1.0.0“. Dev-Builds tragen damit
