@@ -11,12 +11,22 @@
 //     ziehen sich wieder zurück
 // Gemessen wird jede Spielsekunde; am Ende je Paarung der Ausgang (zerstörte Gebäude, Dorfzentren).
 //
-//   dotnet run --project tools/ai-pruefung -- stufen [minuten] [sparta|defense|duell|basis] [karten N] [verlauf] [wiking]
+//   dotnet run --project tools/ai-pruefung -- stufen [minuten] [sparta|defense|duell|basis|normal] [karten N] [seed S] [verlauf] [zeitlinie] [wiking]
+//
+// „seed S" (2026-11-27): Karte k entsteht mit TileMap.TestSeed = S + k - mit der festen KI-Saat ist jedes Spiel
+// wiederholbar, und verschiedene Paarungen spielen auf denselben Karten („normal": Normal gegen Defense, das
+// Gegenstück zu „duell"). Am Ende steht je Stufe und Gegner, was ein Gegner von ihr spürt: wann ihr erster
+// Angriff beim Gegner ankommt (Druck: ein eigener Soldat greift im feindlichen Gebiet an, näher am feindlichen
+// als am eigenen Stadtzentrum), wie viele Sekunden der Druck anhält, wie viele Dorfbewohner und Gebäude der
+// Gegner verliert.
 //
 // „wiking" spielt auf der Inselkarte (Nutzer 2026-11-07: „man wird nur mit booten von einer zur nächsten
 // insel kommen“): dort zählt zusätzlich, ob die angreifenden Stufen übersetzen (ÜBERFAHRT, BRÜCKENKOPF).
 //
 // „verlauf" druckt die Meldungen der Armeeführung (Welle, Kampf, Belagerung, Reiter, Rückzug) mit Uhrzeit.
+// „zeitlinie" (2026-11-27) druckt je Seite und Spielminute Dorfbewohner, Soldaten, Bevölkerung, Rohstoffe,
+// Zeitalter, Phase der Armee und Gebäude (* = im Bau); die Spielzeile nennt immer, wann Kaserne, erster und
+// sechster Soldat und erste Welle kamen.
 // Je Paarung 2 frisch erzeugte Karten („karten N" ändert das). Ohne Paarung laufen „sparta"
 // (Sparta gegen Normal) und „defense" (Defense gegen Normal);
 // „duell" ist Sparta gegen Defense, „basis" Normal gegen Normal (zum Vergleich der Ausgänge).
@@ -51,6 +61,8 @@ static class Stufen
         public bool Stall;
         public Age Zeitalter;
         public double FeudalAb = -1;              // Spielsekunde, ab der die Seite in der Feudalzeit war
+        public double KaserneAb = -1, Soldat1Ab = -1, Soldat6Ab = -1, WelleAb = -1;   // Spielsekunden (Zeitleiste)
+        public int LetzteMinute = -1;
         public double GesichtetAb = -1;           // Spielsekunde, ab der die Seite ein feindliches Gebäude sah
         public int FernAngriffe;                  // Angriffe auf feindliche Gebäude fern vom eigenen Dorf
         public string? ErsterFernAngriff;
@@ -63,6 +75,9 @@ static class Stufen
         public int AbstandProben, AbstandOk;      // nächster Nachbar mindestens 2 Kacheln
         public int Heimproben, HeimAufPlatz;
         public int Zerstoert;                     // Gebäude dieser Seite, die gefallen sind
+        public double DruckAb = -1;               // Spielsekunde des ersten eigenen Angriffs im feindlichen Dorf
+        public int DruckSekunden;                 // Sekunden, in denen ein eigener Soldat im feindlichen Dorf angreift
+        public int DorfbewohnerVerloren, SoldatenVerloren;   // eigene Tote (aus der Einheitenliste verschwunden)
     }
 
     public static int Run(string[] args)
@@ -74,6 +89,7 @@ static class Stufen
         if (args.Contains("defense")) paarungen.Add(("defense", AiProfile.Defense, AiProfile.Standard));
         if (args.Contains("duell")) paarungen.Add(("duell", AiProfile.Sparta, AiProfile.Defense));
         if (args.Contains("basis")) paarungen.Add(("basis", AiProfile.Standard, AiProfile.Standard));
+        if (args.Contains("normal")) paarungen.Add(("normal", AiProfile.Standard, AiProfile.Defense));
         if (paarungen.Count == 0)
         {
             paarungen.Add(("sparta", AiProfile.Sparta, AiProfile.Standard));
@@ -82,14 +98,20 @@ static class Stufen
 
         var verstoesse = new List<string>();
         if (args.Contains("wiking")) _stil = MapStyle.Wiking;
+        _zeitlinie = args.Contains("zeitlinie");
         int karten = 2;
         int ki = Array.IndexOf(args, "karten");
         if (ki >= 0 && ki + 1 < args.Length && int.TryParse(args[ki + 1], out int k) && k > 0) karten = k;
+        int? seed = null;
+        int si = Array.IndexOf(args, "seed");
+        if (si >= 0 && si + 1 < args.Length && int.TryParse(args[si + 1], out int sv)) seed = sv;
         var bilanz = new Bilanz();
         foreach (var (name, a, b) in paarungen)
             for (int karte = 1; karte <= karten; karte++)
             {
                 string titel = karten > 1 ? $"{name} (Karte {karte})" : name;
+                TileMap.TestSeed = seed is int s0 ? s0 + karte : null;
+                if (seed is not null) titel += $", Saat {seed + karte}";
                 try
                 {
                     // jede zweite Karte mit getauschten Startplätzen - die Zufallskarte soll nicht immer
@@ -111,6 +133,8 @@ static class Stufen
             verstoesse.Add("This is Sparta kam in keinem Spiel aus der Dunklen Zeit - nichts geprüft");
         if (bilanz.NormalMitWellenstaerke > 0 && bilanz.NormalAngriffe == 0)
             verstoesse.Add($"Normal hat in keinem von {bilanz.NormalMitWellenstaerke} Spielen mit Wellenstärke selbst angegriffen");
+        TileMap.TestSeed = null;
+        Wirkung();
         Console.WriteLine($"\n  Bilanz: Sparta in {bilanz.SpartaGeprueft} Spielen geprüft; Normal griff in {bilanz.NormalAngriffe} "
             + $"von {bilanz.NormalMitWellenstaerke} Spielen mit Wellenstärke selbst an");
         if (verstoesse.Count > 0)
@@ -124,6 +148,35 @@ static class Stufen
         return 0;
     }
 
+    /// <summary>Druck ohne eigenes Stadtzentrum: ein Angriff höchstens so viele Kacheln (Chebyshev) vom feindlichen.</summary>
+    const int DorfRadius = 12;
+
+    /// <summary>Je Spiel und Seite: Stufe, Gegner, beide Messwerte, fiel das feindliche Dorfzentrum.</summary>
+    static readonly List<(string Stufe, string Gegner, Seite S, Seite G, bool TcFiel)> _ergebnisse = new();
+
+    /// <summary>Was ein Gegner von jeder Stufe spürt, gemittelt über die Spiele (2026-11-27).</summary>
+    static void Wirkung()
+    {
+        if (_ergebnisse.Count == 0) return;
+        Console.WriteLine("\n  Wirkung je Stufe (Mittel; Druck = eigener Angriff im feindlichen Gebiet, näher am feindlichen als am eigenen Stadtzentrum):");
+        foreach (var g in _ergebnisse.GroupBy(e => $"{e.Stufe} gegen {e.Gegner}"))
+        {
+            var l = g.ToList();
+            var mit = l.Where(e => e.S.DruckAb >= 0).ToList();
+            string ab = mit.Count > 0 ? $"{mit.Average(e => e.S.DruckAb) / 60:0.0} min ({mit.Count}/{l.Count})" : "nie";
+            var feudal = l.Where(e => e.S.FeudalAb >= 0).ToList();
+            var wellen = l.Where(e => e.S.WelleAb >= 0).Select(e => e.S.WelleAb / 60).OrderBy(x => x).ToList();
+            var druckAb = mit.Select(e => e.S.DruckAb / 60).OrderBy(x => x).ToList();
+            Console.WriteLine($"    {g.Key,-34} {l.Count,2} Spiele: erster Druck {ab}, Druck {l.Average(e => e.S.DruckSekunden):0} s, "
+                + $"Gegner verliert {l.Average(e => e.G.DorfbewohnerVerloren):0.0} Dorfbewohner, {l.Average(e => e.G.SoldatenVerloren):0.0} Soldaten, "
+                + $"{l.Average(e => e.G.Zerstoert):0.0} Gebäude, Dorfzentrum {l.Count(e => e.TcFiel)}×; eigene Tote {l.Average(e => e.S.SoldatenVerloren):0.0} Soldaten, "
+                + $"{l.Average(e => e.S.DorfbewohnerVerloren):0.0} Dorfbewohner; Feudal "
+                + (feudal.Count > 0 ? $"{feudal.Average(e => e.S.FeudalAb) / 60:0.0} min ({feudal.Count}/{l.Count})" : "nie")
+                + (wellen.Count > 0 ? $"; erste Welle Median {wellen[wellen.Count / 2]:0.0} min ({wellen.Count}/{l.Count})" : "")
+                + (druckAb.Count > 0 ? $", erster Druck Median {druckAb[druckAb.Count / 2]:0.0} min, unter 10 min {druckAb.Count(x => x < 10)}/{l.Count}" : ""));
+        }
+    }
+
     /// <summary>So lange muss Sparta in der Feudalzeit gewesen sein, damit Stall, gemischte Armee und Welle verlangt werden.</summary>
     const double SpartaFeudalSekunden = 8 * 60;
 
@@ -132,14 +185,20 @@ static class Stufen
         public int SpartaGeprueft, NormalMitWellenstaerke, NormalAngriffe;
     }
 
+    /// <summary>Spielsekunden als Minuten, „-“ für nie.</summary>
+    static string M(double sekunden) => sekunden < 0 ? "-" : $"{sekunden / 60:0.0} min";
+
     static string StufeName(AiProfile p) => GameplayOptionsName(AiProfile.LevelOf(p));
     static string GameplayOptionsName(int level) => level switch { 0 => "Defense", 2 => "This is Sparta", _ => "Normal" };
 
-    static readonly string[] Armeemeldungen = { "WELLE", "KAMPF", "NEU AUFSTELLEN", "BELAGERUNG", "RÜCKZUG", "REITER", "ERKUNDUNG",
+    static readonly string[] Armeemeldungen = { "WELLE", "NACHSCHUB", "AUSWEICHEN", "KAMPF", "NEU AUFSTELLEN", "BELAGERUNG", "RÜCKZUG", "REITER", "ERKUNDUNG",
                                                 "ÜBERFAHRT", "BRÜCKENKOPF", "Fähre" };
 
     /// <summary>Die Landart der Spiele (Schalter „wiking“).</summary>
     static MapStyle _stil = MapStyle.Europa;
+
+    /// <summary>Zeitleiste je Spielminute (Schalter „zeitlinie“).</summary>
+    static bool _zeitlinie;
 
     static void Spiel(string paarung, AiProfile profilA, AiProfile profilB, int minuten, List<string> verstoesse, bool verlauf,
                       Bilanz bilanz)
@@ -198,6 +257,7 @@ static class Stufen
         Console.WriteLine($"  Paarung {paarung}: {seiten[0].Name} gegen {seiten[1].Name}, Karte {map.Width}×{map.Height}, {minuten} min");
 
         var gesehen = new HashSet<Building>(map.Buildings);
+        var lebend = new HashSet<Unit>(units.Where(u => u.State != UnitState.Dead));
         int tcGefallen = -1;
         double tcZeit = 0;
         const float dt = 1f / 60f;
@@ -237,6 +297,12 @@ static class Stufen
                 probe = 1;
                 foreach (var s in seiten)
                     Messen(s, seiten[1 - s.Owner], map, units, zeit);
+                // Tote: aus der Einheitenliste verschwunden (UnitState.Dead steht nur kurz)
+                var jetzt = new HashSet<Unit>(units.Where(u => u.State != UnitState.Dead));
+                foreach (var u in lebend.Where(u => !jetzt.Contains(u) && u.OwnerId is 0 or 1))
+                    if (u.Type == UnitType.Villager) seiten[u.OwnerId].DorfbewohnerVerloren++;
+                    else seiten[u.OwnerId].SoldatenVerloren++;
+                lebend = jetzt;
                 foreach (var b in gesehen.Where(b => !map.Buildings.Contains(b)).ToList())
                 {
                     seiten[b.OwnerId].Zerstoert++;
@@ -268,13 +334,19 @@ static class Stufen
             Console.WriteLine($"      Wellen {s.Wellen}, Fernangriffe {s.FernAngriffe}, weitester Soldat {s.MaxEntfernung} Kacheln vom Stadtzentrum, "
                 + $"höchstens {s.MaxSoldaten} Soldaten ({s.MaxBogen} Bogen, {s.MaxReiter} Reiter), Türme {s.MaxTuerme}, Stall {(s.Stall ? "ja" : "nein")}, "
                 + $"Feudal {(s.FeudalAb < 0 ? "-" : $"{s.FeudalAb / 60:0.0} min")}, Gegner gesichtet {(s.GesichtetAb < 0 ? "nie" : $"{s.GesichtetAb / 60:0.0} min")}"
+                + $", Kaserne {M(s.KaserneAb)}, 1. Soldat {M(s.Soldat1Ab)}, 6. Soldat {M(s.Soldat6Ab)}, erste Welle {M(s.WelleAb)}"
                 + (_stil == MapStyle.Wiking ? $", Überfahrten {s.Ueberfahrten}, Brückenköpfe {s.Brueckenkoepfe}" : ""));
+            Console.WriteLine($"      Druck {(s.DruckAb < 0 ? "nie" : $"ab {s.DruckAb / 60:0.0} min")}, {s.DruckSekunden} s im feindlichen Gebiet; "
+                + $"verloren {s.DorfbewohnerVerloren} Dorfbewohner, {s.SoldatenVerloren} Soldaten");
             if (s.Ki.Army is not null)
                 Console.WriteLine($"      Aufstellung: Marsch {s.Marschproben} Proben, in Form {Prozent(s.MarschAufPlatz, s.Marschproben * 100)}; "
                     + $"Schützen hinten {s.ReihenOk}/{s.Reihenproben}; Abstand ≥ 2 {s.AbstandOk}/{s.AbstandProben}; "
                     + $"Heimgruppe auf dem Platz {Prozent(s.HeimAufPlatz, s.Heimproben * 100)} ({s.Heimproben} Proben); "
                     + $"Reiter: {s.Reiterangriffe} Schwall, {s.Reiterrueckzuege} Rückzug");
         }
+
+        foreach (var s in seiten)
+            _ergebnisse.Add((StufeName(s.Profil), StufeName(seiten[1 - s.Owner].Profil), s, seiten[1 - s.Owner], tcGefallen == 1 - s.Owner));
 
         // ---- Abnahme
         foreach (var s in seiten)
@@ -361,6 +433,50 @@ static class Stufen
         s.Zeitalter = bruecke.Age;
         if (s.Zeitalter >= Age.Feudal && s.FeudalAb < 0) s.FeudalAb = zeit;
         if (s.GesichtetAb < 0 && bruecke.VisibleEnemies().Any(e => e.IsBuilding)) s.GesichtetAb = zeit;
+        if (s.KaserneAb < 0 && bruecke.Buildings.Any(b => b.Type == BuildingType.Barracks && b.IsComplete)) s.KaserneAb = zeit;
+        if (s.Soldat1Ab < 0 && soldaten.Count >= 1) s.Soldat1Ab = zeit;
+        if (s.Soldat6Ab < 0 && soldaten.Count >= 6) s.Soldat6Ab = zeit;
+        if (s.WelleAb < 0 && s.Wellen > 0) s.WelleAb = zeit;
+        if (_zeitlinie && (int)(zeit / 60) != s.LetzteMinute)
+        {
+            s.LetzteMinute = (int)(zeit / 60);
+            var r = bruecke.Resources;
+            string geb = string.Join(" ", bruecke.Buildings.GroupBy(b => b.Type)
+                .Select(g => $"{g.Key}{(g.Count() > 1 ? "×" + g.Count() : "")}{(g.All(b => b.IsComplete) ? "" : "*")}"));
+            Console.WriteLine($"      [{zeit / 60:00}] {s.Name}: DB {eigene.Count - soldaten.Count}, Sold {soldaten.Count}, "
+                + $"Pop {bruecke.PopulationCount}/{bruecke.PopulationCapacity}, N {r.Food} H {r.Wood} G {r.Gold} S {r.Stone}, "
+                + $"{bruecke.Age}, Armee {s.Ki.Army?.Phase.ToString() ?? "-"}, Gebäude {geb}");
+        }
+        // Druck auf den Gegner (2026-11-27, Nutzer: „Es scheint keinen Unterschied zu geben zwischen normal
+        // und this is sparta“): greift ein eigener Soldat etwas im feindlichen Gebiet an - näher am feindlichen
+        // als am eigenen Stadtzentrum (ohne eigenes: binnen DorfRadius)? Auch ein Überfall auf ein fernes
+        // Holzlager ist Druck, nicht erst der Angriff am Stadtzentrum.
+        if (Zentrum(map, gegner.Owner) is { } fd)
+        {
+            bool druck = false;
+            foreach (var u in units)
+            {
+                if (u.OwnerId != s.Owner || u.State == UnitState.Dead || u.Type == UnitType.Villager) continue;
+                (int X, int Y)? ziel = null;
+                if (u.AttackTarget is { } zb && zb.OwnerId == gegner.Owner) ziel = (zb.X + zb.Width / 2, zb.Y + zb.Height / 2);
+                else if (u.UnitTarget is { } zu && zu.OwnerId == gegner.Owner)
+                {
+                    var zg = map.WorldToGrid(zu.Position);
+                    ziel = ((int)zg.X, (int)zg.Y);
+                }
+                if (ziel is { } z && (home is { } eh ? Cheb(z.X, z.Y, fd.X, fd.Y) < Cheb(z.X, z.Y, eh.X, eh.Y)
+                                                     : Cheb(z.X, z.Y, fd.X, fd.Y) <= DorfRadius))
+                {
+                    druck = true;
+                    break;
+                }
+            }
+            if (druck)
+            {
+                s.DruckSekunden++;
+                if (s.DruckAb < 0) s.DruckAb = zeit;
+            }
+        }
         if (home is not { } h) return;
 
         // Angriffe auf feindliche Gebäude: wie weit vom eigenen Dorf?
@@ -387,7 +503,8 @@ static class Stufen
         if (s.Ki.Army is not { } army) return;
         if (army.Phase != ArmyPhase.Gather) s.WelleGesehen = true;
         var byId = soldaten.ToDictionary(u => u.Id);
-        var wave = army.Wave.Where(byId.ContainsKey).Select(id => byId[id]).ToList();
+        // Nachschub auf dem Weg zur Welle zählt erst bei ihr (2026-11-27)
+        var wave = army.Wave.Where(id => byId.ContainsKey(id) && !army.Joining.Contains(id)).Select(id => byId[id]).ToList();
         if (army.Phase == ArmyPhase.March && wave.Count >= 4)
         {
             // Reiter nur in Bereitschaft: im Schwall und beim Rückzug hinter den Verband sind sie

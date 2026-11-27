@@ -212,7 +212,7 @@ public class ArmyCommanderTests
     }
 
     [Fact]
-    public void Defense_und_kleine_Heimgruppen_spaehen_nicht()
+    public void Defense_spaeht_nie_Sparta_schon_mit_dem_ersten_Soldaten()
     {
         var w = Dorf(enemyBase: false);
         Armee(w, 6, 4, 2);
@@ -221,11 +221,68 @@ public class ArmyCommanderTests
         Run(defense, w, ctx, 2);
         Assert.Null(defense.Scout);
 
-        var klein = Dorf(enemyBase: false);
-        Armee(klein, 5, 4, 2);   // 11 < 12
+        // gezielte Erkundung (2026-11-27): ein einzelner Soldat sucht den Gegner
+        var eins = Dorf(enemyBase: false);
+        Armee(eins, 1, 0, 0);
         var sparta = new ArmyCommander(AiProfile.Sparta);
-        Run(sparta, klein, new AiContext(1), 2);
-        Assert.Null(sparta.Scout);
+        Run(sparta, eins, new AiContext(1), 2);
+        Assert.NotNull(sparta.Scout);
+
+        // ohne gezielte Erkundung späht erst eine Heimgruppe in Wellenstärke
+        var klein = Dorf(enemyBase: false);
+        Armee(klein, 2, 1, 0);   // 3 < 4
+        var alt = new ArmyCommander(AiProfile.Sparta with { AimedScouting = false });
+        Run(alt, klein, new AiContext(1), 2);
+        Assert.Null(alt.Scout);
+    }
+
+    [Fact]
+    public void Sparta_spaeht_Richtung_gegenueberliegendem_Startplatz()
+    {
+        // Stadtzentrum-Mitte (6, 6), Karte 64 × 64: die Vermutung ist (57, 57)
+        var w = Dorf(enemyBase: false);
+        w.MarkNotExplored(2, 20);    // die nächste Nebelkachel, aber abseits
+        w.MarkNotExplored(40, 40);   // auf dem Weg zur Gegenseite
+        int id = w.AddSoldier(8, 8, UnitKind.Militia);
+        var army = new ArmyCommander(AiProfile.Sparta);
+        Run(army, w, new AiContext(1), 1);
+        Assert.Equal(id, army.Scout);
+        Assert.Contains($"move({id},40,40)", w.Log);
+
+        // ohne gezielte Erkundung: die nächste Nebelkachel
+        var w2 = Dorf(enemyBase: false);
+        w2.MarkNotExplored(2, 20);
+        w2.MarkNotExplored(40, 40);
+        Armee(w2, 3, 3, 0);
+        var alt = new ArmyCommander(AiProfile.Sparta with { AimedScouting = false });
+        Run(alt, w2, new AiContext(1), 1);
+        Assert.NotNull(alt.Scout);
+        Assert.Contains($"move({alt.Scout},2,20)", w2.Log);
+    }
+
+    [Fact]
+    public void Sparta_zieht_dorthin_wo_Dorfbewohner_arbeiten()
+    {
+        FakeWorld Welt()
+        {
+            var w = Dorf(enemyBase: false);
+            w.AddEnemy(new EnemyInfo(30, 30, IsBuilding: true, Health: 500));   // näher am Dorf (24)
+            w.AddEnemy(new EnemyInfo(40, 40, IsBuilding: true, Health: 500));   // 34 weit, aber dort wird gearbeitet
+            foreach (var (x, y) in new[] { (41, 40), (42, 41), (40, 42) })
+                w.AddEnemy(new EnemyInfo(x, y, IsBuilding: false, Health: 25, Kind: UnitKind.Villager));
+            Armee(w, 3, 3, 0);
+            return w;
+        }
+        var w1 = Welt();
+        var army = new ArmyCommander(AiProfile.Sparta);
+        Run(army, w1, new AiContext(1), 20, () => army.Phase == ArmyPhase.March);
+        Assert.Equal(ArmyPhase.March, army.Phase);
+        Assert.Equal((40, 40), army.Target);   // 34 - 3 Sichtungen × 4 = 22 < 24
+
+        var w2 = Welt();
+        var alt = new ArmyCommander(AiProfile.Sparta with { EconomyTargets = false });
+        Run(alt, w2, new AiContext(1), 20, () => alt.Phase == ArmyPhase.March);
+        Assert.Equal((30, 30), alt.Target);
     }
 
     [Fact]
@@ -281,11 +338,12 @@ public class ArmyCommanderTests
 
     // ------------------------------------------------------------------ Welle
 
-    private static (ArmyCommander Army, FakeWorld W, AiContext Ctx, List<int> Ids) Losgezogen(int melee = 5, int archers = 5, int riders = 2)
+    private static (ArmyCommander Army, FakeWorld W, AiContext Ctx, List<int> Ids) Losgezogen(int melee = 5, int archers = 5, int riders = 2,
+                                                                                               AiProfile? profile = null)
     {
         var w = Dorf();
         var ids = Armee(w, melee, archers, riders);
-        var army = new ArmyCommander(AiProfile.Sparta);
+        var army = new ArmyCommander(profile ?? AiProfile.Sparta);
         var ctx = new AiContext(1);
         Run(army, w, ctx, 10, () => army.Phase == ArmyPhase.March);
         Assert.Equal(ArmyPhase.March, army.Phase);
@@ -299,7 +357,7 @@ public class ArmyCommanderTests
     public void Sparta_zieht_erst_mit_Mindeststaerke_los()
     {
         var w = Dorf();
-        Armee(w, 5, 4, 2);   // 11 < RaidMinSoldiers 12
+        Armee(w, 2, 1, 0);   // 3 < RaidMinSoldiers 4 (seit 2026-11-27: Kampfvolk, die erste Welle überfällt in der Dunklen Zeit)
         var army = new ArmyCommander(AiProfile.Sparta);
         var ctx = new AiContext(1);
         Run(army, w, ctx, 40);
@@ -308,7 +366,7 @@ public class ArmyCommanderTests
         w.AddSoldier(10, 10, UnitKind.Militia);
         Run(army, w, ctx, 10, () => army.Phase == ArmyPhase.March);
         Assert.Equal(ArmyPhase.March, army.Phase);
-        Assert.Equal(12 - AiProfile.Sparta.HomeGuard, army.Wave.Count);   // die Heimwache bleibt
+        Assert.Equal(4 - AiProfile.Sparta.HomeGuard, army.Wave.Count);   // die Heimwache bleibt
         Assert.Equal((50, 50), army.Target);
     }
 
@@ -546,9 +604,9 @@ public class ArmyCommanderTests
     {
         var (army, w, ctx, ids) = Losgezogen();
         Run(army, w, ctx, 15);   // ein Stück weg vom Dorf
-        // 9 in der Welle (3 Heimwache), Rückzug unter ceil(9 · 0,35) = 4
+        // 11 in der Welle (1 Heimwache), Rückzug unter ceil(11 · 0,35) = 4
         Assert.Equal(12 - AiProfile.Sparta.HomeGuard, army.Wave.Count);
-        foreach (int id in army.Wave.Take(6).ToList()) Kill(w, id);
+        foreach (int id in army.Wave.Take(8).ToList()) Kill(w, id);
         ctx.Time += 0.5;
         army.Tick(w, w, ctx);
         Assert.Equal(ArmyPhase.Retreat, army.Phase);
@@ -561,7 +619,7 @@ public class ArmyCommanderTests
     [Fact]
     public void Nach_einer_abgeschlagenen_Welle_wartet_die_naechste_auf_mehr_Soldaten()
     {
-        var (army, w, ctx, ids) = Losgezogen(melee: 6, archers: 6, riders: 4);   // 16, Welle 13
+        var (army, w, ctx, ids) = Losgezogen(melee: 6, archers: 6, riders: 4);   // 16, Welle 15
         Run(army, w, ctx, 5);
         foreach (int id in army.Wave.Take(10).ToList()) Kill(w, id);
         Run(army, w, ctx, 0.5);
@@ -571,13 +629,12 @@ public class ArmyCommanderTests
         Run(army, w, ctx, 60, () => army.Phase == ArmyPhase.Gather);
         Assert.Equal(ArmyPhase.Gather, army.Phase);
 
-        // 6 übrig + 8 neue = 14 < 16: keine Welle
-        for (int i = 0; i < 8; i++) w.AddSoldier(8 + i % 3, 9, UnitKind.Militia);
+        // 6 übrig + 1 neuer = 7 < 4 + 4 = 8: keine Welle
+        for (int i = 0; i < 1; i++) w.AddSoldier(8 + i % 3, 9, UnitKind.Militia);
         Run(army, w, ctx, 40);
         Assert.Equal(ArmyPhase.Gather, army.Phase);
-        // zwei mehr: los
+        // einer mehr: los
         w.AddSoldier(9, 9, UnitKind.Militia);
-        w.AddSoldier(10, 9, UnitKind.Militia);
         Run(army, w, ctx, 40, () => army.Phase == ArmyPhase.March);
         Assert.Equal(ArmyPhase.March, army.Phase);
     }
@@ -598,9 +655,10 @@ public class ArmyCommanderTests
     [Fact]
     public void Der_Zuschlag_ist_hoechstens_das_Soll()
     {
-        var p = AiProfile.Sparta;
+        // mit Soll 14, damit drei Niederlagen die Deckelung erreichen (Sparta: Welle ab 6, Soll 30)
+        var p = AiProfile.Sparta with { SoldierTarget = 14 };
         Assert.True(p.RaidMinSoldiers + 3 * ArmyCommander.BeatenExtra > p.SoldierTarget);
-        var (army, w, ctx, _) = Losgezogen(melee: 6, archers: 6, riders: 4);
+        var (army, w, ctx, _) = Losgezogen(melee: 6, archers: 6, riders: 4, profile: p);
         for (int k = 0; k < 3; k++)
         {
             Run(army, w, ctx, 2);
@@ -1126,5 +1184,111 @@ public class ArmyCommanderTests
         Assert.Contains($"attack({v},9,9)", w.Log);                // Dorfbewohner wehrt sich
         Assert.Contains($"move({archer},", string.Join(" ", w.Log)); // Schütze weicht aus, statt hinzulaufen
         Assert.DoesNotContain($"attack({archer},9,9)", w.Log);
+    }
+
+    // ------------------------------------------------------------------ This is Sparta angriffslustiger (2026-11-27)
+
+    [Fact]
+    public void Nachschub_stoesst_zur_laufenden_Welle()
+    {
+        var w = Dorf();
+        Armee(w, 5, 5, 2);
+        var army = new ArmyCommander(AiProfile.Sparta);
+        var log = new List<string>();
+        var ctx = new AiContext(1) { Log = log.Add };
+        Run(army, w, ctx, 10, () => army.Phase == ArmyPhase.March);
+        Assert.Equal(ArmyPhase.March, army.Phase);
+        Assert.Equal(12 - AiProfile.Sparta.HomeGuard, army.Wave.Count);
+        // die Startwelle zählt nicht noch einmal als Nachschub
+        Assert.DoesNotContain(log, l => l.StartsWith("NACHSCHUB"));
+
+        // zwei neue Soldaten: mit der Heimwache zusammen zu wenig (ReinforceMin 3 über der Heimwache)
+        w.AddSoldier(8, 8, UnitKind.Militia);
+        w.AddSoldier(9, 8, UnitKind.Militia);
+        Run(army, w, ctx, 3);
+        Assert.DoesNotContain(log, l => l.StartsWith("NACHSCHUB"));
+        Assert.Equal(12 - AiProfile.Sparta.HomeGuard, army.Wave.Count);
+
+        // der dritte: drei stoßen zur Welle, einer bleibt als Heimwache
+        w.AddSoldier(10, 8, UnitKind.Archer);
+        Run(army, w, ctx, 3, () => log.Any(l => l.StartsWith("NACHSCHUB")));
+        Assert.Contains("NACHSCHUB: 3 Soldaten stoßen zur Welle", log);
+        Assert.Equal(12 - AiProfile.Sparta.HomeGuard + 3, army.Wave.Count);
+        int lebend = w.AllUnits.Count(u => u.Kind != UnitKind.Villager && u.State != UnitStateKind.Dead);
+        Assert.Equal(AiProfile.Sparta.HomeGuard, lebend - army.Wave.Count);
+        Assert.True(army.Joining.All(id => army.Wave.Contains(id)));
+
+        // der Nachschub kommt an (Laufbefehle wirken hier sofort) und die Welle marschiert weiter
+        var anker = army.Anchor;
+        Run(army, w, ctx, 20);
+        Assert.Empty(army.Joining);
+        Assert.NotEqual(anker, army.Anchor);
+    }
+
+    [Fact]
+    public void Ohne_Nachschub_wartet_der_neue_Soldat_daheim()
+    {
+        var p = AiProfile.Sparta with { Reinforce = false };
+        var (army, w, ctx, _) = Losgezogen(profile: p);
+        int welle = army.Wave.Count;
+        for (int i = 0; i < 4; i++) w.AddSoldier(8 + i, 8, UnitKind.Militia);
+        Run(army, w, ctx, 5);
+        Assert.Equal(welle, army.Wave.Count);
+    }
+
+    [Fact]
+    public void Sparta_weicht_klar_staerkerer_Abwehr_aus()
+    {
+        // Welle: 2 Milizen + 3 Schützen (eine Miliz bleibt daheim), je 100 LP → Kraft 2000
+        var (army, w, ctx, _) = Losgezogen(melee: 3, archers: 3, riders: 0);
+        Assert.Equal(5, army.Wave.Count);
+        var log = new List<string>();
+        ctx.Log = log.Add;
+        // acht Feindmilizen zu 100 LP vor der Welle: Kraft 3200 > 1,5 × 2000
+        var a = army.Anchor;
+        int fx = a.X + (int)MathF.Round(army.Facing.X * 5), fy = a.Y + (int)MathF.Round(army.Facing.Y * 5);
+        for (int i = 0; i < 8; i++)
+            w.AddEnemy(new EnemyInfo(fx + i % 3, fy + i / 3, IsBuilding: false, Health: 100, Kind: UnitKind.Militia));
+        Run(army, w, ctx, 1);
+        Assert.Equal(ArmyPhase.Retreat, army.Phase);
+        Assert.Contains(log, l => l.StartsWith("AUSWEICHEN"));
+        Assert.DoesNotContain(log, l => l.StartsWith("KAMPF"));
+        Assert.Equal(0, army.Beaten);   // Ausweichen ist keine Niederlage
+
+        // zurück am Sammelpunkt; die nächste Welle meidet das alte Ziel (50, 50) und nimmt das weitere (56, 30)
+        w.ClearEnemies();
+        w.AddEnemy(new EnemyInfo(50, 50, IsBuilding: true, Health: 500));
+        w.AddEnemy(new EnemyInfo(56, 30, IsBuilding: true, Health: 500));
+        Run(army, w, ctx, 120, () => army.Phase == ArmyPhase.Gather);
+        Assert.Equal(ArmyPhase.Gather, army.Phase);
+        Run(army, w, ctx, 60, () => army.Phase == ArmyPhase.March);
+        Assert.Equal(ArmyPhase.March, army.Phase);
+        Assert.Equal((56, 30), army.Target);
+    }
+
+    [Fact]
+    public void Sparta_kaempft_gegen_eine_schwaechere_Abwehr()
+    {
+        var (army, w, ctx, _) = Losgezogen(melee: 3, archers: 3, riders: 0);
+        var log = new List<string>();
+        ctx.Log = log.Add;
+        var a = army.Anchor;
+        Trupp(w, a.X + (int)MathF.Round(army.Facing.X * 5), a.Y + (int)MathF.Round(army.Facing.Y * 5));   // 3 × 40 LP
+        Run(army, w, ctx, 1);
+        Assert.Equal(ArmyPhase.Engage, army.Phase);
+        Assert.DoesNotContain(log, l => l.StartsWith("AUSWEICHEN"));
+    }
+
+    [Fact]
+    public void Ohne_Kraeftevergleich_kaempft_die_Welle_auch_gegen_die_Uebermacht()
+    {
+        var p = AiProfile.Sparta with { ForceCheck = false };
+        var (army, w, ctx, _) = Losgezogen(melee: 3, archers: 3, riders: 0, profile: p);
+        var a = army.Anchor;
+        int fx = a.X + (int)MathF.Round(army.Facing.X * 5), fy = a.Y + (int)MathF.Round(army.Facing.Y * 5);
+        for (int i = 0; i < 8; i++)
+            w.AddEnemy(new EnemyInfo(fx + i % 3, fy + i / 3, IsBuilding: false, Health: 100, Kind: UnitKind.Militia));
+        Run(army, w, ctx, 1);
+        Assert.Equal(ArmyPhase.Engage, army.Phase);
     }
 }

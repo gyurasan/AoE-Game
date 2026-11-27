@@ -19,6 +19,7 @@
 // nebelboden (Gras und Pfade im Nebel bleiben, wie man sie zuletzt gesehen hat),
 // festerboden (Gras ändert sich nie, nur Pfade, Wege und Gebäude legen sich darüber; ein Pfad bleibt),
 // bauphasen, einsturz und pfeile (Animationen A1-A3: Bauphasen, Einsturz-Liste, Pfeile landen beim Treffer),
+// schuss (Bogenschuss: das Schussbild „los“ kommt genau beim Abschuss, der Pfeil startet am Bogen),
 // feuer (A5: Schmiedefeuer, Funken und Kaminrauch nach Vertrag, je Haus und Schmiede genau ein Kamin),
 // wegkarte (was der Wege-Shader als Weg zeichnet, schräge Lücken aufgefüllt),
 // feldbauern (je Feldkachel arbeitet ein Bauer, Überzählige warten mit Meldung),
@@ -236,6 +237,9 @@ for (int karte = 1; karte <= KARTEN; karte++)
         Pruefe($"Karte {karte}, Markt", () => Markt(karte, verstoesse));
     if (gruppen.Contains("schlag") && karte == 1)
         Pruefe("Schlag", () => Schlag(verstoesse));
+    // Bogenschuss (2026-11-27): Schussbilder im Takt des Abschusses, Pfeil am Bogen
+    if (gruppen.Contains("schuss"))
+        Pruefe($"Karte {karte}, Schuss", () => Schuss(karte, verstoesse));
     if (gruppen.Contains("fenster") && karte == 1)
         Pruefe("Fenster", () => Fenster(verstoesse));
     if (gruppen.Contains("werkzeug") && karte == 1)
@@ -4078,7 +4082,8 @@ static void Pfeile(int karte, List<string> verstoesse)
             losgelassen++;
             var von = (Vector2)Feldwert(a, "From");
             var nach = (Vector2)Feldwert(a, "To");
-            if (Vector2.Distance(von, schuetze.Position) > 16f || Vector2.Distance(nach, gegner.Position) > 16f)
+            // der Pfeil startet am Bogen (ArrowOrigin 9/-19, gut 21 px von den Füßen), landet auf der Brust
+            if (Vector2.Distance(von, schuetze.Position) > 24f || Vector2.Distance(nach, gegner.Position) > 16f)
                 abseits++;
         }
         foreach (var a in unterwegs.Keys.Where(a => !pfeile.Contains(a)).ToList())
@@ -7360,6 +7365,82 @@ static void Schlag(List<string> verstoesse)
         verstoesse.Add($"{wer}: mitten im Takt Bild {Bild(takt * 0.4f)} statt 0 (bereit)");
     if (verstoesse.Count == vorher)
         Console.WriteLine($"  ok  {wer}: {string.Join(",", folge)} je Takt, Hieb genau beim Treffer");
+}
+
+// Bogenschuss (2026-11-27, Bildprüfung „Bogenschütze ohne Schussphasen“): die acht Schussbilder
+// (bereit, ziehen, voll, los, zurück) folgen dem Schlagtakt wie die Schlagbilder, aber um die
+// Flugzeit des Pfeils vorgezogen - „los“ (6) kommt genau, wenn MaybeLaunchArrow den Pfeil
+// loslässt, davor steht „voll“ (5). Der Pfeil startet am Bogen (ARROW_ORIGIN 9/-19), auf der
+// Seite des Ziels. Je Karte ein Schütze gegen eine Miliz rechts, links und weit weg (die
+// Flugzeit ist bei ARROW_MAX_FLIGHT gedeckelt).
+static void Schuss(int karte, List<string> verstoesse)
+{
+    var wer = $"Karte {karte}, Schuss";
+    int vorher = verstoesse.Count;
+    const BindingFlags S = BindingFlags.NonPublic | BindingFlags.Static;
+    var typ = typeof(RTSGameplayScreen);
+    var herkunft = typ.GetMethod("ArrowOrigin", S);
+    var flugzeit = typ.GetMethod("ArrowFlight", S);
+    if (herkunft is null || flugzeit is null)
+    {
+        verstoesse.Add($"{wer}: ArrowOrigin oder ArrowFlight fehlt");
+        return;
+    }
+    float takt = AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS;
+    var w = new Welt();
+    var pfeile = (System.Collections.IList)w.Get("_arrows");
+    var platz = w.FreieKachel(w.Dorfbewohner().First(), 4);
+    var schuetze = NeueEinheit(w, UnitType.Archer, 0, platz);
+    var gegner = NeueEinheit(w, UnitType.Militia, 1, platz);
+    var notiz = new List<string>();
+    foreach (var (kacheln, seite) in new[] { (3f, "rechts"), (-4f, "links"), (14f, "weit rechts") })
+    {
+        gegner.Position = schuetze.Position + new Vector2(kacheln * 32f, 0f);
+        schuetze.UnitTarget = gegner;
+        schuetze.AttackTarget = null;
+        schuetze.State = UnitState.Attacking;
+        var ziel = gegner.Position + new Vector2(0, -10);      // ArrowTarget: auf die Brust
+        var soll = schuetze.Position + new Vector2(kacheln < 0 ? -9f : 9f, -19f);
+        var von = (Vector2)herkunft.Invoke(null, new object[] { schuetze, ziel });
+        if (Vector2.Distance(von, soll) > 0.01f)
+            verstoesse.Add($"{wer}, Ziel {seite}: ArrowOrigin {von}, erwartet {soll} (am Bogen, zur Seite des Ziels)");
+        float vorlauf = (float)flugzeit.Invoke(null, new object[] { Vector2.Distance(soll, ziel) });
+        float abschuss = takt - vorlauf;
+        int Bild(float t)
+        {
+            schuetze.AttackTimer = t;
+            return (int)w.Call("ShotPhase", schuetze);
+        }
+        // Über einen ganzen Takt ab dem Abschuss: los, zurück, bereit, viermal ziehen bis voll
+        var folge = new List<int>();
+        for (int i = 0; i < 400; i++)
+        {
+            float t = (abschuss + 0.0005f + i * takt / 400f) % takt;
+            int b = Bild(t);
+            if (b < 0 || b > 7) { verstoesse.Add($"{wer}, Ziel {seite}: ShotPhase bei {t:0.000} s = {b}"); break; }
+            if (folge.Count == 0 || folge[^1] != b) folge.Add(b);
+        }
+        var sollFolge = new List<int> { 6, 7, 0, 1, 2, 3, 4, 5 };
+        if (!folge.SequenceEqual(sollFolge))
+            verstoesse.Add($"{wer}, Ziel {seite}: Schussbilder ab dem Abschuss {string.Join(",", folge)} statt {string.Join(",", sollFolge)}");
+        if (Bild(abschuss - 0.002f) != 5 || Bild(abschuss + 0.002f) != 6)
+            verstoesse.Add($"{wer}, Ziel {seite}: um den Abschuss ({abschuss:0.000} s) Bild {Bild(abschuss - 0.002f)} -> {Bild(abschuss + 0.002f)} statt 5 -> 6");
+        // Beim Treffer (Takt neu bei 0) ist der Pfeil schon unterwegs: nicht mehr „voll“
+        if (vorlauf > 0.2f && Bild(0.001f) == 5)
+            verstoesse.Add($"{wer}, Ziel {seite}: beim Treffer noch Bild 5 (voll), der Pfeil flog vor {vorlauf:0.00} s los");
+        // Der Pfeil startet, wo ArrowOrigin sagt
+        pfeile.Clear();
+        schuetze.AttackTimer = abschuss + 0.001f;
+        w.Call("MaybeLaunchArrow", schuetze, abschuss - 0.01f);
+        if (pfeile.Count != 1)
+            verstoesse.Add($"{wer}, Ziel {seite}: {pfeile.Count} Pfeile beim Abschuss statt 1");
+        else if (Vector2.Distance((Vector2)Feldwert(pfeile[0], "From"), soll) > 0.01f)
+            verstoesse.Add($"{wer}, Ziel {seite}: der Pfeil startet bei {Feldwert(pfeile[0], "From")}, erwartet {soll} (am Bogen)");
+        notiz.Add($"{seite} Vorlauf {vorlauf:0.00} s");
+    }
+    pfeile.Clear();
+    if (verstoesse.Count == vorher)
+        Console.WriteLine($"  ok  {wer}: 6,7,0,1,2,3,4,5 ab dem Abschuss, Pfeil am Bogen ({string.Join(", ", notiz)})");
 }
 
 // Kartengrößen (C11): Standard 90, Kontinent 128, World 181 Kacheln Seitenlänge

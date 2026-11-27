@@ -83,8 +83,7 @@ public class ArmyMixTests
     [Fact]
     public void Sparta_in_der_Dunklen_Zeit_Milizen_nur_bis_zu_ihrem_Anteil_am_Soll()
     {
-        // F15: Anteil Nahkampf 25 % von 20 = 5, doch der Deckel liegt nie unter der
-        // Aufstieg-Mindestarmee (6) — sonst kommt Sparta aus der Dunklen Zeit nie weg.
+        // F15: Anteil Nahkampf 25 % vom Soll 30 (seit 2026-11-27) = 7,5, aufgerundet 8.
         // Bei 8 Milizen wartet Sparta auf Schießstand, Stall und Werkstatt der späteren
         // Zeitalter, statt das Soll mit Milizen zu füllen.
         var w = Welt(Age.Dark);
@@ -92,20 +91,28 @@ public class ArmyMixTests
         Tick(AiProfile.Sparta, w);
         Assert.DoesNotContain(w.Log, l => l.StartsWith("soldier("));
 
+        var sieben = Welt(Age.Dark);
+        for (int i = 0; i < 7; i++) sieben.AddSoldier(30, 30, UnitKind.Militia);
+        Tick(AiProfile.Sparta, sieben);
+        Assert.Contains(Miliz, sieben.Log);
+
+        // Der Deckel liegt nie unter der Aufstieg-Mindestarmee (6) — sonst käme Sparta aus der
+        // Dunklen Zeit nie weg. Mit Soll 20 ist der Anteil nur 5:
+        var p20 = AiProfile.Sparta with { SoldierTarget = 20 };
         var sechs = Welt(Age.Dark);
         for (int i = 0; i < 6; i++) sechs.AddSoldier(30, 30, UnitKind.Militia);
-        Tick(AiProfile.Sparta, sechs);
+        Tick(p20, sechs);
         Assert.DoesNotContain(sechs.Log, l => l.StartsWith("soldier("));
 
         var vier = Welt(Age.Dark);
         for (int i = 0; i < 4; i++) vier.AddSoldier(30, 30, UnitKind.Militia);
-        Tick(AiProfile.Sparta, vier);
+        Tick(p20, vier);
         Assert.Contains(Miliz, vier.Log);
 
         // 5 = über dem Anteil (5), aber unter dem Aufstieg-Deckel (6): Miliz bildet weiter aus
         var fünf = Welt(Age.Dark);
         for (int i = 0; i < 5; i++) fünf.AddSoldier(30, 30, UnitKind.Militia);
-        Tick(AiProfile.Sparta, fünf);
+        Tick(p20, fünf);
         Assert.Contains(Miliz, fünf.Log);
     }
 
@@ -167,7 +174,7 @@ public class ArmyMixTests
     [Fact]
     public void Eingereihte_zaehlen_mit()
     {
-        // 7 Milizen im Feld, eine in der Warteschlange: Miliz-Anteil am Soll (5, F15) erreicht
+        // 7 Milizen im Feld, eine in der Warteschlange: Miliz-Anteil am Soll (8, F15) erreicht
         var w = Welt(Age.Dark);
         for (int i = 0; i < 7; i++) w.AddSoldier(30, 30, UnitKind.Militia);
         w.Queued[UnitKind.Militia] = 1;
@@ -185,7 +192,7 @@ public class ArmyMixTests
 
         // Soll erreicht mit Warteschlange: nichts mehr
         var voll = Welt(Age.Feudal);
-        for (int i = 0; i < 15; i++) voll.AddSoldier(30, 30, UnitKind.Archer);
+        for (int i = 0; i < 25; i++) voll.AddSoldier(30, 30, UnitKind.Archer);   // 25 + 5 = Soll 30
         voll.Queued[UnitKind.Cavalry] = 5;
         Tick(AiProfile.Sparta, voll);
         Assert.DoesNotContain(voll.Log, l => l.StartsWith("soldier("));

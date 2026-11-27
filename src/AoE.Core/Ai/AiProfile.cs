@@ -13,7 +13,13 @@ namespace AoE.Core.Ai;
 ///   <item><see cref="Sparta"/> („This is Sparta"): die schwerste Stufe — gemischte
 ///         Armee, Angriff in Aufstellung (<see cref="ArmyCommander"/>): Nahkämpfer vorn,
 ///         Bogenschützen dahinter, Reiter an den Flanken, die im Schwall angreifen und
-///         sich wieder zurückziehen.</item>
+///         sich wieder zurückziehen. Seit 2026-11-27 (Nutzer: „Es scheint keinen Unterschied
+///         zu geben zwischen normal und "this is sparta". Hier müsste this is sparta weit
+///         agressiver und taktischer vorgehen.") greift sie schon in der Dunklen Zeit an,
+///         schickt Nachschub zur laufenden Welle, sucht den Gegner gezielt, zieht dorthin,
+///         wo seine Dorfbewohner arbeiten, und weicht klar stärkerer Abwehr aus. Und sie ist
+///         ein Kampfvolk (<see cref="WarriorPeople"/>): Kaserne zuerst, Milizen vor
+///         Dorfbewohnern - sie entwickelt sich langsamer und greift früher an.</item>
 /// </list>
 /// Die Profile sind feste Instanzen (Vergleich per <see cref="object.ReferenceEquals"/>).
 /// </summary>
@@ -57,6 +63,30 @@ public sealed record AiProfile
     /// <see cref="ArmyCommander"/> (Defense und Sparta). Aus: die alten Wellen
     /// (jeder Soldat läuft einzeln aufs Ziel).</summary>
     public bool FormationTactics { get; init; }
+
+    /// <summary>Nachschub: läuft eine Welle, stoßen neue Soldaten (über der Heimwache) zu ihr, statt am
+    /// Sammelpunkt auf die nächste Welle zu warten (This is Sparta, <see cref="ArmyCommander.ReinforceMin"/>).</summary>
+    public bool Reinforce { get; init; }
+
+    /// <summary>Wirtschaftsziele: die Welle zieht zu Gebäuden, an denen feindliche Dorfbewohner gesehen
+    /// wurden, statt zum nächsten (This is Sparta, <see cref="ArmyCommander.WorkBonus"/>).</summary>
+    public bool EconomyTargets { get; init; }
+
+    /// <summary>Gezielte Erkundung: ohne bekanntes Ziel späht schon der erste Soldat, und zwar in Richtung
+    /// des gegenüberliegenden Startplatzes statt zur nächsten Nebelkachel (This is Sparta).</summary>
+    public bool AimedScouting { get; init; }
+
+    /// <summary>Kräftevergleich: trifft die Welle auf eine klar stärkere Abwehr
+    /// (<see cref="ArmyCommander.OutmatchedRatio"/>), weicht sie aus und meidet das Ziel eine Weile
+    /// (This is Sparta).</summary>
+    public bool ForceCheck { get; init; }
+
+    /// <summary>Kampfvolk (This is Sparta, Nutzer 2026-11-27: „sparta ist eine Kampf Folk“, „Sparta entwickelt
+    /// sich langsamer .. dafür sind sie "Agresiver"“): in der Dunklen Zeit baut die KI die Kaserne vor Farm
+    /// und Lagern und spart das Holz dafür; ab <see cref="EconomyAi.WarriorVillagerFloor"/> Dorfbewohnern hat
+    /// die Kaserne Vorrang vor dem Stadtzentrum, solange die Armee unter Wellenstärke liegt; die Sammler gehen mehr auf
+    /// Nahrung, kaum auf Gold.</summary>
+    public bool WarriorPeople { get; init; }
 
     /// <summary>Anteil der Bogenschützen an der Armee in Prozent (Schießstand,
     /// ab der Feudalzeit). 0: wie bisher nur Milizen, solange eine Kaserne steht.</summary>
@@ -118,14 +148,21 @@ public sealed record AiProfile
     /// <summary>This is Sparta: große gemischte Armee (25 % Nahkampf, 35 % Bogen,
     /// 25 % Reiter, 15 % Belagerung — F15), Angriff in Aufstellung, Reiter im
     /// Schwall. Die Geräte gehören zur Welle: erst mit ihnen bricht die Welle
-    /// bewachte Dörfer.</summary>
+    /// bewachte Dörfer. Seit 2026-11-27 die erste Welle schon ab 6 Soldaten (in der
+    /// Dunklen Zeit: Milizen), Heimwache 1, Soll 30, dazu Nachschub, Wirtschaftsziele,
+    /// gezielte Erkundung und Kräftevergleich (gemessen auf je 32 festen Karten,
+    /// tools/ai-pruefung stufen … seed: Druck auf Defense 119 → 299 s, auf Normal
+    /// 111 → 226 s, erster Angriff 23 → 17 min). Danach Kampfvolk und erste Welle ab 4
+    /// (Nutzer: „bei this is sparta kann der erste angriff bereits in unter 10min statt
+    /// finden“): erste Welle im Median nach 7 statt 17 min, erster Angriff im feindlichen
+    /// Gebiet im Median nach 9–10 statt 18 min, Feudalzeit 23 statt 19 min.</summary>
     public static AiProfile Sparta { get; } = new()
     {
         HouseHeadroom     = 5,
-        SoldierTarget     = 20,
-        RaidMinSoldiers   = 12,
+        SoldierTarget     = 30,
+        RaidMinSoldiers   = 4,   // Kampfvolk: die erste Welle überfällt den Gegner in der Dunklen Zeit
         AgeUpArmy         = 6,
-        HomeGuard         = 3,   // das Dorf bleibt nie leer, wenn die Welle draußen ist
+        HomeGuard         = 1,   // das Dorf bleibt nie leer; bei Gefahr ruft HomeRecall die Welle
         RaidCooldownSeconds = 10,
         DefenseMax        = 6,
         HomeDefenseRadius = 14,
@@ -133,6 +170,11 @@ public sealed record AiProfile
         ArcherPercent     = 35,
         CavalryPercent    = 25,
         SiegePercent      = 15,
+        Reinforce         = true,
+        EconomyTargets    = true,
+        AimedScouting     = true,
+        ForceCheck        = true,
+        WarriorPeople     = true,
     };
 
     /// <summary>

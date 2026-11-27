@@ -323,6 +323,38 @@ def _drehen(teil, um, grad, versatz=(0.0, 0.0)):
     return np.array(bild.transform(bild.size, Image.AFFINE, koeff, resample=Image.BICUBIC))
 
 
+def oberkoerper_strecken(bild, ob):
+    """Den Oberkörper um ob["faktor"] vergrößern, die Beine bleiben: unterhalb der Zeile ob["bis"]
+    (Rohbild-Pixel) bleibt alles, darüber wächst der Maßstab über ob["uebergang"] Zeilen von 1 auf
+    den Faktor und bleibt dann dort - waagrecht um die Spalte ob["um_x"] (Mitte der Beine), senkrecht
+    nach oben. So passt ein neu gemalter, kleiner geratener Oberkörper (Schützen mit gespanntem
+    Bogen) wieder auf die Höhe des Standbilds: Kopf und Gürtel springen beim Schuss nicht."""
+    k, c, b, ux = ob["faktor"], ob["bis"] + RAND, ob["uebergang"], ob["um_x"] + RAND
+    a = np.array(bild).astype(np.float32)
+    H, W = a.shape[:2]
+    # Maßstab je Quellzeile und die Lage jeder Quellzeile im Ergebnis (von der Zeile c aufwärts summiert)
+    ys = np.arange(H, dtype=np.float64)
+    s = np.where(ys >= c, 1.0, np.where(ys <= c - b, k, 1.0 + (k - 1.0) * (c - ys) / b))
+    y_aus = np.empty(H)
+    y_aus[c:] = ys[c:]
+    for y in range(c - 1, -1, -1):
+        y_aus[y] = y_aus[y + 1] - (s[y] + s[y + 1]) / 2
+    # Rückwärts: für jede Zielzeile die Quellzeile (y_aus steigt streng), dazu ihr Maßstab
+    y_quelle = np.interp(ys, y_aus, ys, left=-1.0)
+    s_quelle = np.interp(y_quelle, ys, s)
+    yy, xx = np.mgrid[0:H, 0:W].astype(np.float64)
+    qy = np.broadcast_to(y_quelle[:, None], (H, W))
+    qx = ux + (xx - ux) / s_quelle[:, None]
+    # vormultipliziert abtasten, sonst bekommen die Ränder einen dunklen Saum
+    vor = a.copy()
+    vor[:, :, :3] *= a[:, :, 3:4] / 255.0
+    aus = np.stack([ndimage.map_coordinates(vor[:, :, i], [qy, qx], order=1, cval=0.0) for i in range(4)], axis=2)
+    alpha = np.maximum(aus[:, :, 3:4], 1e-3)
+    aus[:, :, :3] = np.where(aus[:, :, 3:4] > 0.5, aus[:, :, :3] * 255.0 / alpha, 0.0)
+    aus[qy < 0] = 0
+    return Image.fromarray(np.clip(aus + 0.5, 0, 255).astype(np.uint8))
+
+
 def bogen(name, cfg):
     """Bogenschuss (Modus "bogen"): die Zughand zieht die Sehne bis an die Wange, der Pfeil fliegt.
 
@@ -348,11 +380,48 @@ def bogen(name, cfg):
     yy, xx = np.mgrid[0:H, 0:W]
     deckend = a[:, :, 3] > 8
     # Den Rumpf ausbessern: "rumpf_weg" (Linien [x1, y1, x2, y2, Dicke]) macht durchsichtig, was das
-    # Inpainting über dem Hintergrund stehen ließ (ein neu gemalter Pfeil, Sehnenreste);
+    # Inpainting über dem Hintergrund stehen ließ (ein neu gemalter Pfeil, Sehnenreste); ein sechster
+    # Wert ist eine Helligkeitsschwelle - dann geht nur, was heller ist (kleinster Farbkanal darüber):
+    # so verschwindet eine helle Sehne vor der Kapuze, ohne die dunkle Kapuzenkante anzuschneiden;
+    # "rumpf_weg_rechtecke" [x0, y0, x1, y1] macht ganze Rechtecke durchsichtig (Pfeilspitze vor dem
+    # Bogen); "rumpf_kopie" [x0, y0, x1, y1, dx, dy] holt das Rechteck aus dem um (dx, dy)
+    # verschobenen Ausschnitt desselben Rumpfs (Pfeilfedern an der Wange: Schal von weiter unten);
     # "rumpf_flicken_hell" [x0, y0, x1, y1, Schwelle] füllt helle Reste (Pfeilfedern vor der Wange)
     # mit der Farbe des nächsten dunkleren Pixels im Rechteck
-    for x1, y1, x2, y2, dicke in cfg.get("rumpf_weg", []):
-        rumpf[abstand_strecke(xx, yy, (x1 + RAND, y1 + RAND), (x2 + RAND, y2 + RAND)) < dicke / 2, 3] = 0
+    for x1, y1, x2, y2, dicke, *hell in cfg.get("rumpf_weg", []):
+        ab = abstand_strecke(xx, yy, (x1 + RAND, y1 + RAND), (x2 + RAND, y2 + RAND))
+        weg = ab < dicke / 2
+        if hell and hell[0] > 0:
+            weg &= rumpf[:, :, :3].min(axis=2) > hell[0]
+        elif hell:
+            # Schwelle 0: dazu die halbdurchsichtigen Kantenpixel bis zur doppelten Dicke (eine Sehne
+            # über dem Hintergrund ließe sonst eine blasse Spur stehen)
+            weg |= (ab < dicke) & (rumpf[:, :, 3] < 250)
+        rumpf[weg, 3] = 0
+    # "rumpf_fuellen" [x1, y1, x2, y2, Dicke, Schwelle]: was auf der Linie liegt (bei Schwelle > 0 nur
+    # Helleres, wie bei rumpf_weg), bekommt Farbe und Deckkraft des nächsten Pixels neben der Linie -
+    # über dem Hintergrund wird es durchsichtig, über dem Kittel blau (eine Sehne quer über die Brust)
+    for x1, y1, x2, y2, dicke, hell in cfg.get("rumpf_fuellen", []):
+        ab = abstand_strecke(xx, yy, (x1 + RAND, y1 + RAND), (x2 + RAND, y2 + RAND))
+        loch = ab < dicke / 2
+        if hell:
+            loch &= rumpf[:, :, :3].min(axis=2) > hell
+        else:
+            # halbdurchsichtige Kantenpixel der Sehne (bis zur doppelten Dicke) gehören mit ins Loch -
+            # sonst würden genau sie als nächste Nachbarn in die Linie kopiert (eine Punktreihe)
+            loch |= (ab < dicke) & (rumpf[:, :, 3] < 250)
+        if loch.any():
+            _, (ny, nx) = ndimage.distance_transform_edt(loch, return_indices=True)
+            rumpf[loch] = rumpf[ny[loch], nx[loch]]
+    for x0, y0, x1, y1 in cfg.get("rumpf_weg_rechtecke", []):
+        rumpf[y0 + RAND:y1 + RAND, x0 + RAND:x1 + RAND, 3] = 0
+    for x0, y0, x1, y1, dx, dy, *grau in cfg.get("rumpf_kopie", []):
+        ziel = rumpf[y0 + RAND:y1 + RAND, x0 + RAND:x1 + RAND]
+        quelle = rumpf[y0 + dy + RAND:y1 + dy + RAND, x0 + dx + RAND:x1 + dx + RAND].copy()
+        # ein siebter Wert: nur graue Pixel ersetzen (Farbspanne darunter) - Federn und Schaft,
+        # nicht Kinn und Schal daneben; so folgt die Kante dem Bild statt dem Rechteck
+        nur = np.ptp(ziel[:, :, :3].astype(np.int16), axis=2) < grau[0] if grau else np.ones(ziel.shape[:2], bool)
+        ziel[nur] = quelle[nur]
     for x0, y0, x1, y1, schwelle in cfg.get("rumpf_flicken_hell", []):
         aus = rumpf[y0 + RAND:y1 + RAND, x0 + RAND:x1 + RAND]
         hell = aus[:, :, :3].min(axis=2) > schwelle
@@ -386,6 +455,13 @@ def bogen(name, cfg):
     flaechen, _ = ndimage.label(anders_arm)
     beruehrt = np.unique(flaechen[band & anders_arm])
     arm = np.isin(flaechen, beruehrt[beruehrt > 0]) & band
+    # "arm_ohne_bunt": deutlich blaue oder grüne Pixel (ein Kanal um mehr als den Wert über den
+    # beiden anderen) gehören nicht zum Zugarm - Ärmelrand und Schal, die am Ellbogen mitgeschnitten
+    # werden und beim Strecken als Krümel neben dem Gelenk liegen; dunkle Umrisse bleiben
+    if "arm_ohne_bunt" in cfg:
+        r_, g_, b_ = (a[:, :, i].astype(np.int16) for i in range(3))
+        grenze = cfg["arm_ohne_bunt"]
+        arm &= ~(((b_ - np.maximum(r_, g_)) > grenze) | ((g_ - np.maximum(r_, b_)) > grenze))
     unterarm = arm & ((ab_unter < ab_ober) | faust)
     oberarm = arm & ~unterarm
     # Gelenkscheibe am Ellbogen im Unterarm - so bleibt das Gelenk bei jedem Winkel geschlossen
@@ -396,6 +472,10 @@ def bogen(name, cfg):
         t[~maske, 3] = 0
         return t
 
+    # "ohne_oberarm": der Oberarm kommt ganz aus dem Rumpf (liegt er unter Umhang oder Schal, sind
+    # vom Zugarm dort nur verstreute Fetzen anders - gedreht lägen sie als Krümel unter dem Unterarm)
+    if cfg.get("ohne_oberarm"):
+        oberarm[:] = False
     teil_ober, teil_unter = schicht(oberarm), schicht(unterarm)
     # Der Pfeil: auf der Linie, anders als im Rumpf, ohne die Bogenhand; Lücken im Schaft füllt die
     # nächste Spalte links (der Pfeil liegt fast waagrecht)
@@ -463,6 +543,8 @@ def bogen(name, cfg):
         bild = Image.alpha_composite(bild, Image.fromarray(teil_bogenhand))
         bild = Image.alpha_composite(bild, Image.fromarray(lage_ober))
         bild = Image.alpha_composite(bild, Image.fromarray(lage_unter))
+        if "oberkoerper_strecken" in cfg:
+            bild = oberkoerper_strecken(bild, cfg["oberkoerper_strecken"])
         bilder.append(bild)
 
     # Kontrollbild: Oberarm rot, Unterarm grün, Pfeil gelb, Bogenhand blau

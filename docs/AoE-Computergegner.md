@@ -331,15 +331,15 @@ abarbeitet; die Engine (`IWorldActions`) führt Wege und Sammeln aus.
 | Erkundung mit Späher | ein Dorfbewohner als fester Erkunder Richtung Kartenmitte | vorhanden, ohne Spirale um die eigene Basis |
 | Soll-Verteilung der Dorfbewohner | feste Reihenfolge Nahrung → Holz → Stein → Gold | **fehlt** — kein Prozentmodell |
 | Aufstieg bei fester Dorfbewohnerzahl | Aufstieg, sobald die Kosten da sind | vereinfacht |
-| Angriff ab Mindestgruppe in Wellen | Normal: Welle ab 5 Soldaten auf den nächsten sichtbaren Feind, 8 s Pause; This is Sparta: Sammelphase in Aufstellung, Welle ab 12, Marsch in Aufstellung, Belagerung (`ArmyCommander`) | vorhanden (Normal ohne Sammelphase) |
-| Rest der Armee bleibt daheim | Normal 1, Sparta 3 Nahkämpfer Heimwache; drei bewaffnete Feinde im Dorf rufen die Sparta-Welle heim | vorhanden |
-| Zielbewertung (Entfernung, TP, Typ) | nächstgelegene Einheit, sonst nächstes Gebäude; Sparta: unbewaffnete Gebäude außerhalb der Schussweite von Türmen und Stadtzentrum zuerst, Reiter auf Schützen und Belagerung, dann Dorfbewohner | vereinfacht |
+| Angriff ab Mindestgruppe in Wellen | Normal: Welle ab 5 Soldaten auf den nächsten sichtbaren Feind, 8 s Pause; This is Sparta: Sammelphase in Aufstellung, Welle ab 4 (Überfall in der Dunklen Zeit), Marsch in Aufstellung, Belagerung, Nachschub stößt zur laufenden Welle (`ArmyCommander`) | vorhanden (Normal ohne Sammelphase) |
+| Rest der Armee bleibt daheim | Normal 1, Sparta 1 Nahkämpfer Heimwache; drei bewaffnete Feinde im Dorf rufen die Sparta-Welle heim | vorhanden |
+| Zielbewertung (Entfernung, TP, Typ) | nächstgelegene Einheit, sonst nächstes Gebäude; Sparta: unbewaffnete Gebäude außerhalb der Schussweite von Türmen und Stadtzentrum zuerst, davon die, an denen feindliche Dorfbewohner arbeiten; Reiter auf Schützen und Belagerung, dann Dorfbewohner | vereinfacht |
 | Dorfbewohner wehren sich | bis 4 untätige Dorfbewohner im Radius 8 | vorhanden |
 | Garnison / Flucht ins Stadtzentrum | — | fehlt |
 | Konter auf gesehene Einheiten | Normal: feste Wahl Miliz, sonst Bogenschütze; Defense und Sparta: feste Anteile (Defense 40 % Bogen, Sparta 35 % Bogen und 25 % Reiter) | fehlt (keine Reaktion auf den Gegner) |
 | Strategie-Persönlichkeiten | eine feste Strategie | fehlt |
 | Schwierigkeitsgrade | Defense, Normal, This is Sparta (`AiProfile`, Zahlensatz plus Schalter für Angriff und Aufstellung) | vorhanden |
-| Rückzug bei Unterlegenheit | Sparta: Rückzug unter 35 % der Welle, die nächste Welle wartet auf 4 Soldaten mehr | vorhanden (Sparta) |
+| Rückzug bei Unterlegenheit | Sparta: Kräftevergleich vor dem Kampf (Abwehr mehr als 1,5-mal stärker: ausweichen, das Ziel 2 min meiden); Rückzug unter 35 % der Welle, die nächste Welle wartet auf 4 Soldaten mehr | vorhanden (Sparta) |
 | Markt als Notlösung, wenn ein Rohstoff fehlt | Markt ab der Feudalzeit; höchstens alle 5 s ein Los: Überschuss gegen Gold, wenn das Gold ausgeht, Nahrung/Holz zukaufen, wenn sie ausgehen (`TradeAtMarket`, F8) | vorhanden (ohne Handelskarren) |
 | Aufgabe bei aussichtsloser Lage | Niederlage beendet das Spiel | vorhanden (Niederlage, keine aktive Aufgabe) |
 
@@ -347,10 +347,11 @@ abarbeitet; die Engine (`IWorldActions`) führt Wege und Sammeln aus.
 
 | | Defense | Normal | This is Sparta |
 |---|---|---|---|
-| Angriff | nie (`Raids = false`) | Wellen ab 5 Soldaten, wie bisher | Wellen ab 12 (nach Niederlagen +4 je Welle, bis 20) |
-| Armee | 12, davon 40 % Bogenschützen | 8 Milizen, später Bogenschützen | 20: 35 % Bogen, 25 % Reiter, Rest Nahkampf |
-| Gebäude | zwei Wachtürme ab der Feudalzeit | — | Stall ab der Feudalzeit |
-| Daheim | ganze Armee in Aufstellung am Sammelpunkt, verteidigt im Radius 14, Leine 32 Kacheln | 1 Heimwache | 3 Nahkämpfer Heimwache in Aufstellung |
+| Angriff | nie (`Raids = false`) | Wellen ab 5 Soldaten, wie bisher | Wellen ab 4, schon in der Dunklen Zeit (nach Niederlagen +4 je Welle, bis 30); Nachschub zur laufenden Welle |
+| Armee | 12, davon 40 % Bogenschützen | 8 Milizen, später Bogenschützen | 30: 35 % Bogen, 25 % Reiter, 15 % Belagerung, Rest Nahkampf |
+| Gebäude | zwei Wachtürme ab der Feudalzeit | — | Kaserne zuerst, Stall ab der Feudalzeit |
+| Wirtschaft | Dorfbewohner vor Soldaten | Dorfbewohner vor Soldaten | Kampfvolk: ab 10 Dorfbewohnern Milizen vor Dorfbewohnern, Sammler der Dunklen Zeit 65/30/5 (Nahrung/Holz/Gold) |
+| Daheim | ganze Armee in Aufstellung am Sammelpunkt, verteidigt im Radius 14, Leine 32 Kacheln | 1 Heimwache | 1 Nahkämpfer Heimwache; Feinde im Dorf rufen die Welle heim |
 | Führung | `ArmyCommander` | `Raid` wie bisher | `ArmyCommander` |
 
 Die **Aufstellung** (`Formation.Slots`): Nahkämpfer in Reihen zu fünf vorn, Fernkämpfer in
@@ -367,9 +368,68 @@ um 3 Kacheln aus und schießen bis 6 Kacheln; Reiter greifen 6 s im Schwall an u
 5 s hinter dem Verband. Ein oder zwei Feinde unterwegs (Geplänkel) erledigen zwei Nahkämpfer,
 der Rest zieht weiter. Ohne bekanntes Ziel späht ein Reiter zur nächsten Kachel im Nebel.
 
+**This is Sparta angriffslustiger (seit 2026-11-27).** Gemessen spielte Sparta kaum anders als
+Normal: die erste Welle wartete auf 12 Soldaten, die Milizen der Dunklen Zeit waren aber auf 6
+gedeckelt - der erste Angriff kam erst nach dem Aufstieg (23 min), und nach jeder Niederlage
+wartete die nächste Welle auf 4 Soldaten mehr. Jetzt:
+
+- **Frühe Wellen**: Welle ab 6 Soldaten (seit dem Kampfvolk ab 4), Heimwache 1, Soll 30.
+- **Nachschub** (`Reinforce`): läuft eine Welle, stoßen je 3 neue Soldaten über der Heimwache
+  zu ihr, statt am Sammelpunkt zu warten; bis sie bei der Welle sind, hält der Marsch nicht
+  auf sie (`Joining`).
+- **Wirtschaftsziele** (`EconomyTargets`): die Welle merkt sich 2 min, wo sie feindliche
+  Dorfbewohner gesehen hat; je Sichtung bis 6 Kacheln um ein Gebäude zählt es 4 Kacheln näher
+  (höchstens 5 Sichtungen) - die Welle zieht zu Holzfällerlager und Farmen, nicht zum
+  nächstbesten Haus.
+- **Gezielte Erkundung** (`AimedScouting`): ohne bekanntes Ziel späht schon der erste Soldat,
+  und zwar zur ersten Nebelkachel auf dem Weg zum gegenüberliegenden Startplatz (die
+  Startplätze liegen sich gegenüber - eine Folgerung aus der Karte, kein Wissen über den
+  Gegner). Stehen Feinde im Dorf, späht niemand.
+- **Kräftevergleich** (`ForceCheck`): ist die Abwehr bei der Welle (Lebenspunkte mal Schaden
+  je Art) mehr als 1,5-mal stärker, weicht die Welle aus, statt sich aufzureiben, und die
+  nächste meidet das Ziel und alles bis 8 Kacheln daneben 2 min lang (`AUSWEICHEN`).
+
+Gemessen auf je 32 festen Karten (`stufen 30 … seed`, 30 min): Druck - Sekunden, in denen
+Sparta-Soldaten im feindlichen Gebiet angreifen - gegen Defense 119 → 299 s, gegen Normal
+111 → 226 s; erster Druck nach 17 statt 23 min; getötete feindliche Soldaten gegen Defense
+10 → 20–22, gegen Normal unverändert (31–36). Der Preis: Sparta verliert mehr Soldaten (gegen Defense 11 → 30).
+Einzeln gemessen tragen die frühen Wellen und der Nachschub den größten Teil; die gezielte
+Erkundung bringt den ersten Angriff 1-2 min früher, Wirtschaftsziele und Kräftevergleich liegen
+im Rauschen (KI-Spiele sind auch mit fester Karte nicht ganz gleich: ±100 s Druck).
+
+**Sparta ist ein Kampfvolk (seit 2026-11-27).** Wunsch: der erste Angriff schon vor der zehnten
+Minute - „Sparta entwickelt sich langsamer .. dafür sind sie "Agresiver"“. Die Zeitleiste
+(`stufen … zeitlinie`) zeigte zwei Bremsen: auf manchen Karten zogen Farmen und Lager das Holz ab,
+und nach 12 min stand keine Kaserne; stand sie, wurde jede Nahrung zum billigeren Dorfbewohner
+(25 statt 60 für die Miliz) - die Kaserne blieb leer, der sechste Soldat kam nach 10-16 min.
+Jetzt (`AiProfile.WarriorPeople`):
+
+- **Kaserne zuerst** (`HoldForBarracks`): in der Dunklen Zeit plant Sparta nach dem Haus die
+  Kaserne und spart bis 150 Holz dafür; findet sich kein Platz, plant es normal weiter.
+- **Milizen vor Dorfbewohnern** (`WarriorReserve`): ab 10 Dorfbewohnern bildet das Stadtzentrum
+  nur aus, wenn die Nahrung für Dorfbewohner und Miliz reicht - solange weniger als
+  Wellenstärke + 2 Soldaten (eingereihte mitgezählt) da sind. Vorrang ab dem ersten Dorfbewohner
+  hielt das Dorf bei 6-8 und brachte eine Miliz alle zwei Minuten.
+- **Sammler auf Nahrung**: in der Dunklen Zeit 65/30/5 statt 50/35/15 (Miliz 60 Nahrung, 20 Gold;
+  der Aufstieg kostet nur Nahrung) - Gold blieb sonst liegen.
+- **Erste Welle ab 4** Soldaten: ein Überfall mit drei Milizen (eine bleibt daheim).
+
+Gemessen auf 2 × 32 festen Karten je Gegner (Defense / Normal): die erste Welle zieht im Median
+nach 7 statt 17 min los (in 53 / 55 von 64 Spielen vor der zehnten Minute), der erste Angriff
+im feindlichen Gebiet kommt im Median nach 9–10 statt 18 min (in 33 / 34 von 64 Spielen vor der
+zehnten Minute - der Rest marschiert länger oder weicht aus). Der Preis: Feudalzeit nach 23 statt
+19 min, gegen Normal kommt Sparta in 3–9 von 32 Spielen in 30 min nicht aus der Dunklen Zeit
+(sterbende Überfälle halten die Armee unter der Aufstieg-Mindestarmee 6), Druck insgesamt
+211–238 s gegen Defense und 204–228 s gegen Normal (in derselben Messreihe vorher 264 / 236 s, vor SA1 119 / 111).
+Die kleinen Überfälle sterben meist an sich wehrenden Dorfbewohnern, die Wellen danach warten auf
+8 Soldaten.
+
 Prüfen: `dotnet run --project tools/ai-pruefung -- stufen 30 sparta defense duell verlauf`
 lässt die Stufen gegeneinander spielen (je Paarung zwei Karten) und misst Aufstellung, Abstand,
-Schützen hinten, Reiter-Schwall und dass Defense nie fern vom Dorf angreift.
+Schützen hinten, Reiter-Schwall und dass Defense nie fern vom Dorf angreift. Mit `karten 8 seed 100`
+spielt jede Paarung acht feste Karten (Startwert 100 + Karte); die Zusammenfassung „Wirkung je
+Stufe“ nennt den ersten Druck, die Druck-Sekunden und die Verluste beider Seiten. `normal` spielt
+Normal gegen Defense (zum Vergleich mit `duell`, Sparta gegen Defense).
 
 ### Naheliegende nächste Schritte
 
@@ -386,7 +446,8 @@ Nach Wirkung auf das Spielgefühl geordnet:
    Holz in Reichweite ist.
 4. ~~**Schwierigkeitsgrade**~~ — seit 2026-11-07 Defense, Normal, This is Sparta (siehe oben).
 5. **Rückzug** bei klarer Unterlegenheit, damit Angriffe nicht im Turmfeuer verbrennen —
-   Sparta zieht sich unter 35 % zurück; besser wäre, die Stärke vorher abzuschätzen.
+   Sparta zieht sich unter 35 % zurück und schätzt seit 2026-11-27 die Stärke vorher ab
+   (Kräftevergleich); Türme und Stadtzentrum zählen dabei noch nicht mit.
 6. **Belagerung** (F15): gegen Defense mit zwei Türmen und Stadtzentrum kommt eine Welle
    aus Nahkämpfern, Schützen und Reitern nicht durch.
 

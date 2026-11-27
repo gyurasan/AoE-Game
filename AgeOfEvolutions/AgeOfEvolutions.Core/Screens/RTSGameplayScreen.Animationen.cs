@@ -503,12 +503,54 @@ public partial class RTSGameplayScreen
         return unit.Position;
     }
 
+    // Wo der Pfeil den Schützen verlässt (Bogenschuss, 2026-11-27): im Schussbild liegt die
+    // Pfeilspitze bei voll gespanntem Bogen 10,6 Weltpixel vor der Mitte und 18,8 über den Füßen
+    // (Figur 24 hoch), der Griff 8 vor der Mitte - der Pfeil startet dazwischen am Bogen.
+    // Vorher (A3) lag der Punkt bei (5, -13), mitten in der Brust.
+    internal const float ARROW_ORIGIN_X = 9f;
+    internal const float ARROW_ORIGIN_Y = -19f;
+
+    /// <summary>
+    /// Wo ein Pfeil den Schützen verlässt: am Bogen, auf der Seite des Ziels (Bogenschuss).
+    /// VERTRAG: unit.Position + new Vector2(to.X &lt; unit.Position.X ? -ARROW_ORIGIN_X : ARROW_ORIGIN_X,
+    /// ARROW_ORIGIN_Y).
+    /// </summary>
+    internal static Vector2 ArrowOrigin(Unit unit, Vector2 to)
+    {
+        // am Bogen, auf der Seite des Ziels
+        return unit.Position + new Vector2(to.X < unit.Position.X ? -ARROW_ORIGIN_X : ARROW_ORIGIN_X, ARROW_ORIGIN_Y);
+    }
+
+    /// <summary>
+    /// Das Schussbild eines Fernkämpfers zum Schlagtakt (Bogenschuss, 2026-11-27): dieselbe
+    /// Zeitleiste wie die Schlagbilder (AttackPhase), aber um die Flugzeit des Pfeils vorgezogen.
+    /// Der Pfeil fliegt los, wenn AttackTimer RELOAD_SECONDS - Flugzeit erreicht (MaybeLaunchArrow) -
+    /// genau dann kommt das Bild „los“ (6), davor „voll gespannt“ (5); beim Treffer selbst ist der
+    /// Pfeil schon unterwegs. Die Schussbilder 1 bis 8 (tools/bilder/schlag.py, Modus „bogen“):
+    /// bereit, vier Mal weiter ziehen, voll, los, zurück.
+    /// VERTRAG: to = ArrowTarget(unit); lead = ArrowFlight(Vector2.Distance(ArrowOrigin(unit, to), to));
+    /// t = (unit.AttackTimer + lead) % AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS, ist t negativ,
+    /// RELOAD_SECONDS dazu; Ergebnis AttackPhase(t).
+    /// </summary>
+    internal int ShotPhase(Unit unit)
+    {
+        // Ziel des Schützen
+        Vector2 to = ArrowTarget(unit);
+        // um die Flugzeit des Pfeils vorgezogen
+        float lead = ArrowFlight(Vector2.Distance(ArrowOrigin(unit, to), to));
+        // Takt des Abschusses
+        float reload = AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS;
+        float t = (unit.AttackTimer + lead) % reload;
+        if (t < 0f) t += reload;
+        return AttackPhase(t);
+    }
+
     /// <summary>
     /// Für eine Einheit, deren Schlagtakt eben von before auf unit.AttackTimer gestiegen ist (A3): ein
     /// Fernkämpfer lässt den Pfeil so los, dass er genau beim Treffer ankommt - wenn AttackTimer
     /// BuildingCombat.RELOAD_SECONDS erreicht. Der Treffer selbst bleibt, wo er ist.
     /// VERTRAG: nichts, wenn unit.AttackType != AttackType.Ranged. Sonst to = ArrowTarget(unit);
-    /// from = unit.Position + Vector2(to.X &lt; unit.Position.X ? -5f : 5f, -13f); flight =
+    /// from = ArrowOrigin(unit, to) (am Bogen); flight =
     /// ArrowFlight(Abstand(from, to)); launch = AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS - flight.
     /// Gilt before &lt; launch und unit.AttackTimer &gt;= launch: _arrows bekommt new Arrow { From = from,
     /// To = to, Flight = MathF.Max(1f / 60f, RELOAD_SECONDS - unit.AttackTimer), Fletched =
@@ -529,7 +571,7 @@ public partial class RTSGameplayScreen
         int stone = StoneOf(unit.Type);
         Vector2 from = stone > 0
             ? StoneLaunchPoint(unit, to)
-            : unit.Position + new Vector2(to.X < unit.Position.X ? -5f : 5f, -13f);
+            : ArrowOrigin(unit, to);
         float flight = stone > 0 ? StoneFlight(Vector2.Distance(from, to)) : ArrowFlight(Vector2.Distance(from, to));
         float launch = AoE.Core.Combat.BuildingCombat.RELOAD_SECONDS - flight;
         // der Schlagtakt hat die Abschusszeit ueberquert: Pfeil loslassen

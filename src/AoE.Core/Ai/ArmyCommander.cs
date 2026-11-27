@@ -75,6 +75,28 @@ public sealed class ArmyCommander
     /// ihre Blickrichtung ändert sich.</summary>
     public const double RallyRefreshSeconds = 5;
 
+    /// <summary>Nachschub (<see cref="AiProfile.Reinforce"/>): so viele Soldaten über der Heimwache stoßen
+    /// gemeinsam zur laufenden Welle.</summary>
+    public const int ReinforceMin = 3;
+    /// <summary>Nachschub gilt als angekommen, wenn er höchstens so weit (Chebyshev) von seinem Platz steht;
+    /// bis dahin zählt er für den Marschtakt nicht mit.</summary>
+    public const int JoinDistance = 3;
+    /// <summary>Wirtschaftsziele (<see cref="AiProfile.EconomyTargets"/>): Sichtungen feindlicher Dorfbewohner
+    /// bis zu so vielen Kacheln (Chebyshev) vom Gebäude zählen.</summary>
+    public const int WorkRadius = 6;
+    /// <summary>Wirtschaftsziele: so viele Kacheln näher zählt ein Gebäude je Sichtung.</summary>
+    public const int WorkBonus = 4;
+    /// <summary>Wirtschaftsziele: höchstens so viele Sichtungen je Gebäude.</summary>
+    public const int WorkCap = 5;
+    /// <summary>Wirtschaftsziele: eine Sichtung gilt so viele Sekunden.</summary>
+    public const double WorkMemorySeconds = 120;
+    /// <summary>Kräftevergleich (<see cref="AiProfile.ForceCheck"/>): ist die Abwehr bei der Welle mehr als
+    /// so viel Mal stärker (<see cref="Strength(IEnumerable{EnemyInfo})"/>), weicht die Welle aus.</summary>
+    public const double OutmatchedRatio = 1.5;
+    /// <summary>Ausweichen: das Ziel und Gebäude bis zu so vielen Kacheln daneben meidet die nächste Welle ...</summary>
+    public const int AvoidRadius = 8;
+    /// <summary>... so viele Sekunden lang.</summary>
+    public const double AvoidSeconds = 120;
     /// <summary>Kacheln je Marschschritt.</summary>
     public const int MarchStep = 3;
 
@@ -232,6 +254,9 @@ public sealed class ArmyCommander
     /// <summary>Die Ids der Soldaten in der Angriffswelle.</summary>
     public IReadOnlyCollection<int> Wave => _wave;
 
+    /// <summary>Nachschub auf dem Weg zur Welle (Ids, Teilmenge von <see cref="Wave"/>).</summary>
+    public IReadOnlyCollection<int> Joining => _joining;
+
     /// <summary>Der Reiterkreislauf der Welle.</summary>
     public CavalryMode WaveCavalry => _waveCav.Mode;
 
@@ -242,6 +267,13 @@ public sealed class ArmyCommander
     public IReadOnlyDictionary<int, (int X, int Y)> Slots => _slots;
 
     private readonly HashSet<int> _wave = new();
+    private readonly HashSet<int> _joining = new();
+    /// <summary>Wo feindliche Dorfbewohner gesehen wurden: Kachel → Spielsekunde (Wirtschaftsziele).</summary>
+    private readonly Dictionary<(int X, int Y), double> _workSeen = new();
+    /// <summary>Ziele, vor denen eine Welle ausgewichen ist: Mittelkachel → Spielsekunde (Kräftevergleich).</summary>
+    private readonly Dictionary<(int X, int Y), double> _avoided = new();
+    /// <summary>Spielsekunde des laufenden Takts (für <see cref="Avoided"/>).</summary>
+    private double _now;
     private int _waveStart;
     private double _stepAt;
     private double _gatherSince = -1;
@@ -295,18 +327,21 @@ public sealed class ArmyCommander
     public void Tick(IWorldState state, IWorldActions actions, AiContext ctx, EnemyInfo? homeThreat = null)
     {
         double now = ctx.Time;
+        _now = now;
         var soldiers = state.Units
             .Where(u => u.Kind != UnitKind.Villager && u.State != UnitStateKind.Dead)
             .OrderBy(u => u.Id)
             .ToList();
         var alive = soldiers.Select(u => u.Id).ToHashSet();
         _wave.IntersectWith(alive);
+        _joining.IntersectWith(_wave);
         foreach (var id in _ordered.Keys.Where(id => !alive.Contains(id)).ToList()) _ordered.Remove(id);
         foreach (var id in _kitedAt.Keys.Where(id => !alive.Contains(id)).ToList()) _kitedAt.Remove(id);
         _slots.Clear();
 
         var visible = state.VisibleEnemies();
         RememberBuildings(state, visible);
+        if (_profile.EconomyTargets) RememberWork(visible, now);
 
         var home = Home(state);
         var objective = Objective(home);
@@ -320,9 +355,11 @@ public sealed class ArmyCommander
             EndWave(ctx, "Welle aufgerieben");
         }
 
+        var intruders = Intruders(state, visible, home, homeThreat);
+
         // Heimgruppe: alle außerhalb der Welle; bei einem Angriff aufs Dorf helfen nahe Wellensoldaten
         var reserve = soldiers.Where(u => !_wave.Contains(u.Id)).ToList();
-        reserve = Explore(state, actions, ctx, reserve, objective, now);
+        reserve = Explore(state, actions, ctx, reserve, objective, intruders.Count > 0, now);
         Rally = ChooseRally(state, home, reserve, now);
 
         // Leine: wer aus der Heimgruppe Feinden zu weit nachjagt, kehrt zum Sammelpunkt um -
@@ -334,8 +371,6 @@ public sealed class ArmyCommander
             MoveTo(actions, u, Rally, now, force: true);
         if (strays.Count > 0)
             reserve = reserve.Except(strays).ToList();
-
-        var intruders = Intruders(state, visible, home, homeThreat);
 
         // Rückruf: ein feindlicher Trupp im Dorf geht vor - die Welle kehrt heim und hilft auf dem Weg
         // (gemessen 2026-11-07: Normal zerstörte drei Sparta-Gebäude, während die Welle draußen stand)
@@ -362,6 +397,11 @@ public sealed class ArmyCommander
             TryLaunch(state, ctx, reserve, objective);
         }
 
+        // Nachschub (This is Sparta): läuft eine Welle, stoßen neue Soldaten zu ihr, statt daheim zu warten
+        if (_profile.Reinforce && intruders.Count == 0 && strays.Count == 0
+            && Phase is ArmyPhase.March or ArmyPhase.Engage or ArmyPhase.Siege)
+            Reinforce(state, ctx, reserve);
+
         if (Phase != ArmyPhase.Gather && waveUnits.Count > 0)
             RunWave(state, actions, ctx, waveUnits, waveAlive, visible, home);
     }
@@ -381,18 +421,8 @@ public sealed class ArmyCommander
 
         // Heimwache: Nahkämpfer vor Schützen, die Reiter ziehen mit (ihr Schwall gehört zur Welle);
         // innerhalb einer Rolle die jüngsten (größte Ids)
-        int guardCount = Math.Max(0, _profile.HomeGuard);
-        if (reserve.Count - guardCount < 1) return;
-        var guard = reserve.OrderBy(u => Formation.RoleOf(u.Kind) switch
-                                    {
-                                        FormationRole.Front => 0,
-                                        FormationRole.Ranged => 1,
-                                        _ => 2,
-                                    })
-                           .ThenByDescending(u => u.Id)
-                           .Take(guardCount)
-                           .Select(u => u.Id)
-                           .ToHashSet();
+        if (reserve.Count - Math.Max(0, _profile.HomeGuard) < 1) return;
+        var guard = GuardOf(reserve);
         _wave.Clear();
         foreach (var u in reserve.Where(u => !guard.Contains(u.Id))) _wave.Add(u.Id);
         _waveStart = _wave.Count;
@@ -404,6 +434,60 @@ public sealed class ArmyCommander
         _gatherSince = -1;
         _waveCav.Reset();
         ctx.Log?.Invoke($"WELLE: {_waveStart} Soldaten ziehen in Aufstellung los, Ziel ({target.X},{target.Y})");
+    }
+
+    /// <summary>
+    /// Die Heimwache einer Gruppe (TryLaunch und Nachschub).
+    /// VERTRAG: die Ids von höchstens Math.Max(0, _profile.HomeGuard) Einheiten aus reserve, gewählt nach
+    /// Rolle - Formation.RoleOf(u.Kind) == FormationRole.Front zuerst, dann FormationRole.Ranged, dann alle
+    /// anderen - und innerhalb einer Rolle die größten Ids zuerst (OrderBy Rolle, ThenByDescending Id,
+    /// Take, als HashSet&lt;int&gt;). Genau die Auswahl, die TryLaunch bis 2026-11-27 selbst traf.
+    /// </summary>
+    private HashSet<int> GuardOf(List<UnitSnapshot> reserve)
+    {
+        return reserve
+            .OrderBy(u => Formation.RoleOf(u.Kind) switch
+            {
+                FormationRole.Front => 0,
+                FormationRole.Ranged => 1,
+                _ => 2
+            })
+            .ThenByDescending(u => u.Id)
+            .Take(Math.Max(0, _profile.HomeGuard))
+            .Select(u => u.Id)
+            .ToHashSet();
+    }
+
+    /// <summary>
+    /// Nachschub (This is Sparta, Nutzer 2026-11-27: „weit agressiver"): neue Soldaten der Heimgruppe stoßen
+    /// zur laufenden Welle, statt am Sammelpunkt zu warten.
+    /// VERTRAG:
+    /// - Nichts, wenn state.SameLand(Rally.X, Rally.Y, Anchor.X, Anchor.Y) false ist (die Welle steht auf
+    ///   einer anderen Insel).
+    /// - home = die Einheiten aus reserve, deren Id NICHT in _wave steht (wer eben in diesem Takt mit der
+    ///   Welle losgezogen ist, steht noch in der Liste - er darf nicht doppelt zählen).
+    /// - guard = GuardOf(home); extra = die Einheiten aus home, deren Id nicht in guard steht (Reihenfolge
+    ///   wie in home).
+    /// - Sind es weniger als ReinforceMin, nichts.
+    /// - Sonst je Einheit aus extra: Id in _wave und in _joining aufnehmen; danach _waveStart um extra.Count
+    ///   erhöhen und ctx.Log?.Invoke($"NACHSCHUB: {extra.Count} Soldaten stoßen zur Welle").
+    /// </summary>
+    private void Reinforce(IWorldState state, AiContext ctx, List<UnitSnapshot> reserve)
+    {
+        // die Welle steht auf einer anderen Insel: kein Nachschub
+        if (!state.SameLand(Rally.X, Rally.Y, Anchor.X, Anchor.Y)) return;
+        // wer in diesem Takt mit der Welle losgezogen ist, zählt nicht doppelt
+        var home = reserve.Where(u => !_wave.Contains(u.Id)).ToList();
+        var guard = GuardOf(home);
+        var extra = home.Where(u => !guard.Contains(u.Id)).ToList();
+        if (extra.Count < ReinforceMin) return;
+        foreach (var u in extra)
+        {
+            _wave.Add(u.Id);
+            _joining.Add(u.Id);
+        }
+        _waveStart += extra.Count;
+        ctx.Log?.Invoke($"NACHSCHUB: {extra.Count} Soldaten stoßen zur Welle");
     }
 
     private void RunWave(IWorldState state, IWorldActions actions, AiContext ctx,
@@ -459,6 +543,16 @@ public sealed class ArmyCommander
         // lang quer über die Karte).
         bool skirmish = Phase == ArmyPhase.March && near.Count > 0 && near.Count <= SkirmishMax
                         && wave.Count >= SkirmishMinWave;
+        // Kräftevergleich (This is Sparta): ist die Abwehr bei der Welle klar stärker, weicht sie aus, statt sich
+        // aufzureiben, und die nächste Welle meidet das Ziel eine Weile (gemessen 2026-11-27: kleine Wellen der
+        // Dunklen Zeit liefen am Stadtzentrum in 8 Milizen und verloren 4 von 5)
+        if (_profile.ForceCheck && near.Count > 0 && Phase != ArmyPhase.Engage && Outmatched(wave, near))
+        {
+            if (Target is { } avoid) _avoided[avoid] = now;
+            Phase = ArmyPhase.Retreat;
+            ctx.Log?.Invoke($"AUSWEICHEN: Abwehr {Strength(near):0} gegen Welle {Strength(wave):0}, zurück");
+            return;
+        }
         if (near.Count > 0 && !skirmish)
         {
             if (Phase != ArmyPhase.Engage)
@@ -484,7 +578,7 @@ public sealed class ArmyCommander
         {
             // ein Ziel fiel: ein Zuschlag weniger
             if (Target is not null && _beaten > 0) _beaten--;
-            var next = NearestBuilding(Anchor);
+            var next = Objective(Anchor);
             if (next is null)
             {
                 Phase = ArmyPhase.Retreat;
@@ -545,7 +639,12 @@ public sealed class ArmyCommander
             return;
         }
         // wer im Geplänkel kämpft oder als Reiter jagt, zählt für den Schritt nicht mit
-        var frei = wave.Where(u => !responders.Contains(u.Id)
+        // Nachschub zählt erst mit, wenn er bei der Welle angekommen ist - sonst stünde der Marsch bei
+        // jedem Nachzügler bis zur Frist
+        foreach (var u in wave.Where(u => _joining.Contains(u.Id)
+                                          && Cheb(u.X, u.Y, slots[u.Id].X, slots[u.Id].Y) <= JoinDistance))
+            _joining.Remove(u.Id);
+        var frei = wave.Where(u => !responders.Contains(u.Id) && !_joining.Contains(u.Id)
                                    && (Formation.RoleOf(u.Kind) != FormationRole.Flank || !hunting)).ToList();
         double inPlace = InPlace(frei, slots);
         // F15: Geräte marschieren im eigenen Tempo (Katapult 0,5 gegen Fußvolk 0,9). Da sie
@@ -689,6 +788,7 @@ public sealed class ArmyCommander
     private void EndWave(AiContext ctx, string why)
     {
         _wave.Clear();
+        _joining.Clear();
         _crossSince = -1;
         _beachhead = null;
         _retreatSince = -1;
@@ -1002,13 +1102,16 @@ public sealed class ArmyCommander
     /// Kachel im Nebel; die Lage des Gegners kennt er nicht. Steht er nach einem Laufbefehl
     /// <see cref="ScoutIdleSeconds"/> still, obwohl sein Ziel noch im Nebel liegt, ist es unerreichbar.
     /// Sobald ein Ziel bekannt ist (oder die Welle zieht), kehrt er in die Heimgruppe zurück.
-    /// Liefert die Heimgruppe ohne den Späher.
+    /// Liefert die Heimgruppe ohne den Späher. Gezielte Erkundung (<see cref="AiProfile.AimedScouting"/>):
+    /// schon ein einzelner Soldat späht, Richtung gegenüberliegender Startplatz (<see cref="AimedFog"/>).
+    /// Stehen Feinde im Dorf (<paramref name="threatened"/>), späht niemand - der Späher gehört dann zur Abwehr.
     /// </summary>
     private List<UnitSnapshot> Explore(IWorldState state, IWorldActions actions, AiContext ctx,
-                                       List<UnitSnapshot> reserve, (int X, int Y)? objective, double now)
+                                       List<UnitSnapshot> reserve, (int X, int Y)? objective, bool threatened,
+                                       double now)
     {
-        bool need = _profile.Raids && objective is null && Phase == ArmyPhase.Gather
-                    && reserve.Count >= _profile.RaidMinSoldiers;
+        bool need = _profile.Raids && objective is null && Phase == ArmyPhase.Gather && !threatened
+                    && reserve.Count >= (_profile.AimedScouting ? 1 : _profile.RaidMinSoldiers);
         var scout = _scoutId is int id ? reserve.FirstOrDefault(u => u.Id == id) : null;
         if (!need || (_scoutId is not null && scout is null))
         {
@@ -1032,13 +1135,58 @@ public sealed class ArmyCommander
             if (scout.State == UnitStateKind.Moving || now - _scoutAt < ScoutIdleSeconds) return rest;
             _scoutUnreachable.Add(t);
         }
-        _scoutTarget = NearestFog(state, (scout.X, scout.Y), _scoutUnreachable);
+        _scoutTarget = _profile.AimedScouting
+            ? AimedFog(state, (scout.X, scout.Y), Guess(state), _scoutUnreachable)
+            : NearestFog(state, (scout.X, scout.Y), _scoutUnreachable);
         if (_scoutTarget is { } next)
         {
             actions.Move(scout.Id, next.X, next.Y);
             _scoutAt = now;
         }
         return rest;
+    }
+
+    /// <summary>
+    /// Wo der Gegner vermutlich steht (gezielte Erkundung): die Startplätze liegen sich gegenüber - eine
+    /// Schlussfolgerung aus der Karte, kein Wissen über den Gegner (K8 bleibt: die KI kennt seine Lage nicht).
+    /// VERTRAG: home = Home(state); Ergebnis (state.Width - 1 - home.X, state.Height - 1 - home.Y) - der eigene
+    /// Startplatz, gespiegelt am Kartenmittelpunkt.
+    /// </summary>
+    private static (int X, int Y) Guess(IWorldState state)
+    {
+        var home = Home(state);
+        return (state.Width - 1 - home.X, state.Height - 1 - home.Y);
+    }
+
+    /// <summary>
+    /// Gezielte Erkundung: die erste Nebelkachel auf dem Weg vom Späher zur Vermutung.
+    /// VERTRAG: unter allen Kacheln (x von 0 bis state.Width - 1, y von 0 bis state.Height - 1, äußere
+    /// Schleife über y, innere über x), die noch im Nebel liegen (state.IsExplored(x, y) false) und nicht in
+    /// skip stehen: near = (x - from.X)² + (y - from.Y)² und far = (guess.X - x)² + (guess.Y - y)² (als long);
+    /// score = (long)Math.Round(Math.Sqrt(near) + Math.Sqrt(far)). Gewählt wird die Kachel mit dem kleinsten
+    /// score, bei gleichem score die mit dem kleineren near; bei völligem Gleichstand bleibt die zuerst
+    /// gefundene. Null, wenn es keine gibt.
+    /// </summary>
+    private static (int X, int Y)? AimedFog(IWorldState state, (int X, int Y) from, (int X, int Y) guess,
+                                            HashSet<(int X, int Y)> skip)
+    {
+        (int X, int Y)? best = null;
+        long bestScore = long.MaxValue, bestNear = long.MaxValue;
+        for (int y = 0; y < state.Height; y++)
+            for (int x = 0; x < state.Width; x++)
+            {
+                if (state.IsExplored(x, y) || skip.Contains((x, y))) continue;
+                long near = (long)(x - from.X) * (x - from.X) + (long)(y - from.Y) * (y - from.Y);
+                long far = (long)(guess.X - x) * (guess.X - x) + (long)(guess.Y - y) * (guess.Y - y);
+                long score = (long)Math.Round(Math.Sqrt(near) + Math.Sqrt(far));
+                if (score < bestScore || (score == bestScore && near < bestNear))
+                {
+                    bestScore = score;
+                    bestNear = near;
+                    best = (x, y);
+                }
+            }
+        return best;
     }
 
     /// <summary>Die nächste Kachel im Nebel (kleinster quadrierter Abstand, bei Gleichstand kleineres Y,
@@ -1114,7 +1262,8 @@ public sealed class ArmyCommander
     /// <summary>Das Ziel einer Welle vom Dorf aus: das nächste bekannte unbewehrte feindliche Gebäude
     /// außerhalb der Schussweite bewehrter Gebäude (<see cref="ArmedCover"/>), sonst das nächste
     /// unbewehrte, sonst das nächste bewehrte (Wachturm, Stadtzentrum) - wie die Wellen seit F1.</summary>
-    private (int X, int Y)? Objective((int X, int Y) from) => NearestBuilding(from);
+    private (int X, int Y)? Objective((int X, int Y) from)
+        => _profile.EconomyTargets ? EconomicBuilding(from) : NearestBuilding(from);
 
     private (int X, int Y)? NearestBuilding((int X, int Y) from)
     {
@@ -1123,11 +1272,112 @@ public sealed class ArmyCommander
         bool Covered(EnemyInfo e) => armed.Any(a => (a.X != e.X || a.Y != e.Y) && Cheb(a.X, a.Y, e.X, e.Y) <= ArmedCover);
         var best = _knownBuildings.Values
             .OrderBy(e => e.IsArmed)
+            .ThenBy(e => _profile.ForceCheck && Avoided(e))
             .ThenBy(Covered)
             .ThenBy(e => Cheb(e.X, e.Y, from.X, from.Y))
             .ThenBy(e => e.X).ThenBy(e => e.Y)
             .First();
         return (best.X, best.Y);
+    }
+
+    /// <summary>
+    /// Sichtungen feindlicher Dorfbewohner merken (Wirtschaftsziele).
+    /// VERTRAG: für jedes e aus visible mit !e.IsBuilding und e.Kind == UnitKind.Villager:
+    /// _workSeen[(e.X, e.Y)] = now. Danach jeden Eintrag aus _workSeen entfernen, dessen Zeit mehr als
+    /// WorkMemorySeconds vor now liegt (now - Zeit &gt; WorkMemorySeconds; erst die Schlüssel in eine Liste
+    /// kopieren, dann entfernen).
+    /// </summary>
+    private void RememberWork(IReadOnlyList<EnemyInfo> visible, double now)
+    {
+        // Sichtungen feindlicher Dorfbewohner merken
+        foreach (var e in visible.Where(e => !e.IsBuilding && e.Kind == UnitKind.Villager))
+            _workSeen[(e.X, e.Y)] = now;
+        // abgelaufene Sichtungen entfernen (erst kopieren, dann entfernen)
+        foreach (var key in _workSeen.Where(kv => now - kv.Value > WorkMemorySeconds).Select(kv => kv.Key).ToList())
+            _workSeen.Remove(key);
+    }
+
+    /// <summary>
+    /// Wirtschaftsziel (This is Sparta): die Welle zieht dorthin, wo feindliche Dorfbewohner arbeiten.
+    /// VERTRAG: null, wenn _knownBuildings leer ist. Sonst wie NearestBuilding - armed = alle e aus
+    /// _knownBuildings.Values mit e.IsArmed; Covered(e) = ein a aus armed mit (a.X != e.X || a.Y != e.Y) und
+    /// Cheb(a.X, a.Y, e.X, e.Y) &lt;= ArmedCover -, aber mit einer Wirtschaftswertung: Work(e) =
+    /// Math.Min(WorkCap, Zahl der Schlüssel w in _workSeen mit Cheb(w.X, w.Y, e.X, e.Y) &lt;= WorkRadius).
+    /// Sortiert wird _knownBuildings.Values: OrderBy(e.IsArmed), ThenBy(_profile.ForceCheck &amp;&amp; Avoided(e)),
+    /// ThenBy(Covered(e)), ThenBy(Cheb(e.X, e.Y, from.X, from.Y) - WorkBonus * Work(e)), ThenBy(e.X), ThenBy(e.Y);
+    /// Ergebnis (X, Y) des ersten.
+    /// </summary>
+    private (int X, int Y)? EconomicBuilding((int X, int Y) from)
+    {
+        if (_knownBuildings.Count == 0) return null;
+        var armed = _knownBuildings.Values.Where(e => e.IsArmed).ToList();
+        bool Covered(EnemyInfo e) => armed.Any(a => (a.X != e.X || a.Y != e.Y) && Cheb(a.X, a.Y, e.X, e.Y) <= ArmedCover);
+        int Work(EnemyInfo e) => Math.Min(WorkCap, _workSeen.Count(w => Cheb(w.Key.X, w.Key.Y, e.X, e.Y) <= WorkRadius));
+        var best = _knownBuildings.Values
+            .OrderBy(e => e.IsArmed)
+            .ThenBy(e => _profile.ForceCheck && Avoided(e))
+            .ThenBy(Covered)
+            .ThenBy(e => Cheb(e.X, e.Y, from.X, from.Y) - WorkBonus * Work(e))
+            .ThenBy(e => e.X).ThenBy(e => e.Y)
+            .First();
+        return (best.X, best.Y);
+    }
+
+    /// <summary>
+    /// Ist ein Gebäude ein Ziel, vor dem eine Welle ausgewichen ist (Kräftevergleich)?
+    /// VERTRAG: true genau dann, wenn in _avoided ein Eintrag (Kachel k, Zeit z) mit _now - z &lt; AvoidSeconds
+    /// und Cheb(k.X, k.Y, e.X, e.Y) &lt;= AvoidRadius steht.
+    /// </summary>
+    private bool Avoided(EnemyInfo e)
+    {
+        return _avoided.Any(kv => _now - kv.Value < AvoidSeconds && Cheb(kv.Key.X, kv.Key.Y, e.X, e.Y) <= AvoidRadius);
+    }
+
+    /// <summary>
+    /// Kampfwert je Lebenspunkt einer Art (Kräftevergleich): grob der Schaden, den sie austeilt.
+    /// VERTRAG: UnitKind.Villager 0.5, UnitKind.Militia 4, UnitKind.Spearman 3, UnitKind.Archer 4,
+    /// UnitKind.Cavalry 3, UnitKind.Catapult 2, alles andere (auch null) 3 - als switch-Ausdruck.
+    /// </summary>
+    private static double Power(UnitKind? kind)
+    {
+        return kind switch
+        {
+            UnitKind.Villager => 0.5,
+            UnitKind.Militia => 4,
+            UnitKind.Spearman => 3,
+            UnitKind.Archer => 4,
+            UnitKind.Cavalry => 3,
+            UnitKind.Catapult => 2,
+            _ => 3
+        };
+    }
+
+    /// <summary>
+    /// Kampfkraft feindlicher Einheiten.
+    /// VERTRAG: Summe über alle e aus enemies mit !e.IsBuilding von Math.Max(1, e.Health) * Power(e.Kind);
+    /// Gebäude zählen nicht.
+    /// </summary>
+    private static double Strength(IEnumerable<EnemyInfo> enemies)
+    {
+        return enemies.Where(e => !e.IsBuilding).Sum(e => Math.Max(1, e.Health) * Power(e.Kind));
+    }
+
+    /// <summary>
+    /// Kampfkraft eigener Einheiten.
+    /// VERTRAG: Summe über alle u aus units von Math.Max(1, u.Health) * Power(u.Kind).
+    /// </summary>
+    private static double Strength(IEnumerable<UnitSnapshot> units)
+    {
+        return units.Sum(u => Math.Max(1, u.Health) * Power(u.Kind));
+    }
+
+    /// <summary>
+    /// Ist die Abwehr klar stärker als die Welle (Kräftevergleich)?
+    /// VERTRAG: Strength(near) &gt; OutmatchedRatio * Strength(wave).
+    /// </summary>
+    private static bool Outmatched(List<UnitSnapshot> wave, List<EnemyInfo> near)
+    {
+        return Strength(near) > OutmatchedRatio * Strength(wave);
     }
 
     private static (int X, int Y) Advance(IWorldState state, (int X, int Y) from, (int X, int Y) to)

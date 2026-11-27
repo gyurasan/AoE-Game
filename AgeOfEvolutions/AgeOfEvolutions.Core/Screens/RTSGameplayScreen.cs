@@ -8744,7 +8744,8 @@ public partial class RTSGameplayScreen : GameScreen
             figure = walk[phase];
         // Beim Schlagen zeigt das passende Schlagbild (C4n)
         if (striking)
-            figure = attack[AttackPhase(unit.AttackTimer)];
+            // ein Fernkämpfer zeigt die Schussbilder im Takt seines Abschusses (Bogenschuss)
+            figure = attack[unit.AttackType == AttackType.Ranged ? ShotPhase(unit) : AttackPhase(unit.AttackTimer)];
 
         // Schlagschatten (C7): die Figur im Maßstab ihres Bilds an den Füßen - er bleibt
         // am Boden, während die Figur wippt

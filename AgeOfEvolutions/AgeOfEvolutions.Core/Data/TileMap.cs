@@ -165,7 +165,7 @@ public partial class TileMap
     // Initialize a random map
     // Zufallszahlengenerator für Kartengenerierung (vorher: DateTime.Now.Ticks % Range
     // → in einer eng takteten Schleife nahezu konstante Werte, alle Flecken übereinander)
-    private readonly Random _random = new Random();
+    private readonly Random _random = TestSeed is int seed ? new Random(seed) : new Random();
     
     private void InitializeRandomMap()
     {
@@ -2120,7 +2120,7 @@ public partial class TileMap
     private readonly List<(int x, int y)> _rabbitCoords = new List<(int, int)>();
     private readonly List<(int x, int y)> _boarCoords = new List<(int, int)>();
     private readonly HashSet<(int x, int y)> _claimed = new HashSet<(int, int)>();
-    private readonly Random _wildRng = new Random();
+    private readonly Random _wildRng = TestSeed is int seed ? new Random(seed + 1) : new Random();
 
     /// <summary>Sekunden, die ein Tier für einen Schritt auf die Nachbarkachel braucht.</summary>
     public const float WILD_STEP_SECONDS = 1.0f;
@@ -2797,6 +2797,14 @@ public partial class TileMap
     /// den gegnerischen Einheiten und Gebäuden. Standard: aus.
     /// </summary>
     public static bool TestNoFog = false;
+
+    /// <summary>
+    /// Testschalter (tools/ai-pruefung, 2026-11-27): fester Startwert für Kartenerzeugung und Wild
+    /// (<c>_random</c>, <c>_wildRng</c>). Gilt für jede danach erzeugte Karte; mit fester KI-Saat
+    /// (AiContext) wird ein Spiel KI gegen KI damit wiederholbar — Stufen und Varianten lassen sich
+    /// auf denselben Karten vergleichen. Standard: null (zufällig, wie im Spiel).
+    /// </summary>
+    public static int? TestSeed = null;
     private static bool _testNoFog => TestNoFog;
 }
 

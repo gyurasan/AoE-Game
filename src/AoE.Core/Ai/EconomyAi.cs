@@ -48,6 +48,22 @@ public sealed class EconomyAi : IAi
     /// <c>BuildingRules</c> / <c>Player.VillagerCost</c> im Spiel übereinstimmen.</summary>
     public const int VillagerFoodCost = 25;
 
+    /// <summary>So viel Nahrung kostet eine Miliz - muss mit den <c>Products</c> im Spiel
+    /// (RTSGameplayScreen) übereinstimmen.</summary>
+    public const int MilitiaFoodCost = 60;
+
+    /// <summary>So viel Holz braucht die Kaserne mindestens im Lager, bevor die KI sie plant.</summary>
+    public const int BarracksWood = 150;
+
+    /// <summary>Kampfvolk (<see cref="AiProfile.WarriorPeople"/>): erst ab so vielen Dorfbewohnern hat die
+    /// Kaserne Vorrang vor dem Stadtzentrum - darunter trüge die Wirtschaft keine Armee (gemessen 2026-11-27:
+    /// Vorrang ab dem ersten Dorfbewohner hielt das Dorf bei 6-8, eine Miliz alle zwei Minuten).</summary>
+    public const int WarriorVillagerFloor = 10;
+
+    /// <summary>Kampfvolk: so viele Soldaten über <see cref="AiProfile.RaidMinSoldiers"/> (Späher und
+    /// Heimwache) braucht eine Welle; solange die Armee darunter liegt, hat die Kaserne Vorrang.</summary>
+    public const int WarriorArmyExtra = 2;
+
     /// <summary>So viel Nahrung muss mindestens im Dorf sein, bevor eine
     /// Farm gebaut wird; darunter wird die Farm vor allem anderen priorisiert
     /// (die Farm kostet Holz, aber liefert Nahrung).</summary>
@@ -162,6 +178,10 @@ public sealed class EconomyAi : IAi
     { [Resource.Food] = 35, [Resource.Wood] = 25, [Resource.Gold] = 25, [Resource.Stone] = 15 };
     private static readonly Dictionary<Resource, double> W_IMPERIAL = new()
     { [Resource.Food] = 30, [Resource.Wood] = 25, [Resource.Gold] = 25, [Resource.Stone] = 20 };
+    /// <summary>Kampfvolk in der Dunklen Zeit: Milizen kosten 60 Nahrung und nur 20 Gold, der Aufstieg
+    /// nur Nahrung - Gold blieb liegen (gemessen 2026-11-27: 270 Gold nach 15 min, Nahrung nie über 50).</summary>
+    private static readonly Dictionary<Resource, double> W_DARK_WARRIOR = new()
+    { [Resource.Food] = 65, [Resource.Wood] = 30, [Resource.Gold] = 5 };
 
     private static Dictionary<Resource, double> WeightsFor(Age age) => age switch
     {
@@ -230,7 +250,7 @@ public sealed class EconomyAi : IAi
         //    Soldaten kosten Pop, aber sind der Grund, warum die KI
         //    aggressiver wirkt.
         TrainSoldiers(state, actions, ctx);
-        TrainIfPossible(state, actions, ctx);
+        if (!WarriorReserve(state)) TrainIfPossible(state, actions, ctx);
 
         // 4) Freie Dorfbewohner an Quellen — die Ernte bleibt wichtig.
         SendToSources(state, actions, workers);
@@ -302,6 +322,9 @@ public sealed class EconomyAi : IAi
                 return;
         }
 
+        // 1b. Kampfvolk: die Kaserne vor Farm und Lagern
+        if (HoldForBarracks(state, actions, workers)) return;
+
         // 2. Farm — Nahrung ist die knappste Ressource (Ausbildung kostet
         //    25 pro Kopf); sie baut, wenn die Bank unter 200 sinkt. Gleiche
         //    Regel wie Haus: höchstens eine offene Baustelle, sonst mehrere
@@ -351,7 +374,7 @@ public sealed class EconomyAi : IAi
         // 4. Kaserne — die Basis der Aggressivität. Kosten: 175 Holz
         //    (lt. BuildingRules). Am Stadtzentrum: die Soldaten gehören in
         //    den Kampf, nicht ans Lager.
-        if (state.Resources.Wood >= 150
+        if (state.Resources.Wood >= BarracksWood
             && !state.Buildings.Any(b => b.Type == BuildingType.Barracks))
         {
             if (TryBuildNear(state, actions, workers, BuildingType.Barracks,
@@ -1233,6 +1256,51 @@ public sealed class EconomyAi : IAi
     // ---------------------------------------------------------------------
     // Schritt 2: Ausbilden
     // ---------------------------------------------------------------------
+    /// <summary>
+    /// Kampfvolk (Nutzer 2026-11-27: „Die Kaserne bleibt leer, weil der billigere Dorfbewohner (25 Nahrung)
+    /// jedes Mal vor der Miliz (60) gebaut wird ... das muss natürlich berücksichtigt werden.“): hält die
+    /// Nahrung für die nächste Miliz zurück - true heißt, das Stadtzentrum bildet in diesem Takt keinen
+    /// Dorfbewohner aus.
+    /// VERTRAG: false, wenn !Profile.WarriorPeople oder state.Age != Age.Dark; false, wenn keine eigene FERTIGE
+    /// Kaserne steht (state.Buildings mit Type BuildingType.Barracks und IsComplete); army = Zahl der lebenden
+    /// Soldaten (state.Units mit Kind != UnitKind.Villager und State != UnitStateKind.Dead) + QueuedArmy(state) -
+    /// false, wenn army &gt;= Profile.RaidMinSoldiers + WarriorArmyExtra; false, wenn weniger als
+    /// WarriorVillagerFloor lebende Dorfbewohner (Kind Villager, State nicht Dead) da sind. Sonst true genau
+    /// dann, wenn state.Resources.Food &lt; VillagerFoodCost + MilitiaFoodCost (reicht die Nahrung für beide,
+    /// darf auch das Stadtzentrum).
+    /// </summary>
+    private bool WarriorReserve(IWorldState state)
+    {
+        if (!Profile.WarriorPeople || state.Age != Age.Dark) return false;
+        if (!state.Buildings.Any(b => b.Type == BuildingType.Barracks && b.IsComplete)) return false;
+        int army = state.Units.Count(u => u.Kind != UnitKind.Villager && u.State != UnitStateKind.Dead)
+                   + QueuedArmy(state);
+        if (army >= Profile.RaidMinSoldiers + WarriorArmyExtra) return false;
+        int villagers = state.Units.Count(u => u.Kind == UnitKind.Villager && u.State != UnitStateKind.Dead);
+        if (villagers < WarriorVillagerFloor) return false;
+        return state.Resources.Food < VillagerFoodCost + MilitiaFoodCost;
+    }
+
+    /// <summary>
+    /// Kampfvolk: die Kaserne vor Farm und Lagern (gemessen 2026-11-27: Farmen und Lager zogen das Holz ab,
+    /// auf manchen Karten stand nach 12 min keine Kaserne). true heißt, PlanBuilding plant in diesem Takt
+    /// nichts weiter.
+    /// VERTRAG: false, wenn !Profile.WarriorPeople oder state.Age != Age.Dark oder schon eine eigene Kaserne
+    /// steht (state.Buildings mit Type BuildingType.Barracks, fertig oder im Bau). Ist
+    /// state.Resources.Wood &gt;= BarracksWood: Ergebnis von TryBuildNear(state, actions, workers,
+    /// BuildingType.Barracks, workersFor: 1, allowPool: true, anchor: null) - true, wenn die Baustelle steht;
+    /// findet sich kein Platz (false), plant PlanBuilding normal weiter. Sonst true (das Holz wird für die
+    /// Kaserne gespart).
+    /// </summary>
+    private bool HoldForBarracks(IWorldState state, IWorldActions actions, List<UnitSnapshot> workers)
+    {
+        if (!Profile.WarriorPeople || state.Age != Age.Dark) return false;
+        if (state.Buildings.Any(b => b.Type == BuildingType.Barracks)) return false;
+        if (state.Resources.Wood >= BarracksWood)
+            return TryBuildNear(state, actions, workers, BuildingType.Barracks, workersFor: 1, allowPool: true, anchor: null);
+        return true;   // Holz für die Kaserne sparen
+    }
+
     private static void TrainIfPossible(IWorldState state, IWorldActions actions, AiContext ctx)
     {
         if (state.TownCenter is null) return;
@@ -1259,11 +1327,12 @@ public sealed class EconomyAi : IAi
     /// übrigen verteilt. Kein erreichbare Quelle? Der Arbeiter bleibt
     /// untätig.
     /// </summary>
-    private static void SendToSources(IWorldState state, IWorldActions actions, List<UnitSnapshot> workers)
+    private void SendToSources(IWorldState state, IWorldActions actions, List<UnitSnapshot> workers)
     {
         if (workers.Count == 0) return;
 
-        var weights = WeightsFor(state.Age);
+        // Kampfvolk: in der Dunklen Zeit mehr Nahrung, kaum Gold
+        var weights = Profile.WarriorPeople && state.Age == Age.Dark ? W_DARK_WARRIOR : WeightsFor(state.Age);
         var order = PriorityOrder.Where(r => weights.ContainsKey(r)).ToList();
         if (order.Count == 0) return;
 

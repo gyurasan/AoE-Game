@@ -91,7 +91,10 @@ Spielbar sind Wirtschaft, Aufstieg durch die Zeitalter und Kampf gegen einen Com
   baut zwei Wachtürme und hält Nahkämpfer und Bogenschützen in Aufstellung vor dem Dorf; **Normal**
   greift in Wellen an; **This is Sparta** zieht in Aufstellung los - Nahkämpfer vorn, Bogenschützen
   dahinter, je eine Kachel Abstand -, Reiter greifen im Schwall an und ziehen sich hinter den Verband
-  zurück. Wie sie im Vergleich zum Original arbeitet, steht in
+  zurück; sie greift schon in der Dunklen Zeit an, schickt Nachschub zur laufenden Welle, sucht den
+  Gegner gezielt, zieht dorthin, wo seine Dorfbewohner arbeiten, und weicht klar stärkerer Abwehr aus. Als
+  Kampfvolk baut sie zuerst die Kaserne, bildet Milizen vor Dorfbewohnern aus und überfällt den Gegner oft
+  schon vor der zehnten Minute - dafür steigt sie später auf. Wie sie im Vergleich zum Original arbeitet, steht in
   [Der Computergegner](docs/AoE-Computergegner.md)
 - Wilde Tiere: Schafe, Rehe, Kaninchen und Wildschweine zum Jagen, dazu Bären und Wolfsrudel.
   Rehe laufen vor näherenden Einheiten davon und müssen mit einem Angriff erlegt werden; ein

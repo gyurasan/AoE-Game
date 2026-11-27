@@ -10519,6 +10519,62 @@
     "ziel": "Einheiten/krieger_schlag8.png",
     "figur": "krieger_schlag",
     "zielbreite": 334
+   },
+   {
+    "name": "bogenschuetze_schlag1",
+    "seed": 1,
+    "ziel": "Einheiten/bogenschuetze_schlag1.png",
+    "figur": "bogenschuetze_schlag",
+    "zielbreite": 304
+   },
+   {
+    "name": "bogenschuetze_schlag2",
+    "seed": 1,
+    "ziel": "Einheiten/bogenschuetze_schlag2.png",
+    "figur": "bogenschuetze_schlag",
+    "zielbreite": 304
+   },
+   {
+    "name": "bogenschuetze_schlag3",
+    "seed": 1,
+    "ziel": "Einheiten/bogenschuetze_schlag3.png",
+    "figur": "bogenschuetze_schlag",
+    "zielbreite": 304
+   },
+   {
+    "name": "bogenschuetze_schlag4",
+    "seed": 1,
+    "ziel": "Einheiten/bogenschuetze_schlag4.png",
+    "figur": "bogenschuetze_schlag",
+    "zielbreite": 304
+   },
+   {
+    "name": "bogenschuetze_schlag5",
+    "seed": 1,
+    "ziel": "Einheiten/bogenschuetze_schlag5.png",
+    "figur": "bogenschuetze_schlag",
+    "zielbreite": 304
+   },
+   {
+    "name": "bogenschuetze_schlag6",
+    "seed": 1,
+    "ziel": "Einheiten/bogenschuetze_schlag6.png",
+    "figur": "bogenschuetze_schlag",
+    "zielbreite": 304
+   },
+   {
+    "name": "bogenschuetze_schlag7",
+    "seed": 1,
+    "ziel": "Einheiten/bogenschuetze_schlag7.png",
+    "figur": "bogenschuetze_schlag",
+    "zielbreite": 304
+   },
+   {
+    "name": "bogenschuetze_schlag8",
+    "seed": 1,
+    "ziel": "Einheiten/bogenschuetze_schlag8.png",
+    "figur": "bogenschuetze_schlag",
+    "zielbreite": 304
    }
   ]
  },
